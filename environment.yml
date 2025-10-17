@@ -1,0 +1,25 @@
+name: kriss_sync
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  # Conda에서 설치 가능한 기본 패키지
+  - python=3.11
+  - pip
+  - bzip2
+  - libffi
+  - libzlib
+  - openssl
+  - sqlite
+  - tk
+  - xz
+  - zlib
+  - zstd
+  - ca-certificates
+  - tzdata
+
+  # pip로만 설치 가능한 패키지들
+  - pip:
+      - pyqt6==6.9.0
+      - pyads==3.5.0
