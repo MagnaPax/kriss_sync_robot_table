@@ -5,8 +5,8 @@ UI 모듈 초기화
 - MainWindow, 위젯, 패널, 다이얼로그를 포함
 - 작성자: 한천희
 - 버전: 0.1.0 (2025.10.17, 초기 설정)
-- 참고: UI 구현 후 주요 클래스 임포트 추가 예정
 """
 
-# 아직 UI 구현 전이므로 임포트 없음
-__all__ = []
+from .main_window import MainWindow
+
+__all__ = ['MainWindow']
