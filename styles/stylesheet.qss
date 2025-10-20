@@ -1,0 +1,29 @@
+/* styles/stylesheet.qss: 상태바 및 기타 UI 스타일 정의 */
+
+/* 연결 끊김 상태 */
+QLabel#status_label[status="disconnected"] { 
+    background-color: #DC3545;
+    color: white; 
+    padding: 5px;
+    border-radius: 3px;
+    font-weight: bold; 
+}
+
+/* 연결 중 상태 */
+QLabel#status_label[status="connecting"] { 
+    background-color: #FFC107; 
+    color: black; 
+    padding: 5px;
+    border-radius: 3px;
+    font-weight: bold; 
+} 
+
+/* 연결됨 상태 */
+QLabel#status_label[status="connected"] { 
+    background-color: #28A745; 
+    color: white; 
+    padding: 5px;
+    border-radius: 3px;
+    font-weight: bold; 
+}
+

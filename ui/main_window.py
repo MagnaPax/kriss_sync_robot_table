@@ -10,6 +10,7 @@ MainWindow 클래스
 from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QLabel, QStatusBar, QMenuBar, QMenu
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
+from pathlib import Path
 
 class MainWindow(QMainWindow):
     
@@ -23,5 +24,26 @@ class MainWindow(QMainWindow):
         self.statusBar = QStatusBar()
         self.setStatusBar(self.statusBar)
         self.status_label = QLabel("Disconnected")  # 초기 상태
+        self.status_label.setObjectName("status_label")  # CSS Selector 용
+        self.status_label.setProperty("status", "disconnected")  # 상태 속성 설정
         self.statusBar.addWidget(self.status_label)
 
+        # 상태바 스타일 적용
+        self.apply_style()
+
+
+    # 스타일시트 읽기 및 적용
+    def apply_style(self):
+        """QSS 파일 읽기 및 적용"""
+        qss_path = Path("styles/stylesheet.qss")
+        
+        if qss_path.exists():
+            try:
+                with open(qss_path, "r", encoding='UTF-8') as file:
+                    stylesheet = file.read()
+                    self.setStyleSheet(stylesheet)  # MainWindow에 적용
+                    print("✅ 스타일시트 로드 성공")
+            except Exception as e:
+                print(f"❌ 스타일시트 로드 실패: {e}")
+        else:
+            print(f"⚠️ 스타일시트 파일 없음: {qss_path}")            
