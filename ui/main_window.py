@@ -18,3 +18,10 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("KRISS Robot Polishing Machine")
         self.setWindowIcon(QIcon("resources/icons/kriss.gif"))
         self.setGeometry(100, 100, 1200, 800)  # 초기 창 크기
+
+        # 상태바 설정
+        self.statusBar = QStatusBar()
+        self.setStatusBar(self.statusBar)
+        self.status_label = QLabel("Disconnected")  # 초기 상태
+        self.statusBar.addWidget(self.status_label)
+
