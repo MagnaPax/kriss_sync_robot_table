@@ -9,11 +9,12 @@ MainWindow 클래스
 
 from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QLabel, QStatusBar, QMenuBar, QMenu
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIcon
 
 class MainWindow(QMainWindow):
-
+    
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("KRISS Robot Control GUI")
+        self.setWindowTitle("KRISS Robot Polishing Machine")
+        self.setWindowIcon(QIcon("resources/icons/kriss.gif"))
         self.setGeometry(100, 100, 1200, 800)  # 초기 창 크기
-
