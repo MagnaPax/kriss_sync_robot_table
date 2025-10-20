@@ -1,0 +1,67 @@
+/* styles/stylesheet.qss: 상태바 및 기타 UI 스타일 정의 */
+
+/* 연결 끊김 상태 */
+QLabel#status_label[status="disconnected"] { 
+    background-color: #DC3545;
+    color: white; 
+    padding: 5px;
+    border-radius: 3px;
+    font-weight: bold; 
+}
+
+/* 연결 중 상태 */
+QLabel#status_label[status="connecting"] { 
+    background-color: #FFC107; 
+    color: black; 
+    padding: 5px;
+    border-radius: 3px;
+    font-weight: bold; 
+} 
+
+/* 연결됨 상태 */
+QLabel#status_label[status="connected"] { 
+    background-color: #28A745; 
+    color: white; 
+    padding: 5px;
+    border-radius: 3px;
+    font-weight: bold; 
+}
+
+
+
+
+/* 
+   ----------------------------------------
+   패널 스타일
+   ---------------------------------------- 
+*/
+
+/* 왼쪽 패널 (left_panel) */
+QWidget#left_panel {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                stop:0 #ffffff, stop:1 #f8f9fa);
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    padding: 8px;
+    margin: 4px;
+}
+
+/* 중앙 패널 (center_panel) */
+QWidget#center_panel {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                stop:0 #ffffff, stop:1 #f8f9fa);
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    padding: 8px;
+    margin: 4px;
+}
+
+/* 오른쪽 패널 (right_panel) */
+QWidget#right_panel {
+    background: qlineargradient(x1:1, y1:0, x2:0, y2:1,
+                                stop:0 #e2e8f0, stop:1 #cbd5e1);
+    border: 1px solid #94a3b8;
+    border-radius: 4px;
+    padding: 8px;
+    margin: 4px;
+}
