@@ -28,8 +28,42 @@ class MainWindow(QMainWindow):
         self.status_label.setProperty("status", "disconnected")  # 상태 속성 설정
         self.statusBar.addWidget(self.status_label)
 
-        # 상태바 스타일 적용
+        # 중심 위젯과 레이아웃
+        self.centralWidget = QWidget()
+        self.setCentralWidget(self.centralWidget)
+        self.mainLayout = QHBoxLayout(self.centralWidget)
+
+
+        # 레이아웃 위한 더미 패널 적용 (Phase 1: 실제 패널 미구현)
+        self._setup_dummy_panels()
+
+        # 메인 윈도우에 스타일 적용
         self.apply_style()
+
+
+
+    """더미 패널로 레이아웃 구성 (Phase 1: 정적 UI)"""
+    def _setup_dummy_panels(self):
+        # 왼쪽 패널 (예: TurnTable, States)
+        left_panel = QWidget()
+        left_panel.setObjectName("left_panel")  # CSS Selector 용
+        self.mainLayout.addWidget(left_panel)
+
+        # 중앙 패널 (예: Robot, Control)
+        center_panel = QWidget()
+        center_panel.setObjectName("center_panel")  # CSS Selector 용
+        self.mainLayout.addWidget(center_panel)
+
+        # 오른쪽 패널 (예: Batch, Task)
+        right_panel = QWidget()
+        right_panel.setObjectName("right_panel")  # CSS Selector 용
+        self.mainLayout.addWidget(right_panel)
+
+        # 레이아웃 비율 설정
+        self.mainLayout.setStretch(0, 1)  # Left    첫째가 남는 공간 중 1만큼
+        self.mainLayout.setStretch(1, 1)  # Center  둘째가 남는 공간 중 1만큼
+        self.mainLayout.setStretch(2, 2)  # Right   셋째가 남는 공간 중 2만큼
+
 
 
     # 스타일시트 읽기 및 적용
@@ -46,4 +80,5 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 print(f"❌ 스타일시트 로드 실패: {e}")
         else:
-            print(f"⚠️ 스타일시트 파일 없음: {qss_path}")            
+            print(f"⚠️ 스타일시트 파일 없음: {qss_path}")
+
