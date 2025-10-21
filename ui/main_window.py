@@ -36,9 +36,10 @@ class MainWindow(QMainWindow):
 
 
         # 패널
-        self.mainLayout.addWidget(left_panel.LeftPanel())
-        self.mainLayout.addWidget(center_panel.CenterPanel())
-        self.mainLayout.addWidget(right_panel.RightPanel())
+        # 부모를 centralWidget로 명시
+        self.mainLayout.addWidget(left_panel.LeftPanel(self.centralWidget))
+        self.mainLayout.addWidget(center_panel.CenterPanel(self.centralWidget))
+        self.mainLayout.addWidget(right_panel.RightPanel(self.centralWidget))
 
         # 패널 레이아웃 비율 설정
         self.mainLayout.setStretch(0, 1)  # Left    첫째가 남는 공간 중 1만큼
