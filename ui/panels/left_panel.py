@@ -10,14 +10,16 @@ class LeftPanel(QFrame):
 
         layout = QVBoxLayout(self)
 
+        ci_panel = QFrame()
         turntable_group = QGroupBox("Turntable")
         currnet_state = QGroupBox("Current State")
         world_position = QGroupBox("World Position")
-        
+
         turntable_group.setStyleSheet("color: black; border: 1px solid red;")
         currnet_state.setStyleSheet("color: black; border: 1px solid black;")
         world_position.setStyleSheet("color: black; border: 1px solid green;")
 
-        layout.addWidget(turntable_group,    stretch=3)  # 3/5 -> 60%
-        layout.addWidget(currnet_state,      stretch=1)  # 1/5 -> 20%
-        layout.addWidget(world_position,     stretch=1)  # 1/5 -> 20%
+        layout.addWidget(ci_panel,          stretch=1)  # 1/5 -> 20%
+        layout.addWidget(turntable_group,   stretch=2)  # 2/5 -> 40%
+        layout.addWidget(currnet_state,     stretch=1)  # 1/5 -> 20%
+        layout.addWidget(world_position,    stretch=1)  # 1/5 -> 20%
