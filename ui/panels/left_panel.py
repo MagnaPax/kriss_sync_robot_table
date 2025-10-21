@@ -8,8 +8,10 @@ class LeftPanel(QFrame):
         self.setFrameShape(QFrame.Shape.StyledPanel)    # 프레임의 기본 형태 설정
         self.setFrameShadow(QFrame.Shadow.Sunken)       # 프레임의 입체감(빛, 음영) 설정
 
+        # 수직 레이아웃
         layout = QVBoxLayout(self)
 
+        # 위젯들
         ci_panel = QFrame()
         turntable_group = QGroupBox("Turntable")
         currnet_state = QGroupBox("Current State")
@@ -19,6 +21,7 @@ class LeftPanel(QFrame):
         currnet_state.setStyleSheet("color: black; border: 1px solid black;")
         world_position.setStyleSheet("color: black; border: 1px solid green;")
 
+        # 위젯 추가(레이아웃에 맞춰져 추가됨)
         layout.addWidget(ci_panel,          stretch=1)  # 1/5 -> 20%
         layout.addWidget(turntable_group,   stretch=2)  # 2/5 -> 40%
         layout.addWidget(currnet_state,     stretch=1)  # 1/5 -> 20%
