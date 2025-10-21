@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QLabel, QStatusBa
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 from pathlib import Path
+from .panels import left_panel, center_panel, right_panel
 
 class MainWindow(QMainWindow):
     
@@ -34,36 +35,20 @@ class MainWindow(QMainWindow):
         self.mainLayout = QHBoxLayout(self.centralWidget)
 
 
-        # 레이아웃 위한 더미 패널 적용 (Phase 1: 실제 패널 미구현)
-        self._setup_dummy_panels()
+        # 패널
+        # 부모를 centralWidget로 명시
+        self.mainLayout.addWidget(left_panel.LeftPanel(self.centralWidget))
+        self.mainLayout.addWidget(center_panel.CenterPanel(self.centralWidget))
+        self.mainLayout.addWidget(right_panel.RightPanel(self.centralWidget))
 
-        # 메인 윈도우에 스타일 적용
-        self.apply_style()
-
-
-
-    """더미 패널로 레이아웃 구성 (Phase 1: 정적 UI)"""
-    def _setup_dummy_panels(self):
-        # 왼쪽 패널 (예: TurnTable, States)
-        left_panel = QWidget()
-        left_panel.setObjectName("left_panel")  # CSS Selector 용
-        self.mainLayout.addWidget(left_panel)
-
-        # 중앙 패널 (예: Robot, Control)
-        center_panel = QWidget()
-        center_panel.setObjectName("center_panel")  # CSS Selector 용
-        self.mainLayout.addWidget(center_panel)
-
-        # 오른쪽 패널 (예: Batch, Task)
-        right_panel = QWidget()
-        right_panel.setObjectName("right_panel")  # CSS Selector 용
-        self.mainLayout.addWidget(right_panel)
-
-        # 레이아웃 비율 설정
+        # 패널 레이아웃 비율 설정
         self.mainLayout.setStretch(0, 1)  # Left    첫째가 남는 공간 중 1만큼
         self.mainLayout.setStretch(1, 1)  # Center  둘째가 남는 공간 중 1만큼
         self.mainLayout.setStretch(2, 2)  # Right   셋째가 남는 공간 중 2만큼
 
+
+        # 메인 윈도우에 스타일 적용
+        self.apply_style()
 
 
     # 스타일시트 읽기 및 적용
