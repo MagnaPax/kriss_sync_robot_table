@@ -5,7 +5,7 @@ from PyQt6.QtCore import Qt, QSize, QTimer
 
 # 이 파일의 두 단계 위(=PROJECT_ROOT)를 PYTHONPATH에 추가
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-from ui.widgets.base_widget import BaseWidget
+from ui.wigets.base_widget import BaseWidget
 
 # ==========================================================
 # 1. Status Indicator Widget
