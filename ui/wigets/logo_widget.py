@@ -15,20 +15,25 @@ class LogoWidget(QWidget):
         logo_pixmap = QPixmap(str(logo_path.resolve()))     # Path객체 대신 문자열 경로
 
 
-        # --- 레이아웃 ---
-        scaled_pixmap = logo_pixmap.scaledToWidth(161, Qt.TransformationMode.SmoothTransformation)
-        lbl_img = QLabel()              # 레이블 생성
-        # lbl_img.setPixmap(logo_pixmap)  # logo_pixmap를 레이블에 표시될 이미지로 설정
-        lbl_img.setPixmap(scaled_pixmap)  # logo_pixmap를 레이블에 표시될 이미지로 설정
+        # --- 이미지 ---
+        # QPixmap 는 위젯이 아니다
+        # QPixmap 는 이미지 데이터를 담는 그래픽 리소스 객체
+        # QLabel '위젯'에 담아서 표시 ➡️ QPixmap: 그림, QLabel: 캔버스
+        scaled_pixmap = logo_pixmap.scaledToWidth(161, Qt.TransformationMode.SmoothTransformation)  # 이미지 크기 바꿈
+        lbl_img = QLabel()                                  # 레이블 생성
+        lbl_img.setPixmap(scaled_pixmap)                    # 레이블에 표시될 이미지로 scaled_pixmap 설정
+        lbl_img.setAlignment(Qt.AlignmentFlag.AlignCenter)  # 가운데 정렬
 
-        lbl_size = QLabel(f'Width: {logo_pixmap.width()}, Height: {logo_pixmap.height()}')  # 이미지 크기 그대로
-        lbl_size.setAlignment(Qt.AlignmentFlag.AlignCenter) # 가운데 정렬
+
+        # --- 이미지 크기 표시 레이블 ---
+        lbl_size_img = QLabel(f'Width: {scaled_pixmap.width()}, Height: {scaled_pixmap.height()}')  # 이미지 크기 표시 레이블
+        lbl_size_img.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
 
         # --- 위젯에 레이아웃 적용 ---
         layout = QVBoxLayout(self)  # 수직 레이아웃 생성
         layout.addWidget(lbl_img)   # 레이아웃에 이미지 레이블 추가
-        layout.addWidget(lbl_size)  # 레이아웃에 사이즈 레이블 추가
+        layout.addWidget(lbl_size_img)  # 레이아웃에 크기 레이블 추가
 
 
 
