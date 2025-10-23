@@ -30,10 +30,14 @@ class LogoWidget(QWidget):
         lbl_size_img.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
 
-        # --- 위젯에 레이아웃 적용 ---
+        # --- 레이아웃 ---
         layout = QVBoxLayout(self)  # 수직 레이아웃 생성
-        layout.addWidget(lbl_img)   # 레이아웃에 이미지 레이블 추가
-        layout.addWidget(lbl_size_img)  # 레이아웃에 크기 레이블 추가
+
+        layout.addStretch(1)        # 위젯 위쪽에 빈 공간 추가
+        layout.addWidget(lbl_img)   # 이미지 레이블 추가
+        layout.addStretch(1)        # 위젯 아래에 빈 공간 추가
+
+        layout.addWidget(lbl_size_img)  # 이미지 크기 레이블 추가
 
 
 
@@ -47,6 +51,7 @@ if __name__ == '__main__':
     
     window = LogoWidget()
     window.setWindowTitle("테스트")
+    window.setStyleSheet("background-color: grey;")  # 레이아웃 확인을 위한 배경색
     window.show()
     
     sys.exit(app.exec())
