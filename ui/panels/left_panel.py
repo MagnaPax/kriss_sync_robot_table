@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QFrame, QVBoxLayout, QGroupBox
-from ..wigets import LogoWidget
+from ..widgets import LogoWidget
 
 
 class LeftPanel(QFrame):
