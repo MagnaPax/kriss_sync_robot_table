@@ -25,20 +25,12 @@ class LogoWidget(QWidget):
         lbl_img.setAlignment(Qt.AlignmentFlag.AlignCenter)  # 가운데 정렬
 
 
-        # --- 이미지 크기 표시 레이블 ---
-        lbl_size_img = QLabel(f'Width: {scaled_pixmap.width()}, Height: {scaled_pixmap.height()}')  # 이미지 크기 표시 레이블
-        lbl_size_img.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-
         # --- 레이아웃 ---
         layout = QVBoxLayout(self)  # 수직 레이아웃 생성
 
         layout.addStretch(1)        # 위젯 위쪽에 빈 공간 추가
         layout.addWidget(lbl_img)   # 이미지 레이블 추가
         layout.addStretch(1)        # 위젯 아래에 빈 공간 추가
-
-        layout.addWidget(lbl_size_img)  # 이미지 크기 레이블 추가
-
 
 
 
