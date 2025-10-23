@@ -16,8 +16,10 @@ class LogoWidget(QWidget):
 
 
         # --- 레이아웃 ---
+        scaled_pixmap = logo_pixmap.scaledToWidth(161, Qt.TransformationMode.SmoothTransformation)
         lbl_img = QLabel()              # 레이블 생성
-        lbl_img.setPixmap(logo_pixmap)  # logo_pixmap를 레이블에 표시될 이미지로 설정
+        # lbl_img.setPixmap(logo_pixmap)  # logo_pixmap를 레이블에 표시될 이미지로 설정
+        lbl_img.setPixmap(scaled_pixmap)  # logo_pixmap를 레이블에 표시될 이미지로 설정
 
         lbl_size = QLabel(f'Width: {logo_pixmap.width()}, Height: {logo_pixmap.height()}')  # 이미지 크기 그대로
         lbl_size.setAlignment(Qt.AlignmentFlag.AlignCenter) # 가운데 정렬
