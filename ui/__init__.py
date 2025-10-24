@@ -1,3 +1,4 @@
+# ui/__init__.py
 """
 UI 모듈 초기화
 - KRISS의 "다축 제어기 H/W Upgrade 및 EtherCAT을 이용한 동기화 시스템 개발" 프로젝트
