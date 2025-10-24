@@ -1,16 +1,13 @@
 # ui/widgets/led_indicator.py
-import sys, os
+import sys
 from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton
 from PyQt6.QtGui import QPainter, QColor
-from PyQt6.QtCore import Qt, QSize, QTimer
+from PyQt6.QtCore import Qt, QSize
 
-# 이 파일의 두 단계 위(=PROJECT_ROOT)를 PYTHONPATH에 추가
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-from ui.widgets.base_widget import BaseWidget
+from .base_widget import BaseWidget
 
-# ==========================================================
-# 1. Status Indicator Widget
-# ==========================================================
+
+
 class LEDIndicator(BaseWidget):
     """
     상태를 표시하는 원형 LED 램프 위젯
@@ -71,7 +68,7 @@ class LEDIndicator(BaseWidget):
         self.update()  # paintEvent() 호출을 요청
 
     def paintEvent(self, a0):
-        """QPainter를 사용하여 원을 그립니다."""
+        """QPainter를 사용하여 원을 그린다"""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing) # 원을 부드럽게
         
@@ -94,11 +91,18 @@ class LEDIndicator(BaseWidget):
         # super().clear_widget()
 
 
+
+
+
 # ==========================================================
-# 2. 단독 실행 (테스트용)
+# 단독 실행 (테스트용)
+"""
+실행 명령어
+python -m ui.widgets.led_indicator
+"""
 # ==========================================================
 if __name__ == '__main__':
-    
+
     app = QApplication(sys.argv)
     
     # 1. 메인 위젯 생성

@@ -5,10 +5,8 @@ from PyQt6.QtWidgets import QHBoxLayout, QLabel
 from PyQt6.QtGui import QPainter, QPen
 from PyQt6.QtCore import Qt, QRectF
 
-# 이 파일의 두 단계 위(=PROJECT_ROOT)를 PYTHONPATH에 추가
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-from ui.widgets.base_widget import BaseWidget
-from ui.widgets.led_indicator import LEDIndicator
+from .base_widget import BaseWidget
+from .led_indicator import LEDIndicator
 
 
 
@@ -76,8 +74,8 @@ class StatusIndicatorBox(BaseWidget):
         """
         super().paintEvent(event)
 
-        # LED 내부에 private 속성으로 색이 저장되어 있으므로 직접 꺼내오거나,
-        # LEDIndicator 에 get_color() 메서드를 하나 만들어 두셔도 됩니다.
+        # LED 내부에 private 속성으로 색이 저장되어 있기 때문에 직접 꺼내오거나,
+        # LEDIndicator 에 get_color() 메서드를 하나 만들어도 된다.
         color = getattr(self._led, '_color', None)
         if color is None:
             return
@@ -99,15 +97,19 @@ class StatusIndicatorBox(BaseWidget):
 
 
 
-
-
-
-
+# ==========================================================
+# 단독 실행 (테스트용)
+"""
+실행 명령어
+python -m ui.widgets.status_indicator_box
+"""
+# ==========================================================
 if __name__ == '__main__':
     import sys
     import itertools
     from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout
     from PyQt6.QtCore import QTimer
+
 
     # (1) QApplication 생성
     app = QApplication(sys.argv)
