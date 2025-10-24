@@ -92,6 +92,9 @@ class BaseWidget(QWidget):
     def safe_update_data(self, data: Any) -> bool:
         """
         안전한 데이터 업데이트 (에러 처리 포함)
+
+        완성된 코드. 호출해서 사용하기만 하면 됨.
+        Controller 혹은 ViewModel 에서 호출
         
         MainViewModel에서 이 메서드를 호출하여
         모든 위젯에 안전하게 데이터를 전달합니다.
