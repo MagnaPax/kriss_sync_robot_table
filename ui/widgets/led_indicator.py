@@ -10,7 +10,7 @@ from ui.widgets.base_widget import BaseWidget
 # ==========================================================
 # 1. Status Indicator Widget
 # ==========================================================
-class LampIndicator(BaseWidget):
+class LEDIndicator(BaseWidget):
     """
     상태를 표시하는 원형 LED 램프 위젯
     - BaseWidget을 상속받아 update_data 인터페이스 구현
@@ -19,7 +19,7 @@ class LampIndicator(BaseWidget):
 
     def __init__(self, parent=None, default_color='gray', size=12):
         """
-        LampIndicator 초기화
+        LEDIndicator 초기화
         
         Args:
             parent (QWidget, optional): 부모 위젯.
@@ -103,10 +103,10 @@ if __name__ == '__main__':
     # 1. 메인 위젯 생성
     main_window = QWidget()
     main_layout = QVBoxLayout(main_window)
-    main_window.setWindowTitle("LampIndicator 단독 테스트")
+    main_window.setWindowTitle("LEDIndicator 단독 테스트")
 
     # 2. 인디케이터 생성 (테스트를 위해 20px로 크게 만듦)
-    indicator = LampIndicator(size=20) 
+    indicator = LEDIndicator(size=20) 
     main_layout.addWidget(indicator, alignment=Qt.AlignmentFlag.AlignCenter)
 
     # 3. 테스트용 버튼 생성 함수
