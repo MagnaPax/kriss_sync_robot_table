@@ -1,3 +1,4 @@
+# ui/widgets/led_indicator.py
 import sys, os
 from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton
 from PyQt6.QtGui import QPainter, QColor
