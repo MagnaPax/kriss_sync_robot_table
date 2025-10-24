@@ -5,76 +5,62 @@ from PyQt6.QtWidgets import QHBoxLayout, QLabel
 from PyQt6.QtGui import QPainter, QPen
 from PyQt6.QtCore import Qt, QRectF
 
-
 # 이 파일의 두 단계 위(=PROJECT_ROOT)를 PYTHONPATH에 추가
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 from ui.widgets.base_widget import BaseWidget
-from ui.widgets.lamp_indicator import LampIndicator
+from ui.widgets.led_indicator import LEDIndicator
 
-# from .base_widget import BaseWidget
-# from .lamp_indicator import LampIndicator
+
 
 class StatusIndicatorBox(BaseWidget):
     """
     [제목]  ●  상태 텍스트 
-    외곽 테두리 색상은 내부 LED(LampIndicator) 색과 동일.
+    외곽 테두리 색상은 내부 LED(LEDIndicator) 색과 동일.
     """
 
-    def __init__(self,
-                 title: str,
-                 parent=None,
-                 led_size: int = 12):
-        self._title_text = title
-        self._led_size = led_size
-        super().__init__(parent)
+    def __init__(self, title: str, parent=None, led_size: int = 12):
+        self._title_text = title        # StatusIndicatorBox 인스턴스에 값 할당
+        self._led_size = led_size       # StatusIndicatorBox 인스턴스에 값 할당
+        super().__init__(parent)        # BaseWidget의 생성자 호출
 
     def _init_ui(self):
-        # 1) 서브 위젯 생성
+        # --- 위젯 생성 ---
         self._lbl_title = QLabel(self._title_text)
+        self._led = LEDIndicator(size=self._led_size)
         self._lbl_state = QLabel("")  # update_data()에서 채워짐
-        self._led = LampIndicator(size=self._led_size)
 
-        # 2) 레이아웃 배치
+        # --- 레이아웃 ---
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(8, 4, 8, 4)  # border와 간격
-        layout.setSpacing(6)
-        layout.addWidget(self._lbl_title)
+        layout.setContentsMargins(8, 4, 8, 4)   # 위젯과 border 의 간격
+        layout.setSpacing(6)                    # 위젯 사이의 간격
+
+        layout.addWidget(self._lbl_title)       # 위젯 추가
         layout.addWidget(self._led)
         layout.addWidget(self._lbl_state)
-        layout.addStretch(1)
 
-        # Optionally 스타일 조정
-        # self._lbl_title.setStyleSheet("font-weight:bold;")
-        # self._lbl_state .setStyleSheet("font-size:12px;")
+        layout.addStretch(1)    # (오른쪽에 스트레치 채워넣음으로써) 위젯들 왼쪽에 몰아넣기
 
-    def set_title(self, title: str):
-        """제목만 별도로 변경"""
-        self._title_text = title
-        self._lbl_title.setText(title)
-        self.update()        
-
-    # def update_data(self, state: str, title: str | None = None):
     def update_data(self, data: dict):
         """
-        data: {'state': 'running', 'title': '새 제목'} 형태의 딕셔너리
+        data: { 'state': 'running', 'title': '새 제목'} 형태의 딕셔너리.
+                'state'와 'title' 키가 반드시 포함되어야 합니다.
         """
+        # 1. 데이터 추출 (키가 없으면 BaseWidget의 safe_update_data에서 처리됨)
+        state = data['state']
+        title = data['title']
+        
+        # 2. 제목 업데이트
+        self._title_text = title
+        self._lbl_title.setText(title)
 
-        state = data.get('state')
-        if state is None:
-            state = "off"
-        
-        title = data.get('title')
-        if title :
-            self.set_title(title)
-        
-        # 1) LED 색 업데이트 (internal safe_update_data 쓰지 않고 내부 호출)
+        # 3. LED 색 업데이트
         self._led.update_data(state)
 
-        # 2) 텍스트는 대문자 첫글자 등 원하는 형식으로
+        # 4. 상태 텍스트 업데이트
         txt = str(state).capitalize()
         self._lbl_state.setText(txt)
 
-        # 3) 텍스트가 바뀌었으니 위젯 갱신
+        # 5. 위젯 갱신 (테두리 색상 및 텍스트 변경사항 반영)
         self.update()
 
     def clear_widget(self):
@@ -91,7 +77,7 @@ class StatusIndicatorBox(BaseWidget):
         super().paintEvent(event)
 
         # LED 내부에 private 속성으로 색이 저장되어 있으므로 직접 꺼내오거나,
-        # LampIndicator 에 get_color() 메서드를 하나 만들어 두셔도 됩니다.
+        # LEDIndicator 에 get_color() 메서드를 하나 만들어 두셔도 됩니다.
         color = getattr(self._led, '_color', None)
         if color is None:
             return
@@ -151,7 +137,10 @@ if __name__ == '__main__':
     # (5) 1초마다 다음 상태로 업데이트
     def tick():
         data_dict = next(cycle_data)
-        indicator.update_data(data_dict)
+        # 'title' 키가 없는 경우, 현재 위젯의 제목을 가져와서 채워줌
+        if 'title' not in data_dict:
+            data_dict['title'] = indicator._title_text
+        indicator.safe_update_data(data_dict)
 
     timer = QTimer()
     timer.timeout.connect(tick)
