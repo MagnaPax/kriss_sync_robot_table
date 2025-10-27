@@ -65,3 +65,21 @@ QWidget#right_panel {
     padding: 8px;
     margin: 4px;
 }
+
+
+
+
+/* 
+   ----------------------------------------
+   위젯 스타일
+   ---------------------------------------- 
+*/
+
+/* CurrentStateWidget 스타일 */
+QWidget#current_state_widget QLabel {
+    color: #808080; /* 회색 텍스트 */
+    font-size: 14px;
+    /* 다른 스타일 상속 방지 (선택 사항) */
+    border: none; 
+    background-color: transparent; 
+}
