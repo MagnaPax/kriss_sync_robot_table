@@ -46,13 +46,13 @@ class LEDIndicator(BaseWidget):
         # 상태 문자열을 표준 색상으로 매핑
         color_map = {
             # 턴테이블/로봇 상태
-            "running": "green",
-            "waiting": "yellow",
+            "running": "#33FF33",
+            "waiting": "#CCFF33",
             
             # 연결 상태
-            "connected": "green",
-            "connecting": "yellow",
-            "disconnected": "red",
+            "connected": "#33FF33",
+            "connecting": "#CCFF33",
+            "disconnected": "#FF33CC",
             "error": "red",
             
             # 기본 상태
