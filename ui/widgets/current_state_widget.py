@@ -22,6 +22,9 @@ class CurrentStateWidget(BaseWidget):
 
     def _init_ui(self):
         """BaseWidget의 _init_ui를 재정의하여 UI를 구성"""
+
+        # 위젯 이름
+        self.setObjectName("current_state_widget")
         
         # 메인 수직 레이아웃
         main_layout = QVBoxLayout(self)
@@ -41,12 +44,11 @@ class CurrentStateWidget(BaseWidget):
         self.m2_rpm_label = QLabel("M2 RPM 00")
         self.robot_speed_label = QLabel("ROBOT Speed 00")
 
-        # 1-3. 라벨 스타일 설정
-        label_style = "color: #808080; font-size: 14px;"
-        self.m1_rpm_label.setStyleSheet(label_style)
-        self.m2_rpm_label.setStyleSheet(label_style)
-        self.robot_speed_label.setStyleSheet(label_style)
-        
+        # 1-3. 라벨 이름 설정
+        self.m1_rpm_label.setObjectName("rpm_speed_label")
+        self.m2_rpm_label.setObjectName("rpm_speed_label")
+        self.robot_speed_label.setObjectName("rpm_speed_label")
+
         # 1-4. 그리드 레이아웃에 라벨 배치
         rpm_speed_layout.addWidget(self.m1_rpm_label, 0, 0) # 0행 0열 - M1 RPM
         rpm_speed_layout.addWidget(self.m2_rpm_label, 0, 1) # 0행 1열 - M2 RPM
@@ -124,6 +126,9 @@ class CurrentStateWidget(BaseWidget):
         super().clear_widget()
 
 
+
+
+
 # ==========================================================
 # 2. 단독 실행 (테스트용)
 """
@@ -131,8 +136,16 @@ python -m ui.widgets.current_state_widget
 """
 # ==========================================================
 if __name__ == '__main__':
+    from styles.theme import load_and_apply_stylesheet
+
+
     app = QApplication(sys.argv)
+
     
+    qss_file = "styles/dark_stylesheet.qss"
+    load_and_apply_stylesheet(app, qss_file)
+
+
     main_window = QWidget()
     main_layout = QVBoxLayout(main_window)
     
