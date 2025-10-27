@@ -12,6 +12,9 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 from pathlib import Path
 from .panels import left_panel, center_panel, right_panel
+from styles.theme import load_and_apply_stylesheet
+
+
 
 class MainWindow(QMainWindow):
     
@@ -54,15 +57,4 @@ class MainWindow(QMainWindow):
     def apply_style(self):
         """QSS 파일 읽기 및 적용"""
         qss_path = Path("styles/stylesheet.qss")
-        
-        if qss_path.exists():
-            try:
-                with open(qss_path, "r", encoding='UTF-8') as file:
-                    stylesheet = file.read()
-                    self.setStyleSheet(stylesheet)  # MainWindow에 적용
-                    print("✅ 스타일시트 로드 성공")
-            except Exception as e:
-                print(f"❌ 스타일시트 로드 실패: {e}")
-        else:
-            print(f"⚠️ 스타일시트 파일 없음: {qss_path}")
-
+        load_and_apply_stylesheet(self, qss_path)
