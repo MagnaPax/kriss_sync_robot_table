@@ -1,5 +1,7 @@
 from PyQt6.QtWidgets import QFrame, QVBoxLayout, QGroupBox
 from ..widgets import LogoWidget
+from ..widgets import TurntableWidget
+
 
 
 class LeftPanel(QFrame):
@@ -14,7 +16,8 @@ class LeftPanel(QFrame):
 
         # 위젯들
         self.logo_widget = LogoWidget()
-        turntable_group = QGroupBox("Turntable")
+        # turntable_group = QGroupBox("Turntable")
+        turntable_group = TurntableWidget()
         currnet_state = QGroupBox("Current State")
         world_position = QGroupBox("World Position")
 
