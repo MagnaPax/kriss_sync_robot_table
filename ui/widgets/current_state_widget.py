@@ -142,7 +142,7 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
 
     
-    qss_file = "styles/dark_stylesheet.qss"
+    qss_file = "styles/stylesheet.qss"
     load_and_apply_stylesheet(app, qss_file)
 
 
