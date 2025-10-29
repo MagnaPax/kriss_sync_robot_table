@@ -76,10 +76,26 @@ QWidget#right_panel {
 */
 
 /* CurrentStateWidget 스타일 */
-QWidget#current_state_widget QLabel {
-    color: #808080; /* 회색 텍스트 */
+/* QWidget#current_state_widget QLabel {
+    color: #808080;
     font-size: 14px;
-    /* 다른 스타일 상속 방지 (선택 사항) */
     border: none; 
     background-color: transparent; 
+} */
+
+
+/* CurrentStateWidget 스타일 */
+#current_state_widget {
+    background-color: #2E2E2E;
+    border-radius: 5px;
+}
+
+/* CurrentStateWidget 내부의 RPM/Speed 라벨 */
+#rpm_speed_label {
+    font-size: 16px;
+    font-weight: bold;
+    color: #E0E0E0;
+    background-color: #3A3A3A;
+    padding: 5px;
+    border-radius: 3px;
 }
