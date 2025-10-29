@@ -1,7 +1,7 @@
 # ui/widgets/current_state_widget.py
 import sys
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QGridLayout
+    QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QGridLayout, QSizePolicy
 )
 from PyQt6.QtCore import Qt, QTimer
 
@@ -35,48 +35,56 @@ class CurrentStateWidget(BaseWidget):
 
         # --- 1. RPM/Speed 섹션 ---
         
-        # 1-1. 그리드 레이아웃 생성 (3열 배치용)
+        # 그리드 레이아웃 생성 (3열 배치용)
         rpm_speed_layout = QGridLayout()
         rpm_speed_layout.setSpacing(15) # 라벨 간 간격
 
-        # 1-2. 라벨 생성 및 변수 저장
+        # 라벨 생성 및 변수 저장
         self.m1_rpm_label = QLabel("M1 RPM 00")
         self.m2_rpm_label = QLabel("M2 RPM 00")
         self.robot_speed_label = QLabel("ROBOT Speed 00")
 
-        # 1-3. 라벨 이름 설정
+        # 라벨 이름 설정
         self.m1_rpm_label.setObjectName("rpm_speed_label")
         self.m2_rpm_label.setObjectName("rpm_speed_label")
         self.robot_speed_label.setObjectName("rpm_speed_label")
 
-        # 1-4. 그리드 레이아웃에 라벨 배치
+        # 그리드 레이아웃에 라벨 배치
         rpm_speed_layout.addWidget(self.m1_rpm_label, 0, 0) # 0행 0열 - M1 RPM
         rpm_speed_layout.addWidget(self.m2_rpm_label, 0, 1) # 0행 1열 - M2 RPM
         rpm_speed_layout.addWidget(self.robot_speed_label, 0, 2) # 0행 2열 - Robot Speed
 
-        # 1-5. 메인 레이아웃에 RPM/Speed 섹션 추가
+        # 메인 레이아웃에 RPM/Speed 섹션 추가
         main_layout.addLayout(rpm_speed_layout)
 
 
         # --- 2. 상태 표시줄 섹션 ---
-        
-        # 2-1. 수평 레이아웃 생성 (2개 배치용)
-        status_layout = QHBoxLayout()
+
+        # 컨테이너 ➡️ 가로 '레이아웃(status_layout)'을 담을 박스
+        self.status_container = QWidget()
+
+        # 수평 레이아웃 생성 (2개 배치용)
+        status_layout = QHBoxLayout(self.status_container)
         status_layout.setSpacing(10) # 상태창 간 간격
 
-        # 2-2. StatusIndicatorBox 생성 및 변수 저장
+        # StatusIndicatorBox 생성 및 변수 저장
         self.turntable_status = StatusIndicatorBox("1. TurnTable", led_size=10)
         self.robot_status = StatusIndicatorBox("2. ROBOT", led_size=10)
-        
-        # 2-3. 수평 레이아웃에 상태창 배치
+
+        # 각 위젯의 크기 정책
+        self.turntable_status.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.robot_status.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+        # 수평 레이아웃에 추가
         status_layout.addWidget(self.turntable_status)
         status_layout.addWidget(self.robot_status)
-        
-        # 2-4. 메인 레이아웃에 상태 표시줄 섹션 추가
-        main_layout.addLayout(status_layout)
-        
-        # 2-5. 초기 상태 설정
+
+        # 메인 레이아웃에 상태 표시줄 섹션 추가
+        main_layout.addWidget(self.status_container)
+
+        # 초기 상태 설정
         self.clear_widget()
+
 
     def update_data(self, data: dict):
         """
@@ -114,6 +122,7 @@ class CurrentStateWidget(BaseWidget):
             'title': self.robot_status._title_text # 기존 제목 유지
         })
 
+
     def clear_widget(self):
         """위젯을 초기 상태(0, off)로 리셋합니다."""
         self.update_data({
@@ -124,6 +133,18 @@ class CurrentStateWidget(BaseWidget):
             'robot_state': 'off'
         })
         super().clear_widget()
+
+
+    # ✅ 창 크기 변경 시 두 상태 위젯의 최대 너비를 50%로 제한
+    def resizeEvent(self, event):   # type: ignore[override]
+        super().resizeEvent(event)
+        parent_width = self.status_container.width()
+        max_width = int(parent_width * 0.5)
+        self.turntable_status.setMaximumWidth(max_width)
+        self.robot_status.setMaximumWidth(max_width)
+
+
+
 
 
 
@@ -152,7 +173,6 @@ if __name__ == '__main__':
     test_widget = CurrentStateWidget()
     main_layout.addWidget(test_widget)
     main_window.setWindowTitle("CurrentStateWidget 단독 테스트")
-    # main_window.resize(400, 150) # 크기는 자동으로 조절될 것임
     main_window.show()
 
     # 테스트용 데이터
@@ -165,8 +185,8 @@ if __name__ == '__main__':
     }
     
     # 상태 순환용 리스트
-    tt_states = ['running', 'waiting', 'off', 'error']
-    robot_states = ['waiting', 'running', 'disconnected', 'connected']
+    tt_states = ['running', 'waiting', 'off', 'error', 'disconnected']
+    robot_states = ['waiting', 'running', 'disconnected', 'connected', 'off']
     tt_idx = 0
     robot_idx = 0
 
