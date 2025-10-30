@@ -1,3 +1,4 @@
+# ui/main_window.py
 """
 MainWindow 클래스
 - kriss_sync_robot_turn_table 프로젝트의 메인 UI 윈도우
