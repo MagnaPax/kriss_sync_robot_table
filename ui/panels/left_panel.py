@@ -1,7 +1,8 @@
-from PyQt6.QtWidgets import QFrame, QVBoxLayout, QGroupBox
+# ui/panels/left_panel.py
+from PyQt6.QtWidgets import QFrame, QVBoxLayout, QGroupBox, QSizePolicy
 from ..widgets import LogoWidget
 from ..widgets import TurntableWidget
-
+from ..widgets import CurrentStateWidget
 
 
 class LeftPanel(QFrame):
@@ -16,9 +17,8 @@ class LeftPanel(QFrame):
 
         # 위젯들
         self.logo_widget = LogoWidget()
-        # turntable_group = QGroupBox("Turntable")
         turntable_group = TurntableWidget()
-        currnet_state = QGroupBox("Current State")
+        currnet_state = CurrentStateWidget()
         world_position = QGroupBox("World Position")
 
         turntable_group.setStyleSheet("color: black; border: 1px solid red;")
