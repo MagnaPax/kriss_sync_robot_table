@@ -38,17 +38,20 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.central_widget)
         self.mainLayout = QHBoxLayout(self.central_widget)
 
-
-        # 패널 (부모를 central_widget 으로 명시)
-        self.mainLayout.addWidget(left_panel.LeftPanel(self.central_widget))
-        self.mainLayout.addWidget(center_panel.CenterPanel(self.central_widget))
-        self.mainLayout.addWidget(right_panel.RightPanel(self.central_widget))
+        # 패널 생성 (부모를 central_widget 으로 명시)
+        self.left_panel = left_panel.LeftPanel(self.central_widget)
+        self.center_panel = center_panel.CenterPanel(self.central_widget)
+        self.right_panel = right_panel.RightPanel(self.central_widget)
+        
+        # 패널 추가
+        self.mainLayout.addWidget(self.left_panel)
+        self.mainLayout.addWidget(self.center_panel)
+        self.mainLayout.addWidget(self.right_panel)
 
         # 패널 레이아웃 비율 설정
         self.mainLayout.setStretch(0, 1)  # Left    첫째가 남는 공간 중 1만큼
         self.mainLayout.setStretch(1, 1)  # Center  둘째가 남는 공간 중 1만큼
         self.mainLayout.setStretch(2, 2)  # Right   셋째가 남는 공간 중 2만큼
-
 
         # 메인 윈도우에 스타일 적용
         self.apply_style()
