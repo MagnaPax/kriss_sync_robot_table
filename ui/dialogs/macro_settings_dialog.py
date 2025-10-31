@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, cast
 
 
 
@@ -24,7 +24,7 @@ class MacroSettingsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        # 각 매크로의 UI 위젯들을 저장할 딕셔너리
+        # 각 매크로의 위젯들을 저장할 딕셔너리
         self.macro_widgets: Dict[str, Dict[str, QWidget]] = {}
 
         self._init_ui()
@@ -64,24 +64,25 @@ class MacroSettingsDialog(QDialog):
         """
         매크로 편집용 QGroupBox 생성
 
-        반환: 완성된 그룹박스 객체, 그룹 박스 안에 들어있는 위젯들을 담은 딕셔너리
+        반환: 만들어진 그룹박스 객체, 그룹 박스 안에 들어있는 위젯을 담은 딕셔너리
         """
         
-        # 1. QGroupBox 생성 (요구사항: "매크로 이름이 QGroupBox로 표시")
+        # QGroupBox 컨테이너 생성
+        # 메인 레이아웃을 담는다
         group_box = QGroupBox(macro_id)
         
-        # 2. GroupBox 내부의 메인 수직 레이아웃
-        # (QFormLayout + Save Button을 수직으로 쌓기 위함)
+        # 메인 레이아웃(세로 정렬)
         group_v_layout = QVBoxLayout(group_box)
 
-        # 3. 좌표 입력을 위한 폼 레이아웃
+        # 좌표 입력을 위한 폼 레이아웃
+        # 라벨-입력 형식의 위젯
         form_layout = QFormLayout()
 
-        # 4. 매크로 이름 입력 (요구사항: "키보드 입력")
+        # 레이블로 사용할 매크로 명칭 입력 - 사용자 키보드 입력
         name_input = QLineEdit()
         form_layout.addRow(QLabel("Name:"), name_input)
 
-        # 5. X, Y, Z, W, P, R 값 입력 (요구사항: "음수 양수 숫자")
+        # 좌표 입력 필드 생성
         coord_inputs: Dict[str, QDoubleSpinBox] = {}
         
         # X, Y, Z (mm)
@@ -102,15 +103,16 @@ class MacroSettingsDialog(QDialog):
             coord_inputs[axis] = spin_box
             form_layout.addRow(QLabel(f"{axis}:"), spin_box)
 
-        # 6. 저장 버튼 (요구사항: "저장 버튼이 있다.")
+        # 저장 버튼
         save_btn = QPushButton("Save")
         
-        # 7. GroupBox 레이아웃에 폼과 버튼 추가
+        # 메인 레이아웃에 폼과 버튼 쌓기
         group_v_layout.addLayout(form_layout)
-        group_v_layout.addStretch(1) # 폼과 버튼 사이 공간
+        group_v_layout.addStretch(1)    # 폼과 버튼 사이 공간
         group_v_layout.addWidget(save_btn, 0, Qt.AlignmentFlag.AlignRight) # 오른쪽 정렬
 
-        # 나중에 접근할 수 있도록 위젯들을 딕셔너리로 묶음
+        # 내부 위젯 딕셔너리 구성
+        # 이 딕셔너리를 통해 코드 외부에서도 쉽게 접근 가능
         widgets = {
             'name_input': name_input,
             'save_btn': save_btn,
@@ -119,6 +121,27 @@ class MacroSettingsDialog(QDialog):
         
         return group_box, widgets
 
+    def _connect_save_signals(self):
+        """
+        모든 매크로 그룹에 있는 Save 버튼의 시그널과 슬롯 연결
+        -> 저장 버튼이 눌리면 어떤 일을 할 지 정의
+        """
+
+        # 매크로 그룹의 위젯들을 저장한 macro_widgets 딕셔너리 사용
+        # 1. 매크로 아이디에 해당하는 위젯 딕셔너리에서 저장 버튼 객체 꺼냄
+        # 2. 버튼이 클릭될 때 실행할 함수 연결
+        #   2-1. clicked: 시그널. QPushButton 객체가 클릭될 때 emit 된다
+        #   2-2. connect: 슬롯 연결 - 시그널이 발생했을 때 실행할 함수(슬롯)
+        for macro_id, widgets in self.macro_widgets.items():
+            save_btn = cast(QPushButton, widgets['save_btn'])
+            # QPushButton 가 상속받은 QAbstractButton 의 시그널 `clicked(bool checked = false)` 처리
+            save_btn.clicked.connect(
+                lambda checked=False: self._on_save(macro_id)
+            )
+
+
+    def _on_save(self, macro_id: str):
+        print(macro_id)
 
 
 
