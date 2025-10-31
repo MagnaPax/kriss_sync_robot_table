@@ -11,8 +11,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QVBoxLayout,
     QGroupBox,
-    QWidget,
-    QFrame
+    QWidget
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
@@ -34,40 +33,31 @@ class MacroSettingsDialog(QDialog):
     def _init_ui(self):
         self.setWindowTitle("Macro Settings")
         self.setWindowIcon(QIcon("resources/icons/kriss.gif"))
-        self.setModal(True)             # Dialog 를 닫을 때까지 부모 윈도우 조작 막는다
+        self.setModal(True)             # Dialog 를 닫을 때까지 부모 윈도우의 조작을 막는다
         self.setMinimumWidth(1200)
 
-        # --- 기본 바탕 가로 레이아웃 --- #
+        # --- 메인 레이아웃(가로 정렬) --- #
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(15, 15, 15, 15)
-        main_layout.setSpacing(10)
+        main_layout.setSpacing(15)
 
-        # 매크로 그룹'들'을 담을 컨테이너
-        macro_groups_container = QFrame()
+        # --- 매크로 그룹 박스 만들기 --- #
+        group_box_macro_1, widget_1 = self._create_macro_groupbox("Macro 1")
+        group_box_macro_2, widget_2 = self._create_macro_groupbox("Macro 2")
+        group_box_macro_3, widget_3 = self._create_macro_groupbox("Macro 3")
+        group_box_macro_4, widget_4 = self._create_macro_groupbox("Macro 4")
 
-        # --- 매크로 그룹의 세로 레이아웃 --- #
-        # 컨테이너 내부의 매크로 그룹
-        macro_groups_layout = QVBoxLayout(macro_groups_container)
-        macro_groups_layout.setContentsMargins(0, 0, 0, 0)
-        macro_groups_layout.setSpacing(10)
+        # --- 메인 레이아웃에 매크로 그룹 박스 추가 --- #
+        main_layout.addWidget(group_box_macro_1)
+        main_layout.addWidget(group_box_macro_2)
+        main_layout.addWidget(group_box_macro_3)
+        main_layout.addWidget(group_box_macro_4)
 
-        # 매크로 그룹박스 생성
-        group_box_macro_1 = self._create_macro_groupbox("Macro 1")
-        group_box_macro_2 = self._create_macro_groupbox("Macro 2")
-        group_box_macro_3 = self._create_macro_groupbox("Macro 3")
-        group_box_macro_4 = self._create_macro_groupbox("Macro 4")
-
-        # 생성된 그룹박스를 레이아웃에 추가
-        macro_groups_layout.addWidget(group_box_macro_1)
-        macro_groups_layout.addWidget(group_box_macro_2)
-        macro_groups_layout.addWidget(group_box_macro_3)
-        macro_groups_layout.addWidget(group_box_macro_4)
-
-        # 반환된 위젯들을 나중에 참조할 수 있도록 self.macro_widgets에 저장
-        self.macro_widgets["Macro_1"] = widgets
-
-        main_layout.addWidget(macro_groups_container)
-
+        # --- 그룹 박스의 내부 위젯들 저장 --- #
+        self.macro_widgets["Macro_1"] = widget_1
+        self.macro_widgets["Macro_2"] = widget_2
+        self.macro_widgets["Macro_3"] = widget_3
+        self.macro_widgets["Macro_4"] = widget_4
 
 
     def _create_macro_groupbox(self, macro_id: str) -> Tuple[QGroupBox, Dict[str, QWidget]]:
