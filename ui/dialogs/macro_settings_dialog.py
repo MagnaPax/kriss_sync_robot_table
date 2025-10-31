@@ -29,6 +29,9 @@ class MacroSettingsDialog(QDialog):
 
         self._init_ui()
 
+        # 사용자 입력이 끝난 뒤(self._init_ui())에 저장 버튼 처리
+        self._connect_save_signals()
+
 
     def _init_ui(self):
         self.setWindowTitle("Macro Settings")
@@ -42,22 +45,22 @@ class MacroSettingsDialog(QDialog):
         main_layout.setSpacing(15)
 
         # --- 매크로 그룹 박스 만들기 --- #
-        group_box_macro_1, widget_1 = self._create_macro_groupbox("Macro 1")
-        group_box_macro_2, widget_2 = self._create_macro_groupbox("Macro 2")
-        group_box_macro_3, widget_3 = self._create_macro_groupbox("Macro 3")
-        group_box_macro_4, widget_4 = self._create_macro_groupbox("Macro 4")
+        group_box_macro_1, macro_widgets_1 = self._create_macro_groupbox("Macro 1")
+        group_box_macro_2, macro_widgets_2 = self._create_macro_groupbox("Macro 2")
+        group_box_macro_3, macro_widgets_3 = self._create_macro_groupbox("Macro 3")
+        group_box_macro_4, macro_widgets_4 = self._create_macro_groupbox("Macro 4")
 
-        # --- 메인 레이아웃에 매크로 그룹 박스 추가 --- #
+        # --- 매크로 그룹 박스를 메인 레이아웃에 추가 --- #
         main_layout.addWidget(group_box_macro_1)
         main_layout.addWidget(group_box_macro_2)
         main_layout.addWidget(group_box_macro_3)
         main_layout.addWidget(group_box_macro_4)
 
-        # --- 그룹 박스의 내부 위젯들 저장 --- #
-        self.macro_widgets["Macro_1"] = widget_1
-        self.macro_widgets["Macro_2"] = widget_2
-        self.macro_widgets["Macro_3"] = widget_3
-        self.macro_widgets["Macro_4"] = widget_4
+        # --- 매크로 그룹 박스 안에 있는 위젯들 저장 --- #
+        self.macro_widgets["Macro_1"] = macro_widgets_1
+        self.macro_widgets["Macro_2"] = macro_widgets_2
+        self.macro_widgets["Macro_3"] = macro_widgets_3
+        self.macro_widgets["Macro_4"] = macro_widgets_4
 
 
     def _create_macro_groupbox(self, macro_id: str) -> Tuple[QGroupBox, Dict[str, QWidget]]:
@@ -121,6 +124,7 @@ class MacroSettingsDialog(QDialog):
         
         return group_box, widgets
 
+
     def _connect_save_signals(self):
         """
         모든 매크로 그룹에 있는 Save 버튼의 시그널과 슬롯 연결
@@ -141,7 +145,40 @@ class MacroSettingsDialog(QDialog):
 
 
     def _on_save(self, macro_id: str):
-        print(macro_id)
+        """
+        특정 매크로 그룹(파라미터 번호)의 저장 버튼이 클릭됐을 때 실행되는 함수
+        """
+
+        # 해당 매크로 그룹 박스 안에 있는 위젯들
+        widgets = self.macro_widgets[macro_id]
+
+        # 이름 추출
+        name = cast(QLineEdit, widgets['name_input']).text().strip()
+
+        # 축 별 값 추출
+        x = cast(QDoubleSpinBox, widgets['X']).value()
+        y = cast(QDoubleSpinBox, widgets['Y']).value()
+        z = cast(QDoubleSpinBox, widgets['Z']).value()
+        w = cast(QDoubleSpinBox, widgets['W']).value()
+        p = cast(QDoubleSpinBox, widgets['P']).value()
+        r = cast(QDoubleSpinBox, widgets['R']).value()
+
+        # 내부 저장을 위해 딕셔너리로 합치기
+        data_macro: dict[str, Any] = {
+            'macro_id': macro_id,
+            'name': name,
+            'x': x, 'y': y, 'z': z,
+            'w': w, 'p': p, 'r': r
+        }
+
+        # -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
+        #
+        #   data_macro 을 파일로 내보내야 됨
+        #
+        # -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
+
+
+        print(f"The data of {macro_id} are saved:\n", data_macro)
 
 
 
