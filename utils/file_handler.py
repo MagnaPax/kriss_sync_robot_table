@@ -1,5 +1,7 @@
 # utils/file_handler.py
 import json, os
+from pathlib import Path
+from typing import Any, Dict, Optional
 
 
 
@@ -9,17 +11,28 @@ def save_json(path: str, data: dict):
         json.dump(data, f, indent=4, ensure_ascii=False)    # 딕셔너리를 json 형식으로 변환
 
 
-def load_json(path: str, default=None):
-    if not os.path.exists(path):
-        return default or {}
+def load_json(file_path: Path) -> Optional[Dict[str, Any]]:
+    """
+    JSON 파일을 읽어 Python 딕셔너리로 반환합니다.
+
+    Args:
+        file_path (Path): 읽어올 JSON 파일의 경로.
+
+    Returns:
+        파일이 존재하고 유효한 경우 딕셔너리를, 그렇지 않은 경우 None을 반환.
+        Optional <- None도 반환될 수 있음을 나타낸다
+    """
+
+    if not os.path.exists(file_path):
+        return None
     
-    # 깨진파일, 포맷 잘못된 json 예외처리
+    # 포맷이 잘못됐거나 못 읽는 파일 예외처리
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             return json.load(f)
-    except json.JSONDecodeError:
-        print(f"[WARN] JSON 파일 손상: {path}, 빈 데이터로 초기화합니다.")
-        return default or {}
+    except (json.JSONDecodeError, IOError) as e:
+        print(f"[WARN] JSON 읽기 실패: {file_path} - {e}")
+        return None
 
 
 
@@ -35,7 +48,8 @@ python -m utils.file_handler
 # ==========================================================
 if __name__ == '__main__':
 
-    from config.paths import CONFIG_MACRO_PATH as path_macro_settings
+    from config.paths import CONFIG_MACRO_PATH as file_path_macro_settings
+
 
     # 샘플 매크로 데이터
     data_macro = {
@@ -51,12 +65,12 @@ if __name__ == '__main__':
         }
     }
 
-    # 저장 테스트
-    print("🔹 매크로 데이터 저장 중...")
-    save_json(path_macro_settings, data_macro)
-    print(f"✅ 저장 완료: {path_macro_settings}")
+    # # 저장 테스트
+    # print("🔹 매크로 데이터 저장 중...")
+    # save_json(file_path_macro_settings, data_macro)
+    # print(f"✅ 저장 완료: {file_path_macro_settings}")
 
     # 불러오기 테스트
     print("\n🔹 저장된 데이터 읽기...")
-    loaded = load_json(path_macro_settings)
+    loaded = load_json(file_path_macro_settings)
     print("✅ 로드된 데이터:", loaded)
