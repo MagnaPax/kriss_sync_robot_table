@@ -5,21 +5,38 @@ from typing import Any, Dict, Optional
 
 
 
-def save_json(path: str, data: dict):
-    os.makedirs(os.path.dirname(path), exist_ok=True)       # 디렉토리가 존재하지 않으면 생성
-    with open(path, "w", encoding="utf-8") as f:            # 쓰기 모드로 파일 열기
-        json.dump(data, f, indent=4, ensure_ascii=False)    # 딕셔너리를 json 형식으로 변환
+def save_json(file_path: Path, data: Dict[str, Any]) -> bool:
+    """
+    Python 딕셔너리를 JSON 파일로 저장
 
+    Args:
+        file_path (Path): 저장할 JSON 파일의 경로
+        data (Dict[str, Any]): 저장할 데이터
+
+    Returns:
+        bool: 저장 성공 여부
+    """
+
+    # 파일에 접근할 수 없는(다른 앱에 의해 열려 있는 등) 문제 발생 시 에러처리
+    try:
+        file_path.parent.mkdir(parents=True, exist_ok=True)     # 디렉토리가 존재하지 않으면 생성
+        with open(file_path, "w", encoding="utf-8") as f:       # 쓰기 모드로 파일 열기
+            json.dump(data, f, indent=4, ensure_ascii=False)    # 딕셔너리를 json 형식으로 변환
+        return True
+    except (IOError) as e:
+        print(f"[WARN] JSON 저장 실패: {file_path} - {e}")
+        return False
+        
 
 def load_json(file_path: Path) -> Optional[Dict[str, Any]]:
     """
-    JSON 파일을 읽어 Python 딕셔너리로 반환합니다.
+    JSON 파일을 읽어 Python 딕셔너리로 반환
 
     Args:
-        file_path (Path): 읽어올 JSON 파일의 경로.
+        file_path (Path): 읽어올 JSON 파일의 경로
 
     Returns:
-        파일이 존재하고 유효한 경우 딕셔너리를, 그렇지 않은 경우 None을 반환.
+        파일이 존재하고 유효한 경우 딕셔너리를, 그렇지 않은 경우 None을 반환
         Optional <- None도 반환될 수 있음을 나타낸다
     """
 
@@ -51,6 +68,7 @@ if __name__ == '__main__':
     from config.paths import CONFIG_MACRO_PATH as file_path_macro_settings
 
 
+
     # 샘플 매크로 데이터
     data_macro = {
         "Macro_1": {
@@ -65,10 +83,10 @@ if __name__ == '__main__':
         }
     }
 
-    # # 저장 테스트
-    # print("🔹 매크로 데이터 저장 중...")
-    # save_json(file_path_macro_settings, data_macro)
-    # print(f"✅ 저장 완료: {file_path_macro_settings}")
+    # 저장 테스트
+    print("🔹 매크로 데이터 저장 중...")
+    save_json(file_path_macro_settings, data_macro)
+    print(f"✅ 저장 완료: {file_path_macro_settings}")
 
     # 불러오기 테스트
     print("\n🔹 저장된 데이터 읽기...")
