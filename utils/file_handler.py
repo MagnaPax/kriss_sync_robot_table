@@ -21,3 +21,42 @@ def load_json(path: str, default=None):
         print(f"[WARN] JSON 파일 손상: {path}, 빈 데이터로 초기화합니다.")
         return default or {}
 
+
+
+
+
+
+# ==========================================================
+# 단독 실행 (테스트용)
+"""
+실행 명령어
+python -m utils.file_handler
+"""
+# ==========================================================
+if __name__ == '__main__':
+
+    from config.paths import CONFIG_MACRO_PATH as path_macro_settings
+
+    # 샘플 매크로 데이터
+    data_macro = {
+        "Macro_1": {
+            "name": "안녕하세요",
+            "x": 1672.173, "y": -868.69, "z": 73.2,
+            "w": 0, "p": 0, "r": 0
+        },
+        "Macro_2": {
+            "name": "Measure",
+            "x": 2154, "y": -321, "z": -50,
+            "w": 0, "p": 0, "r": 0
+        }
+    }
+
+    # 저장 테스트
+    print("🔹 매크로 데이터 저장 중...")
+    save_json(path_macro_settings, data_macro)
+    print(f"✅ 저장 완료: {path_macro_settings}")
+
+    # 불러오기 테스트
+    print("\n🔹 저장된 데이터 읽기...")
+    loaded = load_json(path_macro_settings)
+    print("✅ 로드된 데이터:", loaded)
