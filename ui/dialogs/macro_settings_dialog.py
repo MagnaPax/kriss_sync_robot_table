@@ -205,7 +205,7 @@ class MacroSettingsDialog(QDialog):
         if not result_save:
             raise IOError(f"❌ [{macro_id}] 데이터를 파일에 쓸 수 없습니다. 권한 또는 디스크 공간을 확인하세요.")
 
-
+ 
 
 
 
