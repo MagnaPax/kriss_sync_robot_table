@@ -812,3 +812,6 @@ modules.xml
 
 
 00Testing/
+
+# 설정값 저장 파일 
+config/*.json
