@@ -16,6 +16,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 from typing import Dict, Any, Tuple, cast
+from functools import partial
+
 from config.paths import CONFIG_MACRO_PATH
 from utils.file_handler import save_json
 
@@ -142,10 +144,20 @@ class MacroSettingsDialog(QDialog):
         #   2-2. connect: 슬롯 연결 - 시그널이 발생했을 때 실행할 함수(슬롯)
         for macro_id, widgets in self.macro_widgets.items():
             save_btn = cast(QPushButton, widgets['save_btn'])
-            # QPushButton 가 상속받은 QAbstractButton 의 시그널 `clicked(bool checked = false)` 처리
             save_btn.clicked.connect(
-                lambda checked=False, mid=macro_id: self._on_save(mid)
+                partial(self._on_save, macro_id)
             )
+            """
+            - partial: 기존 함수에 일부 인자값을 넣은 새로운 함수 생성
+            
+            partial(func, /, *args, **keywords)
+
+            func : 원래 호출할 함수
+            *args, **keywords : 미리 채워 넣을 인자들
+            반환값 : 새로운 “부분 적용 함수”
+
+            https://docs.python.org/3/library/functools.html#functools.partial
+            """
 
 
     def _on_save(self, macro_id: str):
