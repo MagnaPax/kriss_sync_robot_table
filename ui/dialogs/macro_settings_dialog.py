@@ -19,7 +19,8 @@ from typing import Dict, Any, Tuple, cast
 from functools import partial
 
 from config.paths import CONFIG_MACRO_PATH
-from utils.file_handler import save_json
+from utils.file_handler import load_json, save_json
+
 
 
 
@@ -145,7 +146,7 @@ class MacroSettingsDialog(QDialog):
         for macro_id, widgets in self.macro_widgets.items():
             save_btn = cast(QPushButton, widgets['save_btn'])
             save_btn.clicked.connect(
-                partial(self._on_save, macro_id)
+                partial(self._on_save_slot, macro_id)
             )
             """
             - partial: 기존 함수에 일부 인자값을 넣은 새로운 함수 생성
@@ -160,7 +161,7 @@ class MacroSettingsDialog(QDialog):
             """
 
 
-    def _on_save(self, macro_id: str):
+    def _on_save_slot(self, macro_id: str):
         """
         특정 매크로 그룹(파라미터 번호)의 저장 버튼이 클릭됐을 때 실행되는 함수
         """
@@ -193,8 +194,19 @@ class MacroSettingsDialog(QDialog):
         print(f"The data of {macro_id} are saved:\n", data_macro)
 
 
+        # --- JSON 파일 저장 로직 수정 ---
+        # 1. 기존 매크로 설정 파일을 전부 읽어옵니다.
+        all_macros_data = load_json(CONFIG_MACRO_PATH)
+        # 파일이 없거나 비어있으면 새로운 딕셔너리를 생성합니다.
+        if all_macros_data is None:
+            all_macros_data = {}
 
+        # 2. 읽어온 전체 데이터에서 현재 macro_id에 해당하는 부분만 업데이트합니다.
+        all_macros_data[macro_id] = data_macro
 
+        # 3. 수정된 전체 데이터를 다시 JSON 파일에 저장합니다.
+        if save_json(CONFIG_MACRO_PATH, all_macros_data):
+            print(f"✅ [{macro_id}] 데이터가 {CONFIG_MACRO_PATH}에 저장되었습니다.")
 
 
 
