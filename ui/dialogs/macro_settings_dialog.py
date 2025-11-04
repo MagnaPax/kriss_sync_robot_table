@@ -42,7 +42,7 @@ class MacroSettingsDialog(QDialog):
     def _init_ui(self):
         self.setWindowTitle("Macro Settings")
         self.setWindowIcon(QIcon("resources/icons/kriss.gif"))
-        self.setModal(True)             # Dialog 를 닫을 때까지 부모 윈도우의 조작을 막는다
+        self.setModal(True)     # 모달로 실행: Dialog 를 닫을 때까지 부모 윈도우의 조작을 막는다
         self.setMinimumWidth(1200)
 
         # --- 메인 레이아웃(가로 정렬) --- #
@@ -187,7 +187,7 @@ class MacroSettingsDialog(QDialog):
             'w': w, 'p': p, 'r': r
         }
 
-
+        # JSON 파일로 저장
         save_json(CONFIG_MACRO_PATH, data_macro)
 
         print(f"The data of {macro_id} are saved:\n", data_macro)
