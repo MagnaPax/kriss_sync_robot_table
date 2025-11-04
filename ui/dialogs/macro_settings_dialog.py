@@ -189,6 +189,7 @@ class MacroSettingsDialog(QDialog):
 
 
     def _collect_macro_data(self, macro_id: str, widgets: Dict[str, QWidget]) -> Dict[str, Any]:
+        """위젯에서 데이터 수집"""
         return {
             'macro_id': macro_id,
             'name': cast(QLineEdit, widgets['name_input']).text().strip(),
@@ -200,6 +201,13 @@ class MacroSettingsDialog(QDialog):
             'p':cast(QDoubleSpinBox, widgets['P']).value(),
             'r':cast(QDoubleSpinBox, widgets['R']).value()
         }
+
+
+    def _save_macro_to_file(self, macro_id: str, data_macro: Dict[str, Any]):
+        return {}
+
+
+
 
 
 # ==========================================================
