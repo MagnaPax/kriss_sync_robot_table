@@ -16,6 +16,10 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 from typing import Dict, Any, Tuple, cast
+from config.paths import CONFIG_MACRO_PATH
+from utils.file_handler import save_json
+
+
 
 
 
@@ -171,18 +175,25 @@ class MacroSettingsDialog(QDialog):
             'w': w, 'p': p, 'r': r
         }
 
-        # -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
-        #
-        #   data_macro 을 파일로 내보내야 됨
-        #
-        # -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
 
+        save_json(CONFIG_MACRO_PATH, data_macro)
 
         print(f"The data of {macro_id} are saved:\n", data_macro)
 
 
 
 
+
+
+
+
+# ==========================================================
+# 단독 실행 (테스트용)
+"""
+실행 명령어
+python -m ui.dialogs.macro_settings_dialog
+"""
+# ==========================================================
 if __name__ == '__main__':
     import sys
     from PyQt6.QtWidgets import QApplication
