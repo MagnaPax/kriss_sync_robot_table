@@ -169,29 +169,8 @@ class MacroSettingsDialog(QDialog):
         # 해당 매크로 그룹 박스 안에 있는 위젯들
         widgets = self.macro_widgets[macro_id]
 
-        # 이름 추출
-        name = cast(QLineEdit, widgets['name_input']).text().strip()
-
-        # 축 별 값 추출
-        x = cast(QDoubleSpinBox, widgets['X']).value()
-        y = cast(QDoubleSpinBox, widgets['Y']).value()
-        z = cast(QDoubleSpinBox, widgets['Z']).value()
-        w = cast(QDoubleSpinBox, widgets['W']).value()
-        p = cast(QDoubleSpinBox, widgets['P']).value()
-        r = cast(QDoubleSpinBox, widgets['R']).value()
-
-        # 내부 저장을 위해 딕셔너리로 합치기
-        data_macro: dict[str, Any] = {
-            'macro_id': macro_id,
-            'name': name,
-            'x': x, 'y': y, 'z': z,
-            'w': w, 'p': p, 'r': r
-        }
-
-        # JSON 파일로 저장
-        save_json(CONFIG_MACRO_PATH, data_macro)
-
-        print(f"The data of {macro_id} are saved:\n", data_macro)
+        # 데이터 수집
+        data_macro = self._collect_macro_data(macro_id, widgets)
 
 
         # --- JSON 파일 저장 로직 수정 ---
@@ -209,6 +188,18 @@ class MacroSettingsDialog(QDialog):
             print(f"✅ [{macro_id}] 데이터가 {CONFIG_MACRO_PATH}에 저장되었습니다.")
 
 
+    def _collect_macro_data(self, macro_id: str, widgets: Dict[str, QWidget]) -> Dict[str, Any]:
+        return {
+            'macro_id': macro_id,
+            'name': cast(QLineEdit, widgets['name_input']).text().strip(),
+             # 축 별 값 추출
+            'x':cast(QDoubleSpinBox, widgets['X']).value(),
+            'y':cast(QDoubleSpinBox, widgets['Y']).value(),
+            'z':cast(QDoubleSpinBox, widgets['Z']).value(),
+            'w':cast(QDoubleSpinBox, widgets['W']).value(),
+            'p':cast(QDoubleSpinBox, widgets['P']).value(),
+            'r':cast(QDoubleSpinBox, widgets['R']).value()
+        }
 
 
 # ==========================================================
