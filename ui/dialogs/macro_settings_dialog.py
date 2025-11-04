@@ -144,7 +144,7 @@ class MacroSettingsDialog(QDialog):
             save_btn = cast(QPushButton, widgets['save_btn'])
             # QPushButton 가 상속받은 QAbstractButton 의 시그널 `clicked(bool checked = false)` 처리
             save_btn.clicked.connect(
-                lambda checked=False: self._on_save(macro_id)
+                lambda checked=False, mid=macro_id: self._on_save(mid)
             )
 
 
