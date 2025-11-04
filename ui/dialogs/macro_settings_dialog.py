@@ -10,7 +10,6 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QLabel,
     QVBoxLayout,
-    QGroupBox,
     QWidget
 )
 from PyQt6.QtCore import Qt
@@ -166,26 +165,11 @@ class MacroSettingsDialog(QDialog):
         특정 매크로 그룹(파라미터 번호)의 저장 버튼이 클릭됐을 때 실행되는 함수
         """
 
-        # 해당 매크로 그룹 박스 안에 있는 위젯들
+        # 위젯에서 현재 매크로 데이터 수집
         widgets = self.macro_widgets[macro_id]
 
         # 데이터 수집
         data_macro = self._collect_macro_data(macro_id, widgets)
-
-
-        # --- JSON 파일 저장 로직 수정 ---
-        # 1. 기존 매크로 설정 파일을 전부 읽어옵니다.
-        all_macros_data = load_json(CONFIG_MACRO_PATH)
-        # 파일이 없거나 비어있으면 새로운 딕셔너리를 생성합니다.
-        if all_macros_data is None:
-            all_macros_data = {}
-
-        # 2. 읽어온 전체 데이터에서 현재 macro_id에 해당하는 부분만 업데이트합니다.
-        all_macros_data[macro_id] = data_macro
-
-        # 3. 수정된 전체 데이터를 다시 JSON 파일에 저장합니다.
-        if save_json(CONFIG_MACRO_PATH, all_macros_data):
-            print(f"✅ [{macro_id}] 데이터가 {CONFIG_MACRO_PATH}에 저장되었습니다.")
 
 
     def _collect_macro_data(self, macro_id: str, widgets: Dict[str, QWidget]) -> Dict[str, Any]:
@@ -204,7 +188,22 @@ class MacroSettingsDialog(QDialog):
 
 
     def _save_macro_to_file(self, macro_id: str, data_macro: Dict[str, Any]):
-        return {}
+
+        # 1. 기존 매크로 설정 파일을 전부 읽는다
+        stored_macro_data = load_json(CONFIG_MACRO_PATH)
+        # 파일이 없거나 비어있으면 새로운 딕셔너리를 생성
+        if stored_macro_data is None:
+            stored_macro_data = {}
+
+        # 2. 읽어온 전체 데이터에서 현재 macro_id에 해당하는 부분만 업데이트
+        stored_macro_data[macro_id] = data_macro
+
+        # 3. 수정된 전체 데이터를 다시 JSON 파일에 저장
+        result_save = save_json(CONFIG_MACRO_PATH, stored_macro_data)
+
+        # 4. 저장 결과를 확인하고, 실패 시 예외 발생
+        if not result_save:
+            raise IOError(f"❌ [{macro_id}] 데이터를 파일에 쓸 수 없습니다. 권한 또는 디스크 공간을 확인하세요.")
 
 
 
