@@ -1,6 +1,7 @@
 # utils/env.py
 import sys, os
 from enum import Enum
+from pathlib import Path
 
 
 
@@ -58,3 +59,15 @@ def is_packaged() -> bool:
 def get_environment() -> Environment:
     """개발 환경인지 배포 환경인지 반환"""
     return Environment.PRODUCTION if is_packaged() else Environment.DEVELOPMENT
+
+
+def get_environment_base_path() -> Path:
+    """
+    모드(개발/배포) 기준 절대 경로 반환
+    - 패키징: 실행 파일이 있는 폴더
+    - 개발: 프로젝트 루트 (현재 파일의 부모 부모)
+    """    
+    if is_packaged():
+        return Path(sys.executable).resolve().parent
+    else:
+        return Path(__file__).resolve().parent.parent
