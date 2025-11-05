@@ -16,12 +16,27 @@ def is_packaged() -> bool:
     앱이 패키징된 실행 파일인지 판단
 
     판단 기준:
-    1. sys.frozen == True → PyInstaller(윈도우), cx_Freeze(맥OS) 등으로 패키징된 경우
-    2. 실행 파일이 Windows용 .exe
-    3. 강제 개발 모드 탐지
+    1. 강제 개발 모드 탐지
+    2. sys.frozen == True → PyInstaller(윈도우), cx_Freeze(맥OS) 등으로 패키징된 경우
     """
 
-    # 1. 패키징 도구 감지
+    # 1. 강제 개발 모드 탐지 (가장 먼저 판단)
+    """
+    환경변수가 DEV_MODE=1 이면 실행파일이더라도 강제로 개발모드로 동작하게 됨
+
+    [🧩개발 모드로 강제 실행 방법]
+    $ set DEV_MODE=1
+    $ python main.py
+
+    [🚀패키징 모드로 실행 방법]
+    $ del DEV_MODE
+    $ ./kriss_robot_sync.ex
+    """
+    dev_mode = os.getenv("DEV_MODE", "").strip().lower()
+    if dev_mode in ("1", "true", "yes"):
+        return False  # exe여도 강제로 개발 모드로 실행
+    
+    # 2. 패키징 도구 감지
     """
     getattr(object, name, default) 함수:
         sys 모듈에서 'frozen'이라는 꼬리표를 찾은 뒤 없으면 AttributeError 에러 대신 그냥 False
@@ -34,25 +49,7 @@ def is_packaged() -> bool:
     if getattr(sys, 'frozen', False):
         return True
     
-    # 2. 실행파일이 Windows 운영체제인지
-    if sys.platform == "win32" and os.path.splitext(sys.executable)[1] == ".exe":
-        return True
-
-    # 3. 강제 개발 모드 탐지
-    """
-    환경변수가 DEV_MODE=1 이면 실행파일이더라도 강제로 개발모드로 동작
-
-    [🧩개발 모드로 강제 실행 방법]
-    $ set DEV_MODE=1
-    $ python main.py
-
-    [🚀패키징 모드로 실행 방법]
-    $ del DEV_MODE
-    $ ./kriss_robot_sync.ex
-    """
-    if os.getenv("DEV_MODE") == "1":
-        return False
-    
+    # 3. 일반 개발 환경
     return False
 
 
@@ -70,4 +67,17 @@ def get_environment_base_path() -> Path:
     if is_packaged():
         return Path(sys.executable).resolve().parent
     else:
-        return Path(__file__).resolve().parent.parent
+        return Path(__file__).resolve().parent.parent       # 현재 파일의 상위 2단계
+
+
+
+
+# ==========================================================
+# 단독 실행 (테스트용)
+# ==========================================================
+if __name__ == "__main__":
+    env = get_environment()
+    base_path = get_environment_base_path()
+    print(f"🧭 실행 환경: {env.value}")
+    print(f"📁 베이스 경로: {base_path}")
+    print(f"🧩 패키징 여부 {is_packaged()}")
