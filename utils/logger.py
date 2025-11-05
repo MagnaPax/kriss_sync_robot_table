@@ -14,17 +14,42 @@ from .env import app_env, LogLevel
 
 class Logger:
 
-    # app_env 인스턴스를 사용하여 기본 경로를 가져온 후 'logs' 폴더를 지정
-    LOG_DIR = app_env.base_path / "logs"
+    # 싱글톤 디자인 패턴
+    _instance = None        # Logger 클래스의 유일한 인스턴스(객체)를 저장하기 위한 공간
+    _initialized = False    # 초기화 코드가 여러번 실행되는 것을 방지하는 flag 변수(스위치)
 
-    # 로그 파일 저장 디렉토리 생성
-    try:
-        # parents=True: 필요한 모든 상위 디렉터리 생성
-        # exist_ok=True: 디렉터리가 이미 있어도 에러 X
-        LOG_DIR.mkdir(parents=True, exist_ok=True)
-    except OSError as e:
-        print(f"❌ 로그 디렉터리 생성 실패: {LOG_DIR} - {e}")
+    def __new__(cls):
+        """
+        클래스가 앱 전체에서 단 하나의 인스턴스(객체)만 갖도록 보장하는 
+        싱글톤(Singleton) 디자인 패턴 구현
+        """
+        # 1. 클래스 변수 _instance가 비어있는지(None) 확인
+        if cls._instance is None:
+            # 2. 비어있다면 (최초 호출이라면), 부모 클래스의 __new__를 호출하여
+            #    새로운 인스턴스를 생성하고, 그 결과를 _instance에 저장
+            cls._instance = super().__new__(cls)
+        
+        # 3. _instance에 저장된 인스턴스를 반환
+        return cls._instance
 
 
     def __init__(self) -> None:
-        pass
+        # 초기화(__init__ 메서드)가 여러번 실행되는 것 방지
+        if self._initialized:
+            return
+        self._initialized = True
+
+        # 로그 디렉토리 결정
+        LOG_DIR = app_env.base_path / "logs"
+
+        # 로그 디렉토리 생성
+        try:
+            # parents=True: 필요한 모든 상위 디렉터리 생성
+            # exist_ok=True: 디렉터리가 이미 있어도 에러 X
+            LOG_DIR.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            print(f"❌ 로그 디렉터리 생성 실패: {LOG_DIR} - {e}")
+
+        # 핸들러 캐시
+        self._handlers = {}     # 로그 메세지를 특정대상(파일,콘솔)으로 보냄
+        self._formatters = {}   # 로그 메세지의 형태 지정
