@@ -27,24 +27,28 @@ class Logger:
     ERROR_LOG_FILE: Path
 
     # 포멧터 정의
-    DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
-
-    LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
-
-    FILE_FORMAT = logging.Formatter(
-        fmt = LOG_FORMAT, 
-        datefmt = DATE_FORMAT
+    FORMAT_DATE = "%Y-%m-%d %H:%M:%S"
+    FORMAT_MESSAGE = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
+    LOG_FORMAT_FILE = logging.Formatter(
+        fmt=FORMAT_MESSAGE, 
+        datefmt=FORMAT_DATE
     )
-
-    CONSOLE_FORMAT = logging.Formatter(
-        fmt = LOG_FORMAT
+    LOG_FORMAT_CONSOLE = logging.Formatter(
+        fmt=FORMAT_MESSAGE
     )
-
-    ERROR_FORMAT = logging.Formatter(
-        fmt = '%(asctime)s | %(levelname)s | %(pathname)s:%(lineno)d\n%(message)s\n',
-        datefmt = DATE_FORMAT
+    LOG_FORMAT_ERROR = logging.Formatter(
+        fmt='%(asctime)s | %(levelname)s | %(pathname)s:%(lineno)d\n%(message)s\n',
+        datefmt=FORMAT_DATE
     )
     
+    # 로테이션 설정
+    COUNT_BACKUP = 14       # 14일치 보관
+    COUNT_BACKUP_ERROR = 30 # 30일치 보관
+
+
+
+
+
     def __new__(cls):
         """
         클래스가 앱 전체에서 단 하나의 인스턴스(객체)만 갖도록 보장하는 
