@@ -30,7 +30,7 @@ class AppEnv:
     _initialized = False    # 초기화 코드가 여러번 실행되는 것을 방지하는 flag 변수(스위치)
 
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls):
         """
         클래스가 앱 전체에서 단 하나의 인스턴스(객체)만 갖도록 보장하는 
         싱글톤(Singleton) 디자인 패턴 구현
@@ -39,7 +39,7 @@ class AppEnv:
         if cls._instance is None:
             # 2. 비어있다면 (최초 호출이라면), 부모 클래스의 __new__를 호출하여
             #    새로운 인스턴스를 생성하고, 그 결과를 _instance에 저장            
-            cls._instance = super().__new__(cls, *args, **kwargs)
+            cls._instance = super().__new__(cls)
 
         # 3. _instance에 저장된 인스턴스를 반환
         return cls._instance
@@ -76,7 +76,7 @@ class AppEnv:
         $ del DEV_MODE
         $ ./kriss_robot_sync.ex
         """
-        dev_mode = os.getenv("DEV_MODE", "").strip().lower()
+        dev_mode = os.getenv("DEV_MODE", "0").strip().lower()
         if dev_mode in ("1", "true", "yes"):
             return False  # exe여도 강제로 개발 모드로 실행
         
@@ -99,7 +99,7 @@ class AppEnv:
 
     def get_environment(self) -> Environment:
         """개발 환경인지 배포 환경인지 반환"""
-        return Environment.PRODUCTION if self._is_packaged() else Environment.DEVELOPMENT
+        return self.environment
 
 
     def _get_environment_base_path(self) -> Path:
@@ -114,10 +114,6 @@ class AppEnv:
             return Path(__file__).resolve().parent.parent       # 현재 파일의 상위 2단계
 
 
-# --- 사용 편의성을 위한 전역 인스턴스 ---
-app_env = AppEnv()
-
-
 
 
 
@@ -126,9 +122,13 @@ app_env = AppEnv()
 # ==========================================================
 if __name__ == "__main__":
 
-    env = app_env.environment.value
-    base_path = app_env.base_path
-    is_packaged = app_env.is_packaged
+    # 테스트를 위해 지역 인스턴스 생성
+    test_env = AppEnv()
+
+    env = test_env.environment.value
+    base_path = test_env.base_path
+    is_packaged = test_env.is_packaged
+
 
     print(f"🧭 실행 환경: {env}")
     print(f"📁 베이스 경로: {base_path}")
