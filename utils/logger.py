@@ -25,6 +25,25 @@ class Logger:
     LOG_FILE: Path
     ERROR_LOG_FILE: Path
 
+    # 포멧터 정의
+    DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+    LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
+
+    FILE_FORMAT = logging.Formatter(
+        fmt = LOG_FORMAT, 
+        datefmt = DATE_FORMAT
+    )
+
+    CONSOLE_FORMAT = logging.Formatter(
+        fmt = LOG_FORMAT
+    )
+
+    ERROR_FORMAT = logging.Formatter(
+        fmt = '%(asctime)s | %(levelname)s | %(pathname)s:%(lineno)d\n%(message)s\n',
+        datefmt = DATE_FORMAT
+    )
+    
     def __new__(cls):
         """
         클래스가 앱 전체에서 단 하나의 인스턴스(객체)만 갖도록 보장하는 
