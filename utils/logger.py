@@ -128,7 +128,7 @@ class Logger:
     def _create_error_handler(self) -> TimedRotatingFileHandler:
         """에러만 기록 (WARNING 이상)"""
         handler = TimedRotatingFileHandler(
-            filename=self.LOG_FILE,
+            filename=self.ERROR_LOG_FILE,
             when="midnight",
             interval=1,
             backupCount=self.COUNT_BACKUP_ERROR,
