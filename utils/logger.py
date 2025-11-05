@@ -13,6 +13,7 @@ from pathlib import Path
 from .env import app_env, LogLevel
 
 
+
 class Logger:
 
     # 싱글톤 디자인 패턴
@@ -65,7 +66,26 @@ class Logger:
             return
         Logger._initialized = True
 
-        # 로그 디렉토리 결정 및 인스턴스 속성으로 저장
+        self._configure_logging()
+
+        # 핸들러 캐시
+        self._handlers = {}     # 로그 메세지를 특정대상(파일,콘솔)으로 보냄
+        self._formatters = {}   # 로그 메세지의 형태 지정
+
+
+    def _get_log_directory(self) -> Path:
+        """개발환경or배포환경에 따른 로그 디렉토리 설정"""
+        if not app_env.is_packaged:
+            # 개발환경
+            return app_env.base_path / "logs"
+        else:
+            # 배포환경
+            return app_env.base_path
+
+
+    def _configure_logging(self):
+        """로그 디렉토리 설정 및 로그 파일 경로 설정"""
+        # 로그 디렉토리 결정
         self.LOG_DIR: Path = self._get_log_directory()
 
         # 로그 디렉토리 생성
@@ -79,17 +99,8 @@ class Logger:
         # 로그 파일 경로 설정
         self.LOG_FILE: Path = self.LOG_DIR / "app.log"
         self.ERROR_LOG_FILE: Path = self.LOG_DIR / "error.log"
-
-        # 핸들러 캐시
-        self._handlers = {}     # 로그 메세지를 특정대상(파일,콘솔)으로 보냄
-        self._formatters = {}   # 로그 메세지의 형태 지정
+        
 
 
-    def _get_log_directory(self) -> Path:
-        if not app_env.is_packaged:
-            # 개발환경
-            return app_env.base_path / "logs"
-        else:
-            # 배포환경
-            return app_env.base_path
+
 
