@@ -61,9 +61,9 @@ class Logger:
 
     def __init__(self) -> None:
         # 초기화(__init__ 메서드)가 여러번 실행되는 것 방지
-        if self._initialized:
+        if Logger._initialized:
             return
-        self._initialized = True
+        Logger._initialized = True
 
         # 로그 디렉토리 결정 및 인스턴스 속성으로 저장
         self.LOG_DIR: Path = self._get_log_directory()

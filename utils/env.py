@@ -46,9 +46,9 @@ class AppEnv:
     
     def __init__(self):
         # 초기화(__init__ 메서드)가 여러번 실행되는 것 방지
-        if self._initialized:
+        if AppEnv._initialized:
             return
-        self._initialized = True
+        AppEnv._initialized = True
 
         self.is_packaged: bool = self._is_packaged()
         self.environment: Environment = Environment.PRODUCTION if self.is_packaged else Environment.DEVELOPMENT
