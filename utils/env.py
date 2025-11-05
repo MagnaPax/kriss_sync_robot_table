@@ -24,16 +24,32 @@ class LogLevel(Enum):
 
 
 class AppEnv:
-    _instance = None
+    
+    # 싱글톤 디자인 패턴
+    _instance = None        # AppEnv 클래스의 유일한 인스턴스(객체)를 저장하기 위한 공간
+    _initialized = False    # 초기화 코드가 여러번 실행되는 것을 방지하는 flag 변수(스위치)
 
-    def __new__(cls):
+
+    def __new__(cls, *args, **kwargs):
+        """
+        클래스가 앱 전체에서 단 하나의 인스턴스(객체)만 갖도록 보장하는 
+        싱글톤(Singleton) 디자인 패턴 구현
+        """
+        # 1. 클래스 변수 _instance가 비어있는지(None) 확인
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialize()
+            # 2. 비어있다면 (최초 호출이라면), 부모 클래스의 __new__를 호출하여
+            #    새로운 인스턴스를 생성하고, 그 결과를 _instance에 저장            
+            cls._instance = super().__new__(cls, *args, **kwargs)
+
+        # 3. _instance에 저장된 인스턴스를 반환
         return cls._instance
     
-    def _initialize(self):
-        """환경 변수를 계산하고 인스턴스 속성으로 저장 (최초 1회만 실행)"""
+    def __init__(self):
+        # 초기화(__init__ 메서드)가 여러번 실행되는 것 방지
+        if self._initialized:
+            return
+        self._initialized = True
+
         self.is_packaged: bool = self._is_packaged()
         self.environment: Environment = Environment.PRODUCTION if self.is_packaged else Environment.DEVELOPMENT
         self.base_path: Path = self._get_environment_base_path()
@@ -109,7 +125,7 @@ app_env = AppEnv()
 # 단독 실행 (테스트용)
 # ==========================================================
 if __name__ == "__main__":
-    
+
     env = app_env.environment.value
     base_path = app_env.base_path
     is_packaged = app_env.is_packaged
