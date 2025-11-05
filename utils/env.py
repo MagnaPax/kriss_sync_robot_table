@@ -1,6 +1,13 @@
 # utils/env.py
 import sys, os
+from enum import Enum
 
+
+
+class Environment(Enum):
+    """실행 환경 표시"""
+    DEVELOPMENT = "as_Development"
+    PRODUCTION = "as_Published"
 
 
 def is_packaged() -> bool:
@@ -46,3 +53,8 @@ def is_packaged() -> bool:
         return False
     
     return False
+
+
+def get_environment() -> Environment:
+    """개발 환경인지 배포 환경인지 반환"""
+    return Environment.PRODUCTION if is_packaged() else Environment.DEVELOPMENT
