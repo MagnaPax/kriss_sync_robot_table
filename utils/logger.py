@@ -11,7 +11,7 @@ import logging
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 
-from .env import app_env, LogLevel
+from .env import AppEnv, LogLevel
 
 
 
@@ -68,6 +68,9 @@ class Logger:
             return
         Logger._initialized = True
 
+        # AppEnv 인스턴스 가져오기
+        self.app_env = AppEnv()
+
         # 로그 파일 저장 위치 환경 설정
         self._configure_logging()
 
@@ -81,13 +84,12 @@ class Logger:
     ###################################
     def _get_log_directory(self) -> Path:
         """개발환경or배포환경에 따른 로그 디렉토리 설정"""
-        if not app_env.is_packaged:
+        if not self.app_env.is_packaged:
             # 개발환경
             return app_env.base_path / "logs"
         else:
             # 배포환경
             return app_env.base_path
-
 
     def _configure_logging(self):
         """로그 디렉토리 설정 및 로그 파일 경로 설정"""
@@ -124,7 +126,6 @@ class Logger:
         handler.setFormatter(self.LOG_FORMAT_FILE)
         return handler
 
-
     def _create_error_handler(self) -> TimedRotatingFileHandler:
         """에러만 기록 (WARNING 이상)"""
         handler = TimedRotatingFileHandler(
@@ -137,7 +138,6 @@ class Logger:
         handler.setLevel(logging.WARNING)
         handler.setFormatter(self.LOG_FORMAT_ERROR)
         return handler
-
 
     def _create_console_handler(self) -> logging.StreamHandler:
         """콘솔 출력 핸들러 (개발용, DEBUG 레벨)"""
