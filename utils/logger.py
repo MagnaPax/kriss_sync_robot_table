@@ -6,6 +6,7 @@ utils/logger.py
 모든 모듈에서 import 해서 사용:
     from utils.logger import logger
 """
+import sys
 import logging
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
@@ -46,9 +47,6 @@ class Logger:
     COUNT_BACKUP_ERROR = 30 # 30일치 보관
 
 
-
-
-
     def __new__(cls):
         """
         클래스가 앱 전체에서 단 하나의 인스턴스(객체)만 갖도록 보장하는 
@@ -70,6 +68,7 @@ class Logger:
             return
         Logger._initialized = True
 
+        # 로그 파일 저장 위치 환경 설정
         self._configure_logging()
 
         # 핸들러 캐시
@@ -77,6 +76,9 @@ class Logger:
         self._formatters = {}   # 로그 메세지의 형태 지정
 
 
+    ###################################
+    # --- 로그파일 저장 위치 설정 --- #
+    ###################################
     def _get_log_directory(self) -> Path:
         """개발환경or배포환경에 따른 로그 디렉토리 설정"""
         if not app_env.is_packaged:
@@ -103,8 +105,43 @@ class Logger:
         # 로그 파일 경로 설정
         self.LOG_FILE: Path = self.LOG_DIR / "app.log"
         self.ERROR_LOG_FILE: Path = self.LOG_DIR / "error.log"
-        
 
 
 
+    ##################
+    # --- 핸들러 --- #
+    ##################
+    def _create_file_handler(self) -> TimedRotatingFileHandler:
+        """모든 로그를 기록하는 파일 핸들러 (INFO 이상)"""
+        handler = TimedRotatingFileHandler(
+            filename=self.LOG_FILE,
+            when="midnight",                # 자정마다 로테이션
+            interval=1,                     # 1일 간격
+            backupCount=self.COUNT_BACKUP,  # 지정 날짜만큼 보관
+            encoding="utf-8"
+        )
+        handler.setLevel(logging.INFO)
+        handler.setFormatter(self.LOG_FORMAT_FILE)
+        return handler
 
+
+    def _create_error_handler(self) -> TimedRotatingFileHandler:
+        """에러만 기록 (WARNING 이상)"""
+        handler = TimedRotatingFileHandler(
+            filename=self.LOG_FILE,
+            when="midnight",
+            interval=1,
+            backupCount=self.COUNT_BACKUP_ERROR,
+            encoding="utf-8"
+        )
+        handler.setLevel(logging.WARNING)
+        handler.setFormatter(self.LOG_FORMAT_ERROR)
+        return handler
+
+
+    def _create_console_handler(self) -> logging.StreamHandler:
+        """콘솔 출력 핸들러 (개발용, DEBUG 레벨)"""
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(logging.DEBUG)
+        handler.setFormatter(self.LOG_FORMAT_CONSOLE)
+        return handler
