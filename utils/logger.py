@@ -116,6 +116,13 @@ class Logger:
             return
         Logger._initialized = True
 
+        # 외부 라이브러리 로그 레벨 억제
+        # 외부 라이브러리에서 나오는 불필요한 로그 정보 제외시키기
+        logging.getLogger("PyQt6").setLevel(logging.WARNING)
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
+        logging.getLogger("PIL").setLevel(logging.WARNING)
+        logging.getLogger("matplotlib").setLevel(logging.WARNING)
+
         # AppEnv 인스턴스 가져오기
         self.app_env = AppEnv()
 
