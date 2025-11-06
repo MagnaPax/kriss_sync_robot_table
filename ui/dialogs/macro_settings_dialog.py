@@ -36,7 +36,7 @@ class MacroSettingsDialog(QDialog):
         self._init_ui()
 
         # 사용자 입력이 끝난 뒤(self._init_ui())에 저장 버튼 처리
-        self._connect_save_signals()
+        self._bind_save_button_events()
 
 
     def _init_ui(self):
@@ -131,10 +131,14 @@ class MacroSettingsDialog(QDialog):
         return group_box, widgets
 
 
-    def _connect_save_signals(self):
+    ############################
+    # --- 저장 버튼 눌리면 --- #
+    ############################
+    def _bind_save_button_events(self) -> None:
         """
-        모든 매크로 그룹에 있는 Save 버튼의 시그널과 슬롯 연결
-        -> 저장 버튼이 눌리면 어떤 일을 할 지 정의
+        저장 버튼이 눌리면 어떤 일을 할 지 정의
+
+        -> 모든 매크로 그룹의 Save 버튼에 클릭 시그널을 연결
         """
 
         # 매크로 그룹의 위젯들을 저장한 macro_widgets 딕셔너리 사용
@@ -145,7 +149,7 @@ class MacroSettingsDialog(QDialog):
         for macro_id, widgets in self.macro_widgets.items():
             save_btn = cast(QPushButton, widgets['save_btn'])
             save_btn.clicked.connect(
-                partial(self._on_save_slot, macro_id)
+                partial(self._handle_save_button_clicked, macro_id)
             )
             """
             - partial: 기존 함수에 일부 인자값을 넣은 새로운 함수 생성
@@ -159,25 +163,36 @@ class MacroSettingsDialog(QDialog):
             https://docs.python.org/3/library/functools.html#functools.partial
             """
 
-
-    def _on_save_slot(self, macro_id: str):
+    def _handle_save_button_clicked(self, macro_id: str) -> None:
         """
-        특정 매크로 그룹(파라미터 번호)의 저장 버튼이 클릭됐을 때 실행되는 함수
+        Save 버튼 클릭 시 호출되어 사용자 입력 데이터를 수집하고 저장
+
+        Args:
+            macro_id (str): 클릭된 매크로 그룹의 식별자
         """
 
         # 위젯에서 현재 매크로 데이터 수집
         widgets = self.macro_widgets[macro_id]
 
         # 데이터 수집
-        data_macro = self._collect_macro_data(macro_id, widgets)
+        data_macro = self._gather_macro_data(macro_id, widgets)
 
 
-    def _collect_macro_data(self, macro_id: str, widgets: Dict[str, QWidget]) -> Dict[str, Any]:
-        """위젯에서 데이터 수집"""
+    def _gather_macro_data(self, macro_id: str, widgets: Dict[str, QWidget]) -> Dict[str, Any]:
+        """
+        위젯으로부터 매크로 설정값을 읽어 딕셔너리로 반환
+
+        Args:
+            macro_id (str): 매크로 식별자
+            widgets (Dict[str, QWidget]): 해당 매크로 그룹의 위젯 맵
+
+        Returns:
+            Dict[str, Any]: JSON으로 저장할 매크로 데이터
+        """
         return {
             'macro_id': macro_id,
             'name': cast(QLineEdit, widgets['name_input']).text().strip(),
-             # 축 별 값 추출
+            # 축 별 값 추출
             'x':cast(QDoubleSpinBox, widgets['X']).value(),
             'y':cast(QDoubleSpinBox, widgets['Y']).value(),
             'z':cast(QDoubleSpinBox, widgets['Z']).value(),
@@ -186,9 +201,17 @@ class MacroSettingsDialog(QDialog):
             'r':cast(QDoubleSpinBox, widgets['R']).value()
         }
 
+    def _save_macro_data_to_file(self, macro_id: str, data_macro: Dict[str, Any]):
+        """
+        매크로 데이터를 JSON 파일에 저장한다
 
-    def _save_macro_to_file(self, macro_id: str, data_macro: Dict[str, Any]):
+        Args:
+            macro_id (str): 저장할 매크로의 식별자
+            data_macro (Dict[str, Any]): 저장할 매크로 데이터
 
+        Raises:
+            IOError: 파일 쓰기에 실패한 경우
+        """
         # 1. 기존 매크로 설정 파일을 전부 읽는다
         stored_macro_data = load_json(CONFIG_MACRO_PATH)
         # 파일이 없거나 비어있으면 새로운 딕셔너리를 생성
@@ -205,7 +228,7 @@ class MacroSettingsDialog(QDialog):
         if not result_save:
             raise IOError(f"❌ [{macro_id}] 데이터를 파일에 쓸 수 없습니다. 권한 또는 디스크 공간을 확인하세요.")
 
- 
+
 
 
 
