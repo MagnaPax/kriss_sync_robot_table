@@ -42,9 +42,6 @@ def load_json(file_path: Path) -> Optional[Dict[str, Any]]:
         Optional <- None도 반환될 수 있음을 나타낸다
     """
 
-    if not os.path.exists(file_path):
-        return None
-    
     # 포맷이 잘못됐거나 못 읽는 파일 예외처리
     try:
         with open(file_path, "r", encoding="utf-8") as f:
@@ -70,7 +67,6 @@ def load_text(file_path: Path) -> Optional[str]:
         Optional <- None도 반환될 수 있음을 나타낸다
     """
 
-    if not os.path.exists(file_path):
         return None
 
 
