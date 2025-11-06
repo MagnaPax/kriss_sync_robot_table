@@ -6,7 +6,7 @@ utils/logger.py
 모든 모듈에서 import 해서 사용:
     from utils.logger import logger
 """
-import sys
+import sys, os
 import logging
 import logging.config
 from datetime import datetime
@@ -167,6 +167,45 @@ class Logger:
 
 
     ##################
+    # --- Helper --- #
+    ##################
+    def _determine_log_level(self) -> int:
+        """
+        환경변수(LOG_LEVEL)를 읽어서 그 값에 따라 로그 레벨 결정
+        환경변수에 값이 없으면 기본값 반환
+        개발자가 임의로 로그 레벨을 결정할 수 있게 한다
+
+        사용 예시:
+          • Windows (CMD):
+                C:\> set LOG_LEVEL=DEBUG
+                C:\> python 파일이름.py
+
+          • macOS / Linux (bash, zsh 등):
+                $ export LOG_LEVEL=WARNING
+                $ python 파일이름.py
+
+        환경변수 취소 방법
+                C:\> set LOG_LEVEL=
+                C:\> python 파일이름.py
+
+        반환:
+            int: logging.DEBUG(10), logging.INFO(20) 등
+        """
+        # LOG_LEVEL 환경변수 읽기
+        level_name = os.getenv("LOG_LEVEL", "").upper()
+        
+        if level_name and hasattr(logging, level_name):
+            # 환경 변수로 지정된 경우 (예: LOG_LEVEL=DEBUG)
+            # 10(=DEBUG 레벨)을 반환
+            return getattr(logging, level_name)
+        else:
+            # 기본값: 개발모드는 DEBUG, 배포모드는 INFO
+            return logging.DEBUG if not self.app_env.is_packaged else logging.INFO
+
+
+
+
+    ##################
     # --- 핸들러 --- #
     ##################
     def _create_file_handler(self) -> TimedRotatingFileHandler:
@@ -198,15 +237,14 @@ class Logger:
     def _create_console_handler(self) -> logging.StreamHandler:
         """콘솔 출력 핸들러 (개발용, DEBUG 레벨)"""
         handler = logging.StreamHandler(sys.stdout)
-        handler.setLevel(logging.DEBUG)
+        handler.setLevel(self._determine_log_level())
         handler.setFormatter(self.LOG_FORMAT_CONSOLE)
         return handler
-
 
     def _attach_handlers(self) -> None:
         """핸들러들을 로거에 등록"""
         self.logger = logging.getLogger(Logger.APP_NAME)
-        self.logger.setLevel(LogLevel.DEBUG.value if not self.app_env.is_packaged else LogLevel.INFO.value)
+        self.logger.setLevel(self._determine_log_level())
         self.logger.propagate = False   # 중복 출력 방지
 
         # 핸들러 중복 등록 방지
