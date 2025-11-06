@@ -17,6 +17,39 @@ from .env import AppEnv, LogLevel
 
 
 
+# =============================================================================
+# 콘솔 컬러 출력을 위한 ANSI 색상 코드
+# =============================================================================
+class ColorFormatter(logging.Formatter):
+    """
+    콘솔 출력용 컬러 포매터 (ANSI 색상 코드 사용)
+    """
+    
+    # ANSI 색상 코드
+    COLORS = {
+        'DEBUG': '\033[36m',      # Cyan
+        'INFO': '\033[32m',       # Green
+        'WARNING': '\033[33m',    # Yellow
+        'ERROR': '\033[31m',      # Red
+        'CRITICAL': '\033[35m',   # Magenta
+        'RESET': '\033[0m'        # Reset
+    }
+    
+    def format(self, record: logging.LogRecord) -> str:
+        """로그 레벨에 따라 색상 적용"""
+        # 원본 포맷 적용
+        log_message = super().format(record)
+        
+        # 색상 적용 (Windows에서도 작동하도록 조건부)
+        if hasattr(sys.stdout, 'isatty') and sys.stdout.isatty():
+            color = self.COLORS.get(record.levelname, self.COLORS['RESET'])
+            return f"{color}{log_message}{self.COLORS['RESET']}"
+        
+        return log_message
+
+
+
+
 class Logger:
 
     # 싱글톤 디자인 패턴
@@ -39,11 +72,12 @@ class Logger:
         fmt=FORMAT_MESSAGE, 
         datefmt=FORMAT_DATE
     )
-    LOG_FORMAT_CONSOLE = logging.Formatter(
-        fmt=FORMAT_MESSAGE
-    )
     LOG_FORMAT_ERROR = logging.Formatter(
         fmt='%(asctime)s | %(levelname)s | %(pathname)s:%(lineno)d\n%(message)s\n',
+        datefmt=FORMAT_DATE
+    )
+    LOG_FORMAT_CONSOLE = ColorFormatter(
+        fmt=FORMAT_MESSAGE,
         datefmt=FORMAT_DATE
     )
     
@@ -163,6 +197,8 @@ class Logger:
         if not self.logger.hasHandlers():
             self.logger.addHandler(self._create_file_handler())
             self.logger.addHandler(self._create_error_handler())
+
+            # 개발 모드일 때 콘솔 핸들러 추가
             if not self.app_env.is_packaged:
                 self.logger.addHandler(self._create_console_handler())
 
