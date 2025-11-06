@@ -10,7 +10,8 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QLabel,
     QVBoxLayout,
-    QWidget
+    QWidget,
+    QMessageBox
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
@@ -19,9 +20,6 @@ from functools import partial
 
 from config.paths import CONFIG_MACRO_PATH
 from utils.file_handler import load_json, save_json
-
-
-
 
 
 
@@ -177,6 +175,13 @@ class MacroSettingsDialog(QDialog):
         # 데이터 수집
         data_macro = self._gather_macro_data(macro_id, widgets)
 
+        # 파일에 저장
+        try:
+            self._save_macro_data_to_file(macro_id, data_macro)
+        except IOError as e:
+            QMessageBox.critical(self, "저장 실패", str(e))
+        except Exception as e:
+            QMessageBox.warning(self, "오류", f"알 수 없는 오류가 발생했습니다: {e}")
 
     def _gather_macro_data(self, macro_id: str, widgets: Dict[str, QWidget]) -> Dict[str, Any]:
         """
