@@ -270,12 +270,18 @@ class Logger:
         self.logger.setLevel(self._determine_log_level())
         self.logger.propagate = False   # 중복 출력 방지
 
-        # 핸들러 중복 등록 방지
-        if not self.logger.hasHandlers():
-            self.logger.addHandler(self._create_file_handler())
-            self.logger.addHandler(self._create_error_handler())
+        # 중복방지 - 기존 핸들러를 모두 제거하는 방법
+        for handler in self.logger.handlers[:]:
+            self.logger.removeHandler(handler)
 
-            # 개발 모드일 때 콘솔 핸들러 추가
-            if not self.app_env.is_packaged:
-                self.logger.addHandler(self._create_console_handler())
+        # 핸들러 등록
+        self.logger.addHandler(self._create_file_handler())
+        self.logger.addHandler(self._create_error_handler())
 
+        # 개발 모드일 때만 콘솔 핸들러 추가
+        if not self.app_env.is_packaged:
+            self.logger.addHandler(self._create_console_handler())
+
+        # 초기화 완료 로그
+        env_name = self.app_env.environment.value
+        self.logger.info(f"Logger initialized in [{env_name}] environment. - Log directory: {self.LOG_DIR}")
