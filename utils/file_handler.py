@@ -67,7 +67,20 @@ def load_text(file_path: Path) -> Optional[str]:
         Optional <- None도 반환될 수 있음을 나타낸다
     """
 
+    # 못 읽는 파일 예외처리
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            return f.read()
+    except (IOError, FileNotFoundError) as e:
+        Logger().logger.warning(f"텍스트 읽기 실패: {file_path} - {e}")
         return None
+
+
+
+
+
+
+
 
 
 # ==========================================================
