@@ -51,6 +51,16 @@ class ColorFormatter(logging.Formatter):
 
 
 class Logger:
+    """
+    클래스가 앱 전체에서 단 하나의 인스턴스(객체)만 갖도록 보장하는 
+    싱글톤(Singleton) 디자인 패턴
+    
+    특징:
+    - 개발/배포 환경 자동 감지(utils/env.py)
+    - 일반 로그 / 에러 로그 분리
+    - 컬러 콘솔 출력 (개발 모드)
+    - 환경 변수로 로그 레벨 조정
+    """    
 
     # 싱글톤 디자인 패턴
     _instance = None        # Logger 클래스의 유일한 인스턴스(객체)를 저장하기 위한 공간
@@ -88,8 +98,7 @@ class Logger:
 
     def __new__(cls) -> "Logger":
         """
-        클래스가 앱 전체에서 단 하나의 인스턴스(객체)만 갖도록 보장하는 
-        싱글톤(Singleton) 디자인 패턴 구현
+        싱글톤 패턴 구현
         """
         # 1. 클래스 변수 _instance가 비어있는지(None) 확인
         if cls._instance is None:
@@ -102,7 +111,7 @@ class Logger:
 
 
     def __init__(self) -> None:
-        # 초기화(__init__ 메서드)가 여러번 실행되는 것 방지
+        """로거 초기화 (최초 1회만 실행 - 여러번 실행 방지)"""
         if Logger._initialized:
             return
         Logger._initialized = True
@@ -110,7 +119,7 @@ class Logger:
         # AppEnv 인스턴스 가져오기
         self.app_env = AppEnv()
 
-        # 로그 파일 저장 위치 환경 설정
+        # 로그 파일 저장 위치 설정
         self._configure_logging()
 
         # 로거 생성(Logger 클래스 객체에 핸들러 등록)
@@ -145,7 +154,7 @@ class Logger:
             print(f"❌ 로그 디렉터리 생성 실패: {self.LOG_DIR} - {e}")
 
         # 로그 파일 경로 설정
-        self.LOG_FILE = self.LOG_DIR / f"app_{datetime.now():%Y%m%d}.log"
+        self.LOG_FILE = self.LOG_DIR / f"app_{datetime.now():%Y%m%d}.log"   # 개발 편의성 위한 날짜 표시
         self.ERROR_LOG_FILE: Path = self.LOG_DIR / "error.log"
 
 
@@ -154,7 +163,7 @@ class Logger:
     # --- 핸들러 --- #
     ##################
     def _create_file_handler(self) -> TimedRotatingFileHandler:
-        """모든 로그를 기록하는 파일 핸들러 (INFO 이상)"""
+        """일반 로그 파일 핸들러 생성 (INFO 이상)"""
         handler = TimedRotatingFileHandler(
             filename=self.LOG_FILE,
             when="midnight",                # 자정마다 로테이션
