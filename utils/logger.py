@@ -131,6 +131,11 @@ class Logger:
         # 로거 생성(Logger 클래스 객체에 핸들러 등록)
         self._attach_handlers()
 
+        # 모든 Unhandled Exception 를 error.log 에 저장
+        self._install_exception_hook()
+
+
+
 
 
 
@@ -201,6 +206,25 @@ class Logger:
             # 기본값: 개발모드는 DEBUG, 배포모드는 INFO
             return logging.DEBUG if not self.app_env.is_packaged else logging.INFO
 
+    def _install_exception_hook(self):
+        """
+        개발 중이든 배포 중이든 코드 어딘가에서 의도치 않은 예외가 터져서 프로그램이 죽어버릴 때
+        그 순간의 전체 스택 트레이스가 error.log 파일에 자동 기록
+        """
+        def handle_exception(exc_type, exc_value, exc_traceback):
+            # 사용자가 Ctrl+C 눌렀을 때는 원래 동작(종료하기) 그대로
+            if issubclass(exc_type, KeyboardInterrupt):
+                sys.__excepthook__(exc_type, exc_value, exc_traceback)
+                return
+
+            # Ctrl+C 를 제외한 모든 처리되지 않은 예외는 CRITICAL 레벨로 로깅
+            self.logger.critical(
+                "Unhandled exception",
+                exc_info=(exc_type, exc_value, exc_traceback)
+            )
+
+        # 파이썬 전역 예외 후크를 handle_exception 으로 덮어씌움
+        sys.excepthook = handle_exception
 
 
 
