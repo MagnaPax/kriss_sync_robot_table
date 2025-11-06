@@ -5,8 +5,9 @@ from typing import Any, Dict, Optional
 
 from utils.logger import Logger
 
-
-
+######################
+# --- JSON Tools --- #
+######################
 def save_json(file_path: Path, data: Dict[str, Any]) -> bool:
     """
     Python 딕셔너리를 JSON 파일로 저장
@@ -28,7 +29,6 @@ def save_json(file_path: Path, data: Dict[str, Any]) -> bool:
     except (IOError) as e:
         Logger().logger.warning(f"JSON 저장 실패: {file_path} - {e}")
         return False
-        
 
 def load_json(file_path: Path) -> Optional[Dict[str, Any]]:
     """
