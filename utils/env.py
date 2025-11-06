@@ -13,16 +13,6 @@ class Environment(Enum):
     PRODUCTION = "as_Published"
 
 
-class LogLevel(Enum):
-    """로그 레벨"""
-    DEBUG = logging.DEBUG
-    INFO = logging.INFO
-    WARNING = logging.WARNING
-    ERROR = logging.ERROR
-    CRITICAL = logging.CRITICAL
-    NOTSET = logging.NOTSET
-
-
 class AppEnv:
     
     # 싱글톤 디자인 패턴

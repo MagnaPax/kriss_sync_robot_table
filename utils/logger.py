@@ -13,7 +13,7 @@ from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 
-from .env import AppEnv, LogLevel
+from .env import AppEnv
 
 
 
@@ -116,8 +116,7 @@ class Logger:
             return
         Logger._initialized = True
 
-        # 외부 라이브러리 로그 레벨 억제
-        # 외부 라이브러리에서 나오는 불필요한 로그 정보 제외시키기
+        # 외부 라이브러리에서 나오는 불필요한 로그 정보 제외시키기(로그 레벨 억제)
         logging.getLogger("PyQt6").setLevel(logging.WARNING)
         logging.getLogger("urllib3").setLevel(logging.WARNING)
         logging.getLogger("PIL").setLevel(logging.WARNING)
@@ -176,7 +175,7 @@ class Logger:
         개발자가 임의로 로그 레벨을 결정할 수 있게 한다
 
         사용 예시:
-          • Windows (CMD):
+          • Windows:
                 C:\> set LOG_LEVEL=DEBUG
                 C:\> python 파일이름.py
 
