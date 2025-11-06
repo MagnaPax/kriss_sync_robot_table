@@ -55,7 +55,23 @@ def load_json(file_path: Path) -> Optional[Dict[str, Any]]:
 
 
 
+######################
+# --- TEXT Tools --- #
+######################
+def load_text(file_path: Path) -> Optional[str]:
+    """
+    텍스트 파일을 읽어 문자열로 반환
 
+    Args:
+        file_path (Path): 읽어올 텍스트 파일의 경로
+
+    Returns:
+        파일이 존재하고 유효한 경우 문자열을, 그렇지 않은 경우 None을 반환
+        Optional <- None도 반환될 수 있음을 나타낸다
+    """
+
+    if not os.path.exists(file_path):
+        return None
 
 
 # ==========================================================
