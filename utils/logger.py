@@ -130,7 +130,7 @@ class Logger:
         self._configure_logging()
 
         # 로거 생성(Logger 클래스 객체에 핸들러 등록)
-        self._attach_handler()
+        self._attach_handlers()
 
 
 
@@ -203,13 +203,13 @@ class Logger:
         return handler
 
 
-    def _attach_handler(self) -> None:
+    def _attach_handlers(self) -> None:
         """핸들러들을 로거에 등록"""
         self.logger = logging.getLogger(Logger.APP_NAME)
         self.logger.setLevel(LogLevel.DEBUG.value if not self.app_env.is_packaged else LogLevel.INFO.value)
-        self.logger.propagate = False   # 중복방지
+        self.logger.propagate = False   # 중복 출력 방지
 
-        # 중복방지
+        # 핸들러 중복 등록 방지
         if not self.logger.hasHandlers():
             self.logger.addHandler(self._create_file_handler())
             self.logger.addHandler(self._create_error_handler())
