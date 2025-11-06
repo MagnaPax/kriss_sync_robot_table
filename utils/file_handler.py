@@ -3,8 +3,11 @@ import json, os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from utils.logger import Logger
 
-
+######################
+# --- JSON Tools --- #
+######################
 def save_json(file_path: Path, data: Dict[str, Any]) -> bool:
     """
     Python 딕셔너리를 JSON 파일로 저장
@@ -24,9 +27,8 @@ def save_json(file_path: Path, data: Dict[str, Any]) -> bool:
             json.dump(data, f, indent=4, ensure_ascii=False)    # 딕셔너리를 json 형식으로 변환
         return True
     except (IOError) as e:
-        print(f"[WARN] JSON 저장 실패: {file_path} - {e}")
+        Logger().logger.warning(f"JSON 저장 실패: {file_path} - {e}")
         return False
-        
 
 def load_json(file_path: Path) -> Optional[Dict[str, Any]]:
     """
@@ -47,8 +49,8 @@ def load_json(file_path: Path) -> Optional[Dict[str, Any]]:
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             return json.load(f)
-    except (json.JSONDecodeError, IOError) as e:
-        print(f"[WARN] JSON 읽기 실패: {file_path} - {e}")
+    except (json.JSONDecodeError, IOError, FileNotFoundError) as e:
+        Logger().logger.warning(f"JSON 읽기 실패: {file_path} - {e}")
         return None
 
 
