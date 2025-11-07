@@ -113,7 +113,9 @@ if __name__ == '__main__':
 
     from config.paths import CONFIG_MACRO_PATH as file_path_macro_settings
 
-
+    # =====================
+    # --- JSON 테스트 --- #
+    # =====================
 
     # 샘플 매크로 데이터
     data_macro = {
@@ -138,3 +140,32 @@ if __name__ == '__main__':
     print("\n🔹 저장된 데이터 읽기...")
     loaded = load_json(file_path_macro_settings)
     print("✅ 로드된 데이터:", loaded)
+
+
+    # ====================
+    # --- TXT 테스트 --- #
+    # ====================
+
+    # 텍스트 테스트용 경로 (JSON과 동일한 위치에 저장)
+    file_path_text = file_path_macro_settings.parent / "test_sequence_output.txt"
+
+    # 샘플 텍스트 데이터 (F, T, X, Y... 데이터)
+    data_text = (
+        "10.000 0.000 95.625 -8.166 2.744 -0.27850 -3.26302 0.00000 -2.000 1.0\n"
+        "10.000 0.000 95.784 -6.129 2.744 -0.20901 -3.26845 0.00000 -2.000 1.0\n"
+        "10.000 0.000 95.899 -4.088 2.744 -0.13942 -3.27238 0.00000 -2.000 1.0\n"
+        "10.000 0.000 95.971 -2.044 2.745 -0.06970 -3.27485 0.00000 -2.000 1.0\n"
+        "10.000 0.000 95.971 -2.044 2.745 -0.06970 -3.27485 0.00000 0.000 0.0"
+    )
+
+    # 저장 테스트
+    print("🔹 TEXT 데이터 저장 중...")
+    save_text(file_path_text, data_text)
+    print(f"✅ 저장 완료: {file_path_text}")
+
+    # 불러오기 테스트
+    print("\n🔹 저장된 TEXT 데이터 읽기...")
+    loaded_text = load_text(file_path_text)
+    print("✅ 로드된 TEXT:\n--- (시작) ---")
+    print(loaded_text)
+    print("--- ( 끝 ) ---")
