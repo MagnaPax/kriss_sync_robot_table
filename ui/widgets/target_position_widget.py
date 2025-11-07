@@ -7,6 +7,15 @@ from ui.widgets.base_widget import BaseWidget
 
 
 class TargetPositionWidget(BaseWidget):
+    """
+     로봇팔, 턴테이블의 이동 명령과 매크로를 관리하는 위젯
+
+     기능:
+        - 좌표 입력(X,Y,Z,W,P,R)
+        - 'Edit Macro' 버튼으로 매크로 설정 모달(MacroSettingsDialog) 열기
+        - 매크로 버튼(사용자가 입력한 매크로 제목)을 누르면 저장된 값 불러오기
+        - 'GoTo' 버튼 클릭 시 `goto_requested` 시그널 발생
+    """
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -37,6 +46,51 @@ class TargetPositionWidget(BaseWidget):
         group_layout.addWidget(QLabel("X:"))
         group_layout.addWidget(QLabel("Y:"))
         base_group_box.setLayout(group_layout)
+
+    def _create_line_edit():
+        """
+        사용자 입력 위젯 반환
+
+        로봇(X,Y,Z) -> mm
+        턴테이블(W,P,R) -> deg
+        """
+
+    def _create_button():
+        """
+        3종류의 버튼을 만들어서 반환
+
+        매크로 사용자 입력값
+        """
+    
+
+    def _handle_edit_macro_button_clicked():
+        """
+        'Edit Macro' 버튼이 클릭되었을 때 실행할 함수
+
+        MacroSettingsDialog 열기
+        """
+
+
+    def _bind_macro_button_events():
+        """
+        매크로 버튼이 눌리면 어떤 일을 할 지 정의
+
+        모든 매크로 버튼에 클릭 시그널을 연결
+        """
+
+
+    def _handle_macro_button_clicked():
+        """
+        매크로 버튼이 클릭되었을 때 실행할 함수
+        """
+
+
+    def _bind_goto_button_clicked():
+        """
+        'GoTo' 버튼이 눌리면 어떤 일을 할 지 정의
+
+        시그널 연결
+        """
 
 
 
