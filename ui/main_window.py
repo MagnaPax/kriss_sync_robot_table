@@ -25,28 +25,25 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(QIcon("resources/icons/kriss.gif"))
         self.setGeometry(100, 100, 1200, 800)  # 초기 창 크기
 
-        # 상태바 설정
-        self.status_bar = QStatusBar()
-        self.setStatusBar(self.status_bar)
+        # 상태바 설정. statusBar()는 QMainWindow의 메서드로, 상태바가 없으면 생성하고 반환합니다.
+        status_bar = self.statusBar()
         self.status_label = QLabel("Disconnected")  # 초기 상태
         self.status_label.setObjectName("status_label")  # CSS Selector 용
         self.status_label.setProperty("status", "disconnected")  # 상태 속성 설정
-        self.status_bar.addWidget(self.status_label)
+        if status_bar:  # status_bar가 None이 아닌지 확인
+            status_bar.addWidget(self.status_label)
 
         # 중심 위젯과 레이아웃
-        self.central_widget = QWidget()
-        self.setCentralWidget(self.central_widget)
-        self.mainLayout = QHBoxLayout(self.central_widget)
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        self.mainLayout = QHBoxLayout(central_widget)
 
-        # 패널 생성 (부모를 central_widget 으로 명시)
-        self.left_panel = left_panel.LeftPanel(self.central_widget)
-        self.center_panel = center_panel.CenterPanel(self.central_widget)
-        self.right_panel = right_panel.RightPanel(self.central_widget)
-        
-        # 패널 추가
-        self.mainLayout.addWidget(self.left_panel)
-        self.mainLayout.addWidget(self.center_panel)
-        self.mainLayout.addWidget(self.right_panel)
+
+        # 패널
+        # 부모를 centralWidget로 명시
+        self.mainLayout.addWidget(left_panel.LeftPanel(central_widget))
+        self.mainLayout.addWidget(center_panel.CenterPanel(central_widget))
+        self.mainLayout.addWidget(right_panel.RightPanel(central_widget))
 
         # 패널 레이아웃 비율 설정
         self.mainLayout.setStretch(0, 1)  # Left    첫째가 남는 공간 중 1만큼
@@ -61,4 +58,14 @@ class MainWindow(QMainWindow):
     def apply_style(self):
         """QSS 파일 읽기 및 적용"""
         qss_path = Path("styles/stylesheet.qss")
-        load_and_apply_stylesheet(self, qss_path)
+        
+        if qss_path.exists():
+            try:
+                with open(qss_path, "r", encoding='UTF-8') as file:
+                    stylesheet = file.read()
+                    self.setStyleSheet(stylesheet)  # MainWindow에 적용
+                    print("✅ 스타일시트 로드 성공")
+            except Exception as e:
+                print(f"❌ 스타일시트 로드 실패: {e}")
+        else:
+            print(f"⚠️ 스타일시트 파일 없음: {qss_path}")
