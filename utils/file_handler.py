@@ -75,6 +75,25 @@ def load_text(file_path: Path) -> Optional[str]:
         Logger().logger.warning(f"텍스트 읽기 실패: {file_path} - {e}")
         return None
 
+def save_text(file_path_macro_settings: Path, data: str) -> bool:
+    """
+    문자열을 텍스트 파일로 저장
+
+    Args:
+        file_path_macro_settings (Path): 저장할 텍스트 파일의 경로
+        text (str): 저장할 텍스트
+
+    Returns:
+        bool: 저장 성공 여부
+    """
+    try:
+        file_path_macro_settings.parent.mkdir(parents=True, exist_ok=True)
+        with open(file_path_macro_settings, "w", encoding="utf-8") as f:
+            f.write(data)
+        return True
+    except (IOError) as e:  
+        Logger().logger.warning(f"텍스트 저장 실패: {file_path_macro_settings} - {e}")
+        return False
 
 
 
