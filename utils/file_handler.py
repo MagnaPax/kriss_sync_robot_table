@@ -42,9 +42,6 @@ def load_json(file_path: Path) -> Optional[Dict[str, Any]]:
         Optional <- None도 반환될 수 있음을 나타낸다
     """
 
-    if not os.path.exists(file_path):
-        return None
-    
     # 포맷이 잘못됐거나 못 읽는 파일 예외처리
     try:
         with open(file_path, "r", encoding="utf-8") as f:
@@ -52,6 +49,53 @@ def load_json(file_path: Path) -> Optional[Dict[str, Any]]:
     except (json.JSONDecodeError, IOError, FileNotFoundError) as e:
         Logger().logger.warning(f"JSON 읽기 실패: {file_path} - {e}")
         return None
+
+
+
+######################
+# --- TEXT Tools --- #
+######################
+def load_text(file_path: Path) -> Optional[str]:
+    """
+    텍스트 파일을 읽어 문자열로 반환
+
+    Args:
+        file_path (Path): 읽어올 텍스트 파일의 경로
+
+    Returns:
+        파일이 존재하고 유효한 경우 문자열을, 그렇지 않은 경우 None을 반환
+        Optional <- None도 반환될 수 있음을 나타낸다
+    """
+
+    # 못 읽는 파일 예외처리
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            return f.read()
+    except (IOError, FileNotFoundError) as e:
+        Logger().logger.warning(f"텍스트 읽기 실패: {file_path} - {e}")
+        return None
+
+def save_text(file_path_macro_settings: Path, data: str) -> bool:
+    """
+    문자열을 텍스트 파일로 저장
+
+    Args:
+        file_path_macro_settings (Path): 저장할 텍스트 파일의 경로
+        text (str): 저장할 텍스트
+
+    Returns:
+        bool: 저장 성공 여부
+    """
+    try:
+        file_path_macro_settings.parent.mkdir(parents=True, exist_ok=True)
+        with open(file_path_macro_settings, "w", encoding="utf-8") as f:
+            f.write(data)
+        return True
+    except (IOError) as e:  
+        Logger().logger.warning(f"텍스트 저장 실패: {file_path_macro_settings} - {e}")
+        return False
+
+
 
 
 
@@ -69,7 +113,9 @@ if __name__ == '__main__':
 
     from config.paths import CONFIG_MACRO_PATH as file_path_macro_settings
 
-
+    # =====================
+    # --- JSON 테스트 --- #
+    # =====================
 
     # 샘플 매크로 데이터
     data_macro = {
@@ -94,3 +140,32 @@ if __name__ == '__main__':
     print("\n🔹 저장된 데이터 읽기...")
     loaded = load_json(file_path_macro_settings)
     print("✅ 로드된 데이터:", loaded)
+
+
+    # ====================
+    # --- TXT 테스트 --- #
+    # ====================
+
+    # 텍스트 테스트용 경로 (JSON과 동일한 위치에 저장)
+    file_path_text = file_path_macro_settings.parent / "test_sequence_output.txt"
+
+    # 샘플 텍스트 데이터 (F, T, X, Y... 데이터)
+    data_text = (
+        "10.000 0.000 95.625 -8.166 2.744 -0.27850 -3.26302 0.00000 -2.000 1.0\n"
+        "10.000 0.000 95.784 -6.129 2.744 -0.20901 -3.26845 0.00000 -2.000 1.0\n"
+        "10.000 0.000 95.899 -4.088 2.744 -0.13942 -3.27238 0.00000 -2.000 1.0\n"
+        "10.000 0.000 95.971 -2.044 2.745 -0.06970 -3.27485 0.00000 -2.000 1.0\n"
+        "10.000 0.000 95.971 -2.044 2.745 -0.06970 -3.27485 0.00000 0.000 0.0"
+    )
+
+    # 저장 테스트
+    print("🔹 TEXT 데이터 저장 중...")
+    save_text(file_path_text, data_text)
+    print(f"✅ 저장 완료: {file_path_text}")
+
+    # 불러오기 테스트
+    print("\n🔹 저장된 TEXT 데이터 읽기...")
+    loaded_text = load_text(file_path_text)
+    print("✅ 로드된 TEXT:\n--- (시작) ---")
+    print(loaded_text)
+    print("--- ( 끝 ) ---")
