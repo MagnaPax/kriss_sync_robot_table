@@ -28,7 +28,19 @@ class TargetPositionWidget(BaseWidget):
         main_layout = QVBoxLayout(self)  # 부모위젯(TargetPositionWidget)에 QVBoxLayout을 붙인다
         main_layout.addWidget(base_group_box)
         main_layout.setContentsMargins(0, 0, 0, 0)      # 레이아웃 내부 여백 제거
-        # self.setLayout(main_layout) # 부모위젯(TargetPositionWidget)에 main_layout 레이아웃 설치
+
+
+        ##########################
+        # --- 부속 위젯들 --- #
+        ##########################
+        group_layout = QVBoxLayout(base_group_box)
+        group_layout.addWidget(QLabel("X:"))
+        group_layout.addWidget(QLabel("Y:"))
+        base_group_box.setLayout(group_layout)
+
+
+
+
 
 
 
@@ -55,3 +67,4 @@ if __name__ == '__main__':
     main_win.show()
     
     sys.exit(app.exec())
+
