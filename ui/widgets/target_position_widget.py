@@ -1,6 +1,17 @@
 # ui/widgets/target_position_widget.py
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QVBoxLayout, QGroupBox, QLabel, QFrame, QHBoxLayout
+from PyQt6.QtWidgets import (
+    QVBoxLayout, 
+    QGroupBox, 
+    QLabel, 
+    QFrame, 
+    QHBoxLayout, 
+    QFormLayout, 
+    QLineEdit, 
+    QDoubleSpinBox,
+    QGridLayout
+)
+from typing import Dict
 
 from ui.widgets.base_widget import BaseWidget
 
@@ -23,7 +34,10 @@ class TargetPositionWidget(BaseWidget):
 
     def _init_ui(self):
         self.setObjectName("target_position_widget")
+        self._configure_base_layout()
 
+
+    def _configure_base_layout(self):
         ##########################
         # --- 기본 형태 설정 --- #
         ##########################
@@ -39,13 +53,57 @@ class TargetPositionWidget(BaseWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)      # 레이아웃 내부 여백 제거
 
 
-        ##########################
-        # --- 부속 위젯들 --- #
-        ##########################
-        group_layout = QVBoxLayout(base_group_box)
-        group_layout.addWidget(QLabel("X:"))
-        group_layout.addWidget(QLabel("Y:"))
-        base_group_box.setLayout(group_layout)
+        ############################
+        # --- 부속 위젯들 배치 --- #
+        ############################
+        # --- 상단 --- #
+        # --- Edit Macro 영역 --- #
+        section_edit_macro = QFrame()
+        section_edit_macro.setObjectName("section_edit_macro")
+        section_edit_macro.setStyleSheet("QFrame { background-color: blue; }")  # 개발용 임시 배경
+
+        layout_edit_macro = QHBoxLayout(section_edit_macro)
+        layout_edit_macro.setContentsMargins(0, 0, 0, 0)
+        layout_edit_macro.setSpacing(0)
+        layout_edit_macro.addStretch(1)
+
+
+        # --- 중단 --- #
+        # --- 사용자 입력 영역 --- #
+        section_line_edit = QFrame()
+        section_line_edit.setObjectName("section_line_edit")
+        section_line_edit.setStyleSheet("QFrame { background-color: green; }")  # 개발용 임시 배경
+
+        layout_line_edit = QHBoxLayout(section_line_edit)
+        layout_line_edit.setContentsMargins(0, 0, 0, 0)
+        layout_line_edit.setSpacing(0)
+        layout_line_edit.addStretch(1)
+
+        # --- 매크로 버튼 영역 --- #
+        section_macro_buttons = QFrame()
+        section_macro_buttons.setObjectName("section_macro_buttons")
+        section_macro_buttons.setStyleSheet("QFrame { background-color: #FFFFB5; }")  # 개발용 임시 배경
+
+        laytou_macro_buttons = QGridLayout(section_macro_buttons)
+        laytou_macro_buttons.setContentsMargins(0, 0, 0, 0)
+        laytou_macro_buttons.setSpacing(0)
+
+
+        # --- 하단 --- #
+        # --- Go To 영역 --- #
+        section_go_to = QFrame()
+        section_go_to.setObjectName("section_go_to")
+        section_go_to.setStyleSheet("QFrame { background-color: #FF968A; }")  # 개발용 임시 배경
+
+        layout_go_to = QHBoxLayout(section_go_to)
+        layout_go_to.setContentsMargins(0, 0, 0, 0)
+        layout_go_to.setSpacing(0)
+        layout_go_to.addStretch(1)        
+
+
+        ############################
+        # --- 부속 위젯들 합체 --- #
+        ############################
 
     def _create_line_edit():
         """
