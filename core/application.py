@@ -29,36 +29,47 @@ class AppEngine(QApplication):
         클래스가 앱 전체에서 단 하나의 인스턴스(객체)만 갖도록 보장하는 
         싱글톤(Singleton) 디자인 패턴 구현
         """
+
         # --- 최초 호출할때만 인스턴스 생성, 그 뒤로는 같은 인스턴스 리턴 --- #
         # 1. 클래스 변수 _instance가 비어있는지(None) 확인
         if cls._instance is None:
+
+            # __new__ 안에서 에러 날 수 있으니까 로거 먼저 초기화
+            Logger()
+
             # 2. QApplication.instance() 를 통해 기존 인스턴스가 있는지 확인
-            #   다른 곳에서 QApplication을 먼저 생성했을 경우 대비
             instance = QApplication.instance()
+
             if instance is None:
                 # 3. 없다면, 새로운 AppEngine 인스턴스를 생성
                 Logger().logger.info("Creating AppEngine instance...")
                 cls._instance = super().__new__(cls)
+
             elif isinstance(instance, cls):
                 # 4. 이미 AppEngine 인스턴스가 있다면 그것을 사용
+                Logger().logger.info("Using existing AppEngine instance.")
                 cls._instance = instance
+
             else:
                 # 5. AppEngine이 아닌 다른 QApplication 인스턴스가 이미 존재하면,
                 #    이는 잘못된 앱 설정이므로 에러 발생
-                raise TypeError(
-                    "A QApplication instance already exists, but it is not an AppEngine instance."
-                )
+                err_msg = "A QApplication instance already exists, but it is not an AppEngine instance."
+                Logger().logger.error(err_msg)
+                raise TypeError(err_msg)
 
         return cls._instance
 
 
     def __init__(self, argv=None) -> None:
-        """초기화 (최초 1회만 실행 - 여러번 실행 방지)"""
-
+        """
+        인스턴스가 생성된 후, 실제 QApplication 초기화를 수행
+        싱글톤 패턴에 의해 __init__은 여러 번 호출될 수 있으므로
+        _initialized 플래그로 실제 초기화는 한 번만 실행되도록 보장한다
+        """
         # 클래스 변수를 체크하여 이미 초기화되었다면 즉시 반환
         if AppEngine._initialized:
             return
-        
+
         try:
             # QApplication의 초기화는 한 번만 수행되어야 한다
             # 부모 클래스(QApplication)의 __init__ 호출(누락되면 앱이 작동하지 않음)
@@ -67,7 +78,6 @@ class AppEngine(QApplication):
             Logger().logger.critical(f"QApplication 초기화 실패: {e}", exc_info=True)
 
         # --- 1회성 초기화 코드 --- #
-        self._initialize_logger()           # → utils/logger.py
         self._initialize_theme()            # → styles/theme_manager.py
         self._initialize_exception_hook()   # → core/exception_handler.py
         # self._initialize_event_bus()        # → core/event_bus.py
@@ -79,9 +89,6 @@ class AppEngine(QApplication):
 
 
 
-    def _initialize_logger(self):
-        """전역 로거를 초기화합니다."""
-        Logger()
 
     def _initialize_theme(self):
         """전역 스타일시트를 로드하고 적용합니다."""
