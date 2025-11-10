@@ -1,7 +1,14 @@
 # core/application.py
 
+import sys
+from PyQt6.QtWidgets import QApplication
 
-class Application:
+from utils.logger import Logger
+from config.paths import STYLESHEET_PATH
+
+
+
+class AppEngine(QApplication):
     """
     앱 엔진(Application Wrapper)
     QApplication 환경을 감싸(wrpper) 클래스
@@ -11,3 +18,97 @@ class Application:
         - 전역 예외 처리, 테마 적용, 로깅 초기화, 종료 신호 처리 등을 담당
         - 앱의 “부트스트랩(시작점)” 역할
     """
+
+    # 싱글톤 디자인 패턴
+    _instance: AppEngine | None = None   # 클래스의 유일한 인스턴스(객체)를 저장하기 위한 공간
+    _initialized: bool = False        # 초기화 코드가 여러번 실행되는 것을 방지하는 flag 변수(스위치)
+
+
+    def __new__(cls) -> AppEngine:
+        """
+        클래스가 앱 전체에서 단 하나의 인스턴스(객체)만 갖도록 보장하는 
+        싱글톤(Singleton) 디자인 패턴 구현
+        """
+        # --- 최초 호출할때만 인스턴스 생성, 그 뒤로는 같은 인스턴스 리턴 --- #
+        # 1. 클래스 변수 _instance가 비어있는지(None) 확인
+        if cls._instance is None:
+            # 2. QApplication.instance() 를 통해 기존 인스턴스가 있는지 확인
+            #   다른 곳에서 QApplication을 먼저 생성했을 경우 대비
+            instance = QApplication.instance()
+            if instance is None:
+                # 3. 없다면, 새로운 AppEngine 인스턴스를 생성
+                Logger().logger.info("Creating AppEngine instance...")
+                cls._instance = super().__new__(cls)
+            elif isinstance(instance, cls):
+                # 4. 이미 AppEngine 인스턴스가 있다면 그것을 사용
+                cls._instance = instance
+            else:
+                # 5. AppEngine이 아닌 다른 QApplication 인스턴스가 이미 존재하면,
+                #    이는 잘못된 앱 설정이므로 에러 발생
+                raise TypeError(
+                    "A QApplication instance already exists, but it is not an AppEngine instance."
+                )
+
+        return cls._instance
+
+
+    def __init__(self, argv=None) -> None:
+        """초기화 (최초 1회만 실행 - 여러번 실행 방지)"""
+
+        # 클래스 변수를 체크하여 이미 초기화되었다면 즉시 반환
+        if AppEngine._initialized:
+            return
+        
+        try:
+            # QApplication의 초기화는 한 번만 수행되어야 한다
+            # 부모 클래스(QApplication)의 __init__ 호출(누락되면 앱이 작동하지 않음)
+            super().__init__(argv or sys.argv) # type: ignore
+        except Exception as e:
+            Logger().logger.critical(f"QApplication 초기화 실패: {e}", exc_info=True)
+
+        # --- 1회성 초기화 코드 --- #
+        self._initialize_logger()           # → utils/logger.py
+        self._initialize_theme()            # → styles/theme_manager.py
+        self._initialize_exception_hook()   # → core/exception_handler.py
+        # self._initialize_event_bus()        # → core/event_bus.py
+
+        # 모든 초기화가 끝났으므로 플래그를 True로 설정
+        AppEngine._initialized = True
+        Logger().logger.info("Application Engine has been initialized.")
+
+
+
+
+    def _initialize_logger(self):
+        """전역 로거를 초기화합니다."""
+        Logger()
+
+    def _initialize_theme(self):
+        """전역 스타일시트를 로드하고 적용합니다."""
+        # load_and_apply_stylesheet(self, STYLESHEET_PATH)
+        if STYLESHEET_PATH.exists():
+            try:
+                with open(STYLESHEET_PATH, "r", encoding='UTF-8') as file:
+                    stylesheet = file.read()
+                    self.setStyleSheet(stylesheet)  # MainWindow에 적용
+                    print("✅ 스타일시트 로드 성공")
+            except Exception as e:
+                print(f"❌ 스타일시트 로드 실패: {e}")
+        else:
+            print(f"⚠️ 스타일시트 파일 없음: {STYLESHEET_PATH}")
+
+    def _initialize_exception_hook(self):
+        """처리되지 않은 모든 예외를 로깅하기 위한 전역 훅을 설치합니다."""
+        original_hook = sys.excepthook
+
+        def exception_hook(exc_type, exc_value, exc_traceback):
+            if issubclass(exc_type, KeyboardInterrupt):
+                original_hook(exc_type, exc_value, exc_traceback)
+                return
+
+            Logger().logger.critical(
+                "Unhandled application exception",
+                exc_info=(exc_type, exc_value, exc_traceback)
+            )
+
+        sys.excepthook = exception_hook
