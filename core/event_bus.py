@@ -4,6 +4,13 @@ Event Bus (이벤트 허브)
 ----------------------
 애플리케이션 전역의 이벤트(시그널)를 관리하는 싱글톤 허브
 
+비유:
+    Event Bus : 라디오 방송국
+    Signals:    라디오 주파수
+    emits:      해당 주파수로 방송 송출
+    connect:    청취자가 특정 주파수를 청취하는 것
+
+
 역할:
     - 위젯/모듈 간 간접 통신 (Loose Coupling)
         - 이 클래스를 통해 이벤트를 발행(emit)하고 구독(connect)하여 통신한다    
@@ -19,8 +26,14 @@ Event Bus (이벤트 허브)
 사용 예시:
     # 발행자 (Publisher)
     from core.event_bus import EVENT_BUS
-    EVENT_BUS.robot_state_updated.emit({'x': 100, 'y': 200})
     
+    state_obj = RobotState(
+        x=100.0, y=200.0, z=50.0,
+        w=0.0, p=0.0, r=0.0,
+        state='moving'
+    )
+    EVENT_BUS.robot_state_updated.emit(state_obj)
+
     # 구독자 (Subscriber)
     EVENT_BUS.robot_state_updated.connect(self.on_robot_moved)
 """
@@ -94,7 +107,7 @@ class EventBus(QObject):
     로봇 상태 업데이트 시그널
     
     Args:
-        dict (RobotState): {
+        RobotState: {
             'x': float - X 좌표 (mm)
             'y': float - Y 좌표 (mm)
             'z': float - Z 좌표 (mm)
@@ -117,7 +130,7 @@ class EventBus(QObject):
     턴테이블 상태 업데이트 시그널
     
     Args:
-        dict (TurntableState): {
+        TurntableState: {
             'angle': float - 현재 각도 (deg)
             'rounds': int - 회전 횟수
             'state': str - 턴테이블 상태 ('idle', 'rotating', 'error')
@@ -183,6 +196,14 @@ class EventBus(QObject):
     
     사용 예:
         EVENT_BUS.log_message_generated.emit("작업 완료", "INFO")
+    """
+
+    app_shutting_down = pyqtSignal()
+    """
+    앱 종료 시그널
+    
+    사용 예:
+        EVENT_BUS.app_shutting_down.emit()
     """
     
     
