@@ -170,12 +170,16 @@ class EventBus(QObject):
         EVENT_BUS.goto_requested.connect(self.move_to_position)
     """
     
-    macro_settings_changed = pyqtSignal()
+    macro_settings_changed = pyqtSignal(dict)
     """
     매크로 설정 변경 시그널 (MacroSettingsDialog에서 저장 시)
     
     Args:
-        없음
+        dict: {
+            'macro_id': str, 'name': str,
+            'x': float, 'y': float, 'z': float,
+            'w': float, 'p': float, 'r': float
+        }
     
     사용 예:
         # 발행자 (MacroSettingsDialog)
