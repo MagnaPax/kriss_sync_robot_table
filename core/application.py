@@ -1,6 +1,7 @@
 # core/application.py
 
 import sys
+import logging
 from PyQt6.QtWidgets import QApplication
 
 from utils.logger import Logger
@@ -90,6 +91,10 @@ class AppEngine(QApplication):
         self._initialize_theme()            # → styles/theme_manager.py
         self._initialize_exception_hook()   # → core/exception_handler.py
         self._initialize_event_bus()        # → core/event_bus.py
+        
+        # 애플리케이션이 종료될 때 실행할 클린업 훅(shutdown 메서드) 등록
+        self.aboutToQuit.connect(self.shutdown)
+
 
         # 모든 초기화가 끝났으므로 플래그를 True로 설정
         AppEngine._initialized = True
@@ -122,6 +127,38 @@ class AppEngine(QApplication):
         EVENT_BUS 자체는 import 시점에 초기화되므로, 여기서는 로깅 및 연결을 수행한다
         """
         self.logger.info("EventBus has been loaded.")
-        # 애플리케이션이 종료되기 직전에 모든 시그널 연결을 해제하도록 설정
-        self.aboutToQuit.connect(EVENT_BUS.disconnect_all)
+
+    def shutdown(self):
+        """
+        앱이 종료(aboutToQuit 시그널)될 때 실행
+        애플리케이션의 우아한 종료(Graceful Shutdown)를 처리
+
+        - 실행 중인 작업 중단
+        - 데이터 저장
+        - 리소스 정리
+        - EventBus 신호 해제
+        - Logger 핸들러 닫기
+        """        
+
+        self.logger.info("🔌 앱 종료 시작")
+
+        try:
+            # 1. 다른 모듈에 앱 종료를 알리는 전역 이벤트 발행
+            EVENT_BUS.log_emit('app_shutting_down')
+
+            # 2. (필요 시) 실행 중인 작업(예: 통신 스레드) 중단
+            # self.robot_controller.stop()
+
+            # 3. (필요 시) 현재 상태(예: 창 위치) 저장
+            # self.save_state()
+
+            # 4. EventBus의 모든 시그널 연결을 명시적으로 해제
+            EVENT_BUS.disconnect_all()
+
+        except Exception as e:
+            self.logger.warning("EventBus 클린업 중 오류 발생: %s", e)
+
+        # 5. 모든 로그가 파일에 기록되도록 로깅 시스템을 정상적으로 종료
+        self.logger.info("Application shutdown completed.")
+        logging.shutdown()
 
