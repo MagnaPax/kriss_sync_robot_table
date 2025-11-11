@@ -29,7 +29,7 @@ class AppEngine(QApplication):
     _initialized: bool = False        # 초기화 코드가 여러번 실행되는 것을 방지하는 flag 변수(스위치)
 
 
-    def __new__(cls) -> AppEngine:
+    def __new__(cls, *args, **kwargs) -> "AppEngine":
         """
         클래스가 앱 전체에서 단 하나의 인스턴스(객체)만 갖도록 보장하는 
         싱글톤(Singleton) 디자인 패턴 구현
@@ -162,3 +162,92 @@ class AppEngine(QApplication):
         self.logger.info("Application shutdown completed.")
         logging.shutdown()
 
+
+
+
+
+
+# =============================================================================
+# 단독 실행 (테스트용)
+"""
+실행 명령어
+python -m core.application
+"""
+# =============================================================================
+if __name__ == "__main__":
+    import sys
+    from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton
+    
+    # AppEngine은 내부적으로 sys.argv를 사용하므로
+    # QApplication에 인자를 전달합니다.
+    # __new__ 와 __init__ 이 실행되며 로깅, 예외처리, 테마, 이벤트 버스 초기화
+    print("=" * 70)
+    print("AppEngine 테스트 시작...")
+    
+    # 1. AppEngine 인스턴스 생성
+    # Logger, 예외 후크, 테마, 이벤트 버스가 모두 초기화됩니다.
+    app_engine = AppEngine(sys.argv)
+    
+    # 2. 싱글톤 테스트
+    print("\n--- 싱글톤 테스트 ---")
+    print(f"Engine 1 ID: {id(app_engine)}")
+    
+    # 다시 호출해도 __new__에 의해 동일한 인스턴스가 반환되어야 함
+    app_engine_2 = AppEngine()
+    print(f"Engine 2 ID: {id(app_engine_2)}")
+    print(f"동일 인스턴스: {app_engine is app_engine_2}")
+    
+    if not (app_engine is app_engine_2):
+        print("❌ 싱글톤 테스트 실패!")
+    else:
+        print("✅ 싱글톤 테스트 성공")
+
+    # 3. 간단한 테스트 윈도우 생성 (앱이 바로 종료되지 않게)
+    print("\n--- 테스트 윈도우 생성 ---")
+    try:
+        window = QWidget()
+        window.setWindowTitle("AppEngine 테스트")
+        window.setGeometry(100, 100, 300, 200)
+        
+        layout = QVBoxLayout()
+        
+        # 스타일시트 적용 확인용
+        label = QLabel("AppEngine 테스트 윈도우\n스타일시트가 적용되었는지 확인하세요.")
+        label.setObjectName("TestLabel") # CSS ID (선택적)
+        
+        # 종료 버튼 (aboutToQuit 시그널 테스트용)
+        quit_button = QPushButton("종료 (Shutdown 테스트)")
+        # QApplication.quit()을 호출하면 aboutToQuit 시그널이 발생
+        quit_button.clicked.connect(app_engine.quit) 
+        
+        layout.addWidget(label)
+        layout.addWidget(quit_button)
+        window.setLayout(layout)
+        
+        window.show()
+        print("테스트 윈도우 표시 완료.")
+        print("윈도우를 닫거나 '종료' 버튼을 누르면 앱이 종료됩니다.")
+        
+        # 4. 이벤트 루프 시작
+        print("\nAppEngine.exec() 실행...")
+        print("=" * 70)
+        
+        # app_engine.exec() 호출
+        exit_code = app_engine.exec()
+        
+        print("=" * 70)
+        print(f"AppEngine.exec() 종료. (종료 코드: {exit_code})")
+        print("EventBus.disconnect_all()이 호출되었어야 합니다.")
+        
+        # 5. 종료
+        sys.exit(exit_code)
+
+    except Exception as e:
+        # __init__에서 전역 예외 후크가 설치되었으므로 
+        # 이 코드는 실행되지 않아야 정상이지만,
+        # 만약의 경우를 대비해 여기서도 로깅
+        if hasattr(app_engine, 'logger'):
+            app_engine.logger.critical(f"AppEngine 테스트 중 예외 발생: {e}", exc_info=True)
+        else:
+            print(f"CRITICAL: AppEngine 테스트 중 예외 발생: {e}")
+        sys.exit(1)
