@@ -35,7 +35,9 @@ class AppEngine(QApplication):
         # 1. 클래스 변수 _instance가 비어있는지(None) 확인
         if cls._instance is None:
 
-            # __new__ 안에서 에러 날 수 있으니까 로거 먼저 초기화
+            # __new__ 내부에서 발생할 수 있는 예외를 로깅하기 위해
+            # 인스턴스 생성 전에 Logger를 먼저 초기화
+            # Logger는 싱글톤이므로, 호출 자체로 초기화
             Logger()
 
             # 2. QApplication.instance() 를 통해 기존 인스턴스가 있는지 확인
@@ -71,12 +73,15 @@ class AppEngine(QApplication):
         if AppEngine._initialized:
             return
 
+        # Logger 인스턴스를 생성하고 AppEngine 의 속성으로 만든다
+        self.logger = Logger().logger
+
         try:
             # QApplication의 초기화는 한 번만 수행되어야 한다
             # 부모 클래스(QApplication)의 __init__ 호출(누락되면 앱이 작동하지 않음)
             super().__init__(argv or sys.argv) # type: ignore
         except Exception as e:
-            Logger().logger.critical(f"QApplication 초기화 실패: {e}", exc_info=True)
+            self.logger.critical(f"QApplication 초기화 실패: {e}", exc_info=True)
 
         # --- 1회성 초기화 코드 --- #
         self._initialize_theme()            # → styles/theme_manager.py
@@ -85,7 +90,7 @@ class AppEngine(QApplication):
 
         # 모든 초기화가 끝났으므로 플래그를 True로 설정
         AppEngine._initialized = True
-        Logger().logger.info("Application Engine has been initialized.")
+        self.logger.info("Application Engine has been initialized.")
 
 
 
