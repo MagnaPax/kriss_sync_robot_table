@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import QApplication
 
 from utils.logger import Logger
 from config.paths import STYLESHEET_PATH
+from core.exception_handler import install_global_exception_hook
 
 
 
@@ -105,17 +106,5 @@ class AppEngine(QApplication):
             print(f"⚠️ 스타일시트 파일 없음: {STYLESHEET_PATH}")
 
     def _initialize_exception_hook(self):
-        """처리되지 않은 모든 예외를 로깅하기 위한 전역 훅을 설치합니다."""
-        original_hook = sys.excepthook
+        install_global_exception_hook()
 
-        def exception_hook(exc_type, exc_value, exc_traceback):
-            if issubclass(exc_type, KeyboardInterrupt):
-                original_hook(exc_type, exc_value, exc_traceback)
-                return
-
-            Logger().logger.critical(
-                "Unhandled application exception",
-                exc_info=(exc_type, exc_value, exc_traceback)
-            )
-
-        sys.excepthook = exception_hook
