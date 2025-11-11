@@ -6,6 +6,9 @@ from PyQt6.QtWidgets import QApplication
 from utils.logger import Logger
 from config.paths import STYLESHEET_PATH
 from core.exception_handler import install_global_exception_hook
+from core.event_bus import EVENT_BUS
+
+
 
 
 
@@ -86,7 +89,7 @@ class AppEngine(QApplication):
         # --- 1회성 초기화 코드 --- #
         self._initialize_theme()            # → styles/theme_manager.py
         self._initialize_exception_hook()   # → core/exception_handler.py
-        # self._initialize_event_bus()        # → core/event_bus.py
+        self._initialize_event_bus()        # → core/event_bus.py
 
         # 모든 초기화가 끝났으므로 플래그를 True로 설정
         AppEngine._initialized = True
@@ -112,4 +115,13 @@ class AppEngine(QApplication):
 
     def _initialize_exception_hook(self):
         install_global_exception_hook()
+
+    def _initialize_event_bus(self):
+        """
+        이벤트 버스 초기화 및 애플리케이션 시그널 연결.
+        EVENT_BUS 자체는 import 시점에 초기화되므로, 여기서는 로깅 및 연결을 수행한다
+        """
+        self.logger.info("EventBus has been loaded.")
+        # 애플리케이션이 종료되기 직전에 모든 시그널 연결을 해제하도록 설정
+        self.aboutToQuit.connect(EVENT_BUS.disconnect_all)
 
