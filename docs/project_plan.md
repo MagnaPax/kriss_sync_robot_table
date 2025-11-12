@@ -8,10 +8,34 @@ kriss_sync_robot_turn_table/
 │   ├── settings.py                  # 전역 설정: 색상 팔레트(dict), 위젯 크기(tuple), 파일 경로(str) 등을 저장. 예: COLOR_PALETTE = {'primary': '#007BFF', 'error': '#DC3545'}; 구현: 클래스나 dict로 설정 로드/저장 기능.
 │   └── constants.py                 # 상수: ADS 포트(int, e.g., 851), AMS Net ID(str, e.g., '127.0.0.1.1.1'), 타임아웃 초(int, e.g., 5). 예: ADS_TIMEOUT = 5000; 읽기 전용으로 정의.
 │
-├── core/
+│
+├── core/                            # 이 앱의 인프라 : 얘들은 UI도 데이터도 모른다. 오직 '앱이 어떻게 실행되는가'만 안다
 │   ├── __init__.py                  # 패키지 초기화.
-│   ├── application.py               # QApplication 래퍼: 싱글톤 QApplication 관리, 예외 처리 추가. 예: class App(QApplication): def __init__(self): super().__init__(sys.argv); self.setStyle('Fusion')
-│   └── event_bus.py                 # 이벤트 시스템: Observer 패턴 구현, pub/sub 메커니즘. 예: class EventBus(QObject): turntable_angle_changed = pyqtSignal(float); def emit_event(self, event, data): ...
+│   ├── application.py               # 앱의 부트스트랩(QApplication 래퍼)
+│   └── event_bus.py                 # 전역 이벤트 : Observer 패턴 구현, pub/sub 메커니즘. 예: class EventBus(QObject): turntable_angle_changed = pyqtSignal(float); def emit_event(self, event, data): ...
+│   └── exception_handler.py         # 전역 예외 훅
+│   └── threads.py                   # 워커 스레드 풀
+│
+├── models/                         # 이들은 UI, ViewModel, EventBus를 "전혀" 모른다. 오직 "데이터가 무엇인가"만 정의한다
+│   ├── __init__.py                 # 패키지 초기화.
+│   ├── macro_model.py              # 매크로 데이터 저장/읽기/검증
+│   ├── robot_model.py              # 로봇 상태, 궤적 계산
+│   ├── calibration_model.py        # 보정 데이터
+│   ├── sequence_model.py           # 시퀀스 실행 로직
+│   ├── vision_model.py             # 이미지 처리
+│   └── safety_model.py             # 안전성 로직
+│
+├── view_models/                    # UI(View)의 요청을 받아 비즈니스 로직을 실행하는 "중간 관리자"
+│   │                               # View의 상태(State)를 관리하고, Model의 데이터를 가공하여 View에 제공하는 역할.
+│   │                               # 이들은 'Model'과 'EventBus', 'utils'를 알지만, 'ui' 폴더는 모른다
+│   ├── __init__.py
+│   ├── macro_view_model.py         # (파일 I/O, 예외 처리, 로그 발행, 데이터 가공)
+│   ├── robot_view_model.py         # 
+│   ├── calibration_view_model.py
+│   ├── sequence_view_model.py
+│   ├── vision_view_model.py
+│   └── safety_view_model.py
+│
 │
 ├── communication/
 │   ├── __init__.py                  # 패키지 초기화.
