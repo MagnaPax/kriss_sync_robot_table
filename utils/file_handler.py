@@ -198,6 +198,74 @@ def save_text(file_path: Path, data: str) -> bool:
 
 
 
+######################
+# --- CSV Tools --- #
+######################
+def load_csv(file_path: Path) -> Optional[List[List[str]]]:
+    """
+    CSV 파일을 읽어 2차원 리스트(List[List[str]])로 반환
+
+    Args:
+        file_path (Path): 읽어올 CSV 파일의 경로
+
+    Returns:
+        파싱된 데이터의 2차원 리스트, 실패 시 None.
+    """
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            return [row for row in reader]
+
+    except FileNotFoundError:
+        return None
+
+    except PermissionError:
+        _log_error('permission_read', path=file_path)
+        return None
+
+    except IOError as e:
+        _log_error('io_read', path=file_path, error=e)
+        return None
+
+    except UnicodeDecodeError as e:
+        _log_error('text_encoding', path=file_path, start=e.start, end=e.end)
+        return None
+
+    except Exception as e:
+        _log_error('csv_load_unexpected', path=file_path)
+        return None
+
+def save_csv(file_path: Path, data: List[List[str]]) -> bool:
+    """
+    2차원 리스트(List[List[str]])를 CSV 파일로 저장
+    
+    Args:
+        file_path (Path): 저장할 CSV 파일의 경로
+        data (List[List[str]]): 저장할 데이터
+
+    Returns:
+        bool: 저장 성공 여부
+    """
+    try:
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(file_path, "w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerows(data)
+        return True
+    
+    except PermissionError:
+        _log_error('permission_write', path=file_path)
+        return False
+
+    except OSError as e:
+        _log_error('io_write', path=file_path, error=e)
+        return False
+
+    except Exception as e:
+        _log_error('csv_save_unexpected', path=file_path)
+        return False
+
+
 
 
 
