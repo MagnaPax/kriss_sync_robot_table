@@ -337,3 +337,32 @@ if __name__ == '__main__':
     print("✅ 로드된 TEXT:\n--- (시작) ---")
     print(loaded_text)
     print("--- ( 끝 ) ---")
+
+
+    # ====================
+    # --- CSV 테스트 --- #
+    # ====================
+
+    # CSV 테스트용 경로
+    file_path_csv = file_path.parent / "test_csv_output.csv"
+
+    # 샘플 CSV 데이터
+    data_csv = [
+        ["Timestamp", "Event", "Value"],
+        ["2025-11-11 10:00:00", "RobotMove", "X:100, Y:200"],
+        ["2025-11-11 10:00:01", "TurntableRotate", "Angle:90.5"],
+        ["2025-11-11 10:00:02", "SensorRead", "Pressure:1.23"],
+    ]
+
+    # 저장 테스트
+    print("\n🔹 CSV 데이터 저장 중...")
+    save_csv(file_path_csv, data_csv)
+    print(f"✅ 저장 완료: {file_path_csv}")
+
+    # 불러오기 테스트
+    print("\n🔹 저장된 CSV 데이터 읽기...")
+    loaded_csv = load_csv(file_path_csv)
+    print("✅ 로드된 CSV 데이터:")
+    if loaded_csv:
+        for row in loaded_csv:
+            print(f"   {row}")
