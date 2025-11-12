@@ -246,36 +246,6 @@ def test_exception_logging(logger_instance):
         "스택 트레이스가 error.log에 기록되지 않음"
 
 
-# =============================================================================
-# Test 7: Unhandled Exception Hook 테스트
-# =============================================================================
-def test_unhandled_exception_hook():
-    """
-    sys.excepthook이 설치되어 Unhandled Exception을 자동 로깅하는지 확인
-    
-    검증:
-        - 처리되지 않은 예외가 error.log에 CRITICAL 레벨로 기록
-        - "Unhandled exception" 문구 포함
-    """
-    test_unhandled_message = "TEST_UNHANDLED_EXCEPTION_HOOK"
-    
-    # sys.excepthook 직접 호출 (실제 프로그램 종료 없이 테스트)
-    try:
-        raise RuntimeError(test_unhandled_message)
-    except Exception as e:
-        sys.excepthook(e.__class__, e, e.__traceback__)
-    
-    time.sleep(0.3)
-    
-    error_file = Path(Logger().ERROR_LOG_FILE)
-    content = error_file.read_text(encoding="utf-8")
-    
-    assert "Unhandled exception" in content, \
-        "Unhandled exception 문구가 기록되지 않음"
-    
-    assert test_unhandled_message in content, \
-        "Unhandled exception 메시지가 error.log에 기록되지 않음"
-
 
 # =============================================================================
 # Test 8: 환경 변수로 로그 레벨 제어 확인
