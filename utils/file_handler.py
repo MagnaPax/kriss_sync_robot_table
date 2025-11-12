@@ -1,23 +1,41 @@
 # utils/file_handler.py
 """
 파일 입출력 유틸리티
--------------------
-JSON 및 텍스트 파일 읽기/쓰기 기능 제공
 
-의존성:
-    - utils/logger.py: 에러 로깅
-
-에러 처리 전략:
-    1. FileNotFoundError: None/False 반환 (로그 안 남김 - 최초 시작 시 파일 없을 수 있음)
-    2. 예상 가능한 에러: logger.warning + None/False 반환
-    3. 심각한 에러: logger.error + None/False 반환
-    4. 호출자가 반환값 확인하여 UI 피드백
+JSON, 텍스트, CSV 파일의 읽기/쓰기 기능을 제공
+모든 오류 로깅은 EventBus를 통해 중앙에서 처리
 """
-import json, os
+import json, csv
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
-from utils.logger import Logger
+from core.event_bus import EVENT_BUS
+
+
+
+ERROR_MESSAGES = {
+    # (메시지 템플릿, 로그 레벨)
+    'permission_read': ("파일 읽기 권한 없음: {path}", "ERROR"),
+    'permission_write': ("파일 쓰기 권한 없음: {path}", "ERROR"),
+    'io_read': ("파일 읽기 실패: {path}, 원인: {error}", "ERROR"),
+    'io_write': ("파일 쓰기 실패: {path}, 원인: {error}", "ERROR"),
+    'json_parse': ("JSON 파싱 실패: {path}, 라인 {line}, 열 {col}: {error}", "WARNING"),
+    'json_load_unexpected': ("JSON 로드 중 예상치 못한 에러: {path}", "CRITICAL"),
+    'json_save_unexpected': ("JSON 저장 중 예상치 못한 에러: {path}", "CRITICAL"),
+    'text_encoding': ("텍스트 인코딩 오류: {path}, 위치: {start}-{end}. UTF-8 인코딩을 확인하세요.", "WARNING"),
+    'text_load_unexpected': ("텍스트 로드 중 예상치 못한 에러: {path}", "CRITICAL"),
+    'text_save_unexpected': ("텍스트 저장 중 예상치 못한 에러: {path}", "CRITICAL"),
+    'csv_load_unexpected': ("CSV 로드 중 예상치 못한 에러: {path}", "CRITICAL"),
+    'csv_save_unexpected': ("CSV 저장 중 예상치 못한 에러: {path}", "CRITICAL")
+}
+
+def _log_error(key: str, **kwargs: Any):
+    """오류 메시지 템플릿과 로그 레벨을 사용하여 로그 이벤트를 발행하는 헬퍼 함수"""
+    if key in ERROR_MESSAGES:
+        template, level = ERROR_MESSAGES[key]
+        message = template.format(**kwargs)
+        EVENT_BUS.log_emit('log_message_generated', message, level)
+
 
 ######################
 # --- JSON Tools --- #
@@ -49,28 +67,22 @@ def load_json(file_path: Path) -> Optional[Dict[str, Any]]:
     
     except json.JSONDecodeError as e:
         # JSON 형식 오류 - warning 레벨
-        Logger().logger.warning(
-            f"JSON 파싱 실패: {file_path}\n"
-            f"  라인 {e.lineno}, 열 {e.colno}: {e.msg}"
-        )
+        _log_error('json_parse', path=file_path, line=e.lineno, col=e.colno, error=e.msg)
         return None
     
     except PermissionError:
         # 권한 문제 - error 레벨
-        Logger().logger.error(f"파일 접근 권한 없음: {file_path}")
+        _log_error('permission_read', path=file_path)
         return None
     
     except IOError as e:
         # I/O 에러 - error 레벨
-        Logger().logger.error(f"파일 읽기 실패: {file_path}\n  원인: {e}")
+        _log_error('io_read', path=file_path, error=e)
         return None
     
     except Exception as e:
         # 예상치 못한 에러 - error 레벨 (스택 트레이스 포함)
-        Logger().logger.error(
-            f"JSON 로드 중 예상치 못한 에러: {file_path}",
-            exc_info=True
-        )
+        _log_error('json_load_unexpected', path=file_path)
         return None
 
 def save_json(file_path: Path, data: Dict[str, Any]) -> bool:
@@ -85,7 +97,6 @@ def save_json(file_path: Path, data: Dict[str, Any]) -> bool:
         bool: 저장 성공 여부
     """
 
-    # 파일에 접근할 수 없는(다른 앱에 의해 열려 있는 등) 문제 발생 시 에러처리
     try:
         # 디렉토리가 존재하지 않으면 생성
         file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -97,22 +108,15 @@ def save_json(file_path: Path, data: Dict[str, Any]) -> bool:
         return True
 
     except PermissionError:
-        Logger().logger.error(f"파일 쓰기 권한 없음: {file_path}")
+        _log_error('permission_write', path=file_path)
         return False
 
     except OSError as e:
-        Logger().logger.error(
-            f"파일 저장 실패: {file_path}\n"
-            f"  원인: {e}\n"
-            f"  힌트: 디스크 공간 또는 경로를 확인하세요"
-        )
+        _log_error('io_write', path=file_path, error=e)
         return False
 
     except Exception as e:
-        Logger().logger.error(
-            f"JSON 저장 중 예상치 못한 에러: {file_path}",
-            exc_info=True
-        )
+        _log_error('json_save_unexpected', path=file_path)
         return False
 
 
@@ -147,27 +151,19 @@ def load_text(file_path: Path) -> Optional[str]:
         return None
 
     except PermissionError:
-        Logger().logger.error(f"파일 접근 권한 없음: {file_path}")
+        _log_error('permission_read', path=file_path)
         return None
 
     except IOError as e:
-        Logger().logger.error(f"텍스트 파일 읽기 실패: {file_path}\n  원인: {e}")
+        _log_error('io_read', path=file_path, error=e)
         return None
 
     except UnicodeDecodeError as e:
-        # 인코딩 문제 - warning
-        Logger().logger.warning(
-            f"텍스트 인코딩 오류: {file_path}\n"
-            f"  위치: {e.start}-{e.end}\n"
-            f"  힌트: UTF-8 인코딩을 확인하세요"
-        )
+        _log_error('text_encoding', path=file_path, start=e.start, end=e.end)
         return None
 
     except Exception as e:
-        Logger().logger.error(
-            f"텍스트 로드 중 예상치 못한 에러: {file_path}",
-            exc_info=True
-        )
+        _log_error('text_load_unexpected', path=file_path)
         return None
 
 def save_text(file_path: Path, data: str) -> bool:
@@ -188,22 +184,15 @@ def save_text(file_path: Path, data: str) -> bool:
         return True
 
     except PermissionError:
-        Logger().logger.error(f"텍스트 파일 쓰기 권한 없음: {file_path}")
+        _log_error('permission_write', path=file_path)
         return False
     
     except OSError as e:
-        Logger().logger.error(
-            f"텍스트 파일 저장 실패: {file_path}\n"
-            f"  원인: {e}\n"
-            f"  힌트: 디스크 공간 또는 경로를 확인하세요"
-        )
+        _log_error('io_write', path=file_path, error=e)
         return False
 
     except Exception as e:
-        Logger().logger.error(
-            f"텍스트 저장 중 예상치 못한 에러: {file_path}",
-            exc_info=True
-        )
+        _log_error('text_save_unexpected', path=file_path)
         return False
 
 
