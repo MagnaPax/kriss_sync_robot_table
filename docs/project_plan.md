@@ -16,12 +16,16 @@ kriss_sync_robot_turn_table/
 │   └── exception_handler.py         # 전역 예외 훅
 │   └── threads.py                   # 워커 스레드 풀
 │
+####################################################
+# Model이 실행 → ViewModel이 상태 방송 → View가 표시
+####################################################
+│
 ├── models/                         # 이들은 UI, ViewModel, EventBus를 "전혀" 모른다. 오직 "데이터가 무엇인가"만 정의한다
 │   ├── __init__.py                 # 패키지 초기화.
 │   ├── macro_model.py              # 매크로 데이터 저장/읽기/검증
 │   ├── robot_model.py              # 로봇 상태, 궤적 계산
 │   ├── calibration_model.py        # 보정 데이터
-│   ├── sequence_model.py           # 시퀀스 실행 로직
+│   ├── sequence_model.py           # 시퀀스 데이터, 실행 로직, 상태 저장
 │   ├── vision_model.py             # 이미지 처리
 │   └── safety_model.py             # 안전성 로직
 │
@@ -32,7 +36,7 @@ kriss_sync_robot_turn_table/
 │   ├── macro_view_model.py         # (파일 I/O, 예외 처리, 로그 발행, 데이터 가공)
 │   ├── robot_view_model.py         # 
 │   ├── calibration_view_model.py
-│   ├── sequence_view_model.py
+│   ├── sequence_view_model.py      # 현재 인덱스, 진행률, UI 상태 방출 - 뷰가 구독하는 신호
 │   ├── vision_view_model.py
 │   └── safety_view_model.py
 │
