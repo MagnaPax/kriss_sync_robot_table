@@ -812,6 +812,7 @@ modules.xml
 
 
 00Testing/
+hanul_image_handling/
 
 # 설정값 저장 파일 
 config/*.json
