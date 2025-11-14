@@ -810,7 +810,6 @@ modules.xml
 # End of https://www.toptal.com/developers/gitignore/api/pycharm+iml,pycharm,pycharm+all
 
 
-_client_demo/
 00Testing/
 
 # 설정값 저장 파일 
