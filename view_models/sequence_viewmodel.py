@@ -1,5 +1,7 @@
 # view_models/sequence_viewmodel.py
 """
+View  ←→  ViewModel  →  Model
+
 시퀀스 뷰모델 (Presentation Logic)
 """
 from PyQt6.QtCore import QObject, pyqtSignal
