@@ -1,4 +1,8 @@
-from PyQt6.QtWidgets import QFrame, QVBoxLayout, QGroupBox
+# ui/panels/left_panel.py
+from PyQt6.QtWidgets import QFrame, QVBoxLayout, QGroupBox, QSizePolicy
+from ..widgets import LogoWidget
+from ..widgets import TurntableWidget
+from ..widgets import CurrentStateWidget
 
 
 class LeftPanel(QFrame):
@@ -9,20 +13,39 @@ class LeftPanel(QFrame):
         self.setFrameShadow(QFrame.Shadow.Sunken)       # 프레임의 입체감(빛, 음영) 설정
 
         # 수직 레이아웃
-        layout = QVBoxLayout(self)
+        main_layout = QVBoxLayout(self)
 
         # 위젯들
-        ci_panel = QFrame()
-        turntable_group = QGroupBox("Turntable")
-        currnet_state = QGroupBox("Current State")
+        self.logo_widget = LogoWidget()
         world_position = QGroupBox("World Position")
 
+        
+        # --- TurntableWidget을 QGroupBox 안에 넣기 ---
+        turntable_group = QGroupBox("1️⃣ Turntable Angle")  # QGroupBox 생성
+        turntable_layout = QVBoxLayout(turntable_group)     # GroupBox에 적용할 레이아웃 생성
+        turntable_widget = TurntableWidget()                # 실제 위젯 인스턴스 생성
+        # 위젯 위아래로 공간(stretch)을 추가하여 수직 중앙 정렬
+        turntable_layout.addStretch(1)
+        turntable_layout.addWidget(turntable_widget)
+        turntable_layout.addStretch(1)
+
+
+        # --- CurrentStateWidget을 QGroupBox 안에 넣기 ---
+        current_state_group = QGroupBox("Current State")
+        current_state_layout = QVBoxLayout(current_state_group)
+        current_state_widget = CurrentStateWidget()
+        current_state_layout.addStretch(1)
+        current_state_layout.addWidget(current_state_widget)
+        current_state_layout.addStretch(1)
+
+
         turntable_group.setStyleSheet("color: black; border: 1px solid red;")
-        currnet_state.setStyleSheet("color: black; border: 1px solid black;")
+        current_state_group.setStyleSheet("color: black; border: 1px solid black;")
         world_position.setStyleSheet("color: black; border: 1px solid green;")
 
-        # 위젯 추가(레이아웃에 맞춰져 추가됨)
-        layout.addWidget(ci_panel,          stretch=1)  # 1/5 -> 20%
-        layout.addWidget(turntable_group,   stretch=2)  # 2/5 -> 40%
-        layout.addWidget(currnet_state,     stretch=1)  # 1/5 -> 20%
-        layout.addWidget(world_position,    stretch=1)  # 1/5 -> 20%
+
+        # 바탕 레이아웃에 위젯 추가
+        main_layout.addWidget(self.logo_widget,  stretch=1)  # 1/5 -> 20%
+        main_layout.addWidget(turntable_group,   stretch=2)  # 2/5 -> 40%
+        main_layout.addWidget(current_state_group, stretch=1)# 1/5 -> 20%
+        main_layout.addWidget(world_position,    stretch=1)  # 1/5 -> 20%

@@ -22,10 +22,6 @@ from config.paths import CONFIG_MACRO_PATH
 from utils.file_handler import load_json, save_json
 
 
-"""
-일단 성능 개발은 완료.
-pytest 해봐야 된다
-"""
 
 class MacroSettingsDialog(QDialog):
 
