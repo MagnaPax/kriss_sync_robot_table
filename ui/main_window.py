@@ -1,3 +1,4 @@
+# ui/main_window.py
 """
 MainWindow 클래스
 - kriss_sync_robot_turn_table 프로젝트의 메인 UI 윈도우
@@ -7,11 +8,14 @@ MainWindow 클래스
 - 버전: 0.1.0 (2025.10.17)
 """
 
-from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QLabel, QStatusBar, QMenuBar, QMenu
+from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QLabel, QStatusBar
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 from pathlib import Path
 from .panels import left_panel, center_panel, right_panel
+from styles.theme import load_and_apply_stylesheet
+
+
 
 class MainWindow(QMainWindow):
     
@@ -45,7 +49,6 @@ class MainWindow(QMainWindow):
         self.mainLayout.setStretch(0, 1)  # Left    첫째가 남는 공간 중 1만큼
         self.mainLayout.setStretch(1, 1)  # Center  둘째가 남는 공간 중 1만큼
         self.mainLayout.setStretch(2, 2)  # Right   셋째가 남는 공간 중 2만큼
-
 
         # 메인 윈도우에 스타일 적용
         self.apply_style()

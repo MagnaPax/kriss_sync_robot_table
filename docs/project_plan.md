@@ -1,4 +1,5 @@
-```
+
+```bash
 kriss_sync_robot_turn_table/
 │
 ├── main.py                          # 애플리케이션 진입점: QApplication 생성, MainWindow 인스턴스화, 이벤트 루프 실행. 예: from ui.main_window import MainWindow; app = QApplication([]); window = MainWindow(); window.show(); app.exec()
@@ -108,6 +109,7 @@ kriss_sync_robot_turn_table/
 ├── README.md                        # 프로젝트 개요: 설치 방법, 실행 명령, 기여 가이드.
 └── .gitignore                       # 무시 파일: *.pyc, __pycache__/, *.exe 등.
 ```
+
 
 #### **단계별 개발 순서 (Milestones, 재구성)**
 위 확장된 구조를 바탕으로 이전 순서를 업데이트했습니다. Phase 0에서 이 구조 생성을 명시하고, 각 Phase에서 관련 파일 참조를 추가했습니다. UI 우선 원칙 유지.

@@ -1,4 +1,7 @@
-from PyQt6.QtWidgets import QFrame, QVBoxLayout, QLabel, QGroupBox
+from PyQt6.QtWidgets import QFrame, QVBoxLayout, QGroupBox
+
+from ui.widgets.robot_position_widget import RobotPositionWidget
+
 
 
 class CenterPanel(QFrame):
@@ -11,7 +14,7 @@ class CenterPanel(QFrame):
         layout = QVBoxLayout(self)
 
         connection_status = QGroupBox("Connection Status")
-        robot_position = QGroupBox("Robot Position")
+        robot_position = RobotPositionWidget()
         target_position = QGroupBox("Target Position")
         user_position = QGroupBox("User Position")
 
