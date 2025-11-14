@@ -1,14 +1,13 @@
 # core/application.py
+from __future__ import annotations
 
 import sys
 import logging
 from PyQt6.QtWidgets import QApplication
-
 from utils.logger import Logger
 from config.paths import STYLESHEET_PATH
 from core.exception_handler import install_global_exception_hook
 from core.event_bus import EVENT_BUS
-
 
 
 
