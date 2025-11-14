@@ -1,5 +1,7 @@
 # models/sequence_model.py
 """
+View  ←→  ViewModel  →  Model
+
 시퀀스 도메인 모델 (순수 비즈니스 로직)
 
 책임:
