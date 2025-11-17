@@ -70,6 +70,9 @@ class TargetPositionWidget(BaseWidget):
         layout_edit_macro.setContentsMargins(0, 0, 0, 0)
         layout_edit_macro.setSpacing(0)
         layout_edit_macro.addStretch(1)
+        layout_edit_macro.addWidget(self._create_edit_macro_button())
+
+
 
 
         # --- 중단 --- #
