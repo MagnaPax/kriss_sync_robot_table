@@ -129,20 +129,21 @@ class TargetPositionWidget(BaseWidget):
         return button
 
     def _create_edit_macro_button(self) -> QPushButton:
-        """ `Edit Macro` 버튼 생성 """
-        return self._create_button("Edit Macro", "general")
+        """ Edit Macro 버튼 생성 """
+        return self._create_button(title="Edit Macro", type="special")
     
-    def _create_macro_button(self) -> QPushButton:
+    def _create_macro_button(self, title: str) -> QPushButton:
         """ 
         매크로 버튼 생성
 
         버튼에 표시되는 제목은 사용자가 지정한 이름
         """
-        return self._create_button("", "general")
+        return self._create_button(title=title, type="general")
     
     def _create_goto_button(self) -> QPushButton:
-        """ `GoTo` 버튼 생성 """
-        return self._create_button("Go To", "special")
+        """ GoTo 버튼 생성 """
+        return self._create_button(title="Go To", type="special")
+
 
 
 
