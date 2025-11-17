@@ -48,7 +48,7 @@ class TargetPositionWidget(BaseWidget):
 
         # 모든 부속 위젯을 담을 그룹박스 생성
         base_group_box = QGroupBox("Target Position")
-        base_group_box.setStyleSheet("QGroupBox { background-color: #E0E0E0; }") # 개발용 임시 배경 스타일
+        base_group_box.setStyleSheet("QGroupBox { background-color: grey; }") # 개발용 임시 배경 스타일
 
         # 메인 레이아웃(세로 정렬)
         # 이 레이아웃이 전체 위젯의 크기를 관리한다
@@ -86,7 +86,7 @@ class TargetPositionWidget(BaseWidget):
         # --- 매크로 버튼 영역 --- #
         section_macro_buttons = QFrame()
         section_macro_buttons.setObjectName("section_macro_buttons")
-        section_macro_buttons.setStyleSheet("QFrame { background-color: #FFFFB5; }")  # 개발용 임시 배경
+        section_macro_buttons.setStyleSheet("QFrame { background-color: yellow; }")  # 개발용 임시 배경
 
         laytou_macro_buttons = QGridLayout(section_macro_buttons)
         laytou_macro_buttons.setContentsMargins(0, 0, 0, 0)
@@ -97,7 +97,7 @@ class TargetPositionWidget(BaseWidget):
         # --- Go To 영역 --- #
         section_go_to = QFrame()
         section_go_to.setObjectName("section_go_to")
-        section_go_to.setStyleSheet("QFrame { background-color: #FF968A; }")  # 개발용 임시 배경
+        section_go_to.setStyleSheet("QFrame { background-color: orange; }")  # 개발용 임시 배경
 
         layout_go_to = QHBoxLayout(section_go_to)
         layout_go_to.setContentsMargins(0, 0, 0, 0)
