@@ -60,57 +60,89 @@ class TargetPositionWidget(BaseWidget):
         ############################
         # --- 부속 위젯들 배치 --- #
         ############################
+
+        ################
         # --- 상단 --- #
-        # --- Edit Macro 영역 --- #
+        ################
+        # Edit Macro 버튼 영역
         section_edit_macro = QFrame()
         section_edit_macro.setObjectName("section_edit_macro")
         section_edit_macro.setStyleSheet("QFrame { background-color: blue; }")  # 개발용 임시 배경
 
+        # Edit Macro 버튼 레이아웃
         layout_edit_macro = QHBoxLayout(section_edit_macro)
         layout_edit_macro.setContentsMargins(0, 0, 0, 0)
         layout_edit_macro.setSpacing(0)
         layout_edit_macro.addStretch(1)
+
+        # 레이아웃에 Edit Macro 버튼 영역 넣기
         layout_edit_macro.addWidget(self._create_edit_macro_button())
 
 
 
-
+        ################
         # --- 중단 --- #
-        # --- 사용자 입력 영역 --- #
+        ################
+
+        # 좌표 입력 영역
         section_line_edit = QFrame()
         section_line_edit.setObjectName("section_line_edit")
         section_line_edit.setStyleSheet("QFrame { background-color: green; }")  # 개발용 임시 배경
 
+        # 좌표 입력 레이아웃
         layout_line_edit = QHBoxLayout(section_line_edit)
-        layout_line_edit.setContentsMargins(0, 0, 0, 0)
-        layout_line_edit.setSpacing(0)
-        layout_line_edit.addStretch(1)
+        layout_line_edit.setContentsMargins(5,5,5,5)
+        layout_line_edit.setSpacing(10)
 
-        # --- 매크로 버튼 영역 --- #
+        # 로봇팔(X, Y, Z) 입력 영역
+        section_robot_line_edit = QFrame()
+        section_robot_line_edit.setObjectName("section_robot_line_edit")
+        section_robot_line_edit.setStyleSheet("QFrame { background-color: Aquamarine; }")  # 개발용 임시 배경
+
+        # 턴테이블(W, P, R) 입력 영역
+        section_turtable_line_edit = QFrame()
+        section_turtable_line_edit.setObjectName("section_turtable_line_edit")
+        section_turtable_line_edit.setStyleSheet("QFrame { background-color: Darkseagreen; }")  # 개발용
+
+        # 좌표 입력 레이아웃에 로봇팔, 턴테이블 입력 영역 넣기
+        layout_line_edit.addWidget(section_robot_line_edit)
+        layout_line_edit.addWidget(section_turtable_line_edit)
+
+
+        # 매크로 버튼 영역
         section_macro_buttons = QFrame()
         section_macro_buttons.setObjectName("section_macro_buttons")
         section_macro_buttons.setStyleSheet("QFrame { background-color: yellow; }")  # 개발용 임시 배경
 
+        # 매크로 버튼 레이아웃
         laytou_macro_buttons = QGridLayout(section_macro_buttons)
         laytou_macro_buttons.setContentsMargins(0, 0, 0, 0)
         laytou_macro_buttons.setSpacing(0)
 
 
+        ################
         # --- 하단 --- #
-        # --- Go To 영역 --- #
+        ################
+
+        # Go To 버튼 영역
         section_go_to = QFrame()
         section_go_to.setObjectName("section_go_to")
         section_go_to.setStyleSheet("QFrame { background-color: orange; }")  # 개발용 임시 배경
 
+        # Go To 버튼 레이아웃
         layout_go_to = QHBoxLayout(section_go_to)
         layout_go_to.setContentsMargins(0, 0, 0, 0)
         layout_go_to.setSpacing(0)
-        layout_go_to.addStretch(1)        
+
+        # 레이아웃에 Go To 버튼 넣기
+        layout_go_to.addWidget(self._create_goto_button())
 
 
-        ############################
-        # --- 부속 위젯들 합체 --- #
-        ############################
+
+
+        #################################
+        # --- 부속 위젯 영역들 합체 --- #
+        #################################
         widgets_layout = QVBoxLayout(base_group_box)
         widgets_layout.addWidget(section_edit_macro)
         widgets_layout.addWidget(section_line_edit)
