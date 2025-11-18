@@ -85,28 +85,31 @@ class TargetPositionWidget(BaseWidget):
         ################
 
         # 좌표 입력 영역
-        section_line_edit = QFrame()
-        section_line_edit.setObjectName("section_line_edit")
-        section_line_edit.setStyleSheet("QFrame { background-color: green; }")  # 개발용 임시 배경
+        section_coordinate = QFrame()
+        section_coordinate.setObjectName("section_coordinate")
+        section_coordinate.setStyleSheet("QFrame { background-color: green; }")  # 개발용 임시 배경
 
         # 좌표 입력 레이아웃
-        layout_line_edit = QHBoxLayout(section_line_edit)
-        layout_line_edit.setContentsMargins(5,5,5,5)
-        layout_line_edit.setSpacing(10)
+        layout_coordinate = QHBoxLayout(section_coordinate)
+        layout_coordinate.setContentsMargins(5,5,5,5)
+        layout_coordinate.setSpacing(10)
 
         # 로봇팔(X, Y, Z) 입력 영역
-        section_robot_line_edit = QFrame()
-        section_robot_line_edit.setObjectName("section_robot_line_edit")
-        section_robot_line_edit.setStyleSheet("QFrame { background-color: Aquamarine; }")  # 개발용 임시 배경
+        section_robot_coordinate = QFrame()
+        section_robot_coordinate.setObjectName("section_robot_coordinate")
+        section_robot_coordinate.setStyleSheet("QFrame { background-color: Aquamarine; }")  # 개발용 임시 배경
+
+
+
 
         # 턴테이블(W, P, R) 입력 영역
-        section_turtable_line_edit = QFrame()
-        section_turtable_line_edit.setObjectName("section_turtable_line_edit")
-        section_turtable_line_edit.setStyleSheet("QFrame { background-color: Darkseagreen; }")  # 개발용
+        section_turtable_coordinate = QFrame()
+        section_turtable_coordinate.setObjectName("section_turtable_coordinate")
+        section_turtable_coordinate.setStyleSheet("QFrame { background-color: Darkseagreen; }")  # 개발용
 
         # 좌표 입력 레이아웃에 로봇팔, 턴테이블 입력 영역 넣기
-        layout_line_edit.addWidget(section_robot_line_edit)
-        layout_line_edit.addWidget(section_turtable_line_edit)
+        layout_coordinate.addWidget(section_robot_coordinate)
+        layout_coordinate.addWidget(section_turtable_coordinate)
 
 
         # 매크로 버튼 영역
@@ -145,7 +148,7 @@ class TargetPositionWidget(BaseWidget):
         #################################
         widgets_layout = QVBoxLayout(base_group_box)
         widgets_layout.addWidget(section_edit_macro)
-        widgets_layout.addWidget(section_line_edit)
+        widgets_layout.addWidget(section_coordinate)
         widgets_layout.addWidget(section_macro_buttons)
         widgets_layout.addWidget(section_go_to)
 
