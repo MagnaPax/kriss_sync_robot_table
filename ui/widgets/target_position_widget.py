@@ -89,7 +89,7 @@ class TargetPositionWidget(BaseWidget):
         section_coordinate.setObjectName("section_coordinate")
         section_coordinate.setStyleSheet("QFrame { background-color: green; }")  # 개발용 임시 배경
 
-        # 좌표 입력 레이아웃
+        # 좌표 입력 레이아웃 (좌우로 나뉨)
         layout_coordinate = QHBoxLayout(section_coordinate)
         layout_coordinate.setContentsMargins(5,5,5,5)
         layout_coordinate.setSpacing(10)
@@ -99,13 +99,17 @@ class TargetPositionWidget(BaseWidget):
         section_robot_coordinate.setObjectName("section_robot_coordinate")
         section_robot_coordinate.setStyleSheet("QFrame { background-color: Aquamarine; }")  # 개발용 임시 배경
 
-
+        # 로봇팔 좌표 입력 섹션에 X, Y, Z 폼 레이아웃 생성하여 추가
+        section_robot_coordinate.setLayout(self._create_coordinate_input_fields(axes=["X", "Y", "Z"]))
 
 
         # 턴테이블(W, P, R) 입력 영역
         section_turtable_coordinate = QFrame()
         section_turtable_coordinate.setObjectName("section_turtable_coordinate")
         section_turtable_coordinate.setStyleSheet("QFrame { background-color: Darkseagreen; }")  # 개발용
+
+        # 턴테이블 좌표 입력 섹션에 W, P, R 폼 레이아웃 생성하여 추가
+        section_turtable_coordinate.setLayout(self._create_coordinate_input_fields(axes=["W", "P", "R"]))
 
         # 좌표 입력 레이아웃에 로봇팔, 턴테이블 입력 영역 넣기
         layout_coordinate.addWidget(section_robot_coordinate)
@@ -183,6 +187,34 @@ class TargetPositionWidget(BaseWidget):
         return self._create_button(title="Go To", type="special")
 
 
+    # --- 좌표 입력 만들기 --- #
+    def _create_coordinate_input_fields(self, axes: list[str]) -> QFormLayout:
+        """
+        지정된 축(axes) 목록에 대해 '라벨-입력창' QFormLayout을 생성
+
+        인자 값:
+            axes: ["X", "Y", "Z"] 또는 ["W", "P", "R"]
+
+        반환:
+            QFormLayout: 라벨과 QLineEdit가 채워진 폼 레이아웃
+        """
+        form_layout = QFormLayout()
+        form_layout.setContentsMargins(5, 5, 5, 5)
+        form_layout.setSpacing(5)
+        
+        # QFormLayout은 수평/수직 간격 동시 설정이 어려우므로
+        form_layout.setHorizontalSpacing(10)
+        form_layout.setVerticalSpacing(5)
+
+        for axis in axes:
+            label = QLabel(f"{axis}:")
+            line_edit = QLineEdit()
+            line_edit.setObjectName(f"line_edit_{axis}") # QSS 적용을 위한 ID
+            line_edit.setPlaceholderText(f"{axis} 값 입력...")
+            
+            form_layout.addRow(label, line_edit)
+
+        return form_layout
 
 
 
