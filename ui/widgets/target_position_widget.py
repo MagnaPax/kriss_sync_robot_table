@@ -122,9 +122,16 @@ class TargetPositionWidget(BaseWidget):
         section_macro_buttons.setStyleSheet("QFrame { background-color: yellow; }")  # 개발용 임시 배경
 
         # 매크로 버튼 레이아웃
-        laytou_macro_buttons = QGridLayout(section_macro_buttons)
-        laytou_macro_buttons.setContentsMargins(0, 0, 0, 0)
-        laytou_macro_buttons.setSpacing(0)
+        laytout_macro_buttons = QGridLayout(section_macro_buttons)
+        laytout_macro_buttons.setContentsMargins(5, 5, 5, 5)
+        laytout_macro_buttons.setSpacing(5)
+
+        # 매크로 버튼 추가
+        laytout_macro_buttons.addWidget(self._create_macro_button("매크로 1"), 0, 0)
+        laytout_macro_buttons.addWidget(self._create_macro_button("매크로 2"), 0, 1)
+        laytout_macro_buttons.addWidget(self._create_macro_button("매크로 3"), 1, 0)
+        laytout_macro_buttons.addWidget(self._create_macro_button("매크로 4"), 1, 1)
+        
 
 
         ################
