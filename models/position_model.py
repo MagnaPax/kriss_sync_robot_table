@@ -86,6 +86,37 @@ class PositionModel:
         except KeyError:
             raise KeyError(f"매크로 '{macro_id}'를 찾을 수 없습니다.")
 
+
+
+
+
+# ==========================================================
+# Smoke Test
+"""
+실행 명령어
+python -m models.position_model
+"""
+# ==========================================================
+if __name__ == '__main__':
+    
+    print("=" * 70)
+    print("PositionModel 단독 실행 테스트")
+    print("=" * 70)
+
+    # --- 테스트용 샘플 데이터 ---
+    # (MacroSettingsDialog가 생성하는 JSON 파일의 내용과 유사)
+    sample_json_data = {
+        "Macro_1": {
+            "macro_id": "Macro_1", 
+            "name": "매크로 1 이름", 
+            "x": 100.1, 
+            "y": 200.2, 
+            "z": 0.0, 
+            "w": 0.0, 
+            "p": 0.0, 
+            "r": 10.0
+        },
+        "Macro_2": {
             "macro_id": "Macro_2", 
             "name": "매크로 2 이름", 
             "x": 111.0, 
