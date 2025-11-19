@@ -38,6 +38,7 @@ class TargetPositionWidget(BaseWidget):
         self._configure_base_layout()
 
 
+
     def _configure_base_layout(self):
         """
         전체 레이아웃 구성
@@ -331,7 +332,7 @@ class TargetPositionWidget(BaseWidget):
 
 
 # ==========================================================
-# 2. 단독 실행 (테스트용)
+# Smoke Test
 """
 python -m ui.widgets.target_position_widget
 """
@@ -339,14 +340,22 @@ python -m ui.widgets.target_position_widget
 if __name__ == '__main__':
     import sys
     from PyQt6.QtWidgets import QApplication, QMainWindow
+    from models.position_model import PositionModel
     from pathlib import Path
 
 
     app = QApplication(sys.argv)
     
+    # --- 테스트를 위한 ViewModel 및 Model 인스턴스 생성 ---
+    # 1. Model 생성 (의존성 없음)
+    model = PositionModel()
+    # 2. ViewModel 생성 (Model에 의존)
+    view_model = ViewModel(model)
+
     # 배경 확인을 위한 메인 윈도우
     main_win = QMainWindow()
-    widget = TargetPositionWidget()
+    # 3. Widget 생성 (ViewModel에 의존)
+    widget = TargetPositionWidget(view_model)
     main_win.setCentralWidget(widget)
     main_win.setWindowTitle("TargetPositionWidget 테스트")
     main_win.resize(400, 300)
@@ -376,4 +385,3 @@ if __name__ == '__main__':
 
 
     sys.exit(app.exec())
-
