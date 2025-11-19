@@ -35,4 +35,5 @@ class TargetPositionViewModelWorker(QObject):
         except Exception as e:
             self.task_failed.emit(str(e))
         finally:
+            # 성공/실패 여부와 관계없이 항상 finished 시그널을 방출하여 스레드 정리
             self.finished.emit()
