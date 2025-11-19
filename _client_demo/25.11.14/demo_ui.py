@@ -1,21 +1,31 @@
-# demo_ui.py
+# old/demo_ui.py
 """
 FANUC 제어 로직을 위한 고객 시연용 UI (실행 파일)
 
 - '데모 모드' 체크박스를 통해 실제 PLC 연결 없이 UI/로직 테스트 가능
 
-- '라이브 모드' (체크 해제) 시 검증된 fanuc_logic.py를 그대로 호출
-    - 로직에 있는 time.sleep 에 대응하기 위해 
+- '라이브 모드' (체크 해제) 시 테스트가 완료 된 fanuc_logic.py를 그대로 호출
+    - 로직에 있는 time.sleep 에 대응하기 위해(동기화작업 - 앱 멈춤 방지)
     - 모든 PLC 통신(연결, 데이터 전송)은 별도의 QThread(백그라운드 스레드)에서 실행
 """
 
 import os, sys
 import time
-from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QPushButton, 
-                             QLabel, QLineEdit, QTextEdit, QFormLayout, QGroupBox, QCheckBox)
 from PyQt6.QtCore import QThread, pyqtSignal, QObject
+from PyQt6.QtWidgets import (
+    QApplication, 
+    QWidget, 
+    QVBoxLayout, 
+    QPushButton, 
+    QLabel, 
+    QLineEdit, 
+    QTextEdit, 
+    QFormLayout, 
+    QGroupBox, 
+    QCheckBox
+)
 
-# --- 1. DLL 경로 설정 (원본 유지) ---
+# --- pyads 동작에 필요한 DLL 경로 설정 ---
 try:
     # 현재 파일이 위치한 폴더의 절대 경로 저장
     script_dir = os.path.dirname(os.path.abspath(__file__))

@@ -1,4 +1,4 @@
-# fanuc_logic.py
+# old/fanuc_logic.py
 """
 FANUC 로봇 제어를 위한 순수 로직 모듈 (UI와 분리됨)
 
@@ -32,9 +32,10 @@ def connect_plc():
         # 연결 실패 시 UI에 표시할 에러 메시지와 함께 None 반환
         return None, f"PLC 연결 실패: {e}"
 
+
 def send_bits_to_plc(plc: pyads.Connection, prefix: str, lower_value: int, high_value: int):
     """
-    [동작 확인됨] 하위/상위 바이트(정수)를 8개의 비트로 분해하여 PLC에 전송
+    [정환님 코드 복사] 하위/상위 바이트(정수)를 8개의 비트로 분해하여 PLC에 전송
     
     FANUC 로봇은 데이터를 비트 배열(BOOL[8])로 받기 때문에 이 변환이 필요
 
@@ -45,21 +46,28 @@ def send_bits_to_plc(plc: pyads.Connection, prefix: str, lower_value: int, high_
         high_value (int): 상위 8비트 (0-255)
     """
     for i in range(8):
-        # 1. 하위 바이트(lower_value)의 i번째 비트가 1인지 확인
+        # --- 하위 바이트 비트 전송 --- #
+        # 하위 바이트(lower_value)의 i번째 비트가 1인지 확인
         bit_mask = (1 << i)
         is_bit_set = (lower_value & bit_mask) > 0
         # PLC 태그에 쓰기 (예: MAIN.Robot1._UI1.Xl0, ... Xl7)
         plc.write_by_name(f'MAIN.Robot1._UI1.{prefix}l{i}', is_bit_set, pyads.PLCTYPE_BOOL)
 
-        # 2. 상위 바이트(high_value)의 i번째 비트가 1인지 확인
+
+        # --- 상위 바이트 비트 전송 --- #
+        # 상위 바이트(high_value)의 i번째 비트가 1인지 확인
         bit_mask = (1 << i)
         is_bit_set = (high_value & bit_mask) > 0
         # PLC 태그에 쓰기 (예: MAIN.Robot1._UI1.Xh0, ... Xh7)
+        # PLC의 변수명 '{축이름}l{0~7}'에 비트 전송
         plc.write_by_name(f'MAIN.Robot1._UI1.{prefix}h{i}', is_bit_set, pyads.PLCTYPE_BOOL)
+
 
 def process_input_and_send_to_plc(plc: pyads.Connection, input_val: float, axis_name: str):
     """
-    [동작 확인됨] 실수 좌표값(float)을 스케일링하고 부호를 분리하여 전송
+    좌표값과 상태(양수/음수)를 확인하여 전송하는 함수
+
+    실수 좌표값(float)을 스케일링하고 부호를 분리하여 전송
     
     로직:
         1. (예: 15.84) -> (15.84 * 100) -> 1584 (정수)
@@ -73,6 +81,7 @@ def process_input_and_send_to_plc(plc: pyads.Connection, input_val: float, axis_
         axis_name (str): 축 이름 (예: "X", "Y"...)
     """
     # 입력값 * 100 후 정수 변환 로직 (정밀도 소수점 2자리까지)
+    # EtherNet/IP의 I/O는 정수만 송수신 가능하여 스케일 후 전송, 부동소수점 오차 방지를 위해 round 사용
     scaled = int(abs(input_val * 100))
     
     # 16비트 정수를 8비트 하위/상위 바이트로 분리
@@ -82,13 +91,18 @@ def process_input_and_send_to_plc(plc: pyads.Connection, input_val: float, axis_
     # 비트 전송 함수 호출
     send_bits_to_plc(plc, axis_name, lower, high)
 
-    # CheckBit(부호 비트) 전송 로직
+    # --- CheckBit(부호 비트) 전송 로직 --- #
+    #상태 비트(음수이면 True, 양수이면 False)
     check_bit = True if input_val < 0 else False
+    # PLC의 상태 비트 변수명은 '{축이름}_Check'
     plc.write_by_name(f'MAIN.Robot1._UI1.{axis_name}_Check', check_bit, pyads.PLCTYPE_BOOL)
+
 
 def process_feed(plc: pyads.Connection, input_F: float):
     """
-    [동작 확인됨] Feed(속도) 값을 스케일링하여 전송
+    로봇 이동 속도 보내는 함수
+    
+    Feed(속도) 값을 스케일링하여 전송
 
     process_input_and_send_to_plc와 로직이 동일함
     
@@ -105,14 +119,16 @@ def process_feed(plc: pyads.Connection, input_F: float):
         is_bit_set = (lower_F & (1 << i)) > 0
         plc.write_by_name(f'MAIN.Robot1._UI1.Fl{i}', is_bit_set, pyads.PLCTYPE_BOOL)
     
-    # 상위 2비트만 전송 (검증된 로직)
+    # 상위 2비트만 전송
+    # high_F는 2비트만 사용
     for i in range(2):
         is_bit_set = (high_F & (1 << i)) > 0
         plc.write_by_name(f'MAIN.Robot1._UI1.Fh{i}', is_bit_set, pyads.PLCTYPE_BOOL)
 
+
 def execute_command(plc: pyads.Connection, x: float, y: float, z: float, w: float, p: float, r: float, f: float) -> tuple[bool, str]:
     """
-    [동작 확인] FANUC_Test.py의 main() 함수 로직을 단일 함수로 실행
+    FANUC_Test.py의 main() 함수 로직을 단일 함수로 실행
     
     로봇을 실제 이동시키는 RSR 신호를 발생
 
@@ -126,11 +142,11 @@ def execute_command(plc: pyads.Connection, x: float, y: float, z: float, w: floa
             - (False, "데이터 쓰기 실패: {에러}")
     """
     try:
-        # 1. RSR Start 신호 초기화 (False)
-        #    이전 명령이 남아있을 경우를 대비해 False로 초기화
+        # RSR Start 신호 초기화
+        #   이전 명령이 남아있을 경우를 대비해 False로 초기화
         plc.write_by_name('MAIN.Robot1._UI.UI09_RSR1', False, pyads.PLCTYPE_BOOL)
 
-        # 2. 각 축 데이터 처리 및 전송
+        # 각 축에 대해 처리하고, CheckBit와 값을 저장
         process_input_and_send_to_plc(plc, x, "X")
         process_input_and_send_to_plc(plc, y, "Y")
         process_input_and_send_to_plc(plc, z, "Z")
@@ -138,14 +154,15 @@ def execute_command(plc: pyads.Connection, x: float, y: float, z: float, w: floa
         process_input_and_send_to_plc(plc, p, "P")
         process_input_and_send_to_plc(plc, r, "R")
 
-        # 3. Feed 처리
+        # Feed 값 처리
         process_feed(plc, f)
 
-        # 4. RSR Start 신호 전송 (True) -> 로봇 동작 트리거
-        #    이 신호가 True가 되면 PLC/로봇이 좌표값 읽기를 시작
+        # RSR Start 신호 전송
+        #   이 신호가 True가 되면 PLC/로봇이 좌표값 읽기를 시작(로봇 동작 트리거)
+        # 변수명 UI09_RSR1이 False에서 True일 때, Fanuc의 TP Program 실행
         plc.write_by_name('MAIN.Robot1._UI1.UI09_RSR1', True, pyads.PLCTYPE_BOOL)
         
-        # 신호가 PLC에 확실히 전달될 시간 벌기
+        # 신호가 PLC에 확실히 전달 될 시간 벌기
         time.sleep(0.5) 
         
         return True, "데이터 전송 및 RSR 신호 발생 완료"
