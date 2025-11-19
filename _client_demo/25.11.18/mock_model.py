@@ -1,6 +1,8 @@
 # mock_model.py
 import time
 from fanuc_logger import logger
+# from utils.logger import Logger
+# logger = Logger().logger
 
 
 # --- Mock(가짜) PLC 객체 ---

@@ -11,6 +11,8 @@ import os
 import time
 from typing import Optional
 from fanuc_logger import logger
+# from utils.logger import Logger
+# logger = Logger().logger
 
 # main.py에서 DLL 로드 후 pyads를 임포트합니다.
 import pyads
