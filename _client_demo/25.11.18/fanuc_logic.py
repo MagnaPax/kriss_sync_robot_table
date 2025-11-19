@@ -11,8 +11,6 @@ import os
 import time
 from typing import Optional
 from fanuc_logger import logger
-# from utils.logger import Logger
-# logger = Logger().logger
 
 # main.py에서 DLL 로드 후 pyads를 임포트합니다.
 import pyads
@@ -68,7 +66,7 @@ class FanucController:
 
             try:
                 # 로봇이 멈추도록 RSR 신호를 False로 초기화
-                self.plc.write_by_name('MAIN.Robot1._UI.UI09_RSR1', False, pyads.PLCTYPE_BOOL)
+                self.plc.write_by_name('MAIN.Robot1._UI1.UI10_RSR2', False, pyads.PLCTYPE_BOOL)
                 logger.info("RSR 신호 False로 초기화 완료") #
 
             except Exception as e:
@@ -104,7 +102,7 @@ class FanucController:
         try:
             # RSR Start 신호 초기화
             #   -> 이전 명령이 남아있을 경우를 대비해 False로 초기화
-            self.plc.write_by_name('MAIN.Robot1._UI.UI09_RSR1', False, pyads.PLCTYPE_BOOL)
+            self.plc.write_by_name('MAIN.Robot1._UI1.UI10_RSR2', False, pyads.PLCTYPE_BOOL)
             logger.debug("RSR 신호 OFF (초기화)") #
 
             # 각 축에 대해 처리하고, CheckBit와 값을 저장
@@ -123,7 +121,7 @@ class FanucController:
             # RSR Start 신호 전송
             #   -> 이 신호가 True가 되면 PLC/로봇이 좌표값 읽기를 시작(로봇 동작 트리거)
             # 변수명 UI09_RSR1이 False에서 True일 때, Fanuc의 TP Program 실행
-            self.plc.write_by_name('MAIN.Robot1._UI1.UI09_RSR1', True, pyads.PLCTYPE_BOOL)
+            self.plc.write_by_name('MAIN.Robot1._UI1.UI10_RSR2', True, pyads.PLCTYPE_BOOL)
             logger.info("RSR 신호 ON (명령 트리거)") #
             
             # 신호가 PLC에 확실히 전달 될 시간 벌기
