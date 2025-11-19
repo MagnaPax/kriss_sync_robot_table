@@ -34,10 +34,10 @@ class TargetPositionViewModel(QObject):
         # ViewModel이 Model 인스턴스를 소유한다
         self.model = model
 
-        # 비서(Worker) 고용
+        # 비서(Worker) 자리 공석 확보
         self.worker: Worker | None = None
 
-        # 새로운 사무실(QThread) 생성
+        # 새로운 사무실(QThread) 공간 확보
         self.worker_thread: QThread | None = None
 
 
@@ -48,10 +48,10 @@ class TargetPositionViewModel(QObject):
         # --- 비서와 사무실 준비 --- #
         ##############################
 
-        # 비서(Worker) 고용
+        # 비서(Worker) 채용
         self.worker = Worker(self.model)    # 원래 UI 스레드에서 근무
 
-        # 별도 사무실(QThread) 생성
+        # 사무실 계약
         self.worker_thread = QThread()
 
         # 비서를 새 사무실로 전근 발령
