@@ -8,7 +8,7 @@ class FileOperationError(Exception):
 
     
     유용성:
-        단일 처리점: 호출부 코드는 수많은 내장 예외(FileNotFoundError, IOError, PermissionError 등) 대신, 오직 FileOperationError 하나만 try-except로 처리하면 된다
+        단일 처리점: 호출부 코드는 수많은 내장 예외(FileNotFoundError, IOError, PermissionError 등) 를 처리하는 대신 오직 FileOperationError 하나만 try-except로 처리하면 된다
 
         의도 명확화: 예외가 발생했을 때 파일 작업과 관련된 문제임을 즉시 알 수 있다
 
