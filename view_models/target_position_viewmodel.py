@@ -19,6 +19,7 @@ View → ViewModel → (Worker) → Model
 from PyQt6.QtCore import Qt, QObject, QThread, pyqtSignal, pyqtSlot, QMetaObject
 from view_models.target_position_viewmodel_worker import TargetPositionViewModelWorker as Worker
 from models.position_model import PositionModel as Model
+from ui.dialogs.macro_settings_dialog import MacroSettingsDialog
 
 
 
@@ -40,6 +41,12 @@ class TargetPositionViewModel(QObject):
         # 새로운 사무실(QThread) '공간 확보'
         self.worker_thread: QThread | None = None
 
+
+    @pyqtSlot()
+    def open_macro_settings_dialog(self):
+        """'Edit Macro' 버튼 클릭 시 View로부터 요청받아 다이얼로그를 연다."""
+        dialog = MacroSettingsDialog() # 부모를 지정하지 않으면 독립적인 창으로 뜸
+        dialog.exec()   # Modal(호출부 입력 막힘)로 열기
 
     def start_task(self):
         """시간이 많이 드는 동기 작업(직접 호출 대신 워커 사용)"""
