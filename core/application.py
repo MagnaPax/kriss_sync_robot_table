@@ -115,12 +115,12 @@ class AppEngine(QApplication):
         
         if existing_instance is None:
             # 새로운 AppEngine 생성
-            logger.info("🚀 AppEngine 인스턴스 생성 중...")
+            logger.info("AppEngine 인스턴스 생성 중...")
             cls._instance = super().__new__(cls)
             
         elif isinstance(existing_instance, cls):
             # 이미 AppEngine 인스턴스가 존재
-            logger.info("✅ 기존 AppEngine 인스턴스 재사용")
+            logger.info("기존 AppEngine 인스턴스 재사용")
             cls._instance = existing_instance
             
         else:
@@ -156,7 +156,7 @@ class AppEngine(QApplication):
         try:
             # QApplication 초기화
             super().__init__(argv or sys.argv)
-            self.logger.info("✅ QApplication 초기화 완료")
+            self.logger.info("QApplication 초기화 완료")
             
         except Exception as e:
             self.logger.critical(
@@ -173,7 +173,7 @@ class AppEngine(QApplication):
         
         # 초기화 완료
         AppEngine._initialized = True
-        self.logger.info("🎉 AppEngine 초기화 완료")
+        self.logger.info("AppEngine 초기화 완료")
     
     
     def _initialize_components(self):
@@ -188,7 +188,7 @@ class AppEngine(QApplication):
         Note:
             LogListener는 외부에서 생성해야 함
         """
-        self.logger.info("📦 시스템 컴포넌트 초기화 시작...")
+        self.logger.info("시스템 컴포넌트 초기화 시작...")
         
         # 1. 전역 예외 훅 설치
         self._install_exception_hook()
@@ -199,7 +199,7 @@ class AppEngine(QApplication):
         # 3. EventBus 로드 확인
         self._verify_event_bus()
         
-        self.logger.info("✅ 시스템 컴포넌트 초기화 완료")
+        self.logger.info("시스템 컴포넌트 초기화 완료")
     
     
     def _install_exception_hook(self):
@@ -210,7 +210,7 @@ class AppEngine(QApplication):
         """
         try:
             install_global_exception_hook()
-            self.logger.info("  ✓ 전역 예외 훅 설치됨")
+            self.logger.info("전역 예외 훅 설치됨")
         except Exception as e:
             self.logger.warning(f"  ⚠ 전역 예외 훅 설치 실패: {e}")
     
@@ -231,7 +231,7 @@ class AppEngine(QApplication):
                 stylesheet = file.read()
                 self.setStyleSheet(stylesheet)
             
-            self.logger.info(f"  ✓ 스타일시트 로드됨: {STYLESHEET_PATH.name}")
+            self.logger.info(f"스타일시트 로드됨: {STYLESHEET_PATH.name}")
             
         except Exception as e:
             self.logger.warning(f"  ⚠ 스타일시트 로드 실패: {e}")
@@ -247,7 +247,7 @@ class AppEngine(QApplication):
         try:
             # EVENT_BUS가 정상적으로 로드되었는지 확인
             _ = EVENT_BUS.metaObject()
-            self.logger.info("  ✓ EventBus 로드됨")
+            self.logger.info("EventBus 로드됨")
         except Exception as e:
             self.logger.warning(f"  ⚠ EventBus 로드 실패: {e}")
     
@@ -264,12 +264,12 @@ class AppEngine(QApplication):
         Note:
             aboutToQuit 시그널에 의해 자동 호출됨
         """
-        self.logger.info("🔌 앱 종료 시작...")
+        self.logger.info("앱 종료 시작...")
         
         try:
             # 1. 다른 모듈에 종료 알림
             EVENT_BUS.app_shutting_down.emit()
-            self.logger.info("  ✓ 종료 이벤트 발행됨")
+            self.logger.info("종료 이벤트 발행됨")
             
         except Exception as e:
             self.logger.warning(f"  ⚠ 종료 이벤트 발행 실패: {e}")
@@ -277,13 +277,13 @@ class AppEngine(QApplication):
         try:
             # 2. EventBus 정리
             EVENT_BUS.disconnect_all()
-            self.logger.info("  ✓ EventBus 시그널 연결 해제됨")
+            self.logger.info("EventBus 시그널 연결 해제됨")
             
         except Exception as e:
             self.logger.warning(f"  ⚠ EventBus 정리 실패: {e}")
         
         # 3. 로깅 시스템 종료 (마지막)
-        self.logger.info("👋 앱 종료 완료")
+        self.logger.info("앱 종료 완료")
         logging.shutdown()
 
 

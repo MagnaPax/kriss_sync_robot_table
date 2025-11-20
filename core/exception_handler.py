@@ -114,7 +114,7 @@ def install_global_exception_hook():
     # sys.excepthook 교체
     sys.excepthook = _global_exception_hook
     
-    _logger.info("✅ 전역 예외 훅 설치 완료 (Global Exception Hook Installed)")
+    _logger.info("전역 예외 훅 설치 완료")
     _installed = True
 
 
