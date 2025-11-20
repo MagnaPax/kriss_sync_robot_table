@@ -282,8 +282,6 @@ class TargetPositionWidget(BaseWidget):
         UI 구성(_init_ui)과 동작 정의(_connect_events)를 분리하여 코드 구조를 명확하게 합니다.
         """
 
-        print("_connect_events 메서드 실행됨")
-
         # self.edit_macro_button이 None이 아님을 명시적으로 확인 (Pylance 경고 해결 및 런타임 안정성)
         assert self.edit_macro_button is not None, "Edit Macro 버튼이 생성되지 않았습니다."
 
@@ -300,10 +298,6 @@ class TargetPositionWidget(BaseWidget):
         MacroSettingsDialog 열기
         """
 
-        print("_handle_edit_macro_button_clicked 메서드 실행됨")
-
-        # 확인용으로 간단한 정보 메시지 박스를 띄웁니다.
-        QMessageBox.information(self, "알림", "Edit Macro 버튼이 클릭되었습니다.")
 
 
 
