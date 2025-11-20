@@ -297,6 +297,9 @@ class TargetPositionWidget(BaseWidget):
 
         MacroSettingsDialog 열기
         """
+        self.vm.open_macro_settings_dialog()
+
+
 
 
 
