@@ -284,6 +284,9 @@ class TargetPositionWidget(BaseWidget):
 
         print("_connect_events 메서드 실행됨")
 
+        # self.edit_macro_button이 None이 아님을 명시적으로 확인 (Pylance 경고 해결 및 런타임 안정성)
+        assert self.edit_macro_button is not None, "Edit Macro 버튼이 생성되지 않았습니다."
+
         # 'Edit Macro' 버튼 클릭 시 _on_edit_macro_clicked 슬롯 호출
         self.edit_macro_button.clicked.connect(self._handle_edit_macro_button_clicked)
         
