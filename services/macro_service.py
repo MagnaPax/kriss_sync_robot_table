@@ -44,6 +44,13 @@ class MacroService:
                 'p':실수(float),
                 'r':실수(float)
             }
+
+        반환값:
+            True  -> 저장(또는 업데이트) 성공
+            False -> 저장 실패 (예외를 사용하는 경우도 있음)
+
+        주의:
+            ViewModel은 이 반환값을 보고 UI 알림(팝업, 메시지 등)을 결정해야 한다            
         """
 
         try:
@@ -60,7 +67,9 @@ class MacroService:
             existing_macro_data[macro_id] = new_macro_data
 
             # 수정된 전체 데이터를 파일에 다시 저장
-            self._save_data(path, save_json, existing_macro_data)
+            saved = self._save_data(path, save_json, existing_macro_data)
+            if not saved:
+                return False
 
             # 로깅 (성공)
             EVENT_BUS.ui_log_message.emit(
@@ -68,9 +77,6 @@ class MacroService:
                 "INFO"
             )
 
-            # 시그널 송출 (성공) -> 뷰모델이 구독
-            EVENT_BUS.macro_save_result.emit(True, macro_id)
-            
             return True
         
         except FileOperationError as e:
@@ -79,9 +85,6 @@ class MacroService:
                 f"[매크로 저장 오류] 파일: {path}, 이유: {type(e.original).__name__}",
                 "ERROR"
             )
-
-            # 시그널 송출 (실패) -> 뷰모델이 구독
-            EVENT_BUS.macro_save_result.emit(False, str(e.original))
 
             return False
 
