@@ -297,6 +297,28 @@ class EventBus(QObject):
         EVENT_BUS.macro_settings_changed.connect(self._reload_macros)
     """
     
+    macro_save_result = pyqtSignal(bool, str)
+    """
+    매크로 저장 성공/실패 상태 시그널 (Service -> ViewModel)
+    
+    Args:
+        bool: 저장 성공 여부 (True=성공, False=실패)
+        str: 성공 시 매크로 ID, 실패 시 에러 메시지
+    
+    Example:
+        # 발행자 (MacroSettingsDialogViewModel)
+        EVENT_BUS.macro_save_status.emit(True, "Macro_A")
+
+        # 구독자 (MacroSettingsDialog)
+        EVENT_BUS.macro_save_status.connect(self.on_macro_save_result)
+    """
+
+    macro_save_failed = pyqtSignal(bool, str)
+    """
+    매크로 저장 성공/실패 상태 시그널 (ViewModel -> View)
+    """
+    
+
     
     # =========================================================================
     # 싱글톤 구현
