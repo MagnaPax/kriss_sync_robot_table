@@ -61,17 +61,28 @@ class MacroService:
 
             # 수정된 전체 데이터를 파일에 다시 저장
             self._save_data(path, save_json, existing_macro_data)
+
+            # 로깅 (성공)
             EVENT_BUS.ui_log_message.emit(
                 f"[매크로 저장 완료] {macro_id}",
                 "INFO"
             )
+
+            # 시그널 송출 (성공) -> 뷰모델이 구독
+            EVENT_BUS.macro_save_result.emit(True, macro_id)
+            
             return True
         
         except FileOperationError as e:
+            # 로깅 (실패)
             EVENT_BUS.ui_log_message.emit(
                 f"[매크로 저장 오류] 파일: {path}, 이유: {type(e.original).__name__}",
                 "ERROR"
             )
+
+            # 시그널 송출 (실패) -> 뷰모델이 구독
+            EVENT_BUS.macro_save_result.emit(False, str(e.original))
+
             return False
 
 
@@ -121,19 +132,6 @@ class MacroService:
 
 
 
-
-
-
-"""
-=============================================================================
--- Smoke Test --
-
-실행 명령어:
-    python -m services.macro_service
-=============================================================================
-"""
-# services/macro_service.py
-# ... (중략: class MacroService 정의 및 _load_data, _save_data 메서드 정의) ...
 
 
 """
