@@ -132,3 +132,142 @@ class MacroService:
     python -m services.macro_service
 =============================================================================
 """
+# services/macro_service.py
+# ... (중략: class MacroService 정의 및 _load_data, _save_data 메서드 정의) ...
+
+
+"""
+=============================================================================
+-- Smoke Test --
+
+실행 명령어:
+    python -m services.macro_service
+=============================================================================
+"""
+if __name__ == "__main__":
+    import sys
+    import os
+    import json
+    import time
+    from pathlib import Path
+
+    # EventBus는 QObject를 상속하므로, 시그널을 처리하려면 QApplication 인스턴스가 필요합니다.
+    try:
+        from PyQt6.QtWidgets import QApplication
+        # QApplication 인스턴스를 생성하면 로깅 시스템이 초기화될 수 있습니다.
+        app = QApplication(sys.argv) 
+    except ImportError:
+        # PyQt6가 없으면 EventBus 시그널 테스트는 불가하지만, 로직 테스트는 가능
+        app = None
+
+    print("\n" + "="*70)
+    print("MacroService save_or_update_macro Smoke Test")
+    print("="*70 + "\n")
+
+    # 1. 서비스 인스턴스 및 테스트 파일 경로 설정
+    service = MacroService()
+    
+    # 현재 폴더에 테스트 파일 경로 지정
+    # 실제 파일 시스템에 영향을 주지 않도록 unique한 이름 사용 권장
+    test_file_path = Path(__file__).parent / f"test_macro_config_{os.getpid()}.json"
+    print(f"🧪 테스트 파일 경로: {test_file_path}\n")
+
+    # --- 테스트 시작 전, 혹시 남아있을 수 있는 테스트 파일 삭제 ---
+    if test_file_path.exists():
+        test_file_path.unlink()
+    
+    # --- 테스트 데이터 (View에서 _gather_macro_data를 통해 들어오는 형식) ---
+    MACRO_A_V1 = {
+        'macro_id': 'Macro_A',
+        'name': '시작위치',
+        'x': 10.0, 'y': 20.0, 'z': 0.0, 'w': 0.0, 'p': 0.0, 'r': 0.0
+    }
+    MACRO_A_V2_UPDATE = {
+        'macro_id': 'Macro_A',
+        'name': '업데이트 위치',
+        'x': 15.0, 'y': 25.0, 'z': 5.0, 'w': 0.0, 'p': 0.0, 'r': 0.0
+    }
+    MACRO_B = {
+        'macro_id': 'Macro_B',
+        'name': '종료위치',
+        'x': 100.0, 'y': 200.0, 'z': 50.0, 'w': 0.0, 'p': 0.0, 'r': 0.0
+    }
+
+    
+    # ==========================================================
+    # 1️⃣ 파일 생성 및 첫 번째 저장 테스트
+    # ==========================================================
+    print("1️⃣ 파일 생성 및 첫 번째 매크로 저장 (Macro_A):")
+    
+    save_success_a = service.save_or_update_macro(test_file_path, MACRO_A_V1)
+    
+    if save_success_a and test_file_path.exists():
+        print("   ✅ 성공: Macro_A 저장 완료. 파일이 정상적으로 생성됨.")
+    else:
+        print("   ❌ 실패: 파일 생성 및 첫 번째 저장 실패.")
+        sys.exit(1)
+        
+    # 데이터 구조 확인
+    loaded_data_after_a = service.load_macro(test_file_path)
+    print(f"   👉 저장된 키 확인: {list(loaded_data_after_a.keys())}")
+    
+    # ==========================================================
+    # 2️⃣ 기존 데이터에 새로운 매크로 추가 (Macro_B)
+    # ==========================================================
+    print("\n2️⃣ 새로운 매크로 추가 저장 (Macro_B):")
+    
+    save_success_b = service.save_or_update_macro(test_file_path, MACRO_B)
+    
+    if save_success_b:
+        print("   ✅ 성공: Macro_B 추가 저장 완료.")
+    else:
+        print("   ❌ 실패: Macro_B 추가 저장 실패.")
+        sys.exit(1)
+
+    # 최종 데이터 확인
+    with open(test_file_path, 'r', encoding='utf-8') as f:
+        final_content = json.load(f)
+    
+    print(f"   👉 최종 키 확인: {list(final_content.keys())}")
+    
+    if 'Macro_A' in final_content and 'Macro_B' in final_content:
+        print("   ✅ 최종 확인: Macro_A, Macro_B 모두 파일에 존재합니다.")
+    else:
+        print("   ❌ 최종 확인: 매크로 데이터 병합 실패.")
+        sys.exit(1)
+
+    # ==========================================================
+    # 3️⃣ 기존 매크로 업데이트 테스트 (Macro_A V2)
+    # ==========================================================
+    print("\n3️⃣ 기존 매크로 데이터 업데이트 (Macro_A -> V2):")
+    
+    update_success = service.save_or_update_macro(test_file_path, MACRO_A_V2_UPDATE)
+    
+    if update_success:
+        print("   ✅ 성공: Macro_A 업데이트 저장 완료.")
+    else:
+        print("   ❌ 실패: Macro_A 업데이트 저장 실패.")
+        sys.exit(1)
+
+    # 업데이트된 값 확인
+    with open(test_file_path, 'r', encoding='utf-8') as f:
+        updated_content = json.load(f)
+        
+    if updated_content['Macro_A']['x'] == 15.0:
+        print(f"   ✅ 최종 확인: Macro_A의 X 좌표가 {updated_content['Macro_A']['x']}로 업데이트되었습니다.")
+    else:
+        print(f"   ❌ 최종 확인: Macro_A의 X 좌표 업데이트 실패. 현재 값: {updated_content['Macro_A']['x']}")
+        sys.exit(1)
+
+
+    # ==========================================================
+    # 4️⃣ 정리 작업
+    # ==========================================================
+    print("\n4️⃣ 테스트 파일 정리:")
+    if test_file_path.exists():
+        test_file_path.unlink()
+        print(f"   ✅ 성공: '{test_file_path.name}' 파일을 삭제했습니다.")
+    
+    print("\n" + "="*70)
+    print("테스트 완료")
+    print("="*70)
