@@ -1,43 +1,50 @@
 # core/event_bus.py
 """
-Event Bus (이벤트 허브)
-----------------------
-"전역(앱 전체)"의 이벤트(시그널)를 관리하는 싱글톤 허브
+EventBus
 
+    앱 전체에서 사용되는 전역 Publish/Subscribe 이벤트 허브
 
-설계 원칙:
-1. 단일 책임: 오직 이벤트 허브로만 동작
-2. Logger 독립: Logger에 의존하지 않음 (결합 제거)
-3. 이벤트 네임스페이스: 계층화된 시그널 명명
-4. 느슨한 결합: Publish-Subscribe 패턴
+    (여러!!!) 계층 / (여러!!!) 객체에 전달될 이벤트만 EventBus를 사용
 
-
-아키텍처:
-    View → ViewModel → Service → Worker
-                ↓
-           EVENT_BUS (emit)
-                ↓
-         LogListener (subscribe)
-                ↓
-            Logger (record)
-
-용도:
-    여러 계층 / 여러 객체에 전달될 이벤트만 EventBus를 사용한다
-
-    - 데이터 변경 이벤트
-    - 시스템 상태 변경
-    - 백그라운드 작업 완료 알림
-    - 로봇 이동 완료
-    - 파일 저장 성공/실패
-    - 로그 메시지 발생
-    - ⚠️ EventBus는 로깅하지 않음 ⚠️
-    - ⚠️ 로깅은 LogListener가 담당 ⚠️
 
 비유:
     Event Bus : 라디오 방송국(대한민국 전체에 뿌려진다)
     Signals:    라디오 주파수
     emits:      해당 주파수로 방송 송출
     connect:    청취자가 특정 주파수를 청취하는 것
+
+
+
+용도:
+- 사용자(UI)에 표시할 로그 메시지
+- Worker / Service → ViewModel / View 로 전달되는 비동기 이벤트
+- 여러 UI가 동시에 수신해야 하는 Domain Event
+- 시스템 상태 변화 이벤트
+- 데이터 변경 이벤트
+- 백그라운드 작업 완료 알림
+- 로봇 이동 완료
+- 파일 저장 성공/실패
+
+Worker ----┐
+           |
+Service ---┤----> EventBus ----> View(UI)
+           |
+ViewModel -┘
+
+
+
+사용하면 안 되는 경우 ❌:
+- View → ViewModel (직접 호출)
+- ViewModel → Service (직접 호출)
+- Service → Worker (직접 호출)
+- Model 객체 간 상호작용 (모델은 순수 비즈니스 로직)
+- 내부 디버그용 이벤트 (Logger.debug 사용)
+
+[직접 호출]
+View → ViewModel → Service → Worker
+
+
+
 
 
 역할:
@@ -57,43 +64,10 @@ Event Bus (이벤트 허브)
     from core.event_bus import EVENT_BUS
 
     # 발행자 (Publisher)
-    EVENT_BUS.ui_log_message.emit("작업 완료", "INFO")
-    EVENT_BUS.robot_position_changed.emit(position_data)
+    EVENT_BUS.시그널이름.emit("작업 완료", "INFO")
 
     # 구독자 (Subscriber)
-    EVENT_BUS.ui_log_message.connect(self.on_log_message)
-"""
-
-# core/event_bus.py
-"""
-Event Bus (이벤트 허브)
----------------------
-애플리케이션 전역 이벤트 관리 싱글톤
-
-설계 원칙:
-1. 단일 책임: 오직 이벤트 허브로만 동작
-2. Logger 독립: Logger에 의존하지 않음 (결합 제거)
-3. 이벤트 네임스페이스: 계층화된 시그널 명명
-4. 느슨한 결합: Publish-Subscribe 패턴
-
-아키텍처:
-    View → ViewModel → Service → Worker
-                ↓
-           EVENT_BUS (emit)
-                ↓
-         LogListener (subscribe)
-                ↓
-            Logger (record)
-
-사용법:
-    from core.event_bus import EVENT_BUS
-    
-    # 이벤트 발행
-    EVENT_BUS.ui_log_message.emit("작업 완료", "INFO")
-    EVENT_BUS.robot_position_changed.emit(position_data)
-    
-    # 이벤트 구독
-    EVENT_BUS.ui_log_message.connect(self.on_log_message)
+    EVENT_BUS.시그널이름.connect(self.on_log_message)
 """
 
 from PyQt6.QtCore import QObject, pyqtSignal, QMetaObject, QMetaMethod
@@ -125,29 +99,20 @@ class TurntableState:
     state: Literal['idle', 'rotating', 'error']
 
 
-# =============================================================================
-# EventBus (단일 책임: 이벤트 허브)
-# =============================================================================
+
+
 class EventBus(QObject):
-    """
-    애플리케이션 전역 이벤트 허브 (싱글톤)
-    
-    책임:
-    - 이벤트 발행/구독 중재
-    - 모듈 간 느슨한 결합 제공
-    
-    설계:
-    - Logger에 의존하지 않음
-    - 로깅은 LogListener가 담당
-    - EventBus는 도메인 이벤트만 관리
-    """
+    """전역 이벤트 버스"""
     
     # =========================================================================
-    # System Events (시스템 레벨)
+    # System-level Events (전역 시스템 이벤트)
     # =========================================================================
     system_error = pyqtSignal(str)
     """
-    시스템 에러 발생 시그널
+    시스템 에러 발생 시그널 - 시스템의 치명적 오류
+
+    시스템의 치명적 오류는 여러 UI/뷰모델/서비스가 동시에 반응해야 한다.
+        예: PLC 연결 실패 → 상태 UI, 콘솔 UI, 팝업 UI 등이 동시에 반응 필요.
     
     Args:
         str: 에러 메시지
@@ -158,39 +123,27 @@ class EventBus(QObject):
     
     system_info = pyqtSignal(str)
     """
-    시스템 정보 시그널
+    시스템 정보 메시지
+        예: “로봇 초기화 완료”
     
     Args:
         str: 정보 메시지
     """
-    
-    app_shutting_down = pyqtSignal()
-    """
-    앱 종료 시그널
-    
-    Example:
-        EVENT_BUS.app_shutting_down.emit()
-    """
-    
+
     
     # =========================================================================
-    # UI Events (UI 레벨 - 로그 전용)
+    # UI Log Events (UI + Logger 출력)
     # =========================================================================
     ui_log_message = pyqtSignal(str, str)
     """
-    UI 로그 메시지 시그널 (LogListener가 구독)
+    UI에 표시해야 하거나 사용자에게 전달해야 하는 모든 로그 메시지
+        -> ∴ LogListener가 청취해서 로그 기록에 사용한다
+        -> ViewModel, Service, Worker 모두가 emit 할 수 있다
     
+
     Args:
         str: 메시지 내용
         str: 로그 레벨 ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')
-    
-    Example:
-        EVENT_BUS.ui_log_message.emit("매크로 로드 완료", "INFO")
-        EVENT_BUS.ui_log_message.emit("파일 파싱 실패", "ERROR")
-    
-    Note:
-        이 시그널은 Logger와 독립적입니다.
-        LogListener가 이 시그널을 구독하여 Logger에 전달합니다.
     """
     
     
@@ -199,7 +152,13 @@ class EventBus(QObject):
     # =========================================================================
     connection_status_changed = pyqtSignal(bool)
     """
-    통신 연결 상태 변경 시그널
+    통신 연결 상태 변경 시그널 - 장치 연결/해제
+
+        청취 대상 :
+            상단 상태바
+            로그창
+            연결 관리 화면
+            자동실행 스레드
     
     Args:
         bool: True=연결됨, False=연결 끊김
@@ -216,6 +175,7 @@ class EventBus(QObject):
     robot_position_changed = pyqtSignal(RobotState)
     """
     로봇 위치 변경 시그널
+        여러 UI가 듣고 갱신해야 함 (robot_position_widget 등)
     
     Args:
         RobotState: 로봇 상태 데이터
@@ -226,17 +186,9 @@ class EventBus(QObject):
         EVENT_BUS.robot_position_changed.emit(state)
     """
     
-    robot_state_updated = pyqtSignal(RobotState)
-    """
-    로봇 상태 업데이트 시그널 (robot_position_changed의 별칭)
-    
-    Note:
-        하위 호환성을 위해 유지
-    """
-    
     turntable_state_updated = pyqtSignal(TurntableState)
     """
-    턴테이블 상태 업데이트 시그널
+    턴테이블 상태 변경
     
     Args:
         TurntableState: 턴테이블 상태 데이터
@@ -244,7 +196,7 @@ class EventBus(QObject):
     
     current_state_updated = pyqtSignal(dict)
     """
-    현재 시스템 상태 업데이트 시그널
+    현재 시스템 상태 업데이트 시그널 - 로봇 or 장치 종합 상태
     
     Args:
         dict: {
@@ -260,66 +212,22 @@ class EventBus(QObject):
     # =========================================================================
     # UI Interaction Events (UI 상호작용)
     # =========================================================================
-    goto_requested = pyqtSignal(dict)
+    macro_settings_changed = pyqtSignal(dict)
     """
-    로봇 이동 요청 시그널
-    
-    Args:
-        dict: {'x': float, 'y': float, 'z': float,
-            'w': float, 'p': float, 'r': float}
-    
-    Example:
-        # 발행자 (TargetPositionWidget)
-        position = {'x': 100.0, 'y': 200.0, ...}
-        EVENT_BUS.goto_requested.emit(position)
-        
-        # 구독자 (RobotController)
-        EVENT_BUS.goto_requested.connect(self.move_to_position)
-    """
-    
-    macro_updated = pyqtSignal(dict)
-    """
-    매크로 업데이트 시그널
-    
-    Args:
-        dict: 매크로 데이터
-    """
-    
-    macro_settings_changed = pyqtSignal()
-    """
-    매크로 설정 변경 시그널 (MacroSettingsDialog에서 저장 시)
-    
-    Example:
-        # 발행자 (MacroSettingsDialog)
-        EVENT_BUS.macro_settings_changed.emit()
-        
-        # 구독자 (TargetPositionWidget)
-        EVENT_BUS.macro_settings_changed.connect(self._reload_macros)
-    """
-    
-    macro_save_result = pyqtSignal(bool, str)
-    """
-    매크로 저장 성공/실패 상태 시그널 (Service -> ViewModel)
-    
-    Args:
-        bool: 저장 성공 여부 (True=성공, False=실패)
-        str: 성공 시 매크로 ID, 실패 시 에러 메시지
-    
-    Example:
-        # 발행자 (MacroSettingsDialogViewModel)
-        EVENT_BUS.macro_save_status.emit(True, "Macro_A")
+    매크로 설정 변경
 
-        # 구독자 (MacroSettingsDialog)
-        EVENT_BUS.macro_save_status.connect(self.on_macro_save_result)
+    여러 화면/뷰모델에서 동시에 반응할 수 있는 전역 이벤트
+
+        예:
+            매크로 편집 다이얼로그
+            타겟 위치 위젯
+            사이드바 매크로 리스트
+            그 외 다른 모듈들도 구독 가능
     """
 
-    macro_save_failed = pyqtSignal(bool, str)
-    """
-    매크로 저장 성공/실패 상태 시그널 (ViewModel -> View)
-    """
-    
 
-    
+
+
     # =========================================================================
     # 싱글톤 구현
     # =========================================================================
@@ -365,226 +273,43 @@ class EventBus(QObject):
         # 초기화 완료 표시(flag)
         self._initialized = True
     
-    
-    # =========================================================================
-    # 유틸리티 메서드
-    # =========================================================================
-    def disconnect_all(self, signal_name: Optional[str] = None):
+
+
+    def disconnect_all(self, signal_name: str | None = None):
         """
-        시그널 연결 해제 (주로 테스트용)
+        EventBus의 모든 시그널 또는 특정 시그널의 연결을 해제
         
         Args:
-            signal_name: 특정 시그널 이름 (None이면 모든 시그널)
-        
-        Example:
-            EVENT_BUS.disconnect_all('robot_position_changed')
-            EVENT_BUS.disconnect_all()  # 모든 시그널
+            signal_name (str, optional): 연결을 해제할 특정 시그널의 이름.
+                                        None이면 모든 시그널을 해제
         """
-        if signal_name:
-            # 특정 시그널만 해제
-            if not hasattr(self, signal_name):
-                return
-            
-            # 시그널을 가져와서 해제
-            signal = getattr(self, signal_name)
-
-            try:
-                signal.disconnect()
-            except TypeError:
-                # 연결된 슬롯이 없음
-                pass
-        else:
-            # 모든 시그널 연결 해제 (QMetaObject를 사용하여 정확하게 식별)
-            meta_obj: Optional[QMetaObject] = self.metaObject()
-
-            if meta_obj is None:
-                return
-            
-            for i in range(meta_obj.methodCount()):
-                method = meta_obj.method(i)
-
-                # 메서드 타입이 시그널인 경우에만 처리
-                if method.methodType() == QMetaMethod.MethodType.Signal:
-                    try:
-                        # 시그널 이름(bytes)을 str으로 디코딩
-                        signal_name_bytes = method.name()
-                        signal_name_str = signal_name_bytes.data().decode()
-                        
-                        # QObject의 기본 시그널(예: destroyed, objectNameChanged)은 제외
-                        if signal_name_str in ['destroyed', 'objectNameChanged']:
-                            continue
-                        
-                        signal = getattr(self, signal_name_str, None)
-                        if signal:
-                            signal.disconnect()
-
-                    except (TypeError, AttributeError):
-                        # 연결된 슬롯이 없는 경우 발생하는 예외는 무시
-                        pass
-    
-    
-    def get_signal_info(self) -> dict:
-        """
-        정의된 모든 시그널 정보 반환 (디버깅용)
-        
-        Returns:
-            dict: {signal_name: docstring}
-        """
-        signals = {}
         meta_obj = self.metaObject()
         
+        # metaObject()가 None을 반환하는 예외적인 경우를 처리 (Pylance 경고 해결)
         if meta_obj is None:
-            return signals
-        
-        # QMetaObject를 순회하며 시그널 타입의 메서드를 찾는다
+            return
+            
         for i in range(meta_obj.methodCount()):
             method = meta_obj.method(i)
-
+            
+            # 시그널인 메서드만 필터링
             if method.methodType() == QMetaMethod.MethodType.Signal:
-                try:
-                    # 시그널 이름을 바이트에서 문자열로 디코딩
-                    signal_name = method.name().data().decode('utf-8')
-                    
-                    # QObject 기본 시그널 제외
-                    if signal_name in ['destroyed', 'objectNameChanged']:
-                        continue
-                    
-                    # Docstring 가져오기
-                    # __doc__ (설명)은 pyqtSignal 객체 자체에서 가져온다
-                    signal_attr = getattr(EventBus, signal_name, None)
-                    doc = 'No documentation'    # 기본값
-                    
-                    # 'signal_attr.__doc__'가 None이나 빈 문자열이 아닌지 확인
-                    if hasattr(signal_attr, '__doc__') and signal_attr.__doc__:
-                        doc = signal_attr.__doc__.strip()
-                    
-                    signals[signal_name] = doc
-                except Exception:
-                    pass
-        
-        return signals
+                current_signal_name = method.name().data().decode('utf-8')
+                
+                # 특정 시그널만 해제하거나 모든 시그널을 해제
+                if signal_name is None or current_signal_name == signal_name:
+                    signal_instance = getattr(self, current_signal_name)
+                    try:
+                        signal_instance.disconnect()
+                    except TypeError:
+                        # 이미 연결이 없는 시그널에 disconnect()를 호출하면 TypeError 발생
+                        pass
+
 
 
 # =============================================================================
 # 전역 인스턴스
 # =============================================================================
 EVENT_BUS = EventBus()
-"""
-전역 EventBus 인스턴스
-
-Example:
-    from core.event_bus import EVENT_BUS
-    
-    # 이벤트 발행
-    EVENT_BUS.ui_log_message.emit("작업 완료", "INFO")
-    EVENT_BUS.robot_position_changed.emit(state_data)
-    
-    # 이벤트 구독
-    EVENT_BUS.ui_log_message.connect(self.on_log_message)
-    EVENT_BUS.robot_position_changed.connect(self.on_robot_moved)
-"""
 
 
-
-
-
-
-
-
-
-
-"""
-=============================================================================
--- Smoke Test --
-
-python -m core.event_bus
-=============================================================================
-"""
-if __name__ == "__main__":
-    import sys
-    from PyQt6.QtWidgets import QApplication
-    
-    # QApplication 필요 (QObject 사용 시)
-    app = QApplication(sys.argv)
-    
-    print("=" * 70)
-    print("EventBus 테스트 (Logger 독립)")
-    print("=" * 70)
-    
-    # 1. 싱글톤 확인
-    print("\n1️⃣  싱글톤 패턴 확인:")
-    bus1 = EventBus()
-    bus2 = EventBus()
-    print(f"   bus1 ID: {id(bus1)}")
-    print(f"   bus2 ID: {id(bus2)}")
-    print(f"   동일 인스턴스: {bus1 is bus2}")
-    
-    # 2. 시그널 정보 출력
-    print("\n2️⃣  정의된 시그널 목록:")
-    signals = EVENT_BUS.get_signal_info()
-    
-    # 네임스페이스별 그룹화
-    categories = {
-        'System': ['system_', 'app_'],
-        'UI': ['ui_'],
-        'Connection': ['connection_'],
-        'Robot': ['robot_', 'turntable_', 'current_'],
-        'Interaction': ['goto_', 'macro_']
-    }
-    
-    for category, prefixes in categories.items():
-        print(f"\n   [{category} Events]")
-        for name, doc in signals.items():
-            if any(name.startswith(p) for p in prefixes):
-                doc_line = doc.split('\n')[0].strip()
-                print(f"   • {name}")
-                print(f"     {doc_line[:60]}...")
-    
-    # 3. 이벤트 발행/구독 테스트
-    print("\n3️⃣  이벤트 발행/구독 테스트:")
-    
-    # 콜백 함수 정의
-    def robot_callback(data: RobotState):
-        print(f"   ✅ [Robot] 콜백 실행됨: state={data.state}")
-    
-    def log_callback(message: str, level: str):
-        print(f"   ✅ [Log] 콜백 실행됨: [{level}] {message}")
-    
-    def macro_callback():
-        print(f"   ✅ [Macro] 콜백 실행됨")
-    
-    # 시그널 연결
-    EVENT_BUS.robot_position_changed.connect(robot_callback)
-    EVENT_BUS.ui_log_message.connect(log_callback)
-    EVENT_BUS.macro_settings_changed.connect(macro_callback)
-    
-    # 이벤트 발행
-    print("\n   [이벤트 발행]")
-    
-    test_state = RobotState(
-        x=100.0, y=200.0, z=0.0,
-        w=0.0, p=0.0, r=0.0,
-        state='moving'
-    )
-    EVENT_BUS.robot_position_changed.emit(test_state)
-    EVENT_BUS.ui_log_message.emit("테스트 메시지", "INFO")
-    EVENT_BUS.macro_settings_changed.emit()
-    
-    # 4. 연결 해제 테스트
-    print("\n4️⃣  시그널 연결 해제:")
-    EVENT_BUS.disconnect_all('robot_position_changed')
-    print("   🔌 'robot_position_changed' 연결 해제 완료")
-    
-    test_state_idle = RobotState(
-        x=300.0, y=400.0, z=0.0,
-        w=0.0, p=0.0, r=0.0,
-        state='idle'
-    )
-    EVENT_BUS.robot_position_changed.emit(test_state_idle)
-    print("   (콜백이 실행되지 않아야 함)")
-    
-    print("\n" + "=" * 70)
-    print("테스트 완료")
-    print("=" * 70)
-    
-    sys.exit(0)
