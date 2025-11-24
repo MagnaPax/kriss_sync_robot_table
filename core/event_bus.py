@@ -4,6 +4,8 @@ EventBus
 
     앱 전체에서 사용되는 전역 Publish/Subscribe 이벤트 허브
 
+    1:N 혹은 Asyncronize(비동기)작업에 사용
+
     (여러!!!) 계층 / (여러!!!) 객체에 전달될 이벤트만 EventBus를 사용
 
 
