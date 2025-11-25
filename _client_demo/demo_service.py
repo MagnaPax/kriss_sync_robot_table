@@ -1,12 +1,17 @@
 # demo_service.py
-# import magic
+
 import mimetypes
 from pathlib import Path
 from typing import Optional
 from PyQt6.QtCore import Qt, QObject, pyqtSignal, pyqtSlot, QThread, QMetaObject, QThread
-from .demo_worker import FileLoadWorker
+from .demo_worker import ConnectionWorker, CommandWorker, FileLoadWorker
 from .demo_logger import logger
+from .fanuc_logic import FanucController
+from .demo_plc_mock_model import MockFanucController
 
+
+# 타입 힌트를 위해 Union 사용
+ControllerType = FanucController | MockFanucController
 
 
 class FileService(QObject):
@@ -124,3 +129,149 @@ class FileService(QObject):
         if worker:
             worker.deleteLater()
             worker = None
+
+
+
+class PLCService(QObject):
+    """
+    PLC 통신 및 제어 로직을 전담하는 서비스
+    - Model(Real/Mock) 관리
+    - Worker 및 Thread 관리
+
+    시그널은 시퀀스를 “한 단계씩 실행해주는” 역할까지만 한다
+    현재 처리해야 될 시퀀스를 넘겨주는 것은 뷰모델의 역할
+    """
+
+    # 시그널 - 뷰모델이 구독(Observe)
+    log_message = pyqtSignal(str)              # 뷰의 로그창에 보낼 메세지
+    connection_changed = pyqtSignal(bool, str) # (성공여부, 메시지)
+    command_finished = pyqtSignal(str)         # 명령 하나가 끝났을 때
+
+
+    def __init__(self):
+        super().__init__()
+        
+        # 모델 인스턴스 생성 - 서비스가 모델을 소유
+        self._real_model = FanucController()        # 진짜
+        self._mock_model = MockFanucController()    # 가짜
+
+        # 기본값은 데모 모드
+        self._current_controller: ControllerType = self._mock_model
+
+        # 스레드/워커 참조 변수
+        self._thread = None     # 사무실 계약
+        self._worker = None     # 비서 자리 정원 확보
+
+
+    def set_demo_mode(self, is_demo: bool):
+        """데모 모드 체크박스 상태 변경"""
+        # 모드 변경 전 안전하게 연결 해제
+        if self._current_controller.is_connected:
+            self.disconnect_plc()   # 모드 변경 시 연결 해제
+            
+        self._current_controller = self._mock_model if is_demo else self._real_model
+        mode_str = "데모(가상)" if is_demo else "실제(Real)"
+        self.log_message.emit(f"운전 모드가 [{mode_str}]로 변경되었습니다.")
+
+    def is_connected(self) -> bool:
+        return self._current_controller.is_connected
+
+    def connect_plc(self):
+        """PLC 연결 요청"""
+
+        if self._is_busy(): return
+
+        self.log_message.emit("PLC 연결 시도 중...")
+
+
+        # 스레드 생성 및 시작
+        self._thread = QThread()
+        self._worker = ConnectionWorker(self._current_controller)
+        self._worker.moveToThread(self._thread)
+
+        # 결과 시그널 연결
+        # 비서(워커)의 작업 결과를 보고받도록 설정(connection_result 시그널의 emit 예약)
+        self._worker.connection_result.connect(self._handle_connection_result)
+        
+        # 정리 로직 연결
+        self._worker.finished.connect(self._cleanup)
+
+
+        """
+        스레드(작업 공간) 생성 및 이벤트 루프 시작
+        운영체제(OS) 레벨에서 새로운 Thread 를 물리적으로 생성
+
+        "사무실 문을 열고 컴퓨터를 켜라" (작업 공간 준비)
+        """
+        self._thread.start()
+
+
+        """
+        특정 스레드에게 작업 실행 요청
+        self._worker 객체의 run 함수를 호출해달라고 이벤트 큐에 요청서(Event)를 제출
+
+        "김대리, 이제 일 시작해!" (작업 지시)
+        """
+        QMetaObject.invokeMethod(self._worker, "run", Qt.ConnectionType.QueuedConnection)
+
+
+    def disconnect_plc(self):
+        """연결 해제 처리 (모드 변경 시 또는 앱 종료 시)"""
+        if self._current_controller.is_connected:
+            self._current_controller.disconnect_plc()
+        self.connection_changed.emit(False, "PLC 연결이 해제되었습니다.")
+
+
+    def send_command(self, coords_list: list):
+        """명령(좌표) 전송 요청"""
+
+        if self._is_busy(): return
+
+        self._thread = QThread()
+        self._worker = CommandWorker(self._current_controller, coords_list)
+        self._worker.moveToThread(self._thread)
+
+        self._worker.log_message.connect(self.log_message)  # Worker의 로그를 UI로 전달
+        self._worker.command_finished.connect(self.command_finished)
+        self._worker.finished.connect(self._cleanup)
+
+        self._thread.start()
+        QMetaObject.invokeMethod(self._worker, "run", Qt.ConnectionType.QueuedConnection)
+
+
+    # --- 내부 헬퍼 ---
+    def _is_busy(self) -> bool:
+        """현재 작업 중인지 확인"""
+        if self._thread and self._thread.isRunning():
+            self.log_message.emit("현재 다른 작업이 진행 중입니다.")
+            return True
+        return False
+
+    @pyqtSlot()
+    def _cleanup(self):
+        """스레드 자원 정리 (안전 버전)"""
+        
+        # 1. 스레드 정리
+        if self._thread:
+            if self._thread.isRunning():
+                self._thread.quit()
+                # 최대 2초 대기 (무한 대기 방지)
+                if not self._thread.wait(2000): 
+                    # 로그를 남기거나 강제 종료 처리
+                    print("⚠️ 경고: 스레드가 정상 종료되지 않아 강제 정리합니다.")
+                    # self._thread.terminate() # 필요하다면 최후의 수단으로 사용
+            
+            self._thread.deleteLater()
+            self._thread = None  # [중요] 변수를 비워야 다음 작업 가능
+
+        # 2. 워커 정리
+        if self._worker:
+            self._worker.deleteLater()
+            self._worker = None  # [중요] 변수 초기화
+
+
+    # --- 워커 콜백 ---
+    @pyqtSlot(bool, str)
+    def _handle_connection_result(self, success: bool, msg: str):
+        self.log_message.emit(msg)
+        self.connection_changed.emit(success, msg)  

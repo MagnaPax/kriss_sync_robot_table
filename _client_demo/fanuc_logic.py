@@ -121,6 +121,23 @@ class FanucController:
             # 변수명 UI09_RSR1이 False에서 True일 때, Fanuc의 TP Program 실행
             self.plc.write_by_name('MAIN.Robot1._UI1.UI10_RSR2', True, pyads.PLCTYPE_BOOL)
             logger.info("RSR 신호 ON (명령 트리거)") #
+
+
+            # ACK ON 대기 (로봇 응답, 최대 40ms)
+            timeout = 4  # 10ms × 4 = 40ms
+            for _ in range(timeout):
+                if self.plc.read_by_name('MAIN.Robot1._UO1.UO11_ACK1', pyads.PLCTYPE_BOOL):
+                    break
+                time.sleep(0.01)  # 10ms
+            
+            # ACK OFF 대기 (동작 완료)
+            while self.plc.read_by_name('MAIN.Robot1._UO1.UO11_ACK1', pyads.PLCTYPE_BOOL):
+                time.sleep(0.01)  # 10ms
+            
+            # RSR OFF
+            self.plc.write_by_name('MAIN.Robot1._UI1.UI09_RSR1', False, pyads.PLCTYPE_BOOL)
+            
+            print("✓")            
             
             # 신호가 PLC에 확실히 전달 될 시간 벌기
             time.sleep(0.5) 

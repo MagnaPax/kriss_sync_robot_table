@@ -1,12 +1,15 @@
 # demo_worker.py
 
+import debugpy
 from pathlib import Path
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
-from fanuc_logic import FanucController
+from .fanuc_logic import FanucController
 from .demo_plc_mock_model import MockFanucController
-from .file_handler import load_text, load_csv
+from .utils.file_handler import load_text, load_csv
 from .demo_logger import logger
-from .sequence_parser import parse_txt_to_sequence, parse_csv_to_sequence
+from .utils.parser import parse_txt_to_sequence, parse_csv_to_sequence
+from .parsers.sequence_parser import SequenceParserManager
+
 
 
 
@@ -34,6 +37,8 @@ class ConnectionWorker(QObject):
         finally:
             # 성공/실패 여부와 관계없이 항상 finished 시그널을 방출하여 스레드 정리
             self.finished.emit()
+
+
 
 class CommandWorker(QObject):
     """좌표 전송을 담당하는 워커 (라이브/데모 모드 공용)"""
@@ -64,7 +69,7 @@ class CommandWorker(QObject):
 
 
 class FileLoadWorker(QObject):
-    """파일 로드를 담당하는 워커"""
+    """파일 읽기 담당 워커"""
     file_loaded = pyqtSignal(bool, str, dict)  # (성공 여부, 메시지, 읽은 데이터)
     finished = pyqtSignal()
 
@@ -72,6 +77,7 @@ class FileLoadWorker(QObject):
         super().__init__()
         self.file_path = file_path
         self.file_type = file_type
+        self.parser_manager = SequenceParserManager()
 
     @pyqtSlot()
     def run(self):
@@ -79,29 +85,35 @@ class FileLoadWorker(QObject):
         # print("워커의 run 메서드 호출됨: FileLoadWorker")
         # print(f"파일경로: {self.file_path}\n파일타입: {self.file_type}")
 
+        # 사용자가 선택한 파일의 종류가 무엇인지는 이미 서비스 레이어에서 찾아냈다
         try:
+
+            # 파일 경로에 맞는 파서 객체를 찾는다.
+            parser = self.parser_manager.find_parser(self.file_path)
+
             if self.file_type == 'txt':
-                # 파일 전체를 하나의 문자열로 읽어온다.
+                # 파일 내용을 읽어온다.
                 raw_text = load_text(self.file_path)
-
-                # 문자열을 줄 단위 리스트로 변환한다.
-                lines = raw_text.splitlines()
-
-                # 변환된 리스트를 파서에 전달하고, 그 결과를 저장한다.
-                parsed_data = parse_txt_to_sequence(lines)
+                # 찾아낸 파서로 데이터를 파싱한다.
+                parsed_data = parser.parse(raw_text)
 
             elif self.file_type == 'csv':
+                # 파일 내용을 읽어온다.
                 raw_csv_data = load_csv(self.file_path)
-                parsed_data = parse_csv_to_sequence(raw_csv_data)
+                # 찾아낸 파서로 데이터를 파싱한다.
+                parsed_data = parser.parse(raw_csv_data)
 
             else:
                 # 지원하지 않는 파일 타입에 대한 예외 처리
                 raise ValueError(f"지원하지 않는 파일 형식입니다: {self.file_type}")
             
+            debugpy.breakpoint
+
+            # 파싱된 데이터를 emit
             # print(f"원본->파서 통과한 값:\n{parsed_data}\n타입:{type(parsed_data)}",)
-            self.file_loaded.emit(True, f"파일 로드 성공: {self.file_path.name}", parsed_data)
+            self.file_loaded.emit(True, f"파일 로드 및 파싱 성공: {self.file_path.name}", parsed_data)
 
         except Exception as e:
-            self.file_loaded.emit(False, f"파일 로드 실패: {e}", [])
+            self.file_loaded.emit(False, f"파일 로드 실패: {e}", {})
         finally:
             self.finished.emit()

@@ -1,7 +1,14 @@
 # demo_main.py
+"""
+데모용 메인
+
+실행법:
+
+python -m demo_main
+"""
 import sys, os
 from PyQt6.QtWidgets import QApplication, QMessageBox
-from _client_demo.demo_logger import logger 
+from .demo_logger import logger 
 
 
 
@@ -45,11 +52,15 @@ if __name__ == "__main__":
         sys.exit(1)
     
     # DLL 파일을 읽은 뒤 나머지 모듈 임포트
-    from _client_demo.demo_logger import logger
-    from fanuc_logic import FanucController
-    from _client_demo.demo_plc_mock_model import MockFanucController
-    from _client_demo.demo_viewmodel import FanucViewModel
-    from demo_view import FanucDemoApp
+    from .demo_logger import logger
+    from .fanuc_logic import FanucController
+    from .demo_plc_mock_model import MockFanucController
+    from .demo_viewmodel import FanucViewModel
+    from .demo_view import FanucDemoApp
+    
+    # from _client_demo.demo_plc_mock_model import MockFanucController
+    # from _client_demo.demo_viewmodel import FanucViewModel
+    # from .demo_view import FanucDemoApp
 
     app = QApplication(sys.argv)
     logger.info("PyQt Application 객체 생성 완료") #

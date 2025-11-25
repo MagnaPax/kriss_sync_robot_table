@@ -107,3 +107,6 @@ def parse_csv_to_sequence(raw_sequence: List[List[str]]) -> SequenceDict:
             parsed_data[sequence_number] = temp_dict
             
     return parsed_data
+
+
+
