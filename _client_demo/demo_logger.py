@@ -7,6 +7,13 @@ class FanucLogger:
     """
     FANUC Robot Control Demo 애플리케이션 전체에서 사용할 로깅 클래스.
     - 콘솔 출력과 파일 저장을 동시에 수행한다
+
+    사용법:
+        from demo_logger import logger
+
+        logger.info("애플리케이션이 시작되었습니다.")
+        logger.warning("이 값은 곧 만료될 예정입니다.")
+        logger.error("예상치 못한 오류가 발생했습니다.")
     """
     def __init__(self, name='FanucDemoApp', log_file='fanuc_demo.log', level=logging.DEBUG):
         self.logger = logging.getLogger(name)

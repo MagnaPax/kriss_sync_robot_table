@@ -33,7 +33,6 @@ class FanucController:
         self.is_connected: bool = False
         logger.info("[FanucController] 인스턴스 생성 완료") #
 
-
     def connect_plc(self) -> tuple[bool, str]:
         """
         PLC 연결을 시도하고, 성공하면 self.plc에 연결 객체를 저장
@@ -56,7 +55,6 @@ class FanucController:
             # 연결 실패 시 UI에 표시할 에러 메시지와 함께 False 반환
             logger.error(f"PLC 연결 실패: {e}", exc_info=True) #
             return False, f"PLC 연결 실패: {e}"
-
 
     def disconnect_plc(self):
         """PLC 연결을 해제"""

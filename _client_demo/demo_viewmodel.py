@@ -1,9 +1,21 @@
 # demo_viewmodel.py
+"""
+UI의 상태 관리
+
+UI 이벤트 처리
+
+명령(Command) 및 로직 요청
+
+시퀀스 반복 실행의 “조정자(Controller), '지휘자(Conductor)”
+"""
+from pathlib import Path
 from PyQt6.QtCore import Qt, QObject, pyqtSignal, pyqtSlot, QThread, QMetaObject
 from fanuc_logic import FanucController
-from _client_demo.demo_plc_mock_model import MockFanucController
-from _client_demo.demo_worker import ConnectionWorker, CommandWorker
-from _client_demo.demo_plc_mock_model import MockFanucController
+from .demo_plc_mock_model import MockFanucController
+from .demo_worker import ConnectionWorker, CommandWorker
+from .demo_plc_mock_model import MockFanucController
+from .demo_service import FileService
+
 
 
 ControllerType = FanucController | MockFanucController
@@ -18,8 +30,12 @@ class FanucViewModel(QObject):
     """
 
     # --- View가 구독(Observe)할 시그널 ---
-    log_updated = pyqtSignal(str)
+    log_updated = pyqtSignal(str)           # 뷰의 로그창
     connection_changed = pyqtSignal(bool, str) # (연결상태, 상태메시지)
+    sequence_data = pyqtSignal(dict)        # File에서 읽은 시퀀스 데이터 전달
+    current_step_info = pyqtSignal(dict)    # 뷰의 입력창을 갱신하기 위한 시그널
+
+
 
 
     def __init__(self, real_model: FanucController, mock_model: MockFanucController):
@@ -28,6 +44,12 @@ class FanucViewModel(QObject):
         # ViewModel이 Model 인스턴스를 소유
         self._real_model = real_model   # 진짜
         self._mock_model = mock_model   # 가짜
+
+        self._file_service = FileService()
+
+
+        self._bind_service_signals()
+
 
         # 기본값은 데모 모드        
         self._is_demo_mode = True
@@ -41,6 +63,36 @@ class FanucViewModel(QObject):
         # 사무실 생성
         self._thread_connection: QThread | None = None
         self._thread_command: QThread | None = None
+
+
+        # 시퀀스 실행을 위한 상태 변수들
+        self._sequence_queue = []       # 실행할 전체 데이터 리스트 (순서대로)
+        self._current_step_index = 0    # 현재 실행 중인 스텝 번호
+        self._is_sequence_running = False # 현재 자동 실행 중인지 여부
+
+    # --- 헬퍼 메서드 --- #
+    def _bind_service_signals(self):
+        """
+        ViewModel이 Service 계층으로부터 상태 업데이트를 받기 위한 시그널 구독 모음.
+        """
+
+        # print(f"_bind_service_signals 메서드 호출됨")
+        # FileService의 시퀀스 데이터 로드 완료 시그널 구독
+        self._file_service.sequence_data_from_file.connect(self._handle_sequence_data_loaded)
+        
+        # TODO: 다른 Service가 추가된다면 여기에 구독 로직을 추가함.
+        # self._other_service.status_changed.connect(self._handle_other_status)
+
+
+    # --- Worker/Service 가 emit 한 시그널 처리 슬롯(콜백들) --- #
+    @pyqtSlot(dict)
+    def _handle_sequence_data_loaded(self, sequence_data: dict):
+        """파일이 로드되면 데이터를 저장하고 뷰에 알림"""
+        
+        # print(f"뷰모델에서 받은 데이터:\n{sequence_data}")
+        self.sequence_data.emit(sequence_data)
+
+
 
 
     ##############################
@@ -79,6 +131,14 @@ class FanucViewModel(QObject):
         self._thread_connection.start()
         # 스레드 시작 및 작업 실행 - 이벤트 큐를 통해 워커의 run 메서드 호출
         QMetaObject.invokeMethod(self._worker_connection, "run", Qt.ConnectionType.QueuedConnection)
+
+    @pyqtSlot()
+    def load_coordinate_sequence_file(self, file_path_obj: Path):
+        """
+        뷰의 '시퀀스 파일 불러오기' 버튼 클릭 처리
+        """
+        # print("뷰모델의 load_coordinate_sequence_file 메서드 호출됨: FanucViewModel")
+        self._file_service.load_file(file_path_obj)
 
 
     @pyqtSlot()
