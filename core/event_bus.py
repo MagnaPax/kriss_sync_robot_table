@@ -138,7 +138,7 @@ class EventBus(QObject):
     # =========================================================================
     ui_log_message = pyqtSignal(str, str)
     """
-    UI에 표시해야 하거나 사용자에게 전달해야 하는 모든 로그 메시지
+    사용자에게 전달(=UI에 표시)해야 하거나 관리자에게 알려야 하는(=로그 파일 기록) 모든 로그 메시지
         -> ∴ LogListener가 청취해서 로그 기록에 사용한다
         -> ViewModel, Service, Worker 모두가 emit 할 수 있다
     
