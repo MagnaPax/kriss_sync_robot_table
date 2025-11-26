@@ -44,7 +44,7 @@ class MacroSettingsDialogViewModel(QObject):
 
 
 
-    @pyqtSlot(str, Dict[str, Any])
+    @pyqtSlot(str, dict)
     def _save_macro(self, path: Path, new_macro_data: Dict[str, Any]):
         """View의 'Save 버튼 클릭' 시그널을 처리"""
 
