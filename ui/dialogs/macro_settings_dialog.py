@@ -46,11 +46,13 @@ class MacroSettingsDialog(QDialog):
         self.vm = ViewModel(self.service)
 
 
-        # 시그널 연결 (전화선 연결)
+        # --- 시그널 연결 (전화선 연결) --- #
         # 실패 시 팝업
         self.vm.save_macro_failed.connect(self._on_save_failed)
-        # 성공 시 버튼 피드백 (UX 개선)
+        # 성공 시 버튼 피드백
         self.vm.save_macro_complete.connect(self._on_save_complete)
+        # 데이터 도착 시그널 연결
+        self.vm.macro_data_loaded.connect(self._on_data_loaded)
 
 
         # 각 매크로의 위젯들을 저장할 딕셔너리
@@ -60,6 +62,9 @@ class MacroSettingsDialog(QDialog):
 
         # 사용자 입력이 끝난 뒤(self._init_ui())에 저장 버튼 처리
         self._bind_save_button_events()
+
+        # UI 구성이 끝났으니 데이터 로드 요청! (방아쇠 당김)
+        self.vm.load_initial_data(CONFIG_MACRO_PATH)
 
 
     def _init_ui(self):
@@ -266,6 +271,35 @@ class MacroSettingsDialog(QDialog):
         except RuntimeError:
             # 타이머 작동 전 창이 닫히면 발생하는 에러 방지
             pass
+
+
+    @pyqtSlot(dict)
+    def _on_data_loaded(self, all_data: Dict[str, Any]):
+        """
+        ViewModel이 보내준 데이터로 UI를 채움 (Data Binding)
+        """
+        # self.macro_widgets에는 'Macro_1', 'Macro_2'... 키가 있음
+        for macro_id, widgets in self.macro_widgets.items():
+            
+            # 1. 현재 매크로 ID에 해당하는 데이터 추출 (없으면 빈 딕셔너리)
+            macro_data = all_data.get(macro_id, {})
+            
+            if not macro_data:
+                continue
+
+            # 2. 이름(Name) 채우기
+            if 'name' in macro_data:
+                widgets['name_input'].setText(macro_data['name'])
+            
+            # 3. 좌표(X, Y, Z, W, P, R) 채우기
+            # 데이터는 소문자('x'), 위젯 키는 대문자('X')임에 주의
+            for axis_char in ['x', 'y', 'z', 'w', 'p', 'r']:
+                if axis_char in macro_data:
+                    widget_key = axis_char.upper()  # 'x' -> 'X'
+                    if widget_key in widgets:
+                        val = float(macro_data[axis_char])
+                        widgets[widget_key].setValue(val)
+
 
 # ==========================================================
 # 단독 실행 (테스트용)

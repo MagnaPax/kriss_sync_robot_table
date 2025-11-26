@@ -33,6 +33,7 @@ class MacroSettingsDialogViewModel(QObject):
     # ViewModel → View 는 1:1 관계이기 때문에 EventBus(방송국) 대신 로컬 시그널/바인딩(전화)이 더 적절
     save_macro_failed = pyqtSignal(str)     # 저장 실패 알리미
     save_macro_complete = pyqtSignal(str)   # 저장 완료 알리미
+    macro_data_loaded = pyqtSignal(dict)    # 데이터 로드 완료 시그널 (딕셔너리 운반)
 
 
     def __init__(self, service: Service):
@@ -62,3 +63,20 @@ class MacroSettingsDialogViewModel(QObject):
             # 뷰는 MacroService 가 '방송'한 ui_log_message와 아래의 save_macro_failed 중에서 적절한 것을 골라서 사용자에게 보여줄 수 있다
             error_message = "매크로 저장 실패. 다시 시도해 주세요. 계속 실패한다면 관리자에게 문의하세요."
             self.save_macro_failed.emit(error_message)  # View에 알림 전송
+
+
+    def load_initial_data(self, path: Path):
+        """
+        기존의 매크로가 저장된 파일에서 값을 읽어와서 뷰로 전송
+
+        View가 생성될 때 호출
+        """
+        # Service 에게 데이터 로드 요청
+        data = self.service.load_macro(path)
+        
+        # 파일이 없거나 에러가 나서 None인 경우, 빈 딕셔너리로 처리
+        if data is None:
+            data = {}
+            
+        # View에게 데이터 배달 (Data Binding)
+        self.macro_data_loaded.emit(data)
