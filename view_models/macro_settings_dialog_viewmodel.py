@@ -1,5 +1,11 @@
 # ui/widgets/macro_settings_dialog_viewmodel.py
 """
+VM 의 역할
+    - UI의 상태 관리
+    - UI 이벤트 처리
+    - 명령(Command) 및 로직 요청
+
+
 MacroSettingsDialog 의 뷰모델
 
     1. View의 요청 처리
