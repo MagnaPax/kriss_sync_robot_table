@@ -13,9 +13,9 @@ MacroSettingsDialog 의 뷰모델
 
     2. Service 호출(직접 호출)
 
-    3. Service 로부터 결과 받음(EVENT BUS)
+    3. Service 의 결과를 알기 위해 구독(EVENT BUS)
 
-    4. View에 결과 보고 (EVENT BUS)
+    4. Service 의 작업 결과에 따라 UI를 어떻게 할지(창을 닫을지, 에러를 띄울지) 결정
 """
 
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
@@ -30,7 +30,7 @@ from pathlib import Path
 class MacroSettingsDialogViewModel(QObject):
 
     # View에 알리기 위한 로컬 시그널 (View가 구독)
-    # ViewModel → View 는 1:1 관계이기 때문에 EventBus(방송국) 대신 로컬 시그널/바인딩이 더 적절
+    # ViewModel → View 는 1:1 관계이기 때문에 EventBus(방송국) 대신 로컬 시그널/바인딩(전화)이 더 적절
     save_macro_failed = pyqtSignal(str)
 
 

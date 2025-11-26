@@ -1,4 +1,4 @@
-# sequence_parser.py
+# parsers/sequence_parser.py
 
 """
 시퀀스 데이터용 파서
