@@ -47,8 +47,10 @@ class MacroSettingsDialog(QDialog):
 
 
         # 시그널 연결 (전화선 연결)
-        # 뷰모델: "저장 실패하면 이 신호를 보낼게" -> 뷰: "그럼 내가 _on_save_failed 함수를 실행할게"
+        # 실패 시 팝업
         self.vm.save_macro_failed.connect(self._on_save_failed)
+        # 성공 시 버튼 피드백 (UX 개선)
+        self.vm.save_macro_complete.connect(self._on_save_complete)
 
 
         # 각 매크로의 위젯들을 저장할 딕셔너리
@@ -236,7 +238,34 @@ class MacroSettingsDialog(QDialog):
         }
 
 
+    @pyqtSlot(str)
+    def _on_save_complete(self, macro_id: str):
+        """
+        저장 성공 시 시각적 피드백 제공 (팝업 X, 버튼 텍스트 변경 O)
+        """
+        # 해당 매크로의 저장 버튼을 찾음
+        if macro_id in self.macro_widgets:
+            save_btn = cast(QPushButton, self.macro_widgets[macro_id]['save_btn'])
+            original_text = save_btn.text()
+            
+            # 버튼 텍스트를 잠시 'Saved!'로 변경하고 스타일을 바꿈
+            save_btn.setText("✔ Saved!")
+            save_btn.setStyleSheet("color: green; font-weight: bold;")
+            save_btn.setEnabled(False)  # 중복 클릭 방지
 
+            # 1초 뒤에 원래대로 복구 (QTimer 사용)
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(1000, lambda: self._reset_button_state(save_btn, original_text))
+
+    def _reset_button_state(self, btn, original_text):
+        """버튼 상태 복구 헬퍼"""
+        try:
+            btn.setText(original_text)
+            btn.setStyleSheet("")
+            btn.setEnabled(True)
+        except RuntimeError:
+            # 타이머 작동 전 창이 닫히면 발생하는 에러 방지
+            pass
 
 # ==========================================================
 # 단독 실행 (테스트용)

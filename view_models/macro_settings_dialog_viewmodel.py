@@ -35,7 +35,6 @@ class MacroSettingsDialogViewModel(QObject):
     save_macro_complete = pyqtSignal(str)   # 저장 완료 알리미
 
 
-
     def __init__(self, service: Service):
         super().__init__()
 
@@ -43,19 +42,23 @@ class MacroSettingsDialogViewModel(QObject):
         self.service = service
 
 
-
     @pyqtSlot(str, dict)
     def _save_macro(self, path: Path, new_macro_data: Dict[str, Any]):
         """View의 'Save 버튼 클릭' 시그널을 처리"""
 
-        # Service 에게 작업 위임
-        #   작업 결과에 대한 로깅은 뷰모델이 아닌 Service 내부에서 이미 수행됨
-        result = self.service.save_or_update_macro(path, new_macro_data)
+        macro_id = new_macro_data.get('macro_id', 'Unknown')
 
-        if not result:
+        # Service 에게 작업 위임 (결과는 bool)
+        #   작업 결과에 대한 로깅은 뷰모델이 아닌 Service 내부에서 이미 수행됨
+        is_success = self.service.save_or_update_macro(path, new_macro_data)
+
+
+        if is_success:
+            # 성공 시: 뷰에게 "성공했다"고 알려줌 (버튼 깜빡임 등을 위해)
+            self.save_macro_complete.emit(macro_id)
+
+        else:
             # 사용자 입력 저장 실패
             # 뷰는 MacroService 가 '방송'한 ui_log_message와 아래의 save_macro_failed 중에서 적절한 것을 골라서 사용자에게 보여줄 수 있다
             error_message = "매크로 저장 실패. 다시 시도해 주세요. 계속 실패한다면 관리자에게 문의하세요."
             self.save_macro_failed.emit(error_message)  # View에 알림 전송
-
-        # 파일 저장 성공은 사용자에게 굳이 알릴 필요 없다
