@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
     QWidget,
     QMessageBox
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSlot
 from PyQt6.QtGui import QIcon
 from typing import Dict, Any, Tuple, cast
 from functools import partial
@@ -21,12 +21,36 @@ from functools import partial
 from config.paths import CONFIG_MACRO_PATH
 from utils.file_handler import load_json, save_json
 
+from services.macro_service import MacroService as Service
+from view_models.macro_settings_dialog_viewmodel import MacroSettingsDialogViewModel as ViewModel
+
+
+
 
 
 class MacroSettingsDialog(QDialog):
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, viewmodel = ViewModel):
         super().__init__(parent)
+
+
+        # 의존성 주입
+        # View가 ViewModel 소유하기 위해: Service 생성 -> ViewModel에 주입
+        """
+        뷰가 왜 서비스를 갖고 있나?
+
+        self.service를 가지고 있지만, 뷰는 서비스의 비즈니스 로직 함수를 직접 호출하지 않는다
+        단지 self.vm을 만들기 위한 재료(생성자 인자)로만 잠깐 사용하고 끝낼 뿐
+        서비스 레이어를 사용하기 위함이 아니라 뷰모델 객체를 갖기 위한 조립만 하는 역할
+        """
+        self.service = Service()
+        self.vm = ViewModel(self.service)
+
+
+        # 시그널 연결 (전화선 연결)
+        # 뷰모델: "저장 실패하면 이 신호를 보낼게" -> 뷰: "그럼 내가 _on_save_failed 함수를 실행할게"
+        self.vm.save_macro_failed.connect(self._on_save_failed)
+
 
         # 각 매크로의 위젯들을 저장할 딕셔너리
         self.macro_widgets: Dict[str, Dict[str, QWidget]] = {}
@@ -65,6 +89,15 @@ class MacroSettingsDialog(QDialog):
         self.macro_widgets["Macro_2"] = macro_widgets_2
         self.macro_widgets["Macro_3"] = macro_widgets_3
         self.macro_widgets["Macro_4"] = macro_widgets_4
+
+
+
+    # 뷰모델의 신호를 처리할 슬롯 추가 (클래스 맨 아래나 적당한 곳에 추가)
+    @pyqtSlot(str)
+    def _on_save_failed(self, error_message: str):
+        """ViewModel로부터 저장 실패 알림을 받았을 때 실행"""
+        QMessageBox.critical(self, "저장 실패", error_message)
+
 
 
     def _create_macro_groupbox(self, macro_id: str) -> Tuple[QGroupBox, Dict[str, QWidget]]:
