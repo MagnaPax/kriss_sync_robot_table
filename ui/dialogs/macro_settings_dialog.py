@@ -19,7 +19,6 @@ from typing import Dict, Any, Tuple, cast
 from functools import partial
 
 from config.paths import CONFIG_MACRO_PATH
-from utils.file_handler import load_json, save_json
 
 from services.macro_service import MacroService as Service
 from view_models.macro_settings_dialog_viewmodel import MacroSettingsDialogViewModel as ViewModel
@@ -208,13 +207,10 @@ class MacroSettingsDialog(QDialog):
         # 데이터 수집
         data_macro = self._gather_macro_data(macro_id, widgets)
 
-        # 파일에 저장
-        try:
-            self._save_macro_data_to_file(macro_id, data_macro)
-        except IOError as e:
-            QMessageBox.critical(self, "저장 실패", str(e))
-        except Exception as e:
-            QMessageBox.warning(self, "오류", f"알 수 없는 오류가 발생했습니다: {e}")
+        # ViewModel에게 토스! (Delegation)
+        #    에러 처리는 VM의 시그널(_on_save_failed)이 담당
+        self.vm._save_macro(CONFIG_MACRO_PATH, data_macro)
+        
 
     def _gather_macro_data(self, macro_id: str, widgets: Dict[str, QWidget]) -> Dict[str, Any]:
         """
@@ -238,34 +234,6 @@ class MacroSettingsDialog(QDialog):
             'p':cast(QDoubleSpinBox, widgets['P']).value(),
             'r':cast(QDoubleSpinBox, widgets['R']).value()
         }
-
-    def _save_macro_data_to_file(self, macro_id: str, data_macro: Dict[str, Any]):
-        """
-        매크로 데이터를 JSON 파일에 저장한다
-
-        Args:
-            macro_id (str): 저장할 매크로의 식별자
-            data_macro (Dict[str, Any]): 저장할 매크로 데이터
-
-        Raises:
-            IOError: 파일 쓰기에 실패한 경우
-        """
-        # 1. 기존 매크로 설정 파일을 전부 읽는다
-        stored_macro_data = load_json(CONFIG_MACRO_PATH)
-        # 파일이 없거나 비어있으면 새로운 딕셔너리를 생성
-        if stored_macro_data is None:
-            stored_macro_data = {}
-
-        # 2. 읽어온 전체 데이터에서 현재 macro_id에 해당하는 부분만 업데이트
-        stored_macro_data[macro_id] = data_macro
-
-        # 3. 수정된 전체 데이터를 다시 JSON 파일에 저장
-        result_save = save_json(CONFIG_MACRO_PATH, stored_macro_data)
-
-        # 4. 저장 결과를 확인하고, 실패 시 예외 발생
-        if not result_save:
-            raise IOError(f"❌ [{macro_id}] 데이터를 파일에 쓸 수 없습니다. 권한 또는 디스크 공간을 확인하세요.")
-
 
 
 
