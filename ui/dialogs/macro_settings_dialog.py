@@ -25,8 +25,6 @@ from view_models.macro_settings_dialog_viewmodel import MacroSettingsDialogViewM
 
 
 
-
-
 class MacroSettingsDialog(QDialog):
 
     def __init__(self, parent=None, viewmodel = ViewModel):
