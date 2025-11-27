@@ -809,10 +809,26 @@ modules.xml
 
 # End of https://www.toptal.com/developers/gitignore/api/pycharm+iml,pycharm,pycharm+all
 
-_client_demo/새 폴더/
-TcAdsDll.dll
-00Testing/
-hanul_image_handling/
 
 # 설정값 저장 파일 
 config/*.json
+tests/테스트_종류.md
+
+
+# 배포할 때 필요 없는 파일과 폴더들
+TcAdsDll.dll
+
+
+_client_demo/새 폴더/
+00Testing/
+hanul_image_handling/
+services/역할설명/
+core/역할설명/
+/docs/저장용pdf파일들
+/docs/플로우차트
+/docs/개발용문서들
+/_client_demo/20.11.24/소현님원본파일
+/_client_demo/25.11.24/소현님원본파일
+/_client_demo/OLD
+/_client_demo/원본파일_소현님
+/_client_demo/원본파일_정환님
