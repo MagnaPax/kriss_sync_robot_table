@@ -4,7 +4,7 @@
 
 실행법:
 
-python -m demo_main
+python -m _client_demo.demo_main
 """
 import sys, os
 from PyQt6.QtWidgets import QApplication, QMessageBox

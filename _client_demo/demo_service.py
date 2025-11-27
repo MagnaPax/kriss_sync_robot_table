@@ -4,7 +4,7 @@ import mimetypes
 from pathlib import Path
 from typing import Optional
 from PyQt6.QtCore import Qt, QObject, pyqtSignal, pyqtSlot, QThread, QMetaObject, QThread
-from .demo_worker import ConnectionWorker, CommandWorker, FileLoadWorker
+from .demo_worker import ConnectionWorker, CommandWorker, FileLoadWorker, RobotControlWorker
 from .demo_logger import logger
 from .fanuc_logic import FanucController
 from .demo_plc_mock_model import MockFanucController
@@ -214,13 +214,11 @@ class PLCService(QObject):
         """
         QMetaObject.invokeMethod(self._worker, "run", Qt.ConnectionType.QueuedConnection)
 
-
     def disconnect_plc(self):
         """연결 해제 처리 (모드 변경 시 또는 앱 종료 시)"""
         if self._current_controller.is_connected:
             self._current_controller.disconnect_plc()
         self.connection_changed.emit(False, "PLC 연결이 해제되었습니다.")
-
 
     def send_command(self, coords_list: list):
         """명령(좌표) 전송 요청"""
@@ -237,6 +235,48 @@ class PLCService(QObject):
 
         self._thread.start()
         QMetaObject.invokeMethod(self._worker, "run", Qt.ConnectionType.QueuedConnection)
+
+
+    # [추가된 부분] 로봇 제어 명령 요청 메서드들
+    # ==========================================================
+
+    def request_start_process(self):
+        """[시작] 프로세스 루프 시작 (RSR2 Pulse + DI181 ON)"""
+        self._execute_control_worker('START')
+
+    def request_pause(self):
+        """[일시정지] Cycle Stop 신호 전송"""
+        self._execute_control_worker('PAUSE')
+
+    def request_resume(self):
+        """[재개] Cycle Start 신호 전송"""
+        self._execute_control_worker('RESUME')
+
+    def request_stop(self):
+        """[완전정지] DI181 Loop 신호 OFF"""
+        self._execute_control_worker('STOP')
+
+
+    def _execute_control_worker(self, command_type: str):
+        """(내부 헬퍼) 제어 워커 생성 및 실행"""
+        if self._is_busy(): return
+
+        self.log_message.emit(f"명령 요청 중... ({command_type})")
+
+        # 스레드 생성
+        self._thread = QThread()
+        # 워커 생성 (현재 컨트롤러와 명령 타입 전달)
+        self._worker = RobotControlWorker(self._current_controller, command_type)
+        self._worker.moveToThread(self._thread)
+
+        # 시그널 연결
+        self._worker.control_result.connect(self._handle_control_result) # 결과 처리
+        self._worker.finished.connect(self._cleanup) # 정리
+
+        # 실행
+        self._thread.start()
+        QMetaObject.invokeMethod(self._worker, "run", Qt.ConnectionType.QueuedConnection)
+
 
 
     # --- 내부 헬퍼 ---
@@ -270,8 +310,17 @@ class PLCService(QObject):
             self._worker = None  # [중요] 변수 초기화
 
 
+
     # --- 워커 콜백 ---
     @pyqtSlot(bool, str)
     def _handle_connection_result(self, success: bool, msg: str):
         self.log_message.emit(msg)
-        self.connection_changed.emit(success, msg)  
+        self.connection_changed.emit(success, msg)
+
+    @pyqtSlot(bool, str)
+    def _handle_control_result(self, success: bool, msg: str):
+        # [추가] 제어 명령 결과 처리
+        if success:
+            self.log_message.emit(f"✅ {msg}")
+        else:
+            self.log_message.emit(f"❌ 오류: {msg}")

@@ -10,7 +10,7 @@ from pathlib import Path
 from PyQt6.QtCore import pyqtSlot
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, 
-    QLabel, QLineEdit, QTextEdit, QFormLayout, QGroupBox, QCheckBox, QFileDialog
+    QLabel, QLineEdit, QTextEdit, QFormLayout, QGroupBox, QCheckBox, QFileDialog, QHBoxLayout
 )
 from _client_demo.demo_viewmodel import FanucViewModel
 
@@ -26,7 +26,7 @@ class FanucDemoApp(QWidget):
     def init_ui(self):
         """UI 위젯 생성 및 배치"""
         self.setWindowTitle("FANUC Robot Control Demo")
-        self.resize(500, 600)
+        self.resize(500, 700)
         layout = QVBoxLayout()
 
         # --- 데모 모드 스위치 ---
@@ -75,6 +75,31 @@ class FanucDemoApp(QWidget):
         self.btn_send.setEnabled(False) # VM이 활성화할 것
         layout.addWidget(self.btn_send)
 
+
+        # --- 제어 버튼들 (일시정지/재개/정지) --- #
+        control_group = QGroupBox("4. 실행 제어 (Control)")
+        control_layout = QHBoxLayout() # 가로로 배치
+
+        # (1) 일시 정지 (노란색)
+        self.btn_pause = QPushButton("일시 정지 (Pause)")
+        self.btn_pause.setStyleSheet("background-color: #FFC107; color: black; font-weight: bold;")
+        
+        # (2) 다시 시작 (초록색)
+        self.btn_resume = QPushButton("다시 시작 (Resume)")
+        self.btn_resume.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold;")
+
+        # (3) 완전 멈춤 (빨간색)
+        self.btn_stop = QPushButton("완전 멈춤 (Stop)")
+        self.btn_stop.setStyleSheet("background-color: #F44336; color: white; font-weight: bold;")
+
+        control_layout.addWidget(self.btn_pause)
+        control_layout.addWidget(self.btn_resume)
+        control_layout.addWidget(self.btn_stop)
+        
+        control_group.setLayout(control_layout)
+        layout.addWidget(control_group)
+
+
         # 로그 창
         self.log_window = QTextEdit()
         self.log_window.setReadOnly(True)
@@ -82,6 +107,8 @@ class FanucDemoApp(QWidget):
         layout.addWidget(self.log_window)
 
         self.setLayout(layout)
+
+
 
     def _bind_events(self):
         """
@@ -92,6 +119,9 @@ class FanucDemoApp(QWidget):
         self.btn_connect.clicked.connect(self.vm.connect_plc)       # 연결 버튼
         self.btn_load_file.clicked.connect(self._handle_load_file_button_clicked)   # 파일 로드 버튼
         self.btn_send.clicked.connect(self._handle_send_button_clicked) # 좌표 전송 및 실행 버튼
+        self.btn_pause.clicked.connect(self.vm.control_pause)       # 일시정지 버튼
+        self.btn_resume.clicked.connect(self.vm.control_resume)     # 다시 시작 버튼
+        self.btn_stop.clicked.connect(self.vm.control_full_stop)    # 완전 멈춤 버튼
 
         """
         View ⬅️ ViewModel

@@ -14,7 +14,7 @@ from .fanuc_logic import FanucController
 from .demo_plc_mock_model import MockFanucController
 from .demo_worker import ConnectionWorker, CommandWorker
 from .demo_plc_mock_model import MockFanucController
-from .demo_service import FileService
+from .demo_service import FileService, PLCService
 from .utils.coordinate_utils import dict_to_axis_list     # dict → list 변환
 
 
@@ -40,6 +40,20 @@ class FanucViewModel(QObject):
 
     def __init__(self, real_model: FanucController, mock_model: MockFanucController):
         super().__init__()
+
+
+        # [중요] PLCService 인스턴스 생성 및 연결
+        # 기존에는 ViewModel이 직접 Controller를 가지고 있었으나, 
+        # 이제 제어 로직은 Service가 담당하므로 Service를 통해야 합니다.
+        self._plc_service = PLCService()
+
+
+        # 일단 기존 코드(직접 연결, 좌표 전송 등)가 깨지지 않도록 
+        # Service 내부의 Controller를 공유하거나, Service의 기능을 사용하도록 합니다.
+
+        # 서비스의 시그널을 VM의 시그널로 중계(Relay)
+        self._plc_service.log_message.connect(self.log_updated)
+        self._plc_service.connection_changed.connect(self.connection_changed)        
 
         # ViewModel이 Model 인스턴스를 소유
         self._real_model = real_model   # 진짜
@@ -365,3 +379,56 @@ class FanucViewModel(QObject):
     def has_sequence_data(self) -> bool:
         """시퀀스 데이터가 있는지 확인"""
         return len(self._sequence_queue) > 0
+    
+
+
+
+
+
+
+    # ============================================================
+    # [추가된 부분] View의 제어 버튼 클릭 시 호출될 메서드들
+    # 🖱️ [View -> VM]
+    # ============================================================
+    @pyqtSlot()
+    def control_pause(self):
+        """일시 정지 버튼 클릭 시 호출"""
+        self.log_updated.emit("🖱️ [View -> VM] 일시 정지 (Pause)")
+        self._plc_service.request_pause()
+
+    @pyqtSlot()
+    def control_resume(self):
+        """다시 시작 버튼 클릭 시 호출"""
+        self.log_updated.emit("🖱️ [View -> VM] 다시 시작 (Resume)")
+        self._plc_service.request_resume()
+
+    @pyqtSlot()
+    def control_full_stop(self):
+        """완전 멈춤 버튼 클릭 시 호출"""
+        self.log_updated.emit("🖱️ [View -> VM] 완전 멈춤 (Stop)")
+        
+        # 소프트웨어적으로 시퀀스 루프가 돌고 있다면 즉시 끊어줌
+        if self._is_sequence_running:
+            self._is_sequence_running = False
+            self.log_updated.emit("자동 시퀀스 실행 플래그를 해제했습니다.")
+
+        self._plc_service.request_stop()
+
+    @pyqtSlot()
+    def start_auto_sequence(self):
+        """자동 시퀀스 시작"""
+        if not self.has_sequence_data():
+            self.log_updated.emit("오류: 시퀀스 데이터가 없습니다.")
+            return
+
+        # 1. 프로세스 시작 신호 (RSR2 Pulse + DI181 ON)
+        #    Service를 통해 로봇에게 '나 이제 시작한다'고 알림
+        self._plc_service.request_start_process()
+
+        # 2. 상태 설정
+        self._is_sequence_running = True
+        self._current_step_index = 0
+        self.log_updated.emit("=== 자동 시퀀스 데이터 전송 시작 ===")
+        
+        # 3. 데이터 전송 루프 시작
+        self._process_current_step()

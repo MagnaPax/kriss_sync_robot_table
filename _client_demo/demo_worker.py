@@ -117,3 +117,52 @@ class FileLoadWorker(QObject):
             self.file_loaded.emit(False, f"파일 로드 실패: {e}", {})
         finally:
             self.finished.emit()
+
+
+
+class RobotControlWorker(QObject):
+    """
+    로봇 제어 명령(시작/일시정지/재개/완전정지)을 수행하는 워커
+    Model의 메서드들이 time.sleep()을 포함하므로 별도 스레드에서 실행
+    """
+    control_result = pyqtSignal(bool, str) # (성공여부, 메시지)
+    finished = pyqtSignal()
+
+    def __init__(self, controller: ControllerType, command_type: str):
+        super().__init__()
+        self.controller = controller
+        self.command_type = command_type # 'START', 'PAUSE', 'RESUME', 'STOP'
+
+    @pyqtSlot()
+    def run(self):
+        success = False
+        msg = ""
+
+        try:
+            if self.command_type == 'START':
+                # 초기 시작: RSR2 펄스 + DI181 ON
+                success, msg = self.controller.start_process_loop()
+            
+            elif self.command_type == 'PAUSE':
+                # 일시 정지: Cycle Stop 펄스
+                success, msg = self.controller.send_cycle_stop()
+            
+            elif self.command_type == 'RESUME':
+                # 다시 시작: Cycle Start 펄스
+                success, msg = self.controller.send_cycle_start()
+            
+            elif self.command_type == 'STOP':
+                # 완전 정지: DI181 OFF
+                success, msg = self.controller.set_loop_signal(False)
+            
+            else:
+                success, msg = False, f"알 수 없는 명령 타입: {self.command_type}"
+
+            # 결과 전송
+            self.control_result.emit(success, msg)
+
+        except Exception as e:
+            self.control_result.emit(False, f"제어 명령 수행 중 오류: {e}")
+        
+        finally:
+            self.finished.emit()
