@@ -1,5 +1,6 @@
 # ui/widgets/target_position_widget.py
-from PyQt6.QtCore import Qt
+
+from PyQt6.QtCore import Qt, pyqtSlot
 from PyQt6.QtWidgets import (
     QVBoxLayout, 
     QGroupBox, 
@@ -10,11 +11,15 @@ from PyQt6.QtWidgets import (
     QLineEdit, 
     QDoubleSpinBox,
     QGridLayout,
-    QPushButton
+    QPushButton,
+    QMessageBox
 )
-from typing import Dict
+from typing import Dict, Any
+from functools import partial
 
 from ui.widgets.base_widget import BaseWidget
+from view_models.target_position_viewmodel import TargetPositionViewModel as ViewModel
+
 
 
 
@@ -29,92 +34,179 @@ class TargetPositionWidget(BaseWidget):
         - 'GoTo' 버튼 클릭 시 `goto_requested` 시그널 발생
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, view_model: ViewModel, parent=None):
+        # ViewModel 인스턴스를 클래스 속성으로 저장
+        # super().__init__() 전에 저장
+        self.vm = view_model
+
+        # 버튼 참조 변수 미리 초기화
+        self.edit_macro_button = None
+        self.goto_button = None
+        self.macro_buttons = []
+
+        # BaseWidget의 __init__()이 _init_ui() 호출 → 실제 UI 생성
         super().__init__(parent)
-        self._init_ui()
+
+        # self._init_ui()
+
+        # UI 생성 후에 이벤트 연결
+        self._connect_events()
+
 
     def _init_ui(self):
+        """
+        BaseWidget이 호출하는 UI 초기화 메서드
+        여기서 실제 UI를 구성한다
+        """
+
         self.setObjectName("target_position_widget")
-        self._configure_base_layout()
+
+        # BaseWidget이 레이아웃을 설정했는지 확인
+        # BaseWidget이 이미 layout을 설정했을 수 있으므로 가져온다
+        existing_layout = self.layout()
+
+        # BaseWidget이 레이아웃을 설정하지 않았다면 여기서 딱 1번만 생성
+        if existing_layout is None:
+            
+            # QVBoxLayout 객체 생성
+            main_layout = QVBoxLayout()
+
+            # 위젯(self)이 레이아웃 부모가 됨 - 레이아웃 객체를 위잿의 최상위 레이아웃으로 지정
+            self.setLayout(main_layout)
+
+            main_layout.setContentsMargins(0, 0, 0, 0)
+        else:
+            # 이미 있으면 재사용
+            main_layout = existing_layout
+
+        # 새로운 UI 구성 - GroupBox 생성 후 레이아웃에 추가
+        base_group_box = self._configure_base_layout()
+        main_layout.addWidget(base_group_box)
 
 
-    def _configure_base_layout(self):
+    def update_data(self, data: Any):
+        """
+        BaseWidget의 추상 메서드를 구현한다
+        """
+        pass
+
+
+    def _configure_base_layout(self) -> QGroupBox:
         """
         전체 레이아웃 구성
+
+        최상위 레이아웃을 self에 붙이지 않고(생성하지 않고), 단순히 GroupBox를 반환한다.
         """
+
         ##########################
         # --- 기본 형태 설정 --- #
         ##########################
 
         # 모든 부속 위젯을 담을 그룹박스 생성
         base_group_box = QGroupBox("Target Position")
-        base_group_box.setStyleSheet("QGroupBox { background-color: #E0E0E0; }") # 개발용 임시 배경 스타일
-
-        # 메인 레이아웃(세로 정렬)
-        # 이 레이아웃이 전체 위젯의 크기를 관리한다
-        main_layout = QVBoxLayout(self)  # 부모위젯(TargetPositionWidget)에 QVBoxLayout을 붙인다
-        main_layout.addWidget(base_group_box)
-        main_layout.setContentsMargins(0, 0, 0, 0)      # 레이아웃 내부 여백 제거
+        base_group_box.setStyleSheet("QGroupBox { background-color: grey; }")  # 개발용 임시 배경
 
 
-        ############################
-        # --- 부속 위젯들 배치 --- #
-        ############################
+        widgets_layout = QVBoxLayout()
+
+        ################
         # --- 상단 --- #
-        # --- Edit Macro 영역 --- #
+        ################
+
+        # Edit Macro 영역
         section_edit_macro = QFrame()
         section_edit_macro.setObjectName("section_edit_macro")
         section_edit_macro.setStyleSheet("QFrame { background-color: blue; }")  # 개발용 임시 배경
 
+        # Edit Macro 버튼 레이아웃
         layout_edit_macro = QHBoxLayout(section_edit_macro)
         layout_edit_macro.setContentsMargins(0, 0, 0, 0)
         layout_edit_macro.setSpacing(0)
         layout_edit_macro.addStretch(1)
 
+        # 레이아웃에 Edit Macro 버튼 영역 넣기
+        layout_edit_macro.addWidget(self._create_edit_macro_button())
 
+
+        ################
         # --- 중단 --- #
-        # --- 사용자 입력 영역 --- #
-        section_line_edit = QFrame()
-        section_line_edit.setObjectName("section_line_edit")
-        section_line_edit.setStyleSheet("QFrame { background-color: green; }")  # 개발용 임시 배경
+        ################
 
-        layout_line_edit = QHBoxLayout(section_line_edit)
-        layout_line_edit.setContentsMargins(0, 0, 0, 0)
-        layout_line_edit.setSpacing(0)
-        layout_line_edit.addStretch(1)
+        # 좌표 입력 영역
+        section_coordinate = QFrame()
+        section_coordinate.setObjectName("section_coordinate")
+        section_coordinate.setStyleSheet("QFrame { background-color: green; }")  # 개발용 임시 배경
 
-        # --- 매크로 버튼 영역 --- #
+        # 좌표 입력 레이아웃 (좌우로 나뉨)
+        layout_coordinate = QHBoxLayout(section_coordinate)
+        layout_coordinate.setContentsMargins(5, 5, 5, 5)
+        layout_coordinate.setSpacing(10)
+
+        # 로봇팔(X, Y, Z) 입력 영역
+        section_robot_coordinate = QFrame()
+        section_robot_coordinate.setObjectName("section_robot_coordinate")
+        section_robot_coordinate.setStyleSheet("QFrame { background-color: Aquamarine; }")  # 개발용 임시 배경
+        # 로봇팔 좌표 입력 영역에 X, Y, Z 폼 레이아웃 생성하여 추가
+        section_robot_coordinate.setLayout(self._create_coordinate_input_fields(["X", "Y", "Z"]))
+
+        # 턴테이블(W, P, R) 입력 영역
+        section_turtable_coordinate = QFrame()
+        section_turtable_coordinate.setStyleSheet("QFrame { background-color: Darkseagreen; }")  # 개발용 임시 배경
+        # 턴테이블 좌표 입력 섹션에 W, P, R 폼 레이아웃 생성하여 추가
+        section_turtable_coordinate.setLayout(self._create_coordinate_input_fields(["W", "P", "R"]))
+
+        # 좌표 입력 레이아웃에 로봇팔, 턴테이블 입력 영역 넣기
+        layout_coordinate.addWidget(section_robot_coordinate)
+        layout_coordinate.addWidget(section_turtable_coordinate)
+
+        # 매크로 버튼 영역
         section_macro_buttons = QFrame()
         section_macro_buttons.setObjectName("section_macro_buttons")
-        section_macro_buttons.setStyleSheet("QFrame { background-color: #FFFFB5; }")  # 개발용 임시 배경
+        section_macro_buttons.setStyleSheet("QFrame { background-color: yellow; }")  # 개발용 임시 배경
 
-        laytou_macro_buttons = QGridLayout(section_macro_buttons)
-        laytou_macro_buttons.setContentsMargins(0, 0, 0, 0)
-        laytou_macro_buttons.setSpacing(0)
+        # 매크로 버튼 레이아웃
+        laytout_macro_buttons = QGridLayout(section_macro_buttons)
+        laytout_macro_buttons.setContentsMargins(5, 5, 5, 5)
+        laytout_macro_buttons.setSpacing(5)
+
+        # 매크로 버튼 추가
+        laytout_macro_buttons.addWidget(self._create_macro_button("매크로 1"), 0, 0)
+        laytout_macro_buttons.addWidget(self._create_macro_button("매크로 2"), 0, 1)
+        laytout_macro_buttons.addWidget(self._create_macro_button("매크로 3"), 1, 0)
+        laytout_macro_buttons.addWidget(self._create_macro_button("매크로 4"), 1, 1)
 
 
+        ################
         # --- 하단 --- #
-        # --- Go To 영역 --- #
+        ################
+        # Go To 버튼 영역
         section_go_to = QFrame()
         section_go_to.setObjectName("section_go_to")
-        section_go_to.setStyleSheet("QFrame { background-color: #FF968A; }")  # 개발용 임시 배경
+        section_go_to.setStyleSheet("QFrame { background-color: orange; }")  # 개발용 임시 배경
 
+        # Go To 버튼 레이아웃
         layout_go_to = QHBoxLayout(section_go_to)
         layout_go_to.setContentsMargins(0, 0, 0, 0)
         layout_go_to.setSpacing(0)
-        layout_go_to.addStretch(1)        
+
+        # 레이아웃에 Go To 버튼 넣기
+        layout_go_to.addWidget(self._create_goto_button())
 
 
-        ############################
-        # --- 부속 위젯들 합체 --- #
-        ############################
-        widgets_layout = QVBoxLayout(base_group_box)
+
+        #################################
+        # --- 부속 위젯 영역들 합체 --- #
+        #################################
+        # 그룹박스에 모두 추가
         widgets_layout.addWidget(section_edit_macro)
-        widgets_layout.addWidget(section_line_edit)
+        widgets_layout.addWidget(section_coordinate)
         widgets_layout.addWidget(section_macro_buttons)
         widgets_layout.addWidget(section_go_to)
 
         base_group_box.setLayout(widgets_layout)
+
+
+        return base_group_box
 
 
     ##############################
@@ -124,28 +216,59 @@ class TargetPositionWidget(BaseWidget):
     # --- 버튼 만들기 --- #
     def _create_button(self, title: str, type: str) -> QPushButton:
         button = QPushButton(title.upper())
-        button.setObjectName(title)
+        # QSS에서 찾기 쉽게 소문자와 언더스코어를 사용
+        button.setObjectName(title.lower().replace(" ", "_"))
         button.setProperty("type", type)
         return button
 
     def _create_edit_macro_button(self) -> QPushButton:
-        """ `Edit Macro` 버튼 생성 """
-        return self._create_button("Edit Macro", "general")
+        """ Edit Macro 버튼 생성 """
+        # 인스턴스 변수에 버튼 객체 저장
+        self.edit_macro_button = self._create_button(title="Edit Macro", type="special")
+        return self.edit_macro_button
+        # return self._create_button(title="Edit Macro", type="special")
     
-    def _create_macro_button(self) -> QPushButton:
+    def _create_macro_button(self, title: str) -> QPushButton:
         """ 
         매크로 버튼 생성
 
         버튼에 표시되는 제목은 사용자가 지정한 이름
         """
-        return self._create_button("", "general")
+        return self._create_button(title=title, type="general")
     
     def _create_goto_button(self) -> QPushButton:
-        """ `GoTo` 버튼 생성 """
-        return self._create_button("Go To", "special")
+        """ GoTo 버튼 생성 """
+        return self._create_button(title="Go To", type="special")
 
 
+    # --- 좌표 입력 만들기 --- #
+    def _create_coordinate_input_fields(self, axes: list[str]) -> QFormLayout:
+        """
+        지정된 축(axes) 목록에 대해 '라벨-입력창' QFormLayout을 생성
 
+        인자 값:
+            axes: ["X", "Y", "Z"] 또는 ["W", "P", "R"]
+
+        반환:
+            QFormLayout: 라벨과 QLineEdit가 채워진 폼 레이아웃
+        """
+        form_layout = QFormLayout()
+        form_layout.setContentsMargins(5, 5, 5, 5)
+        form_layout.setSpacing(5)
+        
+        # QFormLayout은 수평/수직 간격 동시 설정이 어려우므로
+        form_layout.setHorizontalSpacing(10)
+        form_layout.setVerticalSpacing(5)
+
+        for axis in axes:
+            label = QLabel(f"{axis}:")
+            line_edit = QLineEdit()
+            line_edit.setObjectName(f"line_edit_{axis}") # QSS 적용을 위한 ID
+            line_edit.setPlaceholderText(f"{axis} 값 입력...")
+            
+            form_layout.addRow(label, line_edit)
+
+        return form_layout
 
 
 
@@ -153,23 +276,35 @@ class TargetPositionWidget(BaseWidget):
     # --- 시그널 ➡️ 슬릿 --- #
     ###########################
 
-    def _bind_edit_macro_button_event():
+    def _connect_events(self):
         """
-        'Edit Macro' 버튼이 눌리면 어떤 일을 할 지 정의
-
-        시그널 연결
+        위젯 내의 시그널-슬롯 연결을 전담합니다.
+        UI 구성(_init_ui)과 동작 정의(_connect_events)를 분리하여 코드 구조를 명확하게 합니다.
         """
 
-    def _handle_edit_macro_button_clicked():
+        # self.edit_macro_button이 None이 아님을 명시적으로 확인 (Pylance 경고 해결 및 런타임 안정성)
+        assert self.edit_macro_button is not None, "Edit Macro 버튼이 생성되지 않았습니다."
+
+        # 'Edit Macro' 버튼 클릭 시 _on_edit_macro_clicked 슬롯 호출
+        self.edit_macro_button.clicked.connect(self._handle_edit_macro_button_clicked)
+        
+
+
+    @pyqtSlot()
+    def _handle_edit_macro_button_clicked(self):
         """
         'Edit Macro' 버튼이 클릭되었을 때 실행할 함수
 
         MacroSettingsDialog 열기
         """
+        self.vm.open_macro_settings_dialog()
 
 
 
-    def _create_line_edit():
+
+
+
+    def _create_line_edit(self):
         """
         사용자 입력 위젯 반환
 
@@ -223,26 +358,29 @@ class TargetPositionWidget(BaseWidget):
 
 
 
-    def _bind_macro_button_events():
+    def _bind_macro_button_events(self):
         """
         매크로 버튼이 눌리면 어떤 일을 할 지 정의
 
         모든 매크로 버튼에 클릭 시그널을 연결
         """
+        pass
 
 
-    def _handle_macro_button_clicked():
+    def _handle_macro_button_clicked(self):
         """
         매크로 버튼이 클릭되었을 때 실행할 함수
         """
+        pass
 
 
-    def _bind_goto_button_clicked():
+    def _bind_goto_button_clicked(self):
         """
         'GoTo' 버튼이 눌리면 어떤 일을 할 지 정의
 
         시그널 연결
         """
+        pass
 
 
 
@@ -253,7 +391,7 @@ class TargetPositionWidget(BaseWidget):
 
 
 # ==========================================================
-# 2. 단독 실행 (테스트용)
+# Smoke Test
 """
 python -m ui.widgets.target_position_widget
 """
@@ -261,14 +399,22 @@ python -m ui.widgets.target_position_widget
 if __name__ == '__main__':
     import sys
     from PyQt6.QtWidgets import QApplication, QMainWindow
+    from models.position_model import PositionModel
     from pathlib import Path
 
 
     app = QApplication(sys.argv)
     
+    # --- 테스트를 위한 ViewModel 및 Model 인스턴스 생성 ---
+    # 1. Model 생성 (의존성 없음)
+    model = PositionModel()
+    # 2. ViewModel 생성 (Model에 의존)
+    view_model = ViewModel(model)
+
     # 배경 확인을 위한 메인 윈도우
     main_win = QMainWindow()
-    widget = TargetPositionWidget()
+    # 3. Widget 생성 (ViewModel에 의존)
+    widget = TargetPositionWidget(view_model)
     main_win.setCentralWidget(widget)
     main_win.setWindowTitle("TargetPositionWidget 테스트")
     main_win.resize(400, 300)
@@ -298,4 +444,3 @@ if __name__ == '__main__':
 
 
     sys.exit(app.exec())
-

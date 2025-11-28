@@ -1,45 +1,61 @@
 # utils/logger.py
 """
-utils/logger.py
-----------------
-중앙 로깅 설정 모듈.
-모든 모듈에서 import 해서 사용:
-    from utils.logger import logger
+중앙 로깅 시스템
+---------------
+KRISS Robot Sync 프로젝트의 통합 로깅 솔루션
+
+설계 원칙:
+1. 단일 책임: Logger는 오직 로그 기록만 담당
+2. 환경 설정 분리: LoggerConfig가 모든 설정 관리
+3. EventBus 독립: Logger는 EventBus에 의존하지 않음
+4. 확장성: 다양한 핸들러 추가 가능
+
+
+사용법:
+    from utils.logger import get_logger
+    
+    logger = get_logger(__name__)
+    logger.info("정보 메시지")
+    logger.info("작업 시작")
+    logger.error("에러 발생", exc_info=True)
+    logger.debug("디버그 정보")
 """
-import sys, os
+
+import sys
+import os
 import logging
 from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
+from typing import Optional
 
 from .env import AppEnv
 
 
-
 # =============================================================================
-# 콘솔 컬러 출력을 위한 ANSI 색상 코드
+# 콘솔에서 컬러 출력을 위한 포매터
 # =============================================================================
 class ColorFormatter(logging.Formatter):
     """
-    콘솔 출력용 컬러 포매터 (ANSI 색상 코드 사용)
+    콘솔 출력용 ANSI 색상 포매터
+    
+    개발 환경에서 로그 레벨을 시각적으로 구분하기 위해 사용
     """
     
-    # ANSI 색상 코드
     COLORS = {
         'DEBUG': '\033[36m',      # Cyan
         'INFO': '\033[32m',       # Green
         'WARNING': '\033[33m',    # Yellow
         'ERROR': '\033[31m',      # Red
         'CRITICAL': '\033[35m',   # Magenta
-        'RESET': '\033[0m'        # Reset
+        'RESET': '\033[0m'
     }
     
     def format(self, record: logging.LogRecord) -> str:
         """로그 레벨에 따라 색상 적용"""
-        # 원본 포맷 적용
         log_message = super().format(record)
         
-        # 색상 적용 (Windows에서도 작동하도록 조건부)
+        # TTY 환경 확인 (Windows에서도 작동)
         if hasattr(sys.stdout, 'isatty') and sys.stdout.isatty():
             color = self.COLORS.get(record.levelname, self.COLORS['RESET'])
             return f"{color}{log_message}{self.COLORS['RESET']}"
@@ -47,149 +63,142 @@ class ColorFormatter(logging.Formatter):
         return log_message
 
 
-
-
-class Logger:
+# =============================================================================
+# 로거 설정 관리 (단일 책임: 환경 설정)
+# =============================================================================
+class LoggerConfig:
     """
-    클래스가 앱 전체에서 단 하나의 인스턴스(객체)만 갖도록 보장하는 
-    싱글톤(Singleton) 디자인 패턴
+    로거 환경 설정 전담 클래스
     
-    특징:
-    - 개발/배포 환경 자동 감지(utils/env.py)
-    - 일반 로그 / 에러 로그 분리
-    - 컬러 콘솔 출력 (개발 모드)
-    - 환경 변수로 로그 레벨 조정
-    """    
-
-    # 싱글톤 디자인 패턴
-    _instance = None        # Logger 클래스의 유일한 인스턴스(객체)를 저장하기 위한 공간
-    _initialized = False    # 초기화 코드가 여러번 실행되는 것을 방지하는 flag 변수(스위치)
-
+    책임:
+    - 로그 디렉토리 관리
+    - 핸들러 생성
+    - 포맷터 정의
+    - 환경별 설정 분기
+    
+    Note:
+        Logger 클래스와 완전히 분리되어 독립적으로 테스트 가능
+    """
+    
+    _initialized = False
+    
     # 앱 정보
     APP_NAME = "KRISS_ROBOT_SYNC"
-    APP_AUTHOR = "KRISS"
-
-    # 로그 디렉터리
+    
+    # 로그 파일 경로
     LOG_DIR: Path
-    LOG_FILE: Path
-    ERROR_LOG_FILE: Path
-
-    # 포멧터 정의
-    FORMAT_DATE = "%Y-%m-%d %H:%M:%S"
-    FORMAT_MESSAGE = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
-    LOG_FORMAT_FILE = logging.Formatter(
-        fmt=FORMAT_MESSAGE, 
-        datefmt=FORMAT_DATE
-    )
-    LOG_FORMAT_ERROR = logging.Formatter(
-        fmt='%(asctime)s | %(levelname)s | %(pathname)s:%(lineno)d\n%(message)s\n',
-        datefmt=FORMAT_DATE
-    )
-    LOG_FORMAT_CONSOLE = ColorFormatter(
-        fmt=FORMAT_MESSAGE,
-        datefmt=FORMAT_DATE
-    )
+    INFO_LOG: Path
+    ERROR_LOG: Path
+    
+    # 포맷 정의
+    DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+    MESSAGE_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
+    ERROR_FORMAT = "%(asctime)s | %(levelname)s | %(pathname)s:%(lineno)d\n%(message)s\n"
     
     # 로테이션 설정
-    COUNT_BACKUP = 14       # 14일치 보관
-    COUNT_BACKUP_ERROR = 30 # 30일치 보관
+    BACKUP_COUNT = 14        # 일반 로그: 14일 보관
+    BACKUP_COUNT_ERROR = 30  # 에러 로그: 30일 보관
+    
 
-
-    def __new__(cls) -> "Logger":
+    @classmethod
+    def _setup_log_config(cls, app_env):
         """
-        싱글톤 패턴 구현
+        로그 저장 환경 설정
+
+        환경에 따른 저장 경로 설정, 로그파일 이름, 로그 폴더 생성
         """
-        # 1. 클래스 변수 _instance가 비어있는지(None) 확인
-        if cls._instance is None:
-            # 2. 비어있다면 (최초 호출이라면), 부모 클래스의 __new__를 호출하여
-            #    새로운 인스턴스를 생성하고, 그 결과를 _instance에 저장
-            cls._instance = super().__new__(cls)
-        
-        # 3. _instance에 저장된 인스턴스를 반환
-        return cls._instance
-
-
-    def __init__(self) -> None:
-        """로거 초기화 (최초 1회만 실행 - 여러번 실행 방지)"""
-        if Logger._initialized:
-            return
-        Logger._initialized = True
-
-        # 외부 라이브러리에서 나오는 불필요한 로그 정보 제외시키기(로그 레벨 억제)
-        logging.getLogger("PyQt6").setLevel(logging.WARNING)
-        logging.getLogger("urllib3").setLevel(logging.WARNING)
-        logging.getLogger("PIL").setLevel(logging.WARNING)
-        logging.getLogger("matplotlib").setLevel(logging.WARNING)
-
-        # AppEnv 인스턴스 가져오기
-        self.app_env = AppEnv()
-
-        # 로그 파일 저장 위치 설정
-        self._configure_logging()
-
-        # 로거 생성(Logger 클래스 객체에 핸들러 등록)
-        self._attach_handlers()
-
-
-
-
-
-    ###################################
-    # --- 로그파일 저장 위치 설정 --- #
-    ###################################
-    def _get_log_directory(self) -> Path:
-        """개발환경or배포환경에 따른 로그 디렉토리 설정"""
-        if not self.app_env.is_packaged:
-            # 개발환경
-            return self.app_env.base_path / "logs"
+        # --- 환경(개발/배포)에 맞는 로그 디렉토리 경로 설정 --- #
+        if not app_env.is_packaged:
+            # 개발 환경: 프로젝트 루트/logs
+            cls.LOG_DIR = app_env.base_path / "logs"
         else:
-            # 배포환경
-            return self.app_env.base_path
+            # 배포 환경: 실행 파일과 같은 위치
+            cls.LOG_DIR = app_env.base_path
 
-    def _configure_logging(self) -> None:
-        """로그 디렉토리 설정 및 로그 파일 경로 설정"""
-        # 로그 디렉토리 결정
-        self.LOG_DIR: Path = self._get_log_directory()
-
-        # 로그 디렉토리 생성
+        # --- 로그 파일 경로 설정 --- #
+        time_now = datetime.now().strftime("%Y%m%d")
+        cls.INFO_LOG = cls.LOG_DIR / f"app_{time_now}.log"
+        cls.ERROR_LOG = cls.LOG_DIR / "error.log"
+        
+        # --- 디렉토리 생성 --- #
         try:
-            # parents=True: 필요한 모든 상위 디렉터리 생성
-            # exist_ok=True: 디렉터리가 이미 있어도 에러 X
-            self.LOG_DIR.mkdir(parents=True, exist_ok=True)
+            # parents=True: 중간 디렉토리도 생성, exist_ok=True: 폴더가 이미 있어도 에러 발생 안함
+            cls.LOG_DIR.mkdir(parents=True, exist_ok=True)
         except OSError as e:
-            print(f"❌ 로그 디렉터리 생성 실패: {self.LOG_DIR} - {e}")
-
-        # 로그 파일 경로 설정
-        self.LOG_FILE = self.LOG_DIR / f"app_{datetime.now():%Y%m%d}.log"   # 개발 편의성 위한 날짜 표시
-        self.ERROR_LOG_FILE: Path = self.LOG_DIR / "error.log"
+            # 디렉토리 생성 실패 시, 로깅 시스템이 작동하기 전에 출력
+            print(f"❌ 로그 디렉토리 생성 실패: {cls.LOG_DIR} - {e}")    
 
 
-
-    ##################
-    # --- Helper --- #
-    ##################
-    def _determine_log_level(self) -> int:
+    @classmethod
+    def initialize(cls):
         """
-        환경변수(LOG_LEVEL)를 읽어서 그 값에 따라 로그 레벨 결정
-        환경변수에 값이 없으면 기본값 반환
-        개발자가 임의로 로그 레벨을 결정할 수 있게 한다
+        로거 설정 초기화 (최초 1회만 실행)
+        """
+
+        # 이미 초기화되었으면 초기화 실행 안 하고 건너뜀
+        if cls._initialized:
+            return
+        
+        cls._initialized = True
+        
+        # 환경 감지
+        app_env = AppEnv()
+
+        # 로그 저장 설정
+        cls._setup_log_config(app_env)
+        
+        # 외부 라이브러리 로그 걸러내기
+        cls._suppress_noisy_loggers()
+
+
+    @staticmethod
+    def _suppress_noisy_loggers():
+        """
+        불필요한 외부 라이브러리 로그 억제(제외시키기)
+        
+        PyQt6, urllib3 등의 외부 라이브러리는 기본적으로 많은 로그를 출력
+        과다 정보로 인해 로그를 읽기 어렵게 방해하기 때문
+        """
+        noisy_loggers = ["PyQt6", "urllib3", "PIL", "matplotlib"]
+        for logger_name in noisy_loggers:
+            logging.getLogger(logger_name).setLevel(logging.WARNING)
+    
+    
+    @classmethod
+    def get_log_level(cls) -> int:
+        """
+        환경 변수로 로그 레벨 동적 결정
+
+            환경변수(LOG_LEVEL)를 읽어서 그 값에 따라 로그 레벨 결정
+            환경변수에 값이 없으면 기본값 반환
+            개발자가 임의로 로그 레벨을 결정할 수 있게 한다
+        
+        환경 변수 우선순위:
+        1. LOG_LEVEL 환경 변수 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        2. 개발 환경: DEBUG
+        3. 배포 환경: INFO
+        
+        사용 예:
+            Windows: set LOG_LEVEL=DEBUG && python main.py
+            Linux/Mac: LOG_LEVEL=DEBUG python main.py
+        
+        리턴:
+            int: logging.DEBUG(10), INFO(20), WARNING(30), ERROR(40), CRITICAL(50)
 
         사용 예시:
-          • Windows:
+        • Windows:
                 C:\> set LOG_LEVEL=DEBUG
                 C:\> python 파일이름.py
 
-          • macOS / Linux (bash, zsh 등):
+        • macOS / Linux (bash, zsh 등):
                 $ export LOG_LEVEL=WARNING
                 $ python 파일이름.py
 
         환경변수 취소 방법
                 C:\> set LOG_LEVEL=
-                C:\> python 파일이름.py
-
-        반환:
-            int: logging.DEBUG(10), logging.INFO(20) 등
+                C:\> python 파일이름.py            
         """
+
         # LOG_LEVEL 환경변수 읽기
         level_name = os.getenv("LOG_LEVEL", "").upper()
         
@@ -197,65 +206,261 @@ class Logger:
             # 환경 변수로 지정된 경우 (예: LOG_LEVEL=DEBUG)
             # 10(=DEBUG 레벨)을 반환
             return getattr(logging, level_name)
-        else:
-            # 기본값: 개발모드는 DEBUG, 배포모드는 INFO
-            return logging.DEBUG if not self.app_env.is_packaged else logging.INFO
+        
+        # 기본값: 개발모드는 DEBUG, 배포모드는 INFO
+        app_env = AppEnv()
+        return logging.DEBUG if not app_env.is_packaged else logging.INFO
+    
 
 
     ##################
     # --- 핸들러 --- #
     ##################
-    def _create_file_handler(self) -> TimedRotatingFileHandler:
-        """일반 로그 파일 핸들러 생성 (INFO 이상)"""
+    @classmethod
+    def create_file_handler(
+        cls, 
+        filepath: Path, 
+        level: int,
+        is_error_log: bool = False
+    ) -> TimedRotatingFileHandler:
+        """
+        파일 핸들러 생성
+        
+        Args:
+            filepath: 로그 파일 경로
+            level: 로그 레벨 (logging.INFO, logging.ERROR 등)
+            is_error_log: 에러 로그 여부 (포맷 선택용)
+            
+        Returns:
+            TimedRotatingFileHandler: 자정마다 로테이션되는 핸들러
+        """
         handler = TimedRotatingFileHandler(
-            filename=self.LOG_FILE,
-            when="midnight",                # 자정마다 로테이션
-            interval=1,                     # 1일 간격
-            backupCount=self.COUNT_BACKUP,  # 지정 날짜만큼 보관
+            filename=filepath,
+            when="midnight",    # 자정마다 로테이션
+            interval=1,         # 1일마다 로테이션
+            backupCount=cls.BACKUP_COUNT_ERROR if is_error_log else cls.BACKUP_COUNT,   # 일반:14일, 에러: 30일
             encoding="utf-8"
         )
-        handler.setLevel(logging.INFO)
-        handler.setFormatter(self.LOG_FORMAT_FILE)
+        handler.setLevel(level)
+        
+        # 포맷 설정
+        if is_error_log:
+            fmt = logging.Formatter(cls.ERROR_FORMAT, cls.DATE_FORMAT)
+        else:
+            fmt = logging.Formatter(cls.MESSAGE_FORMAT, cls.DATE_FORMAT)
+        
+        handler.setFormatter(fmt)
         return handler
 
-    def _create_error_handler(self) -> TimedRotatingFileHandler:
-        """에러만 기록 (WARNING 이상)"""
-        handler = TimedRotatingFileHandler(
-            filename=self.ERROR_LOG_FILE,
-            when="midnight",
-            interval=1,
-            backupCount=self.COUNT_BACKUP_ERROR,
-            encoding="utf-8"
-        )
-        handler.setLevel(logging.WARNING)
-        handler.setFormatter(self.LOG_FORMAT_ERROR)
-        return handler
-
-    def _create_console_handler(self) -> logging.StreamHandler:
-        """콘솔 출력 핸들러 (개발용, DEBUG 레벨)"""
+    @classmethod
+    def create_console_handler(cls) -> logging.StreamHandler:
+        """
+        콘솔 핸들러 생성 (컬러 출력)
+        
+        Returns:
+            StreamHandler: 컬러 포맷터가 적용된 핸들러
+        """
         handler = logging.StreamHandler(sys.stdout)
-        handler.setLevel(self._determine_log_level())
-        handler.setFormatter(self.LOG_FORMAT_CONSOLE)
+        handler.setLevel(cls.get_log_level())
+        handler.setFormatter(ColorFormatter(cls.MESSAGE_FORMAT, cls.DATE_FORMAT))
         return handler
 
-    def _attach_handlers(self) -> None:
-        """핸들러들을 로거에 등록"""
-        self.logger = logging.getLogger(Logger.APP_NAME)
-        self.logger.setLevel(self._determine_log_level())
-        self.logger.propagate = False   # 중복 출력 방지
 
-        # 중복방지 - 기존 핸들러를 모두 제거하는 방법
-        for handler in self.logger.handlers[:]:
-            self.logger.removeHandler(handler)
 
-        # 핸들러 등록
-        self.logger.addHandler(self._create_file_handler())
-        self.logger.addHandler(self._create_error_handler())
+# =============================================================================
+# 로거 싱글톤 (단일 책임: 로그 기록)
+# =============================================================================
+class Logger:
+    """
+    로거 싱글톤 - 클래스가 앱 전체에서 단 하나의 인스턴스(객체)만 갖도록 보장
+    
+    책임:
+    - 로그 기록만 수행
+    - EventBus와 독립적
+    - 모듈별 자식 로거 생성
+    
+    Note:
+        직접 사용하지 말고 get_logger() 함수 사용 권장
+    """
+    
+    # 싱글톤 디자인 패턴
+    _instance: Optional['Logger'] = None    # Logger 클래스의 유일한 인스턴스(객체)를 저장하기 위한 공간
+    _root_logger: Optional[logging.Logger] = None
+    
+    
+    def __new__(cls):
+        """
+        싱글톤 인스턴스 생성 - 클래스가 앱 전체에서 단 하나의 인스턴스(객체)만 갖도록 보장
 
-        # 개발 모드일 때만 콘솔 핸들러 추가
-        if not self.app_env.is_packaged:
-            self.logger.addHandler(self._create_console_handler())
+        클래스(cls)를 받아 새로운 객체(인스턴스)를 생성하고 반환하는 메서드
 
+        __new__가 성공적으로 객체를 생성하여 반환하면, 그 객체가 self가 되어 __init__ 메서드로 전달
+        
+        """
+
+        # 최초 요청할때만 객체 생성, 그 뒤로는 같은 인스턴스 리턴
+        if cls._instance is None:
+
+            # 클래스 변수 _instance가 비어있으면 새로운 인스턴스를 생성
+            cls._instance = super().__new__(cls)
+            cls._instance._setup_root_logger()
+
+        # 인스턴스 반환
+        return cls._instance
+    
+    
+    def _setup_root_logger(self):
+        """
+        루트 로거 설정
+        
+        흐름:
+        1. LoggerConfig 초기화
+        2. 루트 로거 생성
+        3. 핸들러 추가 (파일, 에러, 콘솔)
+        4. 초기화 완료 로그
+        """
+        
+        # 로거 설정 초기화
+        LoggerConfig.initialize()
+
+        
+        # 루트 로거 생성
+        self._root_logger = logging.getLogger(LoggerConfig.APP_NAME)
+        self._root_logger.setLevel(LoggerConfig.get_log_level())
+        self._root_logger.propagate = False
+        
+        # 기존 핸들러 제거 (중복 방지)
+        self._root_logger.handlers.clear()
+        
+        # 핸들러 추가
+        self._root_logger.addHandler(
+            LoggerConfig.create_file_handler(
+                LoggerConfig.INFO_LOG, 
+                logging.INFO,
+                is_error_log=False
+            )
+        )
+        self._root_logger.addHandler(
+            LoggerConfig.create_file_handler(
+                LoggerConfig.ERROR_LOG, 
+                logging.ERROR,
+                is_error_log=True
+            )
+        )
+        
+        # 개발 모드에서만 콘솔 출력
+        app_env = AppEnv()
+        if not app_env.is_packaged:
+            self._root_logger.addHandler(LoggerConfig.create_console_handler())
+        
         # 초기화 완료 로그
-        env_name = self.app_env.environment.value
-        self.logger.info(f"Logger initialized in [{env_name}] environment. - Log directory: {self.LOG_DIR}")
+        env_name = app_env.environment.value
+        self._root_logger.info(
+            f"Logger initialized in [{env_name}] environment - "
+            f"Log directory: {LoggerConfig.LOG_DIR}"
+        )
+    
+    
+    def _get_child_logger(self, name: str) -> logging.Logger:
+        """
+        자식 로거 반환
+
+        로그 메시지에 해당 로거의 이름(name)이 포함되도록 하여, 어떤 모듈이나 클래스에서 로그가 발생했는지(%(name)s 포맷) 쉽게 식별할 수 있도록
+        
+        Args:
+            name: 로거 이름 (일반적으로 __name__ 사용)
+            
+        Returns:
+            logging.Logger: 부모 설정이 상속된 로거
+            
+        Example:
+            logger = Logger()._get_child_logger('models.fanuc_logic')
+            logger.info("메시지")
+            # 출력: 2025-01-20 10:30:00 | INFO | KRISS_ROBOT_SYNC.models.fanuc_logic | 메시지
+        """
+        # 루트 로거가 초기화되었음을 보장 (Pylance 경고 해결 및 런타임 안정성)
+        assert self._root_logger is not None, "Root logger has not been initialized."
+        
+        return self._root_logger.getChild(name)
+
+
+# =============================================================================
+# 편의 함수
+# =============================================================================
+def get_logger(name: str = __name__) -> logging.Logger:
+    """
+    로거 인스턴스 반환
+
+    엔드 유저가 사용하는 진입점 만들기 위해서
+    
+
+    Args:
+        name: 로거 이름 (일반적으로 __name__)
+        
+    Returns:
+        logging.Logger: 설정이 적용된 로거
+        
+    Example:
+        from utils.logger import get_logger
+        
+        logger = get_logger(__name__)
+        logger.info("작업 시작")
+        logger.error("에러 발생", exc_info=True)
+        logger.debug("디버그 정보")
+    """
+    logger_instance = Logger()
+    return logger_instance._get_child_logger(name)
+
+
+# 다른 파일에서 쓰기 편하게 하위 호환성을 위한 전역 로거
+logger = get_logger(__name__)
+
+
+
+
+
+"""
+=============================================================================
+-- Smoke Test --
+
+python -m utils.logger
+=============================================================================
+"""
+
+if __name__ == "__main__":
+    print("\n" + "="*70)
+    print("Logger 테스트")
+    print("="*70 + "\n")
+    
+    # 테스트용 로거 생성
+    test_logger = get_logger("test_module")
+    
+    # 모든 로그 레벨 테스트
+    test_logger.debug("디버그 메시지 (개발 모드에서만 표시)")
+    test_logger.info("정보 메시지")
+    test_logger.warning("경고 메시지")
+    test_logger.error("에러 메시지")
+    test_logger.critical("치명적 에러 메시지")
+    
+    # 예외 로깅 테스트
+    print("\n[예외 로깅 테스트]")
+    try:
+        raise ValueError("의도적인 테스트 예외")
+    except ValueError:
+        test_logger.exception("예외 발생:")
+    
+    # 로그 파일 위치 출력
+    print(f"\n[로그 파일 위치]")
+    print(f"로그 디렉토리: {LoggerConfig.LOG_DIR}")
+    print(f"INFO 로그: {LoggerConfig.INFO_LOG}")
+    print(f"ERROR 로그: {LoggerConfig.ERROR_LOG}")
+    
+    # 싱글톤 확인
+    print(f"\n[싱글톤 확인]")
+    logger1 = Logger()
+    logger2 = Logger()
+    print(f"동일 인스턴스: {logger1 is logger2}")
+    
+    print("\n" + "="*70)
+    print("테스트 완료")
+    print("="*70 + "\n")

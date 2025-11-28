@@ -13,20 +13,45 @@ from PyQt6.QtWidgets import (
     QWidget,
     QMessageBox
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSlot
 from PyQt6.QtGui import QIcon
 from typing import Dict, Any, Tuple, cast
 from functools import partial
 
 from config.paths import CONFIG_MACRO_PATH
-from utils.file_handler import load_json, save_json
+
+from services.macro_service import MacroService as Service
+from view_models.macro_settings_dialog_viewmodel import MacroSettingsDialogViewModel as ViewModel
 
 
 
 class MacroSettingsDialog(QDialog):
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, viewmodel = ViewModel):
         super().__init__(parent)
+
+
+        # 의존성 주입
+        # View가 ViewModel 소유하기 위해: Service 생성 -> ViewModel에 주입
+        """
+        뷰가 왜 서비스를 갖고 있나?
+
+        self.service를 가지고 있지만, 뷰는 서비스의 비즈니스 로직 함수를 직접 호출하지 않는다
+        단지 self.vm을 만들기 위한 재료(생성자 인자)로만 잠깐 사용하고 끝낼 뿐
+        서비스 레이어를 사용하기 위함이 아니라 뷰모델 객체를 갖기 위한 조립만 하는 역할
+        """
+        self.service = Service()
+        self.vm = ViewModel(self.service)
+
+
+        # --- 시그널 연결 (전화선 연결) --- #
+        # 실패 시 팝업
+        self.vm.save_macro_failed.connect(self._on_save_failed)
+        # 성공 시 버튼 피드백
+        self.vm.save_macro_complete.connect(self._on_save_complete)
+        # 데이터 도착 시그널 연결
+        self.vm.macro_data_loaded.connect(self._on_data_loaded)
+
 
         # 각 매크로의 위젯들을 저장할 딕셔너리
         self.macro_widgets: Dict[str, Dict[str, QWidget]] = {}
@@ -35,6 +60,9 @@ class MacroSettingsDialog(QDialog):
 
         # 사용자 입력이 끝난 뒤(self._init_ui())에 저장 버튼 처리
         self._bind_save_button_events()
+
+        # UI 구성이 끝났으니 데이터 로드 요청! (방아쇠 당김)
+        self.vm.load_initial_data(CONFIG_MACRO_PATH)
 
 
     def _init_ui(self):
@@ -65,6 +93,15 @@ class MacroSettingsDialog(QDialog):
         self.macro_widgets["Macro_2"] = macro_widgets_2
         self.macro_widgets["Macro_3"] = macro_widgets_3
         self.macro_widgets["Macro_4"] = macro_widgets_4
+
+
+
+    # 뷰모델의 신호를 처리할 슬롯 추가 (클래스 맨 아래나 적당한 곳에 추가)
+    @pyqtSlot(str)
+    def _on_save_failed(self, error_message: str):
+        """ViewModel로부터 저장 실패 알림을 받았을 때 실행"""
+        QMessageBox.critical(self, "저장 실패", error_message)
+
 
 
     def _create_macro_groupbox(self, macro_id: str) -> Tuple[QGroupBox, Dict[str, QWidget]]:
@@ -175,13 +212,10 @@ class MacroSettingsDialog(QDialog):
         # 데이터 수집
         data_macro = self._gather_macro_data(macro_id, widgets)
 
-        # 파일에 저장
-        try:
-            self._save_macro_data_to_file(macro_id, data_macro)
-        except IOError as e:
-            QMessageBox.critical(self, "저장 실패", str(e))
-        except Exception as e:
-            QMessageBox.warning(self, "오류", f"알 수 없는 오류가 발생했습니다: {e}")
+        # ViewModel에게 토스! (Delegation)
+        #    에러 처리는 VM의 시그널(_on_save_failed)이 담당
+        self.vm._save_macro(CONFIG_MACRO_PATH, data_macro)
+        
 
     def _gather_macro_data(self, macro_id: str, widgets: Dict[str, QWidget]) -> Dict[str, Any]:
         """
@@ -206,35 +240,63 @@ class MacroSettingsDialog(QDialog):
             'r':cast(QDoubleSpinBox, widgets['R']).value()
         }
 
-    def _save_macro_data_to_file(self, macro_id: str, data_macro: Dict[str, Any]):
+
+    @pyqtSlot(str)
+    def _on_save_complete(self, macro_id: str):
         """
-        매크로 데이터를 JSON 파일에 저장한다
-
-        Args:
-            macro_id (str): 저장할 매크로의 식별자
-            data_macro (Dict[str, Any]): 저장할 매크로 데이터
-
-        Raises:
-            IOError: 파일 쓰기에 실패한 경우
+        저장 성공 시 시각적 피드백 제공 (팝업 X, 버튼 텍스트 변경 O)
         """
-        # 1. 기존 매크로 설정 파일을 전부 읽는다
-        stored_macro_data = load_json(CONFIG_MACRO_PATH)
-        # 파일이 없거나 비어있으면 새로운 딕셔너리를 생성
-        if stored_macro_data is None:
-            stored_macro_data = {}
+        # 해당 매크로의 저장 버튼을 찾음
+        if macro_id in self.macro_widgets:
+            save_btn = cast(QPushButton, self.macro_widgets[macro_id]['save_btn'])
+            original_text = save_btn.text()
+            
+            # 버튼 텍스트를 잠시 'Saved!'로 변경하고 스타일을 바꿈
+            save_btn.setText("✔ Saved!")
+            save_btn.setStyleSheet("color: green; font-weight: bold;")
+            save_btn.setEnabled(False)  # 중복 클릭 방지
 
-        # 2. 읽어온 전체 데이터에서 현재 macro_id에 해당하는 부분만 업데이트
-        stored_macro_data[macro_id] = data_macro
+            # 1초 뒤에 원래대로 복구 (QTimer 사용)
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(1000, lambda: self._reset_button_state(save_btn, original_text))
 
-        # 3. 수정된 전체 데이터를 다시 JSON 파일에 저장
-        result_save = save_json(CONFIG_MACRO_PATH, stored_macro_data)
+    def _reset_button_state(self, btn, original_text):
+        """버튼 상태 복구 헬퍼"""
+        try:
+            btn.setText(original_text)
+            btn.setStyleSheet("")
+            btn.setEnabled(True)
+        except RuntimeError:
+            # 타이머 작동 전 창이 닫히면 발생하는 에러 방지
+            pass
 
-        # 4. 저장 결과를 확인하고, 실패 시 예외 발생
-        if not result_save:
-            raise IOError(f"❌ [{macro_id}] 데이터를 파일에 쓸 수 없습니다. 권한 또는 디스크 공간을 확인하세요.")
 
+    @pyqtSlot(dict)
+    def _on_data_loaded(self, all_data: Dict[str, Any]):
+        """
+        ViewModel이 보내준 데이터로 UI를 채움 (Data Binding)
+        """
+        # self.macro_widgets에는 'Macro_1', 'Macro_2'... 키가 있음
+        for macro_id, widgets in self.macro_widgets.items():
+            
+            # 1. 현재 매크로 ID에 해당하는 데이터 추출 (없으면 빈 딕셔너리)
+            macro_data = all_data.get(macro_id, {})
+            
+            if not macro_data:
+                continue
 
-
+            # 2. 이름(Name) 채우기
+            if 'name' in macro_data:
+                widgets['name_input'].setText(macro_data['name'])
+            
+            # 3. 좌표(X, Y, Z, W, P, R) 채우기
+            # 데이터는 소문자('x'), 위젯 키는 대문자('X')임에 주의
+            for axis_char in ['x', 'y', 'z', 'w', 'p', 'r']:
+                if axis_char in macro_data:
+                    widget_key = axis_char.upper()  # 'x' -> 'X'
+                    if widget_key in widgets:
+                        val = float(macro_data[axis_char])
+                        widgets[widget_key].setValue(val)
 
 
 # ==========================================================
