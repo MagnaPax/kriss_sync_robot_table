@@ -8,44 +8,40 @@ macOS 에는 필요 없다
 LogListener 생성 전에 호출되므로 로거를 직접 사용
 """
 import os
-import sys
 import ctypes
 import platform
 from pathlib import Path
-from utils.logger import get_logger
 from config.paths import TC_ADS_DLL_PATH
-
-logger = get_logger(__name__)
 
 
 
 def load_pyads_dll():
     """
-    libs 폴더의 TcAdsDll.dll을 로드하여 pyads 실행 환경 구성
-        pyads 임포트 전 사용
-        Windows OS 전용(macOS는 dll파일 필요 없음)
+    TcAdsDll.dll 읽기 함수
+    
+    동작:
+        - Windows가 아니면 패스(macOS에서는 dll 필요 없음)
+        - DLL 파일이 없으면 FileNotFoundError 발생
+        - 로드 실패 시 OSError 발생
     """
     
-    # 운영체제 확인: Windows 가 아니면 DLL 로드 필요 없음
+    # OS 체크
     if platform.system() != 'Windows':
-        logger.info(f"윈도우즈 OS가 아닙니다. DLL 로드를 건너뜁니다. 현재 운영체제: {platform.system()}")
         return
+    
+    # 파일이 있는지 확인
+    if not TC_ADS_DLL_PATH.exists():
+        raise FileNotFoundError(f"DLL 파일을 찾을 수 없습니다: {TC_ADS_DLL_PATH}")
+    
 
     # DLL 파일 읽기 시도
-    dll_directory = Path(TC_ADS_DLL_PATH).parent
-    dll_name = Path(TC_ADS_DLL_PATH).name
-
-    logger.info(f"DLL 경로: {dll_directory} / DLL 파일명: {dll_name}")
-
-    os.add_dll_directory(str(dll_directory))
-
     try:
+        dll_directory = Path(TC_ADS_DLL_PATH).parent
+        os.add_dll_directory(str(dll_directory))
         ctypes.windll.LoadLibrary(str(TC_ADS_DLL_PATH))
-        logger.info("pyads용 DLL 파일 읽기 성공")
 
     except Exception as e:
-        logger.critical(f"pyads DLL 읽기 실패: {e}", exc_info=True)
-        sys.exit(1)
+        raise OSError(f"DLL 로드 실패: {e}")
 
 
 
@@ -62,31 +58,40 @@ if __name__ == "__main__":
 
     # 1. 환경 정보 출력
     print(f"🖥️  현재 운영체제: {platform.system()}")
-    print(f"📂  설정된 DLL 경로: {TC_ADS_DLL_PATH}")
+    print(f"📂  타겟 DLL 경로: {TC_ADS_DLL_PATH}")
     
     # 2. 파일 존재 여부 사전 체크 (디버깅용)
     if TC_ADS_DLL_PATH.exists():
         print("✅  파일이 해당 경로에 실제로 존재합니다.")
     else:
-        print("❌  파일을 찾을 수 없습니다. (Windows라면 로드 실패 예상)")
+        print("ℹ️  파일을 찾을 수 없습니다. (Windows라면 FileNotFoundError 예상)")
 
     print("\n" + "-"*30 + " 함수 실행 " + "-"*30 + "\n")
 
     # 3. 함수 실행 및 결과 확인
     try:
         load_pyads_dll()
-        print("\n✅  [성공] 함수가 정상적으로 종료되었습니다.")
+        
+        # 예외가 발생하지 않고 여기까지 왔다면 성공
+        print("✅  [성공] 함수가 에러 없이 종료되었습니다.")
         
         if platform.system() == 'Windows':
-            print("   -> Windows 환경에서 DLL 로드에 성공했거나, 이미 로드되어 있습니다.")
+            print("   -> (Windows) DLL이 정상적으로 로드되었습니다.")
         else:
-            print("   -> Windows가 아니므로 로드를 건너뛰었습니다.")
+            print("   -> (Non-Windows) OS 체크 후 로드 로직을 건너뛰었습니다 (정상 동작).")
 
-    except SystemExit as e:
-        print(f"\n⚠️  [종료] 함수가 시스템 종료를 요청했습니다. (Exit Code: {e.code})")
-        print("   -> DLL 파일이 없거나 로드 중 에러가 발생하여 안전하게 종료되었습니다.")
-        print("   -> 위쪽의 [CRITICAL] 로그 내용을 확인하세요.")
+    except FileNotFoundError as e:
+        print(f"\n⚠️  [확인] FileNotFoundError가 발생했습니다.")
+        print(f"   -> 원인: {e}")
+        print("   -> (해설) DLL 파일이 없어서 발생한 것으로, 의도된 예외입니다.")
+
+    except OSError as e:
+        print(f"\n⚠️  [확인] OSError가 발생했습니다.")
+        print(f"   -> 원인: {e}")
+        print("   -> (해설) 파일은 있지만 로드에 실패했습니다 (비트수 불일치, 손상 등).")
+
     except Exception as e:
-        print(f"\n❌  [실패] 예상치 못한 예외 발생: {e}")
+        print(f"\n❌  [실패] 예상치 못한 예외가 발생했습니다: {type(e).__name__}")
+        print(f"   -> 메시지: {e}")
 
     print("\n" + "="*70)
