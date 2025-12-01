@@ -49,13 +49,11 @@ from PyQt6.QtWidgets import QApplication
 from utils.logger import get_logger
 from core.exception_handler import install_global_exception_hook
 from core.event_bus import EVENT_BUS
+from config.paths import STYLESHEET_PATH
+from styles.style_manager import load_and_apply_stylesheet
+from utils.file_exceptions import FileOperationError
 
-# 설정 파일 경로
-try:
-    from config.paths import STYLESHEET_PATH
-except ImportError:
-    # 설정 파일이 없으면 기본 경로 사용
-    STYLESHEET_PATH = Path("styles/stylesheet.qss")
+
 
 
 # =============================================================================
@@ -103,11 +101,14 @@ class AppEngine(QApplication):
         Raises:
             TypeError: 다른 QApplication 인스턴스가 이미 존재하는 경우
         """
+
+        # 싱글톤 패턴
         # 이미 AppEngine 인스턴스가 있으면 반환
         if cls._instance is not None:
             return cls._instance
         
-        # Logger 먼저 초기화 (에러 로깅 위해)
+        # Logger 초기화
+        # 아직 LogListener가 연결되지 않았으므로 직접 로깅
         logger = get_logger(__name__)
         
         # 기존 QApplication 인스턴스 확인
@@ -122,7 +123,7 @@ class AppEngine(QApplication):
             # 이미 AppEngine 인스턴스가 존재
             logger.info("기존 AppEngine 인스턴스 재사용")
             cls._instance = existing_instance
-            
+
         else:
             # 다른 QApplication이 이미 존재 (에러)
             error_msg = (
@@ -133,24 +134,27 @@ class AppEngine(QApplication):
             raise TypeError(error_msg)
         
         return cls._instance
-    
-    
+
+
     def __init__(self, argv=None):
         """
         AppEngine 초기화
-        
+
+        EventBus나 Settings 클래스처럼 _initialize 메서드를 따로 만들고 __new__에서 호출하는 방식이 가장 깔끔하지만, 이 클래스가 상속하는 QApplication은 C++ 레벨의 초기화 문제 때문에 __init__에서 super().__init__을 부르는 현재 방식이 더 안정적일 수 있다
+
+
         Args:
             argv: 커맨드 라인 인자 (None이면 sys.argv 사용)
-            
-        Note:
-            싱글톤 패턴으로 여러 번 호출될 수 있으므로
-            _initialized 플래그로 실제 초기화는 1회만 수행
+
+        이 메서드는 너무 빨리 실행되기 때문에 EVENT BUS 아닌 직접 로그
         """
-        # 이미 초기화되었으면 리턴
+
+        # (방어코드) 초기화는 1회만 수행
+        # _initialized 플래그 사용
         if AppEngine._initialized:
             return
         
-        # Logger 인스턴스 생성
+        # 아직 LogListener가 연결되지 않았으므로 직접 로깅
         self.logger = get_logger(__name__)
         
         try:
@@ -164,44 +168,36 @@ class AppEngine(QApplication):
                 exc_info=True
             )
             raise
-        
-        # 초기화 시퀀스
-        self._initialize_components()
-        
+
+        # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- #
+        # 실제 초기화를 담당하는 bootstrap 메서드는 `./main.py` 에서 호출
+        # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- #
+
         # aboutToQuit 시그널 연결 (앱 종료 시 정리)
         self.aboutToQuit.connect(self._shutdown)
-        
+
         # 초기화 완료
         AppEngine._initialized = True
-        self.logger.info("AppEngine 초기화 완료")
-    
-    
-    def _initialize_components(self):
+
+
+    def bootstrap(self):
         """
-        전역 시스템 컴포넌트 초기화
-        
-        순서:
-        1. 전역 예외 훅 설치
-        2. 스타일시트 로드
-        3. EventBus 로드 확인
-        
-        Note:
-            LogListener는 외부에서 생성해야 함
+        앱의 실제 초기화 로직 (LogListener 연결 후 호출됨)
+
+        여기서부터는 EVENT_BUS를 사용하여 로그를 남길 수 있다
         """
-        self.logger.info("시스템 컴포넌트 초기화 시작...")
+
+        EVENT_BUS.system_info.emit("시스템 부트스트랩 시작...")
         
-        # 1. 전역 예외 훅 설치
+        # 전역 예외 훅 설치
         self._install_exception_hook()
-        
-        # 2. 스타일시트 로드
+
+        # 스타일시트 로드
         self._load_stylesheet()
-        
-        # 3. EventBus 로드 확인
-        self._verify_event_bus()
-        
-        self.logger.info("시스템 컴포넌트 초기화 완료")
-    
-    
+
+        EVENT_BUS.system_info.emit("시스템 부트스트랩 완료")
+
+
     def _install_exception_hook(self):
         """
         전역 예외 훅 설치
@@ -210,83 +206,66 @@ class AppEngine(QApplication):
         """
         try:
             install_global_exception_hook()
-            self.logger.info("전역 예외 훅 설치됨")
+            EVENT_BUS.ui_log_message.emit(
+                "전역 예외 훅 설치됨", "INFO"
+            )
         except Exception as e:
-            self.logger.warning(f"  ⚠ 전역 예외 훅 설치 실패: {e}")
-    
-    
+            EVENT_BUS.ui_log_message.emit(
+                f"❌ 전역 예외 훅 설치 실패: {e}", "ERROR"
+            )
+
+
     def _load_stylesheet(self):
         """
-        전역 스타일시트 로드 및 적용
-        
-        설정:
-            STYLESHEET_PATH에서 QSS 파일 로드
+        전역 스타일시트 로드 및 적용 (theme.py 활용)
         """
-        if not STYLESHEET_PATH.exists():
-            self.logger.warning(f"  ⚠ 스타일시트 파일 없음: {STYLESHEET_PATH}")
-            return
-        
+
         try:
-            with open(STYLESHEET_PATH, "r", encoding="utf-8") as file:
-                stylesheet = file.read()
-                self.setStyleSheet(stylesheet)
-            
-            self.logger.info(f"스타일시트 로드됨: {STYLESHEET_PATH.name}")
-            
+            load_and_apply_stylesheet(self, STYLESHEET_PATH)
+            EVENT_BUS.ui_log_message.emit(
+                f"스타일시트 로드됨: {STYLESHEET_PATH.name}", "INFO"
+            )
+        except FileOperationError as e:
+            EVENT_BUS.ui_log_message.emit(
+                f"  ⚠ 스타일시트 로드 실패: {e}", "WARNING"
+            )
         except Exception as e:
-            self.logger.warning(f"  ⚠ 스타일시트 로드 실패: {e}")
-    
-    
-    def _verify_event_bus(self):
-        """
-        EventBus 로드 확인
-        
-        EventBus는 import 시점에 자동 초기화되므로
-        여기서는 로드 여부만 확인
-        """
-        try:
-            # EVENT_BUS가 정상적으로 로드되었는지 확인
-            _ = EVENT_BUS.metaObject()
-            self.logger.info("EventBus 로드됨")
-        except Exception as e:
-            self.logger.warning(f"  ⚠ EventBus 로드 실패: {e}")
-    
-    
+            EVENT_BUS.ui_log_message.emit(
+                f"  ⚠ 스타일시트 적용 중 알 수 없는 오류: {e}", "ERROR"
+            )
+
+
     def _shutdown(self):
         """
-        앱 종료 시 정리 작업 (Graceful Shutdown)
+        앱 종료 시 정리 작업
         
         순서:
-        1. 종료 이벤트 발행 (EVENT_BUS.app_shutting_down)
+        1. 종료 이벤트 발행
         2. EventBus 시그널 연결 해제
         3. 로깅 시스템 종료
         
         Note:
             aboutToQuit 시그널에 의해 자동 호출됨
         """
-        self.logger.info("앱 종료 시작...")
+
+        EVENT_BUS.ui_log_message.emit("앱 종료 시작...", "INFO")
+
+        # 모든 모듈에게 "종료 준비"라고 방송
+        EVENT_BUS.app_shutting_down.emit()
+        EVENT_BUS.ui_log_message.emit("종료 이벤트 발행됨", "INFO")
         
         try:
-            # 1. 다른 모듈에 종료 알림
-            EVENT_BUS.app_shutting_down.emit()
-            self.logger.info("종료 이벤트 발행됨")
-            
-        except Exception as e:
-            self.logger.warning(f"  ⚠ 종료 이벤트 발행 실패: {e}")
-        
-        try:
-            # 2. EventBus 정리
+            # EVENT BUS 정리
             EVENT_BUS.disconnect_all()
+
+            # 이제 EventBus가 끊겼으므로 직접 로깅으로 전환
             self.logger.info("EventBus 시그널 연결 해제됨")
             
         except Exception as e:
-            self.logger.warning(f"  ⚠ EventBus 정리 실패: {e}")
-        
-        # 3. 로깅 시스템 종료 (마지막)
-        self.logger.info("앱 종료 완료")
+            self.logger.warning(f"  ⚠ EVENT BUS 정리 실패: {e}")
+
+        self.logger.info("시스템 완전 종료")
         logging.shutdown()
-
-
 
 
 
@@ -300,14 +279,14 @@ python -m core.application
 # =============================================================================
 if __name__ == "__main__":
     from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton
-    
     from PyQt6.QtCore import Qt
+    
     print("\n" + "="*70)
-    print("AppEngine 테스트")
+    print("AppEngine 테스트 (Refactored)")
     print("="*70 + "\n")
     
-    # 1. AppEngine 생성
-    print("1️⃣  AppEngine 초기화:")
+    # 1. AppEngine 생성 (1단계: 껍데기 생성)
+    print("1️⃣  AppEngine 인스턴스 생성:")
     app = AppEngine(sys.argv)
     
     # 2. 싱글톤 확인
@@ -315,58 +294,61 @@ if __name__ == "__main__":
     app2 = AppEngine()
     print(f"   app1 ID: {id(app)}")
     print(f"   app2 ID: {id(app2)}")
-    print(f"   동일 인스턴스: {app is app2}")
+    is_singleton = app is app2
+    print(f"   동일 인스턴스: {is_singleton}")
     
-    if app is not app2:
+    if not is_singleton:
         print("   ❌ 싱글톤 테스트 실패!")
         sys.exit(1)
     else:
         print("   ✅ 싱글톤 테스트 성공")
     
-    # 3. LogListener 초기화 (외부에서)
-    print("\n3️⃣  LogListener 초기화:")
+    # 3. LogListener 초기화 (2단계: 귀 열기)
+    print("\n3️⃣  LogListener 초기화 (필수):")
     try:
         from core.log_listener import LogListener
         log_listener = LogListener()
-        print("   ✅ LogListener 초기화 완료")
-    except ImportError:
-        print("   ⚠ LogListener를 찾을 수 없습니다 (선택적)")
+        print("   ✅ LogListener 연결 완료 (EventBus 수신 대기 중)")
+    except ImportError as e:
+        print(f"   ❌ LogListener 로드 실패: {e}")
+        sys.exit(1)
+
+    # 4. Bootstrap 실행 (3단계: 실제 로직 실행)
+    print("\n4️⃣  Bootstrap 실행 (초기화 로직):")
+    print("   (로그 파일에 '시스템 부트스트랩 완료'가 찍혀야 함)")
+    app.bootstrap()
+    print("   ✅ Bootstrap 호출 완료")
     
-    # 4. 테스트 윈도우 생성
-    print("\n4️⃣  테스트 윈도우 생성:")
+    # 5. 테스트 윈도우 생성
+    print("\n5️⃣  테스트 윈도우 생성:")
     window = QWidget()
     window.setWindowTitle("AppEngine 테스트")
-    window.setGeometry(100, 100, 400, 200)
+    window.setGeometry(100, 100, 400, 250)
     
     layout = QVBoxLayout()
     
-    # 라벨
     label = QLabel(
         "AppEngine 테스트 윈도우\n\n"
-        "확인 사항:\n"
-        "- 스타일시트 적용 여부\n"
-        "- 종료 버튼 클릭 시 정상 종료"
+        "✅ 확인 사항:\n"
+        "1. 콘솔/로그 파일에 초기화 로그가 찍혔는가?\n"
+        "2. 스타일시트가 적용되었는가? (배경색 등)\n"
+        "3. 종료 시 '시스템 완전 종료' 로그가 남는가?"
     )
     label.setAlignment(Qt.AlignmentFlag.AlignCenter)
     
-    # 종료 버튼
-    quit_button = QPushButton("종료 (Shutdown 테스트)")
+    quit_button = QPushButton("테스트 종료")
     quit_button.clicked.connect(app.quit)
     
     layout.addWidget(label)
     layout.addWidget(quit_button)
-    layout.addStretch()
     
     window.setLayout(layout)
     window.show()
     
     print("   ✅ 테스트 윈도우 표시됨")
-    print("\n   [종료 방법]")
-    print("   - 윈도우 닫기")
-    print("   - '종료' 버튼 클릭")
     
-    # 5. 이벤트 루프 시작
-    print("\n5️⃣  이벤트 루프 시작...")
+    # 6. 이벤트 루프 시작
+    print("\n6️⃣  이벤트 루프 시작...")
     print("="*70 + "\n")
     
     exit_code = app.exec()
