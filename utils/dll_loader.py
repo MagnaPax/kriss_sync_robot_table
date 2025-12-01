@@ -31,6 +31,7 @@ def load_pyads_dll():
     
     # 파일이 있는지 확인
     if not TC_ADS_DLL_PATH.exists():
+        # 예외를 던짐 - 호출부(main.py)에서 처리
         raise FileNotFoundError(f"DLL 파일을 찾을 수 없습니다: {TC_ADS_DLL_PATH}")
     
 
@@ -41,6 +42,7 @@ def load_pyads_dll():
         ctypes.windll.LoadLibrary(str(TC_ADS_DLL_PATH))
 
     except Exception as e:
+        # 예외를 던짐
         raise OSError(f"DLL 로드 실패: {e}")
 
 
