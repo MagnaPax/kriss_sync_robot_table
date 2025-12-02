@@ -14,7 +14,7 @@ config/settings.ini 파일을 읽어서 앱 전체에 설정값을 제공
     from core.settings import SETTINGS
     
     # 외부에서 마치 변수처럼 사용할 수 있다
-    ams_id = SETTINGS.plc.ams_net_id
+    ams_id = SETTINGS.twincat.ams_net_id
     is_debug = SETTINGS.app.debug
 """
 
@@ -42,11 +42,11 @@ class AppConfig:
 class TwinCATConfig:
     ams_net_id: str
     port: int
+    demo_mode: bool
 
 @dataclass
 class RobotConfig:
     default_speed: int
-    demo_mode: bool
 
 @dataclass
 class TurntableConfig:
@@ -135,12 +135,13 @@ class Settings:
         )
 
     @property
-    def plc(self) -> TwinCATConfig:
+    def twincat(self) -> TwinCATConfig:
         """[TwinCAT] 섹션의 정보"""
         section = self._config['TwinCAT'] if 'TwinCAT' in self._config else {}
         return TwinCATConfig(
             ams_net_id=section.get('AMS_NET_ID', '127.0.0.1.1.1'),
-            port=int(section.get('PORT', '851'))
+            port=int(section.get('PORT', '851')),
+            demo_mode=section.get('DEMO_MODE', 'False').lower() == 'true'
         )
 
     @property
@@ -148,8 +149,7 @@ class Settings:
         """[Robot] 섹션의 정보"""
         section = self._config['Robot'] if 'Robot' in self._config else {}
         return RobotConfig(
-            default_speed=int(section.get('DEFAULT_SPEED', '50')),
-            demo_mode=section.get('DEMO_MODE', 'True').lower() == 'true'
+            default_speed=int(section.get('DEFAULT_SPEED', '50'))
         )
 
 # 전역 인스턴스
@@ -167,5 +167,5 @@ if __name__ == "__main__":
 
     print(f"설정 파일 경로: {SETTINGS.CONFIG_PATH}")
     print(f"Debug Mode: {SETTINGS.app.debug}")
-    print(f"PLC AMS ID: {SETTINGS.plc.ams_net_id}")
-    print(f"Demo Mode: {SETTINGS.robot.demo_mode}")
+    print(f"PLC AMS ID: {SETTINGS.twincat.ams_net_id}")
+    print(f"Demo Mode: {SETTINGS.twincat.demo_mode}")

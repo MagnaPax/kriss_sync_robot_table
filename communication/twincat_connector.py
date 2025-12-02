@@ -23,30 +23,34 @@ TwinCAT Connector
     - XAR : 실시간 제어 실행을 담당하는 런타임 시스템    
 """
 import pyads
-from typing import Optional
+from typing import Optional, Union
 from core.settings import SETTINGS
+from communication.mock_plc import MockConnection
 
 
 
 
 class TwinCATConnector:
     def __init__(self):
-        self._plc: Optional[pyads.Connection] = None
+        self._twincat: Optional[Union[pyads.Connection, MockConnection]] = None
         self._is_connected: bool = False
         
         # 연결 설정 읽기 - settings.ini 에 저장된 데이터 사용
-        self.ams_net_id = SETTINGS.plc.ams_net_id
-        self.port = SETTINGS.plc.port
+        self.ams_net_id = SETTINGS.twincat.ams_net_id
+        self.port = SETTINGS.twincat.port
+
+        # 데모 모드 확인
+        self._is_demo = SETTINGS.twincat.demo_mode
 
 
     @property
-    def handle(self) -> pyads.Connection:
+    def handle(self) -> Union[pyads.Connection, MockConnection]:
         """
         연결된 pyads 객체 반환 (Commander가 사용)
         """
-        if self._plc is None or not self._is_connected:
-            raise ConnectionError("PLC 연결이 초기화되지 않았거나 끊어졌습니다.")
-        return self._plc
+        if self._twincat is None or not self._is_connected:
+            raise ConnectionError("TwinCAT 연결이 초기화되지 않았거나 끊어졌습니다.")
+        return self._twincat
 
 
     @property
@@ -66,18 +70,24 @@ class TwinCATConnector:
 
         try:
             # 1. Connection 객체 생성
-            self._plc = pyads.Connection(self.ams_net_id, self.port)
-            
+            if not self._is_demo:
+                # 실제 배포 환경
+                self._twincat = pyads.Connection(self.ams_net_id, self.port)
+            else:
+                # 개발 환경(데모 모드)
+                self._twincat = MockConnection(self.ams_net_id, self.port)
+                import time; time.sleep(0.5)
+
             # 2. 포트 열기
-            self._plc.open()
+            self._twincat.open()
             
             # 3. 검증 (실제 통신 확인)
-            self._plc.read_state() 
+            self._twincat.read_state() 
 
             self._is_connected = True
 
         except Exception as e:
-            self._plc = None
+            self._twincat = None
             self._is_connected = False
             # 예외를 래핑하여 호출부(Service)로 던짐
             raise ConnectionError(f"TwinCAT 연결 실패 ({self.ams_net_id}:{self.port}) - {e}") from e
@@ -85,13 +95,13 @@ class TwinCATConnector:
 
     def disconnect(self) -> None:
         """연결 해제"""
-        if self._plc:
+        if self._twincat:
             try:
-                self._plc.close()
+                self._twincat.close()
             except Exception:
                 pass # 해제 중 에러는 무시
             finally:
-                self._plc = None
+                self._twincat = None
         
         self._is_connected = False
 
@@ -106,12 +116,12 @@ class TwinCATConnector:
         """
 
         # 1. 이미 연결 끊김 상태면 False 반환
-        if not self._plc or not self._is_connected:
+        if not self._twincat or not self._is_connected:
             return False
             
         try:
             # 2. 상태 읽기 시도 (Ping)
-            self._plc.read_state()
+            self._twincat.read_state()
             return True
             
         except Exception:
