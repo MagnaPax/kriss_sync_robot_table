@@ -27,8 +27,8 @@ class StartupManager:
         splash = ConnectionSplash()
         splash.show()
         
-        # 2. 접속 시도 (재시도 로직 포함)
-        if not self._attempt_connection(splash):
+        # 2. 필수 드라이버 로드 (DLL 로드 시도)
+        if not self._load_drivers(splash):
             # 실패 처리
             splash.close()
             self._show_critical_error()
@@ -48,7 +48,7 @@ class StartupManager:
         return window
 
 
-    def _attempt_connection(self, splash: ConnectionSplash) -> bool:
+    def _load_drivers(self, splash: ConnectionSplash) -> bool:
         """DLL 로드 및 접속 재시도 로직"""
         max_retries = 3
         
@@ -63,18 +63,18 @@ class StartupManager:
                 load_pyads_dll()
                 
                 # 성공 피드백
-                splash.update_status("접속 완료! 시스템을 시작합니다.", 100)
-                EVENT_BUS.system_info.emit("TwinCAT 통신 모듈 로드 성공")
+                splash.update_status("드라이버 로드 완료! 시스템을 시작합니다.", 100)
+                EVENT_BUS.system_info.emit("TwinCAT 통신 모듈(DLL) 로드 성공")
                 
                 QApplication.processEvents()
                 time.sleep(0.8) # 사용자가 성공 메시지를 볼 수 있게 잠시 대기
                 return True
 
             except Exception as e:
-                EVENT_BUS.ui_log_message.emit(f"접속 시도({i}) 실패: {e}", "WARNING")
+                EVENT_BUS.ui_log_message.emit(f"드라이버 로드 시도({i}) 실패: {e}", "WARNING")
                 
                 if i < max_retries:
-                    splash.update_status(f"접속 실패. 재시도 대기 중...", i * 30)
+                    splash.update_status(f"로드 실패. 재시도 대기 중...", i * 30)
                     QApplication.processEvents()
                     time.sleep(1.0)
                 else:
