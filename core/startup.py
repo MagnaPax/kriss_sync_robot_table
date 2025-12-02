@@ -6,7 +6,7 @@ from typing import Optional, TYPE_CHECKING
 
 from core.event_bus import EVENT_BUS
 from utils.dll_loader import load_pyads_dll
-from ui.launch_screen import LaunchScreen
+from ui.launch_screen import SplashScreen
 
 
 
@@ -31,7 +31,7 @@ class StartupManager:
         """부팅 시나리오 실행"""
         
         # 1. 스플래시 화면 표시
-        splash = LaunchScreen()
+        splash = SplashScreen()
         splash.show()
 
         # ---------------------------------------------------------
@@ -73,7 +73,7 @@ class StartupManager:
         return window
 
 
-    def _load_driver(self, splash: LaunchScreen) -> bool:
+    def _load_driver(self, splash: SplashScreen) -> bool:
         """
         [Phase 1] DLL 로드 및 접속 재시도 로직
         """
@@ -110,7 +110,7 @@ class StartupManager:
 
 
     # 리턴 타입에 따옴표("")를 붙여서 문자열로 적음 (Forward Reference)
-    def _connect_twincat(self, splash: LaunchScreen) -> Optional["TwinCATConnector"]:
+    def _connect_twincat(self, splash: SplashScreen) -> Optional["TwinCATConnector"]:
         """
         [Phase 2] TwinCAT 연결 시도
         """
