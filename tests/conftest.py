@@ -1,14 +1,17 @@
 # tests/conftest.py
-"""
-pytest의 설정 파일인 동시에 테스트 도우미
-
-테스트 때마다 QApplication을 만들고 지우면 에러가 나기 때문에 여기서 한 번만 만들어 준다
-"""
+"""pytest의 설정 파일인 동시에 테스트 도우미"""
 import sys
 import pytest
+from PyQt6.QtWidgets import QApplication    # GUI 앱을 관리하는 총괄 관리자 클래스 임포트
+from utils.dll_loader import load_pyads_dll # pyads를 위한 dll 로더
 
-# GUI 앱을 관리하는 총괄 관리자 클래스 임포트
-from PyQt6.QtWidgets import QApplication
+
+# 테스트 시작 전 DLL 로드 (Windows OS 에서만)
+try:
+    load_pyads_dll()
+except Exception as e:
+    print(f"⚠️ [Test Setup] DLL 로드 실패 (Mock 테스트라면 무시 가능): {e}")
+
 
 
 
@@ -32,6 +35,8 @@ def qapp():
         모든 테스트 함수들이 돌려쓸 수 있게 해주는 공용 보급소
     """
 
+    # QApplication 생성
+    # 테스트 때마다 QApplication을 만들고 지우면 에러가 나기 때문에 여기서 한 번만 만들어 준다
     app = QApplication.instance()
 
     # (방어코드) 만들어진 QApplication가 있는지 확인
