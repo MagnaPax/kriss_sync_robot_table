@@ -5,7 +5,8 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from core.event_bus import EVENT_BUS
 from utils.dll_loader import load_pyads_dll
-from ui.splash import ConnectionSplash
+from ui.launch_screen import LaunchScreen
+from communication.twincat_connector import TwinCATConnector
 
 
 
@@ -24,11 +25,11 @@ class StartupManager:
         """부팅 시나리오 실행"""
         
         # 1. 스플래시 화면 표시
-        splash = ConnectionSplash()
+        splash = LaunchScreen()
         splash.show()
         
         # 2. 필수 드라이버 로드 (DLL 로드 시도)
-        if not self._load_drivers(splash):
+        if not self._load_driver(splash):
             # 실패 처리
             splash.close()
             self._show_critical_error()
@@ -48,7 +49,7 @@ class StartupManager:
         return window
 
 
-    def _load_drivers(self, splash: ConnectionSplash) -> bool:
+    def _load_driver(self, splash: LaunchScreen) -> bool:
         """DLL 로드 및 접속 재시도 로직"""
         max_retries = 3
         

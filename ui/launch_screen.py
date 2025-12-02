@@ -7,7 +7,7 @@ from PyQt6.QtCore import Qt
 
 
 
-class ConnectionSplash(QWidget):
+class LaunchScreen(QWidget):
     def __init__(self):
         super().__init__()
         
