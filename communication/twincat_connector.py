@@ -17,7 +17,7 @@ TwinCAT Connector
 
 
 ** TwinCAT **
-    - PC 기반 제어 (PLC 하드웨어 ✖️)
+    - PC 기반 제어 - PLC 아님
     - PLC, 모션 제어, HMI(Human-Machine Interface)
     - XAE : PC에 설치되는 제어 프로그램 개발 도구
     - XAR : 실시간 제어 실행을 담당하는 런타임 시스템    
