@@ -2,126 +2,145 @@
 """
 pytest tests/unit/test_startup.py
 """
-
+import sys
 import pytest
-from unittest.mock import call, MagicMock
+from unittest.mock import MagicMock, call, patch
 from core.startup import StartupManager
 from core.event_bus import EVENT_BUS
 
+# ------------------------------------------------------------------
+# Fixtures
+# ------------------------------------------------------------------
 
+@pytest.fixture
+def manager():
+    """StartupManager 인스턴스"""
+    return StartupManager()
 
-# qapp: conftest.py에서 만든 픽스처 자동 주입
-# mocker: pytest-mock 플러그인이 제공하는 강력한 모킹 도구
+@pytest.fixture
+def mock_splash():
+    """가짜 스플래시 화면"""
+    splash = MagicMock()
+    return splash
 
+@pytest.fixture
+def mock_event_bus(mocker):
+    """EventBus 시그널 Mocking"""
+    return {
+        'ui_log': mocker.patch.object(EVENT_BUS, 'ui_log_message'),
+        'sys_info': mocker.patch.object(EVENT_BUS, 'system_info')
+    }
 
-# def test_connection_retry_success(qapp, mocker):
-#     """
-#     [시나리오 1] 연결 실패 후 재시도하여 결국 성공하는 케이스
-#     """
-#     # --- Given ---
-#     manager = StartupManager()
+# ------------------------------------------------------------------
+# Tests: _load_driver (DLL 로드 로직)
+# ------------------------------------------------------------------
+
+def test_load_driver_success_first_try(manager, mock_splash, mock_event_bus, mocker):
+    """[시나리오] 1차 시도에 DLL 로드 성공"""
     
-#     # load_pyads_dll 함수를 가짜(Mock)로 교체
-#     # 효과: 에러 -> 에러 -> 성공 (True)
-#     mock_loader = mocker.patch('core.startup.load_pyads_dll')
-#     mock_loader.side_effect = [
-#         Exception("1차 실패"),
-#         Exception("2차 실패"),
-#         True 
-#     ]
+    # Given: load_pyads_dll이 성공(None 반환)하도록 설정
+    mocker.patch('core.startup.load_pyads_dll')
+    mocker.patch('time.sleep') # 딜레이 제거
+
+    # When
+    result = manager._load_driver(mock_splash)
+
+    # Then
+    assert result is True
+    # 성공 메시지가 업데이트되었는지 확인
+    mock_splash.update_status.assert_called_with("드라이버 로드 완료.", 40)
+    # 시스템 정보 로그가 발생했는지 확인
+    mock_event_bus['sys_info'].emit.assert_called_with("TwinCAT 통신 모듈(DLL) 로드 성공")
+
+
+def test_load_driver_retry_success(manager, mock_splash, mock_event_bus, mocker):
+    """[시나리오] 1, 2차 실패 후 3차 시도에 성공"""
     
-#     # 스플래시 화면 Mocking (실제 창 안 뜨게)
-#     mock_splash = mocker.Mock()
-
-#     # --- When ---
-#     result = manager._attempt_connection(mock_splash)
-
-#     # --- Then ---
-#     assert result is True  # 결과는 성공이어야 함
-#     assert mock_loader.call_count == 3  # 총 3번 시도했어야 함
-    
-#     # 스플래시 화면에 상태 업데이트가 호출되었는지 확인
-#     assert mock_splash.update_status.called
-
-
-# def test_connection_failure(qapp, mocker):
-#     """
-#     [시나리오 2] 3번 모두 실패하여 결국 False를 반환하는 케이스
-#     """
-#     # --- Given ---
-#     manager = StartupManager()
-    
-#     # 계속 에러 발생
-#     mock_loader = mocker.patch('core.startup.load_pyads_dll')
-#     mock_loader.side_effect = Exception("연결 불가")
-    
-#     mock_splash = mocker.Mock()
-
-#     # --- When ---
-#     result = manager._attempt_connection(mock_splash)
-
-#     # --- Then ---
-#     assert result is False # 결과는 실패여야 함
-#     assert mock_loader.call_count == 3 # 3번까지 시도하고 포기했어야 함
-
-
-
-
-
-def test_connection_retry_sequence_and_logs(qapp, mocker):
-    """
-    [통합 시나리오] 
-    1. 연결 실패 -> 재시도 메시지 표시 -> 로그 기록
-    2. 3번째 시도에 성공 -> 성공 메시지 표시 -> 시스템 정보 로그 기록
-    """
-    
-    # --- Given (준비) ---
-    manager = StartupManager()
-    
-    # 1. DLL 로더 모킹
+    # Given: 에러 -> 에러 -> 성공
     mock_loader = mocker.patch('core.startup.load_pyads_dll')
-    mock_loader.side_effect = [
-        Exception("1차 에러"),
-        Exception("2차 에러"),
-        True 
-    ]
+    mock_loader.side_effect = [Exception("Fail 1"), Exception("Fail 2"), None]
     
-    # 2. 스플래시 화면 모킹
-    mock_splash = mocker.Mock()
-    
-    # 3. [수정됨] EventBus 시그널 자체를 Mock으로 교체
-    # 'emit' 메서드만 막는 게 아니라 시그널 객체를 통째로 Mocking 합니다.
-    mock_log_signal = mocker.patch.object(EVENT_BUS, 'ui_log_message')
-    mock_info_signal = mocker.patch.object(EVENT_BUS, 'system_info')
-    
-    # 4. 시간 지연 모킹
-    mocker.patch('time.sleep') 
+    mocker.patch('time.sleep')
 
+    # When
+    result = manager._load_driver(mock_splash)
 
-    # --- When (실행) ---
-    result = manager._attempt_connection(mock_splash)
-
-
-    # --- Then (검증) ---
-    
-    # 1. 결과 검증
+    # Then
     assert result is True
     assert mock_loader.call_count == 3
+    
+    # 실패 로그가 2번 남았는지 확인
+    assert mock_event_bus['ui_log'].emit.call_count == 2
 
-    # 2. 스플래시 메시지 검증
-    expected_calls = [
-        call("TwinCAT 접속 시도 중... (1/3)", 30),
-        call("접속 실패. 재시도 대기 중...", 30),
-        call("TwinCAT 접속 시도 중... (2/3)", 60),
-        call("접속 실패. 재시도 대기 중...", 60),
-        call("TwinCAT 접속 시도 중... (3/3)", 90),
-        call("접속 완료! 시스템을 시작합니다.", 100)
-    ]
-    mock_splash.update_status.assert_has_calls(expected_calls, any_order=False)
+
+def test_load_driver_failure(manager, mock_splash, mock_event_bus, mocker):
+    """[시나리오] 3차 시도까지 모두 실패"""
     
-    # 3. 로그 기록 검증 (이제 시그널 객체의 emit을 검사)
-    assert mock_log_signal.emit.call_count == 2
-    mock_log_signal.emit.assert_any_call("접속 시도(1) 실패: 1차 에러", "WARNING")
-    mock_log_signal.emit.assert_any_call("접속 시도(2) 실패: 2차 에러", "WARNING")
+    # Given: 계속 에러
+    mock_loader = mocker.patch('core.startup.load_pyads_dll')
+    mock_loader.side_effect = Exception("DLL Not Found")
     
-    mock_info_signal.emit.assert_called_with("TwinCAT 통신 모듈 로드 성공")
+    # _show_critical_error 메서드 Mocking (실제 팝업 방지)
+    manager._show_critical_error = MagicMock()
+    mocker.patch('time.sleep')
+
+    # When
+    result = manager._load_driver(mock_splash)
+
+    # Then
+    assert result is False
+    assert mock_loader.call_count == 3
+    
+    # 에러 팝업 호출 확인
+    manager._show_critical_error.assert_called_once()
+
+
+# ------------------------------------------------------------------
+# Tests: run (전체 흐름)
+# ------------------------------------------------------------------
+
+def test_run_full_success(manager, mocker, qapp):
+    """[시나리오] 모든 단계 성공 시 메인 윈도우 반환"""
+    
+    # --- Mocking Setup ---
+    # 1. SplashScreen
+    MockSplash = mocker.patch('core.startup.SplashScreen')
+    mock_splash_instance = MockSplash.return_value
+    
+    # 2. _load_driver (성공으로 가정)
+    manager._load_driver = MagicMock(return_value=True)
+    
+    # 3. PLCService
+    MockService = mocker.patch('core.startup.PLCService')
+    mock_service_instance = MockService.return_value
+    mock_service_instance.connect_with_retry.return_value = True # 연결 성공
+    
+    # 4. UI 및 ViewModel (import 방지 및 Mocking)
+    mocker.patch('time.sleep')
+    
+    # Lazy Import 되는 모듈들을 sys.modules 조작으로 Mocking
+    # (실제 UI가 없으므로 이 부분이 까다로움. 간단히 흐름만 체크)
+    with patch.dict('sys.modules', {
+        'ui.main_window': MagicMock(),
+        'view_models.main_window_viewmodel': MagicMock()
+    }):
+        # Mock 클래스들 가져오기
+        MockMainWindow = sys.modules['ui.main_window'].MainWindow
+        
+        # --- When ---
+        window = manager.run()
+        
+        # --- Then ---
+        # 1. 스플래시 표시 및 닫기 확인
+        mock_splash_instance.show.assert_called_once()
+        assert mock_splash_instance.close.call_count >= 1
+        
+        # 2. 드라이버 로드 호출 확인
+        manager._load_driver.assert_called_once()
+        
+        # 3. 서비스 연결 시도 확인
+        mock_service_instance.connect_with_retry.assert_called_once()
+        
+        # 4. 메인 윈도우 생성 및 표시 확인
+        MockMainWindow.assert_called_once()
+        window.show.assert_called_once()
