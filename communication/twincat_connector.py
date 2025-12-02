@@ -17,10 +17,14 @@ TwinCAT Connector
 
 
 ** TwinCAT **
-    - PC 기반 제어 - PLC 아님
+    Soft-PLC : 
+        일반 PC에 설치되어, CPU의 특정 코어를 독점하여 실시간(Real-time) OS처럼 동작하게 만드는 소프트웨어
+
+    - PC 기반 제어 (= Hardware PLC 아님)
     - PLC, 모션 제어, HMI(Human-Machine Interface)
     - XAE : PC에 설치되는 제어 프로그램 개발 도구
-    - XAR : 실시간 제어 실행을 담당하는 런타임 시스템    
+    - XAR : 실시간 제어 실행을 담당하는 런타임 시스템
+        - PLC 로직(IEC 61131-3)을 돌림
 """
 import pyads
 from typing import Optional, Union
