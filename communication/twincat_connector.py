@@ -127,7 +127,7 @@ class TwinCATConnector:
             # 2. 상태 읽기 시도 (Ping)
             self._twincat.read_state()
             return True
-            
+
         except Exception:
             # 3. 연결 상태 읽기 실패 시: 물리적 연결이 끊어진 것으로 간주하고 정리 수행
             # (로그는 Service에서 처리하므로 여기선 조용히 정리만 함)
