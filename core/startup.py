@@ -6,7 +6,6 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 from core.event_bus import EVENT_BUS
 from utils.dll_loader import load_pyads_dll
 from ui.splash_screen import SplashScreen
-from services.plc_service import PLCService
 
 
 
@@ -39,6 +38,12 @@ class StartupManager:
 
         # 잠시 대기 (사용자가 성공 메시지를 인식할 시간)
         time.sleep(0.5)
+
+
+        # --- 여기서부터는 DLL을 읽은 상태 ---
+        # 여기서 임포트해야 안전 (Lazy Import)
+        from services.plc_service import PLCService
+
 
         # ---------------------------------------------------------
         # [Phase 2]: TwinCAT 연결 (Service에 위임)
