@@ -157,7 +157,7 @@ python -m ui.widgets.current_state_widget
 """
 # ==========================================================
 if __name__ == '__main__':
-    from styles.theme import load_and_apply_stylesheet
+    from styles.style_manager import load_and_apply_stylesheet
 
 
     app = QApplication(sys.argv)
