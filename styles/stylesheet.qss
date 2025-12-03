@@ -219,3 +219,16 @@ QProgressBar#splash_progress::chunk {
     background-color: #4CAF50;
     width: 10px;
 }
+
+
+
+
+/* 
+   ----------------------------------------
+   메인 윈도우 스타일
+   ---------------------------------------- 
+*/
+/* 상태바 아이템 테두리 제거 (구분선 없애기) */
+QStatusBar::item {
+    border: none;
+}
