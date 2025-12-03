@@ -46,6 +46,9 @@ class MainWindow(QMainWindow):
 
 
 
+    # =====================
+    # 메인 윈도우 화면 배치
+    # =====================
     def _init_status_bar(self):
         """상태바 초기화 및 위젯 추가"""
         status_bar = self.statusBar()
@@ -101,7 +104,7 @@ class MainWindow(QMainWindow):
         """
         [전선 연결] 
         VM의 시그널과 View의 슬롯(Slot, _on 메서드)을 연결(connect) 하는 코드를 한곳에 모아두는 곳
-        (초기화) 단계에서 딱 1번 호출됨
+        __init__(초기화) 단계에서 딱 1번 호출된다
         """
 
         # [연결 상태] VM에서 상태 데이터(dict)가 오면 -> 
@@ -118,7 +121,7 @@ class MainWindow(QMainWindow):
         """
         [복구 모드] 연결 끊김 시 재접속 시도 UI (모달) 표시
         """
-        # 1. 스플래시 화면 재사용 (모달처럼 띄움)
+        # 스플래시 화면 재사용 (모달처럼 띄움)
         recovery_splash = SplashScreen()
         recovery_splash.setWindowTitle("재접속 중...")
         
@@ -132,13 +135,13 @@ class MainWindow(QMainWindow):
 
         recovery_splash.show()
         
-        # 2. ViewModel에게 재접속 요청 (UI 업데이트용 콜백 함수 전달)
+        # ViewModel에게 재접속 요청 (UI 업데이트용 콜백 함수 전달)
         #    Service의 connect_with_retry가 실행되면서 splash.update_status를 호출함
         success = self.vm.retry_connection(ui_callback=recovery_splash.update_status)
         
         recovery_splash.close()
         
-        # 3. 최종 실패 시 경고창 표시
+        # 최종 실패 시 경고창 표시
         if not success:
             QMessageBox.critical(
                 self, 
