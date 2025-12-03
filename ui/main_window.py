@@ -54,12 +54,18 @@ class MainWindow(QMainWindow):
         self.twincat_indicator = StatusIndicatorBox("TwinCAT", led_size=12)
         # 초기 상태 설정
         self.twincat_indicator.safe_update_data({'title': 'TwinCAT', 'state': 'disconnected'})
-        
+
         if status_bar:
-            # 상태바 맨 왼쪽에 커스텀 위젯 추가
-            status_bar.addWidget(self.twincat_indicator)
-            
-            # (옵션) 우측 하단에 보조 텍스트 라벨 추가
+            # 상태바 맨 왼쪽에 커스텀 위젯 추가 (stretch=0 : 최소 크기만 차지)
+            status_bar.addWidget(self.twincat_indicator, 0)
+
+            # 빈 공간을 채우는 투명 위젯
+            #    이 위젯이 남은 공간(stretch=1)을 전부 먹어버려서
+            #    twincat_indicator과 아래의 status_label를 양쪽 끝으로 밀어버린다
+            dummy_widget = QWidget()
+            status_bar.addPermanentWidget(dummy_widget, 1)
+
+            # 상태바 오른쪽에 보조 텍스트 레이블 추가
             self.status_label = QLabel("Ready")
             self.status_label.setMinimumWidth(100)
             self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
