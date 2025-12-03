@@ -36,7 +36,6 @@ class StatusIndicatorBox(BaseWidget):
         layout.addWidget(self._led)
         layout.addWidget(self._lbl_state)
 
-        layout.addStretch(1)    # (오른쪽에 스트레치 채워넣음으로써) 위젯들 왼쪽에 몰아넣기
 
     def update_data(self, data: dict):
         """
