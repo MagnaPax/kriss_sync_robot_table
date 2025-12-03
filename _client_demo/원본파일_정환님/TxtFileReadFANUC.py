@@ -9,6 +9,7 @@ DI81이 ON이면 루프를 계속 수행하고 DI81이 OFF이면 루프를 탈�
 import pyads
 import time
 import threading
+import msvcrt
 
 # PLC 연결
 try:
@@ -77,32 +78,6 @@ def parse_line(line):
     return None
 
 
-def stop_start(stop, start):
-    """정지 및 시작"""
-    if stop:
-        print("Cycle Stop")
-        plc.write_by_name('MAIN.Robot1._UI1.UI04_CycleStop', True, pyads.PLCTYPE_BOOL)
-        time.sleep(0.1)
-        plc.write_by_name('MAIN.Robot1._UI1.UI04_CycleStop', False, pyads.PLCTYPE_BOOL)
-
-    if start:
-        print("Cycle Start")
-        plc.write_by_name('MAIN.Robot1._UI1.UI06_Start', True, pyads.PLCTYPE_BOOL)
-        time.sleep(0.1)
-        plc.write_by_name('MAIN.Robot1._UI1.UI06_Start', False, pyads.PLCTYPE_BOOL)
-
-
-def user_input_thread():
-    while True:
-        command = input("정지(S), 시작(G): ").strip().upper()
-        if command == "S":
-            stop_start(True, False)
-        elif command == "G":
-            stop_start(False, True)
-        else:
-            print("잘못된 명령")
-
-
 def main():
     # 파일 로드
     filename = input("파일명 (기본: Fanuc_seq.txt): ").strip() or "Fanuc_seq.txt"
@@ -112,26 +87,36 @@ def main():
 
     # RSR신호 Pulse
     print("TP Program Start")
-    plc.write_by_name('MAIN.Robot1._UI1.UI09_RSR1', True, pyads.PLCTYPE_BOOL)   # MAIN.Robot1._UI1.UI09_RSR1 = RSR0001 / MAIN.Robot1._UI1.UI10_RSR2 = RSR0002
-    time.sleep(0.05)
-    plc.write_by_name('MAIN.Robot1._UI1.UI09_RSR1', False, pyads.PLCTYPE_BOOL)
+    plc.write_by_name('MAIN.Robot1._UI1.UI10_RSR2', True, pyads.PLCTYPE_BOOL)   # MAIN.Robot1._UI1.UI09_RSR1 = RSR0001 / MAIN.Robot1._UI1.UI10_RSR2 = RSR0002
     time.sleep(0.05)
 
     # Loop신호(ON이면 루프 반복, OFF이면 루프 종료)
-    plc.write_by_name('MAIN.Robot1._UI1.DI81', True, pyads.PLCTYPE_BOOL)
+    plc.write_by_name('MAIN.Robot1._UI1.DI181', True, pyads.PLCTYPE_BOOL)
+
+    # Cycle Stop 초기화
+    plc.write_by_name('MAIN.Robot1._UI1.UI04_CycleStop', False, pyads.PLCTYPE_BOOL)
+
+    # 양수/음수 체크 비트 초기화 
+    plc.write_by_name('MAIN.Robot1._UI1.X_Check', False, pyads.PLCTYPE_BOOL)
+    plc.write_by_name('MAIN.Robot1._UI1.Y_Check', False, pyads.PLCTYPE_BOOL)
+    plc.write_by_name('MAIN.Robot1._UI1.Z_Check', False, pyads.PLCTYPE_BOOL)
+    plc.write_by_name('MAIN.Robot1._UI1.W_Check', False, pyads.PLCTYPE_BOOL)
+    plc.write_by_name('MAIN.Robot1._UI1.P_Check', False, pyads.PLCTYPE_BOOL)
+    plc.write_by_name('MAIN.Robot1._UI1.R_Check', False, pyads.PLCTYPE_BOOL)
+
+    # 첫 줄 실행 트리거
+    init_done = False
     
     previous_coords = None
-
-    # stop_start thread
-    input_thread = threading.Thread(target=user_input_thread, daemon=True)
-    input_thread.start()
-
-    try:
+  
+    try:       
+        
         for i, line in enumerate(lines, 1):
             coords = parse_line(line)
+            
             if not coords:
                 continue
-
+            
             # 이전 값 저장 
             if previous_coords is None:
                 deltas = coords.copy()
@@ -139,39 +124,45 @@ def main():
                 deltas = {key: coords[key] - previous_coords[key] for key in coords.keys()}
 
             previous_coords = coords
-                      
-            # Feed를 제외한 이전 값과의 차이를 출력 
-            print(f"[{i}/{len(lines)}] F={coords['F']:.2f} ΔX={deltas['X']:.2f} "
-                  f"ΔY={deltas['Y']:.2f} ΔZ={deltas['Z']:.2f} ΔW={deltas['W']:.2f} "
-                  f"ΔP={deltas['P']:.2f} ΔR={deltas['R']:.2f}", end=" ")
 
-            # 좌표 전송
-            send_feed(coords['F'])
-            send_coordinate(deltas['X'], "X")
-            send_coordinate(deltas['Y'], "Y")
-            send_coordinate(deltas['Z'], "Z")
-            send_coordinate(deltas['W'], "W")
-            send_coordinate(deltas['P'], "P")
-            send_coordinate(deltas['R'], "R")
-            
-            # UO10_Busy신호가 False->True로 될 때까지 기다림 
-            while not plc.read_by_name('MAIN.Robot1._UO1.UO10_Busy', pyads.PLCTYPE_BOOL):
-                time.sleep(0.005)
+            while True:
+                # Q 키 일시정지 
+                if msvcrt.kbhit():
+                    if msvcrt.getch() == b'q':
+                        print("일시 정지 ")
+                        raise KeyboardInterrupt
+                    
+                if (not init_done) or plc.read_by_name('MAIN.Robot1._UO1.DO45', pyads.PLCTYPE_BOOL):
+                    # Feed를 제외한 이전 값과의 차이를 출력 
+                    if i != 1:
+                        print("이동 완료")
+                    print(f"[{i}/{len(lines)}] F={coords['F']:.2f} ΔX={deltas['X']:.2f} "
+                        f"ΔY={deltas['Y']:.2f} ΔZ={deltas['Z']:.2f} ΔW={deltas['W']:.2f} "
+                        f"ΔP={deltas['P']:.2f} ΔR={deltas['R']:.2f}", end=" ")
+                    print("이동 중")
+                    send_feed(coords['F'])
+                    send_coordinate(deltas['X'], "X")
+                    send_coordinate(deltas['Y'], "Y")
+                    send_coordinate(deltas['Z'], "Z")
+                    send_coordinate(deltas['W'], "W")
+                    send_coordinate(deltas['P'], "P")
+                    send_coordinate(deltas['R'], "R")
 
-            # UO10_Busy신호가 True->False로 될 때까지 기다림 
-            while plc.read_by_name('MAIN.Robot1._UO1.UO10_Busy', pyads.PLCTYPE_BOOL):
-                time.sleep(0.005)
-            
-            print("✓")
-            time.sleep(0.05)
-        
-        print(f"\n✓ 완료")
+                    init_done = 1
+                    break
+
+                else:
+                    continue
+                
         # Sequence 종료 시 루프 신호 OFF 
-        plc.write_by_name('MAIN.Robot1._UI1.DI81', False, pyads.PLCTYPE_BOOL)
-        
+        plc.write_by_name('MAIN.Robot1._UI1.UI10_RSR2', False, pyads.PLCTYPE_BOOL)
+        plc.write_by_name('MAIN.Robot1._UI1.DI181', False, pyads.PLCTYPE_BOOL)
+    
     except KeyboardInterrupt:
         # 중간에 종료 시 루프 신호 OFF
-        plc.write_by_name('MAIN.Robot1._UI1.DI81', False, pyads.PLCTYPE_BOOL)
+        plc.write_by_name('MAIN.Robot1._UI1.UI10_RSR2', False, pyads.PLCTYPE_BOOL)
+        plc.write_by_name('MAIN.Robot1._UI1.DI181', False, pyads.PLCTYPE_BOOL)
+        plc.write_by_name('MAIN.Robot1._UI1.UI04_CycleStop', True, pyads.PLCTYPE_BOOL)
         print(f"\n\n중단됨")
 
 

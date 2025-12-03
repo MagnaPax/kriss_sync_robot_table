@@ -36,7 +36,6 @@ class StatusIndicatorBox(BaseWidget):
         layout.addWidget(self._led)
         layout.addWidget(self._lbl_state)
 
-        layout.addStretch(1)    # (오른쪽에 스트레치 채워넣음으로써) 위젯들 왼쪽에 몰아넣기
 
     def update_data(self, data: dict):
         """
@@ -109,6 +108,14 @@ if __name__ == '__main__':
     import itertools
     from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout
     from PyQt6.QtCore import QTimer
+
+    # [추가] DLL 로드 (pyads 임포트 에러 방지)
+    # UI 모듈을 테스트할 때도 간접적으로 pyads가 로드될 수 있으므로 필요함
+    from utils.dll_loader import load_pyads_dll
+    try:
+        load_pyads_dll()
+    except Exception as e:
+        print(f"⚠️ DLL 로드 실패 (테스트 계속 진행): {e}")
 
 
     # (1) QApplication 생성

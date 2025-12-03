@@ -132,7 +132,21 @@ class EventBus(QObject):
         str: 정보 메시지
     """
 
+    app_shutting_down = pyqtSignal()
+    """
+    애플리케이션 종료 시작 시그널
     
+    역할:
+        - 앱이 종료되기 직전에 모든 모듈에게 알림
+        - 리소스 정리, 파일 저장, 스레드 종료 등의 기회를 제공
+        
+    청취 대상:
+        - PLCService (연결 해제)
+        - LogListener (로그 파일 닫기)
+        - ConfigManager (설정 저장)
+    """
+
+
     # =========================================================================
     # UI Log Events (UI + Logger 출력)
     # =========================================================================
@@ -233,48 +247,40 @@ class EventBus(QObject):
     # =========================================================================
     # 싱글톤 구현
     # =========================================================================
-    _instance: Optional['EventBus'] = None
+
+    _instance: Optional['EventBus'] = None      # 이 클래스의 유일한 인스턴스를 담을 공간
     
     
     def __new__(cls) -> 'EventBus':
-        """
-        싱글톤 인스턴스 생성
-        
-        클래스(cls)를 받아 새로운 객체(인스턴스)를 생성하고 반환하는 메서드
+        """인스턴스 중복 생성 방지"""
 
-        __new__가 성공적으로 객체를 생성하여 반환하면, 그 객체가 self가 되어 __init__ 메서드로 전달
-        """
-
-        # 최초 요청할때만 객체 생성, 그 뒤로는 같은 인스턴스 리턴
+        # 이 클래스의 인스턴스가 있으면 다시 만들지 말고 있는거 다시 써라
         if cls._instance is None:
-
-            # 클래스 변수 _instance가 비어있으면 새로운 인스턴스를 생성
-            # 여기서 에러 발생 시 Logger의 전역 예외 후크가 동작            
             cls._instance = super().__new__(cls)
-
-        # 생성된 인스턴스 반환
+            cls._instance._initialize() # 여기서 딱 1번만 호출함!
         return cls._instance
     
     
     def __init__(self):
         """
-        EventBus 초기화 (최초 1회만 실행)
-        
-        - EventBus는 로깅하지 않음
-        - 로깅은 LogListener가 담당
-        """
+        파이썬은 __new__ 로 객체를 생성하면 초기화를 위해 항상 __init__ 을 호출한다
+        하지만 실제 초기화는 _initialize에서 끝났으므로
+        여기서는 아무것도 하지 않는다
 
-        # QObject의 생성자를 먼저 호출해야 된다 (RuntimeError 방지)
-        super().__init__()        
-
-        # _initialized 플래그를 확인하여 초기화가 이미 완료되었다면 즉시 리턴
-        # _initialized는 QObject 생성자 호출 이후에만 사용
-        if hasattr(self, '_initialized') and self._initialized:
-            return
-        
-        # 초기화 완료 표시(flag)
-        self._initialized = True
+        하는 일도 없는데 지우지 않는 이유:
+            이 클래스가 상속받은 부모(QObject)의 __init__ 는 하는일이 많다.
+            만약 __init__ 를 아예 안 만들면 파이썬이 자동으로 QObject.__init__ 를 호출한다
+            그럼 기존에 연결된 시그널들이 다 끊기고 초기화 된다 -> 망함
+            그래서 __init__ 를 만든 뒤 pass 로 아무일도 안 시키는 것 
+        """        
+        pass
     
+
+    def _initialize(self):
+        """초기화 (최초 1회만 실행)"""
+        # QObject C++ 초기화는 여기서 딱 한 번 수행
+        super().__init__()
+
 
 
     def disconnect_all(self, signal_name: str | None = None):
