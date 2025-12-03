@@ -1,12 +1,16 @@
 # services/plc_service.py
 import time
-from PyQt6.QtCore import QObject, QTimer, pyqtSlot
-from PyQt6.QtWidgets import QApplication, QMessageBox
+from PyQt6.QtCore import QObject, QTimer, pyqtSlot, QThread, Qt, QMetaObject
+from PyQt6.QtWidgets import QApplication
 
 from core.event_bus import EVENT_BUS
 from communication.twincat_connector import TwinCATConnector
 from communication.twincat_commander import TwinCATCommander
-from utils.logger import get_logger
+from workers.plc_worker import PLCWorker as Worker
+from utils.coordinate_utils import dict_to_axis_list
+
+
+
 
 class PLCService(QObject):
     """
@@ -20,25 +24,34 @@ class PLCService(QObject):
     
     def __init__(self):
         super().__init__()
-        self.logger = get_logger(__name__)
         
         # 서비스가 Model을 소유 - 연결과 명령 담당 객체 생성
         self.connector = TwinCATConnector()
         self.commander = TwinCATCommander(self.connector)
-        
-        # ---------------------------------------------------------
-        # 연결 상태 정기적으로 확인 (Heartbeat)
-        # ---------------------------------------------------------
+
+
+        # --- 비동기 작업용 스레드/워커 변수 --- #
+        # 새로운 사무실(QThread) '공간 확보'
+        self._thread: QThread | None = None
+        # 비서(Worker) 직군 '정원 확보'
+        self._worker: Worker | None = None
+
+
+        # --- 연결 상태 정기적으로 확인 (Heartbeat) --- #
         self._heartbeat_timer = QTimer()
         self._heartbeat_timer.setInterval(2000) # 2초마다
         self._heartbeat_timer.timeout.connect(self._check_heartbeat)
 
-        # ---------------------------------------------------------
-        # 앱 종료 시 연결 끊기
-        # ---------------------------------------------------------
+
+        # --- 앱 종료 시 연결 끊기 --- #
         # AppEngine이 종료 신호를 보내면 -> disconnect_plc 메서드가 자동 실행됨
         EVENT_BUS.app_shutting_down.connect(self.disconnect_plc)
 
+
+
+    # ==========================================================
+    # 연결 관련 메서드
+    # ==========================================================
 
     def connect_plc(self):
         """연결 요청"""
@@ -66,7 +79,6 @@ class PLCService(QObject):
             self.connector.disconnect()
             EVENT_BUS.connection_status_changed.emit(False)
             EVENT_BUS.ui_log_message.emit("PLC 연결이 안전하게 해제되었습니다.", "INFO")
-
 
 
     def connect_with_retry(self, ui_callback=None) -> bool:
@@ -130,7 +142,6 @@ class PLCService(QObject):
         return False
 
 
-
     def _check_heartbeat(self):
         """2초마다 실행되어 연결 상태 확인"""
 
@@ -149,3 +160,122 @@ class PLCService(QObject):
 
             # 시스템 에러 발생 시그널 emit
             EVENT_BUS.system_error.emit("TwinCAT_DISCONNECTED")
+
+
+
+    # ==========================================================
+    # [비동기] 로봇 제어 명령 (Worker 사용)
+    # ==========================================================
+
+    def move_robot(self, coords_dic: dict):
+        """
+        좌표 이동 요청
+        Args: 
+            coords_dict (dict): {'X': 10.5, 'Y': ...} 형태의 딕셔너리
+        """
+        try:
+            # 딕셔너리를 리스트로 변환 [x, y, z, w, p, r, f]
+            # (prev_coords, init_done 등은 Worker나 Commander 내부에서 관리하거나
+            #  필요하다면 여기서 인자로 넘겨줘야 함. 
+            #  현재 TwinCATCommander.write_move_command는 내부 상태를 인자로 받도록 설계되었으므로
+            #  ViewModel이 상태를 관리하고 있다면 그 값들도 인자로 받아야 한다.
+            #  하지만 일단 좌표만 넘기는 구조로 작성)
+
+            # NOTE: 현재 Commander 구조상 previous_coords 등의 상태 관리가 필요하므로
+            #       단순 좌표만으로는 부족할 수 있습니다. 
+            #       ViewModel이 상태를 관리한다면 move_robot(coords, prev, init_done...) 형태가 되어야 합니다.
+            #       여기서는 일단 좌표 변환 후 Worker로 넘기는 구조만 잡습니다.
+
+            coords_list = dict_to_axis_list(coords_dic)
+
+            # Worker에게 전달할 데이터 패키징 (ViewModel에서 받은 전체 인자들을 넘겨야 함)
+            # 여기서는 편의상 coords_list만 넘기는 예시입니다. 실제로는 ViewModel과 맞춰야 합니다.
+            self._start_worker('MOVE', data=[coords_list], log_msg="좌표 전송 및 이동 중...")
+
+        except Exception as e:
+            EVENT_BUS.ui_log_message.emit(f"좌표 이동 실패: {e}", "ERROR")
+
+
+
+    def start_process(self):
+        self._start_worker('START', log_msg="프로세스 시작 요청...")
+
+    def stop_process(self):
+        # 진행 중인 워커가 있다면 중단 요청
+        if self._thread and self._thread.isRunning():
+            self._thread.requestInterruption()
+
+        self._start_worker('STOP', log_msg="프로세스 중지 요청...")
+
+    
+    def _start_worker(self, command: str, data=None, log_msg: str = ""):
+        """비동기 워커 스레드 생성 및 실행 (공통 로직)"""
+
+        if self._thread and self._thread.isRunning():
+            if command == 'STOP':
+                self._thread.requestInterruption()  # 강제 중단 요청
+            else:
+                EVENT_BUS.ui_log_message.emit("이전 작업이 아직 진행중입니다", "WARNING")
+
+        if log_msg:
+            EVENT_BUS.ui_log_message.emit(log_msg, "INFO")
+
+
+        # 사무실 계약
+        self._thread = QThread()
+
+        # 비서(Worker) 채용
+        self._worker = Worker(self.connector, self.commander, command, data)
+
+        # 비서를 새 사무실로 전근 발령 - moveToThread() : 스레드 소속 변경
+        self._worker.moveToThread(self._thread)
+
+
+
+        # --- 비서가 해야할 일 예약 --- #
+        # 비서가 전화로 보고(emit)하는 일에 대한 각각의 처리(Slot) 예약(connect)
+        self._worker.result.connect(self._handle_worker_result)
+        self._worker.finished.connect(self._cleanup)
+        self._worker.finished.connect(self._thread.quit) # type: ignore
+        self._worker.finished.connect(self._worker.deleteLater)
+
+
+        # --- 사무실(Thread)에서 벌어질 이벤트 예약(connect) ---
+        # 사무실 문 열리면 비서에게 “일 시작해라” 지시
+        self._thread.started.connect(self._worker.run)
+        # 사무실이 문 닫히면 → 사무실 정리하고 폐기하도록 예약
+        self._thread.finished.connect(self._thread.deleteLater)
+
+
+
+        # 사무실 오픈(스레드 시작)
+        # 사무실 문을 열고 내부 이벤트 루프를 가동하는 것
+        self._thread.start()
+
+
+        # 비서에게 "사무실 열리면 이 일 먼저 처리해" 하고 할 일을 업무상자(이벤트 큐)에 등록
+        # 비서가 (그 사무실의 이벤트 루프 안에서) 일을 시작하도록 예약하는 것
+        # invokeMethod 추가: 즉시 큐 등록 -> 더 빠르고 안전한 스타트를 보장이라는 뜻
+        QMetaObject.invokeMethod(self._worker, "run", Qt.ConnectionType.QueuedConnection)
+
+
+    @pyqtSlot(bool, str)
+    def _handle_worker_result(self, success: bool, msg: str):
+        """워커 실행 결과 처리"""
+        level = "INFO" if success else "ERROR"
+        EVENT_BUS.ui_log_message.emit(msg, level)
+
+    @pyqtSlot()
+    def _cleanup(self):
+        """
+        실행 중인 스레드(사무실)와 워커(비서)를
+        우아하게 종료하고 메모리 누수 없이 안전하게 폐기하는 함수
+        """
+        if self._thread and self._thread.isRunning():
+            # Thread의 이벤트 루프 종료 요청 - 우아한 종료(남아 있는 이벤트 처리 후 종료)
+            self._thread.quit()     # 사무실 닫기
+            self._thread.wait(3000) # 사무실이 안전하게 문 닫을 때까지 기다림
+
+        if self._worker:
+            self._worker.deleteLater()  # 비서 정리 → Qt의 메모리 관리 시스템에 맡겨서 안전하게 폐기
+            self._worker = None         # Python 레벨에서도 비서 레퍼런스 해제(메모리 누수 방지)

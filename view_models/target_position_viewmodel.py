@@ -33,13 +33,13 @@ class TargetPositionViewModel(QObject):
         super().__init__()
 
         # ViewModel이 Model 인스턴스를 소유한다
-        self.model = model
+        self._model = model
 
         # 비서(Worker) 직군 '정원 확보'
-        self.worker: Worker | None = None
+        self._worker: Worker | None = None
 
         # 새로운 사무실(QThread) '공간 확보'
-        self.worker_thread: QThread | None = None
+        self._thread: QThread | None = None
 
 
     @pyqtSlot()
@@ -51,31 +51,26 @@ class TargetPositionViewModel(QObject):
     def start_task(self):
         """시간이 많이 드는 동기 작업(직접 호출 대신 워커 사용)"""
         # 워커 생성
-        worker = Worker(self.model)     # 원래 UI 스레드에서 근무
+        worker = Worker(self._model)     # 원래 UI 스레드에서 근무
         self._run_async_task(worker)
 
     def another_task(self):
         """워커의 다른 작업 예제"""
-        # worker = AnotherWorker(self.model)
+        # worker = AnotherWorker(self._model)
         # self._run_async_task(worker)
 
 
     def _run_async_task(self, worker: Worker):
         """비동기 Worker 실행을 위한 헬퍼 메서드"""
 
-        ##############################
-        # --- 비서와 사무실 준비 --- #
-        ##############################
-
         # 비서(Worker) 채용
-        self.worker = worker    # 파리미터로 받은 worker를 이 클래스의 멤버로 등록
+        self._worker = worker    # 파리미터로 받은 worker를 이 클래스의 멤버로 등록
 
         # 사무실 계약
-        self.worker_thread = QThread()
+        self._thread = QThread()
 
-        # 비서를 새 사무실로 전근 발령
-        # moveToThread() : 스레드 소속 변경
-        self.worker.moveToThread(self.worker_thread)
+        # 비서를 새 사무실로 전근 발령 - moveToThread() : 스레드 소속 변경
+        self._worker.moveToThread(self._thread)
 
 
         #################################
@@ -86,25 +81,24 @@ class TargetPositionViewModel(QObject):
         # '비서'가 방출(emit)하는 각각의 시그널에 맞는 Slot 처리 "예약"
 
         # 작업 결과 시그널 연결(예약)
-        self.worker.task_completed.connect(self.on_task_done)
-        self.worker.task_failed.connect(self.on_task_failed)
+        self._worker.task_completed.connect(self.on_task_done)
+        self._worker.task_failed.connect(self.on_task_failed)
 
         # 정리
-        self.worker.finished.connect(self._cleanup_worker)
+        self._worker.finished.connect(self._cleanup_worker)
 
 
-        ##########################
-        # --- 비서 근무 시작 --- #
-        ##########################
-        # 사무실 개업 (스레드 "시작")
-        self.worker_thread.start()
 
-        # 스레드 실행 및 작업 실행 - 이벤트 큐를 통해 워커의 run 메서드 호출
-        QMetaObject.invokeMethod(
-            self.worker,
-            "run",
-            Qt.ConnectionType.QueuedConnection
-        )
+        # 사무실 오픈(스레드 시작)
+        # 사무실 문을 열고 내부 이벤트 루프를 가동하는 것
+        self._thread.start()
+
+
+        # 비서에게 "사무실 열리면 이 일 먼저 처리해" 하고 할 일을 업무상자(이벤트 큐)에 등록
+        # 비서가 (그 사무실의 이벤트 루프 안에서) 일을 시작하도록 예약하는 것
+        # invokeMethod 추가: 즉시 큐 등록 -> 더 빠르고 안전한 스타트를 보장이라는 뜻
+        QMetaObject.invokeMethod(self._worker, "run", Qt.ConnectionType.QueuedConnection)
+
 
         # '관리자(ViewModel)'는 UI 스레드로 복귀 (앱 멈춤 없음)
         self.state_changed.emit("시간 오래 걸리는 작업 시작됨...")
@@ -128,11 +122,15 @@ class TargetPositionViewModel(QObject):
 
     @pyqtSlot()
     def _cleanup_worker(self):
-        """Worker와 Thread 안전하게 정리"""
-        if self.worker_thread and self.worker_thread.isRunning():
-            self.worker_thread.quit()
-            self.worker_thread.wait(3000)
+        """
+        실행 중인 스레드(사무실)와 워커(비서)를
+        우아하게 종료하고 메모리 누수 없이 안전하게 폐기하는 함수
+        """
+        if self._thread and self._thread.isRunning():
+            # Thread의 이벤트 루프 종료 요청 - 우아한 종료(남아 있는 이벤트 처리 후 종료)
+            self._thread.quit()     # 사무실 닫기
+            self._thread.wait(3000) # 사무실이 안전하게 문 닫을 때까지 기다림
 
-        if self.worker:
-            self.worker.deleteLater()
-            self.worker = None
+        if self._worker:
+            self._worker.deleteLater()  # 비서 정리 → Qt의 메모리 관리 시스템에 맡겨서 안전하게 폐기
+            self._worker = None         # Python 레벨에서도 비서 레퍼런스 해제(메모리 누수 방지)
