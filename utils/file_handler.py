@@ -14,6 +14,7 @@ from typing import Dict, Any, List
 from utils.file_exceptions import FileOperationError
 
 
+# --- JSON --- #
 def load_json(path: Path) -> Dict[str, Any]:
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -31,6 +32,8 @@ def save_json(path: Path, data: Dict[str, Any]) -> None:
         raise FileOperationError("JSON 저장 실패", e, path) from e
 
 
+
+# --- 텍스트(문자열) --- #
 def load_text(path: Path) -> str:
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -48,6 +51,8 @@ def save_text(path: Path, data: str) -> None:
         raise FileOperationError("텍스트 저장 실패", e, path) from e
 
 
+
+# --- CSV --- #
 def load_csv(path: Path) -> List[List[str]]:
     try:
         with open(path, "r", encoding="utf-8") as f:

@@ -171,3 +171,64 @@ QPushButton#emergency_button:pressed {
     background-color: #b02a37;
     border-color: #9a2430;
 }
+
+
+
+
+
+/* ----------------------------------------
+   스플래시 스크린 (Splash Screen) 스타일
+   ---------------------------------------- 
+*/
+
+/* 메인 배경 (테두리 둥글게, 외곽선) */
+QWidget#splash_background {
+    background-color: #2D2D2D;
+    border: 2px solid #4CAF50;
+    border-radius: 10px;
+}
+
+/* 타이틀 라벨 */
+QLabel#splash_title {
+    color: white;
+    font-size: 22px;
+    font-weight: bold;
+    margin-bottom: 15px;
+    background-color: transparent;
+}
+
+/* 상태 메시지 라벨 */
+QLabel#splash_status {
+    color: #CCCCCC;
+    font-size: 13px;
+    margin-bottom: 5px;
+    background-color: transparent;
+}
+
+/* 프로그레스 바 */
+QProgressBar#splash_progress {
+    border: 2px solid grey;
+    border-radius: 5px;
+    text-align: center;
+    background-color: #3D3D3D;
+    color: white;
+    font-weight: bold;
+}
+
+QProgressBar#splash_progress::chunk {
+    background-color: #4CAF50;
+    width: 10px;
+}
+
+
+
+
+/* 
+   ----------------------------------------
+   메인 윈도우 스타일
+   ---------------------------------------- 
+*/
+/* 상태바 아이템 테두리 제거 (구분선 없애기) */
+QStatusBar::item {
+    border: none;
+}
