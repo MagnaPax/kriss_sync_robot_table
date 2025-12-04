@@ -18,6 +18,7 @@ from typing import Dict, Any, TYPE_CHECKING
 from functools import partial
 
 from ui.widgets.base_widget import BaseWidget
+from ui.dialogs.macro_settings_dialog import MacroSettingsDialog
 
 
 
@@ -291,15 +292,14 @@ class TargetPositionWidget(BaseWidget):
 
         # self.edit_macro_button이 None이 아님을 명시적으로 확인 (Pylance 경고 해결 및 런타임 안정성)
         assert self.edit_macro_button is not None, "Edit Macro 버튼이 생성되지 않았습니다."
-
-        # 'Edit Macro' 버튼 클릭 시 _on_edit_macro_clicked 슬롯 호출
         self.edit_macro_button.clicked.connect(self._on_edit_macro_button_clicked)
 
         # self.goto_button이 None이 아님을 명시적으로 확인 (Pylance 경고 해결 및 런타임 안정성)
         assert self.goto_button is not None, "GoTo 버튼이 생성되지 않았습니다."
-        
         self.goto_button.clicked.connect(self._on_goto_btn_clicked) # type: ignore
-        
+
+
+
 
     # --- 슬롯 --- #
     @pyqtSlot()
@@ -307,9 +307,10 @@ class TargetPositionWidget(BaseWidget):
         """
         'Edit Macro' 버튼이 클릭되었을 때 실행할 함수
 
-        MacroSettingsDialog 열기
+        직접 MacroSettingsDialog 를 연다
         """
-        self.vm.open_macro_settings_dialog()
+        dialog = MacroSettingsDialog(parent=self)
+        dialog.exec()   # Modal(호출부 입력 막힘)로 열기
 
     @pyqtSlot()
     def _on_goto_btn_clicked(self):
@@ -334,7 +335,7 @@ class TargetPositionWidget(BaseWidget):
             }
 
             print(f"GOTO 버튼 클릭됨: {ui_coords}")
-            
+
         except ValueError as e:
             pass
 
