@@ -354,7 +354,13 @@ class TargetPositionWidget(BaseWidget):
         직접 MacroSettingsDialog 를 연다
         """
         dialog = MacroSettingsDialog(parent=self)
-        dialog.exec()   # Modal(호출부 입력 막힘)로 열기
+
+        # 다이얼로그 실행
+        # Modal로 열어서 호출부 입력 막힘
+        dialog.exec()
+
+        # 다이얼로그가 닫히면 이 줄이 실행됨 -> 데이터 새로고침
+        self.vm.load_macro_data()
 
     @pyqtSlot()
     def _on_goto_btn_clicked(self):
