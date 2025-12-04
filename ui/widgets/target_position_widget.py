@@ -182,10 +182,11 @@ class TargetPositionWidget(BaseWidget):
         laytout_macro_buttons.setSpacing(5)
 
         # 매크로 버튼 추가
-        laytout_macro_buttons.addWidget(self._create_macro_button("매크로 1"), 0, 0)
-        laytout_macro_buttons.addWidget(self._create_macro_button("매크로 2"), 0, 1)
-        laytout_macro_buttons.addWidget(self._create_macro_button("매크로 3"), 1, 0)
-        laytout_macro_buttons.addWidget(self._create_macro_button("매크로 4"), 1, 1)
+        # Arguments: 매크로ID, 기본제목
+        laytout_macro_buttons.addWidget(self._create_macro_button("Macro_1"), 0, 0)
+        laytout_macro_buttons.addWidget(self._create_macro_button("Macro_2"), 0, 1)
+        laytout_macro_buttons.addWidget(self._create_macro_button("Macro_3"), 1, 0)
+        laytout_macro_buttons.addWidget(self._create_macro_button("Macro_4"), 1, 1)
 
 
         ################
@@ -240,13 +241,21 @@ class TargetPositionWidget(BaseWidget):
         return self.edit_macro_button
         # return self._create_button(title="Edit Macro", type="special")
     
-    def _create_macro_button(self, title: str) -> QPushButton:
+    def _create_macro_button(self, macro_id: str) -> QPushButton:
         """ 
         매크로 버튼 생성
 
-        버튼에 표시되는 제목은 사용자가 지정한 이름
+        버튼 제목은 macro_id (나중에 데이터 로드 시 변경됨)
         """
-        return self._create_button(title=title, type="general")
+        btn = self._create_button(title=macro_id, type="general")
+
+        # 버튼을 보관함에 등록(나중에 이름 바꾸기 위해)
+        self.macro_btn_map[macro_id] = btn
+
+        # 버튼에 id 심기
+        btn.setProperty("macro_id", macro_id)
+
+        return btn
     
     def _create_goto_button(self) -> QPushButton:
         """ GoTo 버튼 생성 """
@@ -297,7 +306,7 @@ class TargetPositionWidget(BaseWidget):
         """
 
         # 매크로 데이터 바인딩
-        self.vm.macros_loaded.connect(self._on_macros_loaded)
+        self.vm.macros_loaded.connect(self._update_macro_btn_title)
 
         # self.edit_macro_button이 None이 아님을 명시적으로 확인 (Pylance 경고 해결 및 런타임 안정성)
         assert self.edit_macro_button is not None, "Edit Macro 버튼이 생성되지 않았습니다."
@@ -312,9 +321,29 @@ class TargetPositionWidget(BaseWidget):
 
     # --- 슬롯 --- #
     @pyqtSlot(dict)
-    def _on_macros_loaded(self, data: dict):
+    def _update_macro_btn_title(self, data: dict):
         """"""
         print(f"매크로 데이터 로드 완료: {data}")
+
+        # 딕셔너리에 있는 모든 매크로 데이터를 순회
+        for macro_id, macro_data in data.items():
+
+            # 내 UI에 해당 ID를 가진 버튼이 있다면
+            if macro_id in self.macro_btn_map:
+                btn = self.macro_btn_map[macro_id]
+
+                if btn and btn != "":
+                    # 'name'값을 가져옴
+                    saved_name = macro_data.get('name', "")
+
+                    # 값이 비어있으면('') ID를 대신 사용
+                    if saved_name and saved_name.strip():
+                        new_name = saved_name
+                    else:
+                        new_name = macro_id # 또는 f"매크로 {macro_id[-1]}" 등 원하는 기본값
+
+                    btn.setText(new_name)
+
 
 
     @pyqtSlot()
