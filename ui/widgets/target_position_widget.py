@@ -54,8 +54,8 @@ class TargetPositionWidget(BaseWidget):
         # BaseWidget의 __init__()이 _init_ui() 호출 → 실제 UI 생성
         super().__init__(parent)
 
-        # UI 생성 후에 이벤트 연결
-        self._connect_events()
+        # 클릭 이벤트 처리 (UI 생성 후)
+        self._bind_events()
 
 
     def _init_ui(self):
@@ -280,26 +280,24 @@ class TargetPositionWidget(BaseWidget):
 
 
 
-    ###########################
-    # --- 시그널 ➡️ 슬릿 --- #
-    ###########################
-
-    def _connect_events(self):
+    def _bind_events(self):
         """
-        위젯 내의 시그널-슬롯 연결을 전담합니다.
-        UI 구성(_init_ui)과 동작 정의(_connect_events)를 분리하여 코드 구조를 명확하게 합니다.
+        전선 연결하기 (아직 불 들어온것 아님)
+            - 누가 누구랑 연결될 지 미리 정해주기
+            - 앱이 시작될 때 딱 1번만 호출
+        시그널-슬롯(_on으로 시작하는 메서드) connect를 모아놓음 - 버튼 눌리면 어떤 일을 할 지 약속
         """
 
         # self.edit_macro_button이 None이 아님을 명시적으로 확인 (Pylance 경고 해결 및 런타임 안정성)
         assert self.edit_macro_button is not None, "Edit Macro 버튼이 생성되지 않았습니다."
 
         # 'Edit Macro' 버튼 클릭 시 _on_edit_macro_clicked 슬롯 호출
-        self.edit_macro_button.clicked.connect(self._handle_edit_macro_button_clicked)
+        self.edit_macro_button.clicked.connect(self._on_edit_macro_button_clicked)
         
 
-
+    # --- 슬롯 --- #
     @pyqtSlot()
-    def _handle_edit_macro_button_clicked(self):
+    def _on_edit_macro_button_clicked(self):
         """
         'Edit Macro' 버튼이 클릭되었을 때 실행할 함수
 
