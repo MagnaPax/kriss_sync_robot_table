@@ -391,10 +391,12 @@ class TargetPositionWidget(BaseWidget):
 
         try:
             def get_val(axis_key):
-                text = self.coord_widgets[axis_key].text().strip()
-                return float(text) if text else 0.
+                widget = self.coord_widgets.get(axis_key)
+                if not widget: return 0.0
+                text = widget.text().strip()
+                return float(text) if text else 0.0
 
-            ui_coords = {
+            target_coords = {
                 'x': get_val('X'),  # 대문자 키로 위젯 찾고 -> 소문자 키로 데이터 저장
                 'y': get_val('Y'),
                 'z': get_val('Z'),
@@ -406,9 +408,11 @@ class TargetPositionWidget(BaseWidget):
             }
 
             EVENT_BUS.ui_log_message.emit(
-                f"사용자 이동 명령(GoTo) 요청: {ui_coords}", 
+                f"사용자 이동 명령(GoTo) 요청: {target_coords}", 
                 "INFO"
             )
+
+            self.vm.request_move_robot(target_coords)
 
         except ValueError as e:
             error_msg = "이동 명령 실패: 좌표값 입력 오류 (숫자가 아닌 문자가 포함됨)"
