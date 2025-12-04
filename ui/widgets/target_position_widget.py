@@ -45,7 +45,10 @@ class TargetPositionWidget(BaseWidget):
         self.vm = view_model
 
         # 좌표값 입력 위젯들을 저장할 보관함
-        self.coord_widgets: Dict[str, QLineEdit] = {}        
+        self.coord_widgets: Dict[str, QLineEdit] = {}
+
+        # 매크로 버튼들을 저장할 보관함
+        self.macro_btn_map: Dict[str, QPushButton] = {}
 
         # 버튼 참조 변수 미리 초기화
         self.edit_macro_button = None
@@ -57,6 +60,9 @@ class TargetPositionWidget(BaseWidget):
 
         # 클릭 이벤트 처리 (UI 생성 후)
         self._bind_events()
+
+        # 매크로가 저장된 파일에서 값 가져오기
+        self.vm.load_macro_data()
 
 
     def _init_ui(self):
@@ -290,6 +296,9 @@ class TargetPositionWidget(BaseWidget):
         시그널-슬롯(_on으로 시작하는 메서드) connect를 모아놓음 - 버튼 눌리면 어떤 일을 할 지 약속
         """
 
+        # 매크로 데이터 바인딩
+        self.vm.macros_loaded.connect(self._on_macros_loaded)
+
         # self.edit_macro_button이 None이 아님을 명시적으로 확인 (Pylance 경고 해결 및 런타임 안정성)
         assert self.edit_macro_button is not None, "Edit Macro 버튼이 생성되지 않았습니다."
         self.edit_macro_button.clicked.connect(self._on_edit_macro_button_clicked)
@@ -302,6 +311,12 @@ class TargetPositionWidget(BaseWidget):
 
 
     # --- 슬롯 --- #
+    @pyqtSlot(dict)
+    def _on_macros_loaded(self, data: dict):
+        """"""
+        print(f"매크로 데이터 로드 완료: {data}")
+
+
     @pyqtSlot()
     def _on_edit_macro_button_clicked(self):
         """
