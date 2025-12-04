@@ -43,7 +43,7 @@ class TargetPositionWidget(BaseWidget):
         # super().__init__() 전에 저장
         self.vm = view_model
 
-        # 좌표 입력 위젯들을 저장할 변수
+        # 좌표값 입력 위젯들을 저장할 보관함
         self.coord_widgets: Dict[str, QLineEdit] = {}        
 
         # 버튼 참조 변수 미리 초기화
@@ -53,8 +53,6 @@ class TargetPositionWidget(BaseWidget):
 
         # BaseWidget의 __init__()이 _init_ui() 호출 → 실제 UI 생성
         super().__init__(parent)
-
-        # self._init_ui()
 
         # UI 생성 후에 이벤트 연결
         self._connect_events()
@@ -272,6 +270,9 @@ class TargetPositionWidget(BaseWidget):
             line_edit = QLineEdit()
             line_edit.setObjectName(f"line_edit_{axis}") # QSS 적용을 위한 ID
             line_edit.setPlaceholderText(f"{axis} 값 입력...")
+
+            # 만든 위젯을 보관함에 저장
+            self.coord_widgets[axis] = line_edit
             
             form_layout.addRow(label, line_edit)
 
