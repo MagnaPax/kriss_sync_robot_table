@@ -243,7 +243,8 @@ class TargetPositionWidget(BaseWidget):
     
     def _create_goto_button(self) -> QPushButton:
         """ GoTo 버튼 생성 """
-        return self._create_button(title="Go To", type="special")
+        self.goto_button = self._create_button(title="Go To", type="special")
+        return self.goto_button
 
 
     # --- 좌표 입력 만들기 --- #
@@ -293,6 +294,11 @@ class TargetPositionWidget(BaseWidget):
 
         # 'Edit Macro' 버튼 클릭 시 _on_edit_macro_clicked 슬롯 호출
         self.edit_macro_button.clicked.connect(self._on_edit_macro_button_clicked)
+
+        # self.goto_button이 None이 아님을 명시적으로 확인 (Pylance 경고 해결 및 런타임 안정성)
+        assert self.goto_button is not None, "GoTo 버튼이 생성되지 않았습니다."
+        
+        self.goto_button.clicked.connect(self._on_goto_btn_clicked) # type: ignore
         
 
     # --- 슬롯 --- #
@@ -305,6 +311,32 @@ class TargetPositionWidget(BaseWidget):
         """
         self.vm.open_macro_settings_dialog()
 
+    @pyqtSlot()
+    def _on_goto_btn_clicked(self):
+        """
+        'GoTo' 버튼이 클릭되었을 때 실행할 함수
+        """
+
+        try:
+            def get_val(axis_key):
+                text = self.coord_widgets[axis_key].text().strip()
+                return float(text) if text else 0.
+            
+            ui_coords = {
+                'x': get_val('X'),  # 대문자 키로 위젯 찾고 -> 소문자 키로 데이터 저장
+                'y': get_val('Y'),
+                'z': get_val('Z'),
+                'w': get_val('W'),
+                'p': get_val('P'),
+                'r': get_val('R'),
+                'F': 100.0,          # 속도는 UI에 없으니 기본값 (필수)
+                'name': 'Manual_UI'  # 메타 데이터
+            }
+
+            print(f"GOTO 버튼 클릭됨: {ui_coords}")
+            
+        except ValueError as e:
+            pass
 
 
 
