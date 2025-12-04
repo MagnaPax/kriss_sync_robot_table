@@ -1,5 +1,4 @@
 # ui/widgets/target_position_widget.py
-
 from PyQt6.QtCore import Qt, pyqtSlot
 from PyQt6.QtWidgets import (
     QVBoxLayout, 
@@ -319,7 +318,9 @@ class TargetPositionWidget(BaseWidget):
 
 
 
-    # --- 슬롯 --- #
+    # ==========================================================
+    # 슬롯
+    # ==========================================================
     @pyqtSlot(dict)
     def _update_macro_btn_title(self, data: dict):
         """"""
@@ -343,8 +344,6 @@ class TargetPositionWidget(BaseWidget):
                         new_name = macro_id # 또는 f"매크로 {macro_id[-1]}" 등 원하는 기본값
 
                     btn.setText(new_name)
-
-
 
     @pyqtSlot()
     def _on_edit_macro_button_clicked(self):
@@ -388,92 +387,6 @@ class TargetPositionWidget(BaseWidget):
 
         except ValueError as e:
             pass
-
-
-
-
-
-    def _create_line_edit(self):
-        """
-        사용자 입력 위젯 반환
-
-        로봇(X,Y,Z) -> mm
-        턴테이블(W,P,R) -> deg
-        """
-
-        # 레이아웃을 담는다
-        layout_container = QFrame()
-
-        # 레이아웃 설정
-        layout = QHBoxLayout(layout_container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-        # 좌표 입력 레이아웃(이름표-입력 형식)
-        form_layout = QFormLayout()
-
-        # 이름표 명칭
-        for title in ["X", "Y", "Z"]:
-            form_layout.addRow(QLabel(title), QLineEdit(title))
-        for title in ["W", "P", "R"]:
-            form_layout.addRow(QLabel(title), QLineEdit(title))
-
-        # 좌표 입력 필드 생성
-        coord_inputs: Dict[str, QDoubleSpinBox] = {}
-
-        # X, Y, Z (mm)
-        for axis in ['X', 'Y', 'Z']:
-            spin_box = QDoubleSpinBox()
-            spin_box.setRange(-99999.0, 99999.0)
-            spin_box.setDecimals(3)
-            spin_box.setSuffix(" mm")
-            coord_inputs[axis] = spin_box
-            form_layout.addRow(QLabel(f"{axis}:"), spin_box)
-
-        # W, P, R (deg)
-        for axis in ['W', 'P', 'R']:
-            spin_box = QDoubleSpinBox()
-            spin_box.setRange(-360.0, 360.0)
-            spin_box.setDecimals(3)
-            spin_box.setSuffix(" °")
-            coord_inputs[axis] = spin_box
-            form_layout.addRow(QLabel(f"{axis}:"), spin_box)
-
-        # 레이아웃에 폼과 버튼 쌓기
-        layout.addLayout(form_layout)
-        layout.addStretch(1)    # 폼과 버튼 사이 공간
-
-
-
-
-
-    def _bind_macro_button_events(self):
-        """
-        매크로 버튼이 눌리면 어떤 일을 할 지 정의
-
-        모든 매크로 버튼에 클릭 시그널을 연결
-        """
-        pass
-
-
-    def _handle_macro_button_clicked(self):
-        """
-        매크로 버튼이 클릭되었을 때 실행할 함수
-        """
-        pass
-
-
-    def _bind_goto_button_clicked(self):
-        """
-        'GoTo' 버튼이 눌리면 어떤 일을 할 지 정의
-
-        시그널 연결
-        """
-        pass
-
-
-
-
 
 
 
