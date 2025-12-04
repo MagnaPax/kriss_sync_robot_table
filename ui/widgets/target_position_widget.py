@@ -14,12 +14,16 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QMessageBox
 )
-from typing import Dict, Any
+from typing import Dict, Any, TYPE_CHECKING
 from functools import partial
 
 from ui.widgets.base_widget import BaseWidget
-from view_models.target_position_viewmodel import TargetPositionViewModel as ViewModel
 
+
+
+# 런타임에는 import 하지 않음
+if TYPE_CHECKING:
+    from view_models.target_position_viewmodel import TargetPositionViewModel
 
 
 
@@ -34,10 +38,13 @@ class TargetPositionWidget(BaseWidget):
         - 'GoTo' 버튼 클릭 시 `goto_requested` 시그널 발생
     """
 
-    def __init__(self, view_model: ViewModel, parent=None):
+    def __init__(self, view_model: "TargetPositionViewModel", parent=None):
         # ViewModel 인스턴스를 클래스 속성으로 저장
         # super().__init__() 전에 저장
         self.vm = view_model
+
+        # 좌표 입력 위젯들을 저장할 변수
+        self.coord_widgets: Dict[str, QLineEdit] = {}        
 
         # 버튼 참조 변수 미리 초기화
         self.edit_macro_button = None
@@ -401,46 +408,50 @@ if __name__ == '__main__':
     from PyQt6.QtWidgets import QApplication, QMainWindow
     from models.position_model import PositionModel
     from pathlib import Path
+    
+    # [추가 1] 로그 리스너 임포트
+    from core.log_listener import LogListener
 
+    # [중요] DLL 로드
+    from utils.dll_loader import load_pyads_dll
+    try:
+        load_pyads_dll()
+        print("✅ DLL 로드 완료")
+    except Exception as e:
+        print(f"⚠️ DLL 로드 실패: {e}")
+
+    from view_models.target_position_viewmodel import TargetPositionViewModel
+    from services.plc_service import PLCService
 
     app = QApplication(sys.argv)
     
-    # --- 테스트를 위한 ViewModel 및 Model 인스턴스 생성 ---
-    # 1. Model 생성 (의존성 없음)
-    model = PositionModel()
-    # 2. ViewModel 생성 (Model에 의존)
-    view_model = ViewModel(model)
+    # [추가 2] 로그 리스너 가동 (이제 에러가 콘솔에 보입니다)
+    log_listener = LogListener()
 
-    # 배경 확인을 위한 메인 윈도우
+    # 1. Model 생성
+    model = PositionModel()
+    
+    # 2. PLC Service 생성 및 연결
+    plc_service = PLCService()
+    
+    try:
+        plc_service.connect_plc() 
+        print("✅ PLC Service 연결(Mock/Real) 완료")
+    except Exception as e:
+        print(f"❌ 연결 실패: {e}")
+
+    # 3. ViewModel 생성
+    view_model = TargetPositionViewModel(model, plc_service)
+
+    # 4. Widget 생성
     main_win = QMainWindow()
-    # 3. Widget 생성 (ViewModel에 의존)
     widget = TargetPositionWidget(view_model)
     main_win.setCentralWidget(widget)
     main_win.setWindowTitle("TargetPositionWidget 테스트")
     main_win.resize(400, 300)
     main_win.show()
 
-
-    # ────────────────────────────────────────
-    def apply_style_to(widget):
-        """
-        QSS 파일을 읽어서 지정한 위젯에 스타일을 적용한다.
-        이 함수는 단독 실행(테스트) 모드에서만 사용된다.
-        """
-        qss_path = Path("styles/stylesheet.qss")
-        if qss_path.exists():
-            try:
-                with open(qss_path, "r", encoding="utf-8") as f:
-                    widget.setStyleSheet(f.read())
-                print("✅ 스타일시트 로드 성공")
-            except Exception as e:
-                print(f"❌ 스타일시트 로드 실패: {e}")
-        else:
-            print(f"⚠️ 스타일시트 파일 없음: {qss_path}")
-
-    # 정의한 함수를 바로 호출
-    apply_style_to(widget)
-    # ────────────────────────────────────────
-
+    # 스타일시트 적용 (생략 가능)
+    # ...
 
     sys.exit(app.exec())
