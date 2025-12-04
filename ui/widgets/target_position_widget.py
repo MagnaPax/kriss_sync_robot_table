@@ -49,6 +49,9 @@ class TargetPositionWidget(BaseWidget):
         # 매크로 버튼들을 저장할 보관함
         self.macro_btn_map: Dict[str, QPushButton] = {}
 
+        # 매크로 데이터를 저장해둘 보관함
+        self.cached_macro_data: Dict[str, Any] = {}
+
         # 버튼 참조 변수 미리 초기화
         self.edit_macro_button = None
         self.goto_button = None
@@ -305,7 +308,7 @@ class TargetPositionWidget(BaseWidget):
         """
 
         # 매크로 데이터 바인딩
-        self.vm.macros_loaded.connect(self._update_macro_btn_title)
+        self.vm.macros_loaded.connect(self._on_macro_data_loaded)
 
         # self.edit_macro_button이 None이 아님을 명시적으로 확인 (Pylance 경고 해결 및 런타임 안정성)
         assert self.edit_macro_button is not None, "Edit Macro 버튼이 생성되지 않았습니다."
@@ -315,6 +318,15 @@ class TargetPositionWidget(BaseWidget):
         assert self.goto_button is not None, "GoTo 버튼이 생성되지 않았습니다."
         self.goto_button.clicked.connect(self._on_goto_btn_clicked) # type: ignore
 
+        # 매크로 버튼 클릭 이벤트 연결
+        # 보관함에 저장된 모든 매크로 버튼에 대해 연결을 수행
+        for macro_id, btn in self.macro_btn_map.items():
+            assert btn is not None, f"매크로 버튼 '{macro_id}'이 생성되지 않았습니다."
+            # partial을 사용하여 어떤 버튼이 눌렸는지(macro_id)를 함께 넘김
+            btn.clicked.connect(partial(self._on_macro_btn_clicked, macro_id)) # type: ignore
+
+
+
 
 
 
@@ -322,9 +334,13 @@ class TargetPositionWidget(BaseWidget):
     # 슬롯
     # ==========================================================
     @pyqtSlot(dict)
-    def _update_macro_btn_title(self, data: dict):
+    def _on_macro_data_loaded(self, data: dict):
         """"""
-        print(f"매크로 데이터 로드 완료: {data}")
+        print(f"매크로 데이터 읽기 완료: {data}")
+
+        # 나중에 쓰기 위해 보관함에 저장
+        self.cached_macro_data = data
+
 
         # 딕셔너리에 있는 모든 매크로 데이터를 순회
         for macro_id, macro_data in data.items():
@@ -371,7 +387,7 @@ class TargetPositionWidget(BaseWidget):
             def get_val(axis_key):
                 text = self.coord_widgets[axis_key].text().strip()
                 return float(text) if text else 0.
-            
+
             ui_coords = {
                 'x': get_val('X'),  # 대문자 키로 위젯 찾고 -> 소문자 키로 데이터 저장
                 'y': get_val('Y'),
@@ -388,7 +404,37 @@ class TargetPositionWidget(BaseWidget):
         except ValueError as e:
             pass
 
+    @pyqtSlot(str)
+    def _on_macro_btn_clicked(self, macro_id: str):
+        """
+        매크로 버튼 클릭 시: 저장된 좌표 데이터를 입력창에 채워넣음
+        """
+        print(f"매크로 버튼 클릭됨: {macro_id}")
 
+        # 1. 저장된 데이터가 있는지 확인
+        if macro_id not in self.cached_macro_data:
+            return
+
+        macro_data = self.cached_macro_data[macro_id]
+
+        # 2. 데이터 -> UI 입력창으로 복사
+        # 매크로 데이터 키는 소문자('x'), 위젯 키는 대문자('X')임에 주의
+        axes = ['X', 'Y', 'Z', 'W', 'P', 'R']
+        
+        for axis in axes:
+            data_key = axis.lower() # 'X' -> 'x'
+            
+            # 데이터 가져오기 (없으면 0.0)
+            val = macro_data.get(data_key, 0.0)
+            
+            # 위젯 가져오기
+            line_edit = self.coord_widgets.get(axis)
+            
+            if line_edit:
+                # QLineEdit에 값 설정 (소수점 3자리까지 예쁘게)
+                line_edit.setText(f"{val:.3f}")
+
+        print(f"UI 업데이트 완료 ({macro_id})")
 
 
 
