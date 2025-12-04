@@ -19,21 +19,29 @@ View → ViewModel → (Worker) → Model
 from PyQt6.QtCore import Qt, QObject, QThread, pyqtSignal, pyqtSlot, QMetaObject
 from view_models.target_position_viewmodel_worker import TargetPositionViewModelWorker as Worker
 from models.position_model import PositionModel as Model
-from ui.dialogs.macro_settings_dialog import MacroSettingsDialog
+from services.plc_service import PLCService
 
 
 
 class TargetPositionViewModel(QObject):
 
-    # 노출할 시그널 (View 의 메서드가 구독)
+    # 로컬 시그널 (View 의 메서드가 구독)
     state_changed = pyqtSignal(str)
 
 
-    def __init__(self, model: Model):
+    def __init__(self, model: Model, plc_service: PLCService):
+        """
+        인자들:
+            model: 데이터 모델 인스턴스
+            plc_service: 앱 전역에서 공유되는 PLC 서비스 인스턴스
+        """
         super().__init__()
 
         # ViewModel이 Model 인스턴스를 소유한다
         self._model = model
+
+        self._plc_service = plc_service
+
 
         # 비서(Worker) 직군 '정원 확보'
         self._worker: Worker | None = None
@@ -43,10 +51,6 @@ class TargetPositionViewModel(QObject):
 
 
     @pyqtSlot()
-    def open_macro_settings_dialog(self):
-        """'Edit Macro' 버튼 클릭 시 View로부터 요청받아 다이얼로그를 연다."""
-        dialog = MacroSettingsDialog() # 부모를 지정하지 않으면 독립적인 창으로 뜸
-        dialog.exec()   # Modal(호출부 입력 막힘)로 열기
 
     def start_task(self):
         """시간이 많이 드는 동기 작업(직접 호출 대신 워커 사용)"""
