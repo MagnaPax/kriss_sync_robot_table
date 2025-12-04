@@ -18,6 +18,7 @@ from functools import partial
 
 from ui.widgets.base_widget import BaseWidget
 from ui.dialogs.macro_settings_dialog import MacroSettingsDialog
+from core.event_bus import EVENT_BUS
 
 
 
@@ -336,7 +337,10 @@ class TargetPositionWidget(BaseWidget):
     @pyqtSlot(dict)
     def _on_macro_data_loaded(self, data: dict):
         """"""
-        print(f"매크로 데이터 읽기 완료: {data}")
+        EVENT_BUS.ui_log_message.emit(
+            f"매크로 데이터 로드 완료 (총 {len(data)}개 항목)", 
+            "INFO"
+        )
 
         # 나중에 쓰기 위해 보관함에 저장
         self.cached_macro_data = data
@@ -368,6 +372,8 @@ class TargetPositionWidget(BaseWidget):
 
         직접 MacroSettingsDialog 를 연다
         """
+        EVENT_BUS.ui_log_message.emit("매크로 편집 다이얼로그(MacroSettingsDialog) 열림", "INFO")
+
         dialog = MacroSettingsDialog(parent=self)
 
         # 다이얼로그 실행
@@ -399,10 +405,17 @@ class TargetPositionWidget(BaseWidget):
                 'name': 'Manual_UI'  # 메타 데이터
             }
 
-            print(f"GOTO 버튼 클릭됨: {ui_coords}")
+            EVENT_BUS.ui_log_message.emit(
+                f"사용자 이동 명령(GoTo) 요청: {ui_coords}", 
+                "INFO"
+            )
 
         except ValueError as e:
-            pass
+            error_msg = "이동 명령 실패: 좌표값 입력 오류 (숫자가 아닌 문자가 포함됨)"
+            EVENT_BUS.ui_log_message.emit(error_msg, "WARNING")
+
+            QMessageBox.warning(self, "입력 오류", "좌표값은 숫자만 입력 가능합니다.")
+
 
     @pyqtSlot(str)
     def _on_macro_btn_clicked(self, macro_id: str):
@@ -416,6 +429,13 @@ class TargetPositionWidget(BaseWidget):
             return
 
         macro_data = self.cached_macro_data[macro_id]
+
+        # 어떤 매크로를 불러왔는지 이름과 함께 기록
+        macro_name = macro_data.get('name', 'No Name')
+        EVENT_BUS.ui_log_message.emit(
+            f"매크로 불러오기: {macro_id} ('{macro_name}') -> 입력창 갱신", 
+            "INFO"
+        )        
 
         # 2. 데이터 -> UI 입력창으로 복사
         # 매크로 데이터 키는 소문자('x'), 위젯 키는 대문자('X')임에 주의
