@@ -20,13 +20,16 @@ from PyQt6.QtCore import Qt, QObject, QThread, pyqtSignal, pyqtSlot, QMetaObject
 from view_models.target_position_viewmodel_worker import TargetPositionViewModelWorker as Worker
 from models.position_model import PositionModel as Model
 from services.plc_service import PLCService
+from services.macro_service import MacroService
+from config.paths import CONFIG_MACRO_PATH
 
 
 
 class TargetPositionViewModel(QObject):
 
-    # 로컬 시그널 (View 의 메서드가 구독)
+    # 로컬 시그널 (View가 구독)
     state_changed = pyqtSignal(str)
+    macros_loaded = pyqtSignal(dict)    # 매크로 데이터 가져오기 완료
 
 
     def __init__(self, model: Model, plc_service: PLCService):
@@ -41,6 +44,7 @@ class TargetPositionViewModel(QObject):
         self._model = model
 
         self._plc_service = plc_service
+        self._macro_service = MacroService()
 
 
         # 비서(Worker) 직군 '정원 확보'
@@ -51,6 +55,19 @@ class TargetPositionViewModel(QObject):
 
 
     @pyqtSlot()
+    def load_macro_data(self):
+        """매크로 데이터 읽어서 뷰에게 전달"""
+
+        # 서비스한테 시킴
+        macro_data = self._macro_service.load_macro(CONFIG_MACRO_PATH)
+
+        if macro_data:
+            self.macros_loaded.emit(macro_data)
+        else:
+            self.state_changed.emit("매크로 데이터 로드 실패")
+
+
+
 
     def start_task(self):
         """시간이 많이 드는 동기 작업(직접 호출 대신 워커 사용)"""
