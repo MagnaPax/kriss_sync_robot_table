@@ -17,32 +17,33 @@ from typing import List, Dict
 
 
 # =============================================================================
-# TXT 파일 형식 (순서가 중요함)
+# CSV 파일 형식
 # =============================================================================
-TXT_SCHEMA: dict[str, type] = {
-    'feed':                float,  # 1번째: F
-    'turntable_deg':       float,  # 2번째: T
-    'x_coord':             float,  # 3번째: X
-    'y_coord':             float,  # 4번째: Y
-    'z_coord':             float,  # 5번째: Z
-    'w_angle':             float,  # 6번째: W
-    'p_angle':             float,  # 7번째: P
-    'r_angle':             float,  # 8번째: R
-    'tool_rpm_rotation':   float,  # 9번째: M (혹시 정수라면 int로 변경 가능)
-    'tool_rpm_revolution': float   # 10번째: N
+CSV_SCHEMA: dict[str, dict] = {
+    'PRLINE': {'name': 'id','type': int},                   # 시퀀스 번호
+    'F': {'name': 'turntable_feed_rate','type': float},     # 초당 회전속도 (feed rate)
+    'U': {'name': 'polar_coord_theta',  'type': float},     # 각도 (극좌표계의 θ)
+    'X': {'name': 'polar_coord_radius', 'type': float},     # 반지름 (극좌표계의 r)
+    'Z': {'name': 'paraboloid_height',  'type': float},     # 파라볼로이드 높이
+    'A': {'name': 'untitle',            'type': float},     # 의미 없음. 그냥 0
+    'B': {'name': 'tool_stroke_rpm',    'type': float},     # 툴 스트로크 속도 (rpm)
 }
 
 
 # =============================================================================
-# CSV 파일 형식
+# TXT 파일 형식 (순서가 중요함)
 # =============================================================================
-CSV_SCHEMA: dict[str, dict] = {
-    'F': {'name': 'feed_rate',          'type': float},     # 초당 회전속도 (feed rate)
-    'U': {'name': 'polar_coord_theta',  'type': float},     # 각도 (극좌표계의 θ)
-    'X': {'name': 'polar_coord_radius', 'type': float},     # 반지름 (극좌표계의 r)
-    'Z': {'name': 'paraboloid_height',  'type': float},     # 파라볼로이드 높이
-    'B': {'name': 'tool_stroke_rpm',    'type': float},     # 툴 스트로크 속도 (rpm)
-    # 'PRLINE': 시퀀스 번호는 별도 로직으로 처리
+TXT_SCHEMA: dict[str, dict] = {
+    'F': {'name': 'robot_feed_rate',     'type': float},     # 로봇 이동 속도 (mm/sec)
+    'T': {'name': 'turntable_deg',       'type': float},     # 턴테이블 각도 (deg)
+    'X': {'name': 'x_coord',             'type': float},     # X 좌표 (mm)
+    'Y': {'name': 'y_coord',             'type': float},     # Y 좌표 (mm)
+    'Z': {'name': 'z_coord',             'type': float},     # Z 좌표 (mm)
+    'W': {'name': 'w_angle',             'type': float},     # W 각도 (deg)
+    'P': {'name': 'p_angle',             'type': float},     # P 각도 (deg)
+    'R': {'name': 'r_angle',             'type': float},     # R 각도 (deg)
+    'M': {'name': 'tool_rotation_rpm',   'type': float},     # 툴 자전 속도 (rpm)
+    'N': {'name': 'tool_revolution_rpm', 'type': float}      # 툴 공전 속도 (rpm)
 }
 
 
@@ -69,4 +70,40 @@ MACRO_UI_LABELS: Dict[str, str] = {
     'w': 'W (deg)',
     'p': 'P (deg)',
     'r': 'R (deg)'
+}
+
+
+
+# =============================================================================
+# 통합 데이터 스키마
+# =============================================================================
+
+# 통합 데이터 스키마
+UNIFIED_DATA: dict[str, type] = {
+
+    # 1. 메타 데이터 (추적용)
+    'source':   str,    # 데이터 출처 (예: "UI", "TXT", "CSV")
+    'name':     str,    # 명령 이름 (예: "GoTo", "Macro_1")
+    'seq_id':   int,    # [CSV] PRLINE (시퀀스 번호)
+
+    # 로봇 제어
+    'feed':     float,  # robot_feed_rate
+    'x':        float,  # x_coord
+    'y':        float,  # y_coord
+    'z':        float,  # z_coord
+    'w':        float,  # w_angle
+    'p':        float,  # p_angle
+    'r':        float,  # r_angle
+    'rpm_rot':  float,  # tool_rotation_rpm (M)
+    'rpm_rev':  float,  # tool_revolution_rpm (N)
+    
+    # 턴테이블
+    'tt_feed':  float,  # turntable_feed_rate
+    'radius':   float,  # polar_coord_radius
+    'theta':    float,  # polar_coord_theta
+    'para_z':   float,  # paraboloid_height
+    'stroke':   float,  # tool_stroke_rpm
+
+    # 기타
+    'dummy':    float   # [CSV] A (의미 없는 더미 값)
 }
