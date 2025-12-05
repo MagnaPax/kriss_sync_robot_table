@@ -19,6 +19,7 @@ from functools import partial
 from ui.widgets.base_widget import BaseWidget
 from ui.dialogs.macro_settings_dialog import MacroSettingsDialog
 from core.event_bus import EVENT_BUS
+from models.position_model import Position
 
 
 
@@ -294,28 +295,35 @@ class TargetPositionWidget(BaseWidget):
 
 
     # --- 헬퍼 메서드 --- #
-    def _extract_data_from_ui(self) -> dict:
+    def _extract_data_from_ui(self) -> Position:
         """
-        QLineEdit 객체들의 값만 뽑아서 딕셔너리를 만든다
-        파이썬 네이밍 컨벤션에 따라 키는 소문자로 한다
+        QLineEdit 객체들에서 데이터만 뽑아서 Position 객체를 만든다.
         """
         data = {}
-        
+
         for axis in ['x', 'y', 'z', 'w', 'p', 'r']:
             widget_key = axis.upper() # 위젯 찾을 때는 대문자 ID 사용
-            
             widget = self.coord_widgets.get(widget_key)
+
             if widget:
                 text = widget.text().strip()
-                data[axis] = float(text) if text else 0.0
+                # 빈 문자열이면 0.0, 아니면 float 변환
+                # (여기서 에러가 나면 호출부의 try-except가 잡음)
+                val = float(text) if text else 0.0
+                data[axis] = val
+                # data[axis] = float(text) if text else 0.0
             else:
                 data[axis] = 0.0
         
-        # UI에는 없지만 필수인 값 추가
-        data['feed'] = 100.0
-        data['name'] = 'Manual_UI'
-        
-        return data
+        return Position(
+            x=data['x'],
+            y=data['y'],
+            z=data['z'],
+            w=data['w'],
+            p=data['p'],
+            r=data['r'],
+            feed=100.0
+        )
 
 
 
@@ -408,7 +416,7 @@ class TargetPositionWidget(BaseWidget):
         """
 
         try:
-            # QLineEdit 객체로부터 순수 데이터(dict) 추출
+            # QLineEdit 객체로부터 데이터 추출
             ui_data = self._extract_data_from_ui()
 
             EVENT_BUS.ui_log_message.emit(
