@@ -2,6 +2,10 @@
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 from services.plc_service import PLCService
 from core.event_bus import EVENT_BUS
+from view_models.target_position_viewmodel import TargetPositionViewModel
+from models.position_model import PositionModel
+
+
 
 class MainViewModel(QObject):
 
@@ -19,6 +23,14 @@ class MainViewModel(QObject):
 
         # Service 인스턴스를 소유 (직접 호출 위해)
         self._service = plc_service
+
+        # 하위 뷰모델 생성 및 관리
+        self.positon_model = PositionModel()
+        # 타겟 포지션 뷰모델 생성 (모델 + 서비스 주입)
+        self.target_position_vm = TargetPositionViewModel(self.positon_model, self._service)
+
+
+
 
 
         """

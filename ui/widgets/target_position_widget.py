@@ -31,9 +31,9 @@ if TYPE_CHECKING:
 
 class TargetPositionWidget(BaseWidget):
     """
-     로봇팔, 턴테이블의 이동 명령과 매크로를 관리하는 위젯
+    로봇팔, 턴테이블의 이동 명령과 매크로를 관리하는 위젯
 
-     기능:
+    기능:
         - 좌표 입력(X,Y,Z,W,P,R)
         - 'Edit Macro' 버튼으로 매크로 설정 모달(MacroSettingsDialog) 열기
         - 매크로 버튼(사용자가 입력한 매크로 제목)을 누르면 저장된 값 불러오기

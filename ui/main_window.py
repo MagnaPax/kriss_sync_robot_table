@@ -85,7 +85,7 @@ class MainWindow(QMainWindow):
         # 패널 생성 - 부모를 centralWidget로 명시
         # TODO: 나중에 패널 내부에서도 로직이 필요하면 self.vm을 전달하면 된다
         self.left = left_panel.LeftPanel(central_widget)
-        self.center = center_panel.CenterPanel(central_widget)
+        self.center = center_panel.CenterPanel(self.vm, central_widget)
         self.right = right_panel.RightPanel(central_widget)
 
         self.mainLayout.addWidget(self.left)
