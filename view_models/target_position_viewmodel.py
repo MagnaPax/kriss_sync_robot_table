@@ -155,3 +155,23 @@ class TargetPositionViewModel(QObject):
         if self._worker:
             self._worker.deleteLater()  # 비서 정리 → Qt의 메모리 관리 시스템에 맡겨서 안전하게 폐기
             self._worker = None         # Python 레벨에서도 비서 레퍼런스 해제(메모리 누수 방지)
+
+
+
+    def request_move_robot(self, coords: dict):
+        """
+        View에서 요청받은 좌표로 로봇 이동 명령을 내린다.
+        """
+
+        print(f"request_move_robot() 호출: {coords}")
+
+        # 상태 알림
+        #   사용자에게 명령이 시스템으로 전송됐다는 피드백 주기 위함
+        # View에게 전화 걸어서 알림
+        self.state_changed.emit(f"이동 명령 전송 중... (좌표: {coords})")
+
+        # PLCService 호출
+        # PLCService.move_robot()은 내부적으로 QThread와 Worker를 생성, 
+        # UI 멈춤 없이 비동기로 통신을 수행
+        self._plc_service.move_robot(coords)
+
