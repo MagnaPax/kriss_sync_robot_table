@@ -8,8 +8,9 @@
 """
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, QThread
 from communication.twincat_connector import TwinCATConnector
-from communication.twincat_commander import TwinCATCommander
 from communication.fanuc_commander import FanucCommander
+from config.data_formats import *
+from typing import Dict, List, Any
 
 
 
@@ -56,18 +57,14 @@ class PLCWorker(QObject):
                 case 'MOVE':
                     print(f"case MOVE 호출됨: {self.data}\n")
 
-                    # dict를 list로 감싸서 전달
-                    if isinstance(self.data, dict):
-                        seq_data = [self.data]
-                    elif isinstance(self.data, list):
-                        seq_data = self.data
-                    else:
-                        raise ValueError("MOVE 데이터는 dict 또는 list여야 합니다.")
-                    
+                    fanuc_data = self._transform_to_fanuc_format(self.data)
+
+                    print(f"변환된 데이터(FANUC용): {fanuc_data}\n")
+
                     # Commander 호출
                     # FanucCommander.execute_sequence는 (bool, str)을 반환하므로 그대로 받음
                     success, msg = self.commander.execute_sequence(
-                        seq_data, 
+                        fanuc_data, 
                         check_stop_func=self._is_interrupted
                     )
 
@@ -111,3 +108,39 @@ class PLCWorker(QObject):
         if current_thread:
             return current_thread.isInterruptionRequested()
         return False
+
+    def _transform_to_fanuc_format(self, data: Any) -> List[Dict]:
+        """
+        통합 스키마(소문자) 데이터를 FANUC 스키마(대문자)로 변환
+        """
+
+        # 입력 데이터 정규화 - List로 만들기
+        if isinstance(data, dict):
+            source_list = [data]
+        elif isinstance(data, list):
+            source_list = data
+        else:
+            # None이거나 엉뚱한 타입이 오면 에러 발생
+            raise ValueError(f"MOVE 데이터는 dict 또는 list여야 합니다. (받은 타입: {type(data)})")
+
+
+        # 데이터 변환 (소문자 -> 대문자 매핑)
+        transformed_list = []
+        
+        # 매핑 테이블: 통합 스키마 키 -> FANUC 스키마 키
+        key_mapping = {
+            'feed': 'F',
+            'x': 'X', 'y': 'Y', 'z': 'Z',
+            'w': 'W', 'p': 'P', 'r': 'R'
+        }
+
+        for item in source_list:
+            converted_item = {}
+            for unified_key, fanuc_key in key_mapping.items():
+                # 값 가져오기 (없으면 0.0 <- 안전장치)
+                val = item.get(unified_key, 0.0)
+                converted_item[fanuc_key] = val
+            
+            transformed_list.append(converted_item)
+            
+        return transformed_list
