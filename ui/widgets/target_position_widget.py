@@ -190,6 +190,17 @@ class TargetPositionWidget(BaseWidget):
         ################
         # --- 하단 --- #
         ################
+        # Feed Rate 입력 영역
+        section_feed_rate = QFrame()
+        section_feed_rate.setObjectName("section_feed_rate")
+
+        # Feed 입력 레이아웃
+        layout_feed = QHBoxLayout(section_feed_rate)
+        layout_feed.setContentsMargins(5, 5, 5, 5)
+
+        # 레이아웃에 Feed Rate 입력 영역 넣기
+        layout_feed.addLayout(self._create_coordinate_input_fields(["FEED RATE",]))
+
         # Go To 버튼 영역
         section_go_to = QFrame()
         section_go_to.setObjectName("section_go_to")
@@ -211,6 +222,7 @@ class TargetPositionWidget(BaseWidget):
         widgets_layout.addWidget(section_edit_macro)
         widgets_layout.addWidget(section_coordinate)
         widgets_layout.addWidget(section_macro_buttons)
+        widgets_layout.addWidget(section_feed_rate)
         widgets_layout.addWidget(section_go_to)
 
         base_group_box.setLayout(widgets_layout)
@@ -301,6 +313,7 @@ class TargetPositionWidget(BaseWidget):
         """
         data = {}
 
+        # 좌표값 읽기
         for axis in ['x', 'y', 'z', 'w', 'p', 'r']:
             widget_key = axis.upper() # 위젯 찾을 때는 대문자 ID 사용
             widget = self.coord_widgets.get(widget_key)
@@ -314,6 +327,13 @@ class TargetPositionWidget(BaseWidget):
                 # data[axis] = float(text) if text else 0.0
             else:
                 data[axis] = 0.0
+
+        feed_widget = self.coord_widgets.get('FEED RATE')
+        if feed_widget:
+            text = feed_widget.text().strip()
+            feed_val = float(text) if text else 10.0
+        else:
+            feed_val = 50.0 # 못 찾으면 기본값
         
         return Position(
             x=data['x'],
@@ -322,7 +342,7 @@ class TargetPositionWidget(BaseWidget):
             w=data['w'],
             p=data['p'],
             r=data['r'],
-            feed=100.0
+            feed=feed_val
         )
 
 
