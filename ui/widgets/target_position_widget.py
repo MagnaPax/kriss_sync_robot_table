@@ -119,7 +119,6 @@ class TargetPositionWidget(BaseWidget):
 
         # 모든 부속 위젯을 담을 그룹박스 생성
         base_group_box = QGroupBox("Target Position")
-        base_group_box.setStyleSheet("QGroupBox { background-color: grey; }")  # 개발용 임시 배경
 
 
         widgets_layout = QVBoxLayout()
@@ -131,7 +130,6 @@ class TargetPositionWidget(BaseWidget):
         # Edit Macro 영역
         section_edit_macro = QFrame()
         section_edit_macro.setObjectName("section_edit_macro")
-        section_edit_macro.setStyleSheet("QFrame { background-color: blue; }")  # 개발용 임시 배경
 
         # Edit Macro 버튼 레이아웃
         layout_edit_macro = QHBoxLayout(section_edit_macro)
@@ -150,7 +148,6 @@ class TargetPositionWidget(BaseWidget):
         # 좌표 입력 영역
         section_coordinate = QFrame()
         section_coordinate.setObjectName("section_coordinate")
-        section_coordinate.setStyleSheet("QFrame { background-color: green; }")  # 개발용 임시 배경
 
         # 좌표 입력 레이아웃 (좌우로 나뉨)
         layout_coordinate = QHBoxLayout(section_coordinate)
@@ -160,13 +157,11 @@ class TargetPositionWidget(BaseWidget):
         # 로봇팔(X, Y, Z) 입력 영역
         section_robot_coordinate = QFrame()
         section_robot_coordinate.setObjectName("section_robot_coordinate")
-        section_robot_coordinate.setStyleSheet("QFrame { background-color: Aquamarine; }")  # 개발용 임시 배경
         # 로봇팔 좌표 입력 영역에 X, Y, Z 폼 레이아웃 생성하여 추가
         section_robot_coordinate.setLayout(self._create_coordinate_input_fields(["X", "Y", "Z"]))
 
         # 턴테이블(W, P, R) 입력 영역
         section_turtable_coordinate = QFrame()
-        section_turtable_coordinate.setStyleSheet("QFrame { background-color: Darkseagreen; }")  # 개발용 임시 배경
         # 턴테이블 좌표 입력 섹션에 W, P, R 폼 레이아웃 생성하여 추가
         section_turtable_coordinate.setLayout(self._create_coordinate_input_fields(["W", "P", "R"]))
 
@@ -177,7 +172,6 @@ class TargetPositionWidget(BaseWidget):
         # 매크로 버튼 영역
         section_macro_buttons = QFrame()
         section_macro_buttons.setObjectName("section_macro_buttons")
-        section_macro_buttons.setStyleSheet("QFrame { background-color: yellow; }")  # 개발용 임시 배경
 
         # 매크로 버튼 레이아웃
         laytout_macro_buttons = QGridLayout(section_macro_buttons)
@@ -198,7 +192,6 @@ class TargetPositionWidget(BaseWidget):
         # Go To 버튼 영역
         section_go_to = QFrame()
         section_go_to.setObjectName("section_go_to")
-        section_go_to.setStyleSheet("QFrame { background-color: orange; }")  # 개발용 임시 배경
 
         # Go To 버튼 레이아웃
         layout_go_to = QHBoxLayout(section_go_to)
