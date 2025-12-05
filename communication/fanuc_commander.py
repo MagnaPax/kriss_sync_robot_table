@@ -22,14 +22,11 @@ class FanucCommander:
         # Service에서 생성한 TwinCATConnector를 주입받음
         self.connector = connector
 
-        # 로봇측 체크 비트 초기화(초기 1회)
-        self._reset_axis_sign_bits()
 
     @property
     def _plc(self) -> Union[pyads.Connection, 'MockConnection']:
         """Connector의 활성 핸들을 가져오는 단축 속성"""
         return self.connector.handle
-
 
 
     # ------------------------------------------------------------------
@@ -40,8 +37,17 @@ class FanucCommander:
         for axis in ['X', 'Y', 'Z', 'W', 'P', 'R']:
             self._plc.write_by_name(f'MAIN.Robot1._UI1.{axis}_Check', False, pyads.PLCTYPE_BOOL)
 
-    def _start_sequence_plc_signals(self):
+
+    # ------------------------------------------------------------------
+    # 
+    # ------------------------------------------------------------------
+    def start_sequence_plc_signals(self):
         """RSR2 pulse + Loop start + CycleStop Off"""
+
+        # 로봇측 체크 비트 초기화
+        # 실제 작업 시작 전에 수행 (연결된 상태가 보장됨)
+        self._reset_axis_sign_bits()
+
         plc = self._plc
 
         # RSR신호 Pulse
@@ -54,11 +60,15 @@ class FanucCommander:
         # Cycle Stop 초기화
         plc.write_by_name('MAIN.Robot1._UI1.UI04_CycleStop', False, pyads.PLCTYPE_BOOL)
 
-    def _end_sequence_plc_signals(self):
+        return True, "시작 신호 전송"
+
+    def end_sequence_plc_signals(self):
         """Sequence 종료 시 처리"""
         plc = self._plc
         plc.write_by_name('MAIN.Robot1._UI1.UI10_RSR2', False, pyads.PLCTYPE_BOOL)
         plc.write_by_name('MAIN.Robot1._UI1.DI181', False, pyads.PLCTYPE_BOOL)
+
+        return True, "정지 신호 전송"
 
 
 
@@ -141,10 +151,13 @@ class FanucCommander:
         """
         원본 main() 함수의 핵심 로직을 수행
         """
+
+        print(f"execute_sequence 호출됨: {coordinates}\n")
+
         plc = self._plc
 
         # 시퀀스 시작용 PLC 신호 (초기화)
-        self._start_sequence_plc_signals()
+        self.start_sequence_plc_signals()
         
         init_done = False   # 첫 줄 실행 트리거
         previous_coords = None
@@ -188,5 +201,5 @@ class FanucCommander:
                     continue
 
         # Sequence 정상 종료 시 처리
-        self._end_sequence_plc_signals()
+        self.end_sequence_plc_signals()
         return True, "시퀀스 실행 완료"            

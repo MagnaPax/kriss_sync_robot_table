@@ -300,6 +300,35 @@ class TargetPositionWidget(BaseWidget):
 
 
 
+    # --- 헬퍼 메서드 --- #
+    def _extract_data_from_ui(self) -> dict:
+        """
+        QLineEdit 객체들의 값만 뽑아서 딕셔너리를 만든다
+        파이썬 네이밍 컨벤션에 따라 키는 소문자로 한다
+        """
+        data = {}
+        
+        for axis in ['x', 'y', 'z', 'w', 'p', 'r']:
+            widget_key = axis.upper() # 위젯 찾을 때는 대문자 ID 사용
+            
+            widget = self.coord_widgets.get(widget_key)
+            if widget:
+                text = widget.text().strip()
+                data[axis] = float(text) if text else 0.0
+            else:
+                data[axis] = 0.0
+        
+        # UI에는 없지만 필수인 값 추가
+        data['feed'] = 100.0
+        data['name'] = 'Manual_UI'
+        
+        return data
+
+
+
+    # ==========================================================
+    # 이벤트 발생 시 동작 약속
+    # ==========================================================
     def _bind_events(self):
         """
         전선 연결하기 (아직 불 들어온것 아님)
@@ -325,10 +354,6 @@ class TargetPositionWidget(BaseWidget):
             assert btn is not None, f"매크로 버튼 '{macro_id}'이 생성되지 않았습니다."
             # partial을 사용하여 어떤 버튼이 눌렸는지(macro_id)를 함께 넘김
             btn.clicked.connect(partial(self._on_macro_btn_clicked, macro_id)) # type: ignore
-
-
-
-
 
 
     # ==========================================================
@@ -390,33 +415,19 @@ class TargetPositionWidget(BaseWidget):
         """
 
         try:
-            def get_val(axis_key):
-                widget = self.coord_widgets.get(axis_key)
-                if not widget: return 0.0
-                text = widget.text().strip()
-                return float(text) if text else 0.0
-
-            target_coords = {
-                'x': get_val('X'),  # 대문자 키로 위젯 찾고 -> 소문자 키로 데이터 저장
-                'y': get_val('Y'),
-                'z': get_val('Z'),
-                'w': get_val('W'),
-                'p': get_val('P'),
-                'r': get_val('R'),
-                'F': 100.0,          # 속도는 UI에 없으니 기본값 (필수)
-                'name': 'Manual_UI'  # 메타 데이터
-            }
+            # QLineEdit 객체로부터 순수 데이터(dict) 추출
+            ui_data = self._extract_data_from_ui()
 
             EVENT_BUS.ui_log_message.emit(
-                f"사용자 이동 명령(GoTo) 요청: {target_coords}", 
+                f"사용자 이동 명령(GoTo) 요청: {ui_data}", 
                 "INFO"
             )
 
-            self.vm.request_move_robot(target_coords)
+            self.vm.request_move_robot(ui_data)
 
         except ValueError as e:
-            error_msg = "이동 명령 실패: 좌표값 입력 오류 (숫자가 아닌 문자가 포함됨)"
-            EVENT_BUS.ui_log_message.emit(error_msg, "WARNING")
+            msg = "이동 명령 실패: 좌표값 입력 오류 (숫자가 아닌 문자가 포함됨)"
+            EVENT_BUS.ui_log_message.emit(msg, "WARNING")
 
             QMessageBox.warning(self, "입력 오류", "좌표값은 숫자만 입력 가능합니다.")
 
