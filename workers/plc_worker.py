@@ -9,6 +9,7 @@
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, QThread
 from communication.twincat_connector import TwinCATConnector
 from communication.twincat_commander import TwinCATCommander
+from communication.fanuc_commander import FanucCommander
 
 
 
@@ -19,7 +20,7 @@ class PLCWorker(QObject):
     result = pyqtSignal(bool, str)       # 결과 (성공여부, 메시지)
 
 
-    def __init__(self, connector: TwinCATConnector, commander: TwinCATCommander, command: str, data=None):
+    def __init__(self, connector: TwinCATConnector, commander: FanucCommander, command: str, data=None):
         """
         Args:
             connector: '연결' 관리를 위한 객체
@@ -53,28 +54,32 @@ class PLCWorker(QObject):
 
                 # --- 이동 명령 (Commander 사용) --- #
                 case 'MOVE':
-                    if self.data is None: # 안전장치
-                        raise ValueError("MOVE 명령에 필요한 데이터가 없습니다.")
+                    print(f"case MOVE 호출됨: {self.data}\n")
+
+                    # dict를 list로 감싸서 전달
+                    if isinstance(self.data, dict):
+                        seq_data = [self.data]
+                    elif isinstance(self.data, list):
+                        seq_data = self.data
+                    else:
+                        raise ValueError("MOVE 데이터는 dict 또는 list여야 합니다.")
                     
-                    # data는 [coords, previous_coords, init_done, i, lines] 리스트
-                    new_prev, new_init = self.commander.write_move_command(*self.data, check_stop=self._is_interrupted)
+                    # Commander 호출
+                    # FanucCommander.execute_sequence는 (bool, str)을 반환하므로 그대로 받음
+                    success, msg = self.commander.execute_sequence(
+                        seq_data, 
+                        check_stop_func=self._is_interrupted
+                    )
+
                     success = True
-                    msg = "이동 완료"
+                    msg = "단일 좌표 이동 완료"
 
 
                 # --- 제어 명령 (Commander 사용) --- #
                 case 'START':
-                    success, msg = self.commander.start_process()
+                    success, msg = self.commander.start_sequence_plc_signals()
                 case 'STOP':
-                    success, msg = self.commander.stop_process()
-                case 'PAUSE':
-                    self.commander.pause_process()
-                    success, msg = True, "일시정지 신호 전송"
-                case 'RESUME':
-                    self.commander.resume_process()
-                    success, msg = True, "재개 신호 전송"
-
-
+                    success, msg = self.commander.end_sequence_plc_signals()
                 case _:
                     msg = "알 수 없는 명령입니다."
                     pass
