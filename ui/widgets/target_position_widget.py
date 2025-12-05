@@ -409,30 +409,6 @@ class TargetPositionWidget(BaseWidget):
         # 다이얼로그가 닫히면 이 줄이 실행됨 -> 데이터 새로고침
         self.vm.load_macro_data()
 
-    @pyqtSlot()
-    def _on_goto_btn_clicked(self):
-        """
-        'GoTo' 버튼이 클릭되었을 때 실행할 함수
-        """
-
-        try:
-            # QLineEdit 객체로부터 데이터 추출
-            ui_data = self._extract_data_from_ui()
-
-            EVENT_BUS.ui_log_message.emit(
-                f"사용자 이동 명령(GoTo) 요청: {ui_data}", 
-                "INFO"
-            )
-
-            self.vm.request_move_robot(ui_data)
-
-        except ValueError as e:
-            msg = "이동 명령 실패: 좌표값 입력 오류 (숫자가 아닌 문자가 포함됨)"
-            EVENT_BUS.ui_log_message.emit(msg, "WARNING")
-
-            QMessageBox.warning(self, "입력 오류", "좌표값은 숫자만 입력 가능합니다.")
-
-
     @pyqtSlot(str)
     def _on_macro_btn_clicked(self, macro_id: str):
         """
@@ -471,6 +447,29 @@ class TargetPositionWidget(BaseWidget):
                 line_edit.setText(f"{val:.3f}")
 
         print(f"UI 업데이트 완료 ({macro_id})")
+
+    @pyqtSlot()
+    def _on_goto_btn_clicked(self):
+        """
+        'GoTo' 버튼이 클릭되었을 때 실행할 함수
+        """
+
+        try:
+            # QLineEdit 객체로부터 데이터 추출
+            ui_data = self._extract_data_from_ui()
+
+            EVENT_BUS.ui_log_message.emit(
+                f"사용자 이동 명령(GoTo) 요청: {ui_data}", 
+                "INFO"
+            )
+
+            self.vm.request_move_robot(ui_data)
+
+        except ValueError as e:
+            msg = "이동 명령 실패: 좌표값 입력 오류 (숫자가 아닌 문자가 포함됨)"
+            EVENT_BUS.ui_log_message.emit(msg, "WARNING")
+
+            QMessageBox.warning(self, "입력 오류", "좌표값은 숫자만 입력 가능합니다.")
 
 
 

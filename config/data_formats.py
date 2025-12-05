@@ -76,14 +76,14 @@ MACRO_UI_LABELS: Dict[str, str] = {
 # =============================================================================
 # FANUC 실행용
 # =============================================================================
-FANUC_SCHEMA: dict[str, type] = { 
-    'F': float,     # feed 값 
-    'X': float,     # X 좌표 
-    'Y': float,     # Y 좌표 
-    'Z': float,     # Z 좌표 
-    'W': float,     # W 각도 
-    'P': float,     # P 각도 
-    'R': float      # R 각도
+FANUC_SCHEMA: dict[str, dict] = { 
+    'F': {'source': 'feed', 'type': float},
+    'X': {'source': 'x',    'type': float},
+    'Y': {'source': 'y',    'type': float},
+    'Z': {'source': 'z',    'type': float},
+    'W': {'source': 'w',    'type': float},
+    'P': {'source': 'p',    'type': float},
+    'R': {'source': 'r',    'type': float}
 }
 
 # =============================================================================

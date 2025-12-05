@@ -6,8 +6,8 @@ from PyQt6.QtWidgets import QApplication
 from core.event_bus import EVENT_BUS
 from communication.twincat_connector import TwinCATConnector
 from communication.fanuc_commander import FanucCommander
-from workers.plc_worker import PLCWorker as Worker
-
+from workers.plc_worker import PLCWorker
+from models.position_model import Position
 
 
 
@@ -33,7 +33,7 @@ class PLCService(QObject):
         # 새로운 사무실(QThread) '공간 확보'
         self._thread: QThread | None = None
         # 비서(Worker) 직군 '정원 확보'
-        self._worker: Worker | None = None
+        self._worker: PLCWorker | None = None
 
 
         # --- 연결 상태 정기적으로 확인 (Heartbeat) --- #
@@ -177,15 +177,22 @@ class PLCService(QObject):
         self._start_worker('STOP', log_msg="프로세스 중지 요청...")
 
 
-    def move_robot(self, coords: dict):
+    def move_robot(self, position:Position):
         """좌표 이동 요청"""
 
         try:
-            # FanucCommander.execute_sequence는 list[dict]를 인자로 받음
-            # 따라서 단일 딕셔너리를 리스트로 감싸서 전달
-            sequence_data = [coords]
+            # 객체 -> 딕셔너리 변환
+            # Worker는 내부적으로 딕셔너리 리스트를 처리하도록 설계되어 있기 때문
+            coords_dict = position.to_unified_dict()
 
-            self._start_worker('MOVE', data=sequence_data, log_msg=f"단일 명령 이동: {coords}")
+            # 메타 데이터 추가(빼도 됨)
+            coords_dict['name'] = 'Manual_Position_Obj'
+
+            # Worker 규격(List[Dict])에 맞춰 포장
+            sequence_data = [coords_dict]
+
+            # Worker 호출
+            self._start_worker('MOVE', data=sequence_data, log_msg=f"단일 명령 이동: {position}")
 
         except Exception as e:
             EVENT_BUS.ui_log_message.emit(f"좌표 이동 실패: {e}", "ERROR")
@@ -208,7 +215,7 @@ class PLCService(QObject):
         self._thread = QThread()
 
         # 비서(Worker) 채용
-        self._worker = Worker(self.connector, self.commander, command, data)
+        self._worker = PLCWorker(self.connector, self.commander, command, data)
 
         # 비서를 새 사무실로 전근 발령 - moveToThread() : 스레드 소속 변경
         self._worker.moveToThread(self._thread)

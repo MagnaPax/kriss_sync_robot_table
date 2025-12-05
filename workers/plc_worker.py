@@ -111,7 +111,7 @@ class PLCWorker(QObject):
 
     def _transform_to_fanuc_format(self, data: Any) -> List[Dict]:
         """
-        통합 스키마(소문자) 데이터를 FANUC 스키마(대문자)로 변환
+        UNIFIED_DATA 데이터를 FANUC_SCHEMA 형식으로 변환
         """
 
         # 입력 데이터 정규화 - List로 만들기
@@ -126,21 +126,27 @@ class PLCWorker(QObject):
 
         # 데이터 변환 (소문자 -> 대문자 매핑)
         transformed_list = []
-        
-        # 매핑 테이블: 통합 스키마 키 -> FANUC 스키마 키
-        key_mapping = {
-            'feed': 'F',
-            'x': 'X', 'y': 'Y', 'z': 'Z',
-            'w': 'W', 'p': 'P', 'r': 'R'
-        }
 
+        # source_list를 순회하는 루프
         for item in source_list:
+
             converted_item = {}
-            for unified_key, fanuc_key in key_mapping.items():
-                # 값 가져오기 (없으면 0.0 <- 안전장치)
-                val = item.get(unified_key, 0.0)
-                converted_item[fanuc_key] = val
             
+            # FANUC_SCHEMA에 정의된 대로 데이터를 뽑아냄
+            for fanuc_key, info in FANUC_SCHEMA.items():
+                
+                unified_key = info['source'] # 'feed', 'x'...
+                target_type = info['type']   # float
+                
+                # 값 가져오기 (기본값 0.0)
+                val = item.get(unified_key, 0.0)
+                
+                # 타입 강제 변환 (안전장치)
+                try:
+                    converted_item[fanuc_key] = target_type(val)
+                except (ValueError, TypeError):
+                    converted_item[fanuc_key] = target_type() # 0.0
+
             transformed_list.append(converted_item)
             
         return transformed_list

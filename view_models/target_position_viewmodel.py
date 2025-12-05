@@ -18,7 +18,7 @@ View → ViewModel → (Worker) → Model
 
 from PyQt6.QtCore import Qt, QObject, QThread, pyqtSignal, pyqtSlot, QMetaObject
 from view_models.target_position_viewmodel_worker import TargetPositionViewModelWorker as Worker
-from models.position_model import PositionModel as Model
+from models.position_model import PositionModel, Position
 from services.plc_service import PLCService
 from services.macro_service import MacroService
 from config.paths import CONFIG_MACRO_PATH
@@ -32,7 +32,7 @@ class TargetPositionViewModel(QObject):
     macros_loaded = pyqtSignal(dict)    # 매크로 데이터 가져오기 완료
 
 
-    def __init__(self, model: Model, plc_service: PLCService):
+    def __init__(self, model: PositionModel, plc_service: PLCService):
         """
         인자들:
             model: 데이터 모델 인스턴스
@@ -158,20 +158,18 @@ class TargetPositionViewModel(QObject):
 
 
 
-    def request_move_robot(self, coords: dict):
+    def request_move_robot(self, position: Position):
         """
         View에서 요청받은 좌표로 로봇 이동 명령을 내린다.
         """
 
-        print(f"request_move_robot() 호출: {coords}")
-
         # 상태 알림
         #   사용자에게 명령이 시스템으로 전송됐다는 피드백 주기 위함
         # View에게 전화 걸어서 알림
-        self.state_changed.emit(f"이동 명령 전송 중... (좌표: {coords})")
+        self.state_changed.emit(f"이동 명령 전송 중... (좌표: {position})")
 
         # PLCService 호출
         # PLCService.move_robot()은 내부적으로 QThread와 Worker를 생성, 
         # UI 멈춤 없이 비동기로 통신을 수행
-        self._plc_service.move_robot(coords)
+        self._plc_service.move_robot(position)
 
