@@ -1,21 +1,29 @@
 # models/position_model.py
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from typing import Dict, Any
 
 
 @dataclass(frozen=True, slots=True)
 class Position:
-    """불변 좌표 객체"""
+    """
+    불변 좌표 객체
+    로봇이 움직이는 데 필요한 모든 정보
+    """
     x: float = 0.0
     y: float = 0.0
     z: float = 0.0
     w: float = 0.0
     p: float = 0.0
     r: float = 0.0
+    feed: float = 0.0  # 속도 정보
 
     def to_dict(self) -> Dict[str, float]:
         return {"x": self.x, "y": self.y, "z": self.z, "w": self.w, "p": self.p, "r": self.r}
+    
+    def to_unified_dict(self) -> Dict[str, Any]:
+        # dataclasses.asdict를 쓰면 자동으로 딕셔너리가 된다
+        return asdict(self)
 
 
 
