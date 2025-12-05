@@ -32,9 +32,11 @@ class CenterPanel(QFrame):
 
 
 
+        # 위젯 배치를 위한 임시 스타일 표시
+        # TODO: 모든 위젯들 완성 후 삭제해야 된다
+        #       styles/stylesheet.qss 보다 아래 코드가 우선순위가 더 높다
         connection_status.setStyleSheet("color: black; border: 1px solid red;")
         robot_position.setStyleSheet("color: black; border: 1px solid black;")
-        target_position.setStyleSheet("color: black; border: 1px solid green;")
         user_position.setStyleSheet("color: black; border: 1px solid green;")
 
         layout.addWidget(connection_status, stretch=1)
