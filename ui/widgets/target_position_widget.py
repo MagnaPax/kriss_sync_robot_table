@@ -418,7 +418,7 @@ class TargetPositionWidget(BaseWidget):
 
         직접 MacroSettingsDialog 를 연다
         """
-        EVENT_BUS.ui_log_message.emit("매크로 편집 다이얼로그(MacroSettingsDialog) 열림", "INFO")
+        EVENT_BUS.ui_log_message.emit(f"{self.log_prefix} 매크로 편집 다이얼로그(MacroSettingsDialog) 열림", "INFO")
 
         dialog = MacroSettingsDialog(parent=self)
 
@@ -426,7 +426,7 @@ class TargetPositionWidget(BaseWidget):
         # Modal로 열어서 호출부 입력 막힘
         dialog.exec()
 
-        # 다이얼로그가 닫히면 이 줄이 실행됨 -> 데이터 새로고침
+        # 다이얼로그가 닫히면 이 줄이 실행됨 -> 데이터 새로고침 기능
         self.vm.load_macro_data()
 
     @pyqtSlot(str)
@@ -479,7 +479,7 @@ class TargetPositionWidget(BaseWidget):
             ui_data = self._extract_data_from_ui()
 
             EVENT_BUS.ui_log_message.emit(
-                f"사용자 이동 명령(GoTo) 요청: {ui_data}", 
+                f"{self.log_prefix} 사용자의 이동 명령(GoTo) 요청: {ui_data}", 
                 "INFO"
             )
 

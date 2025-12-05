@@ -151,9 +151,6 @@ class FanucCommander:
         """
         원본 main() 함수의 핵심 로직을 수행
         """
-
-        print(f"execute_sequence 호출됨: {coordinates}\n")
-
         plc = self._plc
 
         # 시퀀스 시작용 PLC 신호 (초기화)

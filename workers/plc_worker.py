@@ -55,11 +55,7 @@ class PLCWorker(QObject):
 
                 # --- 이동 명령 (Commander 사용) --- #
                 case 'MOVE':
-                    print(f"case MOVE 호출됨: {self.data}\n")
-
                     fanuc_data = self._transform_to_fanuc_format(self.data)
-
-                    print(f"변환된 데이터(FANUC용): {fanuc_data}\n")
 
                     # Commander 호출
                     # FanucCommander.execute_sequence는 (bool, str)을 반환하므로 그대로 받음
