@@ -23,6 +23,7 @@ class TargetPositionViewModel(QObject):
         """
         super().__init__()
 
+        # 로그 메세지의 말머리(로그 발생 위치 표시)
         self.log_prefix = f"[{self.__class__.__name__}]"
 
         # ViewModel이 Model 인스턴스를 소유한다
