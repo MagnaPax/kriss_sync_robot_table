@@ -1,19 +1,16 @@
 # ui/widgets/task_manager_widget.py
-from ui.widgets.base_widget import BaseWidget
+from pathlib import Path
 from PyQt6.QtCore import Qt, pyqtSlot
 from PyQt6.QtWidgets import (
     QVBoxLayout, 
     QGroupBox, 
     QLabel, 
-    QFrame, 
     QHBoxLayout, 
-    QFormLayout, 
-    QLineEdit, 
-    QDoubleSpinBox,
-    QGridLayout,
     QPushButton,
-    QMessageBox
+    QFileDialog
 )
+from ui.widgets.base_widget import BaseWidget
+from core.event_bus import EVENT_BUS
 
 
 class TaskManagerWidget(BaseWidget):
@@ -161,7 +158,8 @@ class TaskManagerWidget(BaseWidget):
     # --- 슬롯 ---
     @pyqtSlot()
     def _on_load_clicked(self):
-        print("LOAD 버튼 클릭됨")
+        self._handle_load_file_button_clicked()
+
 
     @pyqtSlot()
     def _on_start_clicked(self):
@@ -170,6 +168,38 @@ class TaskManagerWidget(BaseWidget):
     @pyqtSlot()
     def _on_stop_clicked(self):
         print("STOP 버튼 클릭됨")
+
+
+    @pyqtSlot()
+    def _handle_load_file_button_clicked(self):
+        """ 
+        'LOAD' 버튼이 클릭되면 
+            1. 파일을 선택 다이얼로그 표시
+            2. 선택된 파일이름 표시
+            3. 선택된 파일 VM에 전달
+        """
+        # QFileDialog를 사용하여 문자열 경로 획득
+        file_path_str, _ = QFileDialog.getOpenFileName(
+            self, # 부모 위젯
+            "좌표 시퀀스 파일 선택", # 다이얼로그 제목
+            "", # 기본 디렉토리
+            "텍스트 파일 (*.txt);;모든 파일 (*.*)" # 파일 필터
+        )
+        
+        if file_path_str:
+            # 문자열 경로를 pathlib.Path 객체로 변환
+            file_path_obj = Path(file_path_str)
+
+            if self.lbl_filename:
+                self.lbl_filename.setText(file_path_obj.name)
+
+            EVENT_BUS.ui_log_message.emit(f"파일 선택됨: {file_path_obj}", "INFO")
+            
+            # Path 객체를 VM의 슬롯으로 전달
+            # self.vm.load_coordinate_sequence_file(file_path_obj)
+
+        else:
+            EVENT_BUS.ui_log_message.emit("파일 선택이 취소되었습니다.", "INFO")
 
 
 
@@ -186,8 +216,11 @@ if __name__ == "__main__":
 
     from config.paths import STYLESHEET_PATH
     from styles.style_manager import load_and_apply_stylesheet
+    from core.log_listener import LogListener
 
     app = QApplication(sys.argv)
+
+    listener = LogListener()
 
     # 스타일시트 파일 로드 및 적용
     load_and_apply_stylesheet(app, STYLESHEET_PATH)
