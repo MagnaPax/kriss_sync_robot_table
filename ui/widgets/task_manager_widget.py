@@ -11,12 +11,19 @@ from PyQt6.QtWidgets import (
 )
 from ui.widgets.base_widget import BaseWidget
 from core.event_bus import EVENT_BUS
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from view_models.task_manager_viewmodel import TaskManagerViewModel
+
+
 
 
 class TaskManagerWidget(BaseWidget):
     """Sequence 파일 불러오기"""
 
-    def __init__(self, parent=None):
+    def __init__(self, view_model: "TaskManagerViewModel", parent=None):
         """Sequence 파일 로드 및 실행 제어 위젯"""
 
         # UI 요소 참조 변수 초기화
@@ -26,6 +33,8 @@ class TaskManagerWidget(BaseWidget):
         self.lbl_filename = None
         self.btn_start = None
         self.btn_stop = None
+
+        self.vm = view_model
 
         # BaseWidget의 __init__()이 _init_ui() 호출 → 실제 UI 생성
         super().__init__(parent)
@@ -196,7 +205,7 @@ class TaskManagerWidget(BaseWidget):
             EVENT_BUS.ui_log_message.emit(f"파일 선택됨: {file_path_obj}", "INFO")
             
             # Path 객체를 VM의 슬롯으로 전달
-            # self.vm.load_coordinate_sequence_file(file_path_obj)
+            self.vm.load_sequence_data(file_path_obj)
 
         else:
             EVENT_BUS.ui_log_message.emit("파일 선택이 취소되었습니다.", "INFO")
@@ -218,15 +227,31 @@ if __name__ == "__main__":
     from styles.style_manager import load_and_apply_stylesheet
     from core.log_listener import LogListener
 
+        # [중요] DLL 로드
+    from utils.dll_loader import load_pyads_dll
+    try:
+        load_pyads_dll()
+        print("✅ DLL 로드 완료")
+    except Exception as e:
+        print(f"⚠️ DLL 로드 실패: {e}")
+
+    from view_models.task_manager_viewmodel import TaskManagerViewModel
+    from services.sequence_service import SequenceService
+
+
     app = QApplication(sys.argv)
 
     listener = LogListener()
+
+    service = SequenceService()
+    vm = TaskManagerViewModel(service)
+
 
     # 스타일시트 파일 로드 및 적용
     load_and_apply_stylesheet(app, STYLESHEET_PATH)
 
     # 윈도우 생성 및 테스트
-    window = TaskManagerWidget()
+    window = TaskManagerWidget(vm)
     window.resize(450, 200) # 요청하신 비율을 확인하기 적당한 크기
     window.show()
 
