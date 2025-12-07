@@ -48,15 +48,10 @@ class TaskManagerWidget(BaseWidget):
         # 그룹박스 내부 레이아웃 (세로 정렬)
         group_layout = QVBoxLayout(base_group_box)
         group_layout.setSpacing(10)                 # 각 구역 사이의 간격
-        group_layout.setContentsMargins(15, 20, 15, 15)
+        group_layout.setContentsMargins(15, 10, 15, 15)
 
 
-        # [1분위] 공백
-        # 상단에 여백을 주어 정보창과 버튼들이 아래쪽에 위치하도록 함
-        group_layout.addStretch(1)
-
-
-        # [2분위] 정보 표시 (Feed Rate, Runtime)
+        # --- 정보 표시 (Feed Rate, Runtime) --- #
         info_layout = QHBoxLayout()
         
         # Feed Rate 레이블 
@@ -79,10 +74,18 @@ class TaskManagerWidget(BaseWidget):
         info_layout.addWidget(lbl_runtime_title)
         info_layout.addWidget(self.lbl_runtime_val)
         
+        # 그룹 레이아웃의 맨 위에 추가
         group_layout.addLayout(info_layout)
 
+        # 상단과 하단을 벌려주는 스프링
+        # info_layout은 위로, bottom_layout은 아래로
+        group_layout.addStretch(1)
 
-        # [3분위] 파일 로드 (LOAD 버튼 + 파일명)
+        # 1. file_layout와 control_layout를 좌우로 나란히 놓기 위한 부모 레이아웃
+        bottom_layout = QHBoxLayout()
+
+
+        # --- 2. 왼쪽: 파일 로드 (LOAD 버튼 + 파일명) --- #
         file_layout = QHBoxLayout()
         
         # LOAD 버튼
@@ -94,16 +97,14 @@ class TaskManagerWidget(BaseWidget):
         self.lbl_filename = QLabel("FileName...")
         self.lbl_filename.setObjectName("filename_label")
         
-        # 배치: LOAD버튼 - (간격) - 파일명 - (나머지 공백)
+        # 배치: LOAD버튼 - (간격) - 파일명 - (스프링)
         file_layout.addWidget(self.btn_load)
         file_layout.addSpacing(15)
         file_layout.addWidget(self.lbl_filename)
         file_layout.addStretch(1) # 왼쪽 정렬 유지
 
-        group_layout.addLayout(file_layout)
 
-
-        # [4분위] 제어 버튼 (START, STOP) - 우측 정렬
+        # --- 3. 오른쪽: 제어 버튼 (START, STOP) --- #
         control_layout = QHBoxLayout()
         
         # START 버튼
@@ -116,14 +117,18 @@ class TaskManagerWidget(BaseWidget):
         self.btn_stop.setFixedSize(70, 30)
         self.btn_stop.setProperty("type", "general")
 
-        # 배치: (공백) - START - (간격) - STOP
+        # 배치: (스프링) - START - (간격) - STOP
         control_layout.addStretch(1) # 우측 정렬 효과
         control_layout.addWidget(self.btn_start)
         control_layout.addSpacing(10)
         control_layout.addWidget(self.btn_stop)
 
-        group_layout.addLayout(control_layout)
+        # 4. bottom_layout 안에 file_layout과 control_layout을 좌우로 배치
+        bottom_layout.addLayout(file_layout)
+        bottom_layout.addLayout(control_layout)
 
+        # bottom_layout를 그룹 레이아웃에 추가
+        group_layout.addLayout(bottom_layout)
 
         # 전체 레이아웃에 그룹박스 추가
         main_layout.addWidget(base_group_box)
@@ -142,15 +147,18 @@ class TaskManagerWidget(BaseWidget):
             - 누가 누구랑 연결될 지 미리 정해주기
             - 앱이 시작될 때 딱 1번만 호출
         시그널-슬롯(_on으로 시작하는 메서드) connect를 모아놓음 - 버튼 눌리면 어떤 일을 할 지 약속
+
+        # Pylance 경고 해결 위해 if문 추가
         """
 
-        if self.btn_load: self.btn_load.clicked.connect(self._on_load_clicked)
-        if self.btn_start: self.btn_start.clicked.connect(self._on_start_clicked)
-        if self.btn_stop: self.btn_stop.clicked.connect(self._on_stop_clicked)
+        if self.btn_load: self.btn_load.clicked.connect(self._on_load_clicked)      # LOAD 연결
+        if self.btn_start: self.btn_start.clicked.connect(self._on_start_clicked)   # START 연결
+        if self.btn_stop: self.btn_stop.clicked.connect(self._on_stop_clicked)      # STOP 연결
 
 
 
-    # --- 슬롯 (추후 구현) ---
+
+    # --- 슬롯 ---
     @pyqtSlot()
     def _on_load_clicked(self):
         print("LOAD 버튼 클릭됨")
