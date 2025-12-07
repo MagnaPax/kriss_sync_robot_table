@@ -145,6 +145,47 @@ QWidget#right_panel {
 }
 
 
+/* TaskManagerWidget 전용 스타일 */
+/* 1. 메인 그룹박스 스타일 (TargetPosition과 통일) */
+#task_manager_widget > QGroupBox {
+    border: 1px solid #94a3b8;
+    border-radius: 6px;
+    margin-top: 20px;
+    font-weight: bold;
+    color: #333333;
+}
+
+#task_manager_widget > QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 10px;
+    background-color: transparent;
+}
+
+/* 2. 정보 타이틀 라벨 (Feed, Runtime) - 하늘색 강조 */
+#task_manager_widget QLabel#info_title {
+    color: #4FC1E9;  /* 기존 인라인 스타일 색상 */
+    font-weight: bold;
+    font-size: 13px;
+}
+
+/* 3. 정보 값 라벨 (숫자) - 굵게 */
+#task_manager_widget QLabel#info_value {
+    color: #333333;
+    font-weight: bold;
+    font-size: 13px;
+    margin-right: 5px;
+}
+
+/* 4. 파일명 라벨 - 일반 텍스트 */
+#task_manager_widget QLabel#filename_label {
+    color: #333333;
+    font-weight: normal;
+}
+
+/* (참고) 버튼은 py 코드에서 setProperty("type", "general")을 했으므로
+   기존의 보라색 버튼 스타일이 자동으로 적용됩니다. */
+
 
 
 
