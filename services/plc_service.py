@@ -221,8 +221,7 @@ class PLCService(QObject):
         self._worker.moveToThread(self._thread)
 
 
-        # --- 비서가 해야할 일 예약 --- #
-        # 비서가 전화로 보고(emit)하는 일에 대한 각각의 처리(Slot) 예약(connect)
+        # 비서의 전화보고(emit)를 받고 어떻게 처리(Slot)할지 미리 정해놓기(connect)
         self._worker.result.connect(self._handle_worker_result)
         self._worker.finished.connect(self._cleanup)
 
