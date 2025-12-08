@@ -7,7 +7,6 @@ TXT, CSV 파서 및 매크로 저장 시 사용되는 컬럼 순서와 키 매�
 사용법:
     from config.data_formats import TXT_SCHEMA, CSV_SCHEMA, MACRO_SCHEMA
 
-
     field_keys = list(TXT_SCHEMA.keys())
     print(field_keys)
 """

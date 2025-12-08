@@ -23,7 +23,9 @@
 
 from pathlib import Path
 from typing import Any, Dict, List
-from .base_parser import BaseParser
+from base_parser import BaseParser
+from config.data_formats import TXT_SCHEMA, CSV_SCHEMA
+
 
 
 # 타입 힌트를 위한 별칭 정의
@@ -99,38 +101,25 @@ class SequenceCsvParser(BaseParser):
 
     def parse(self, data: List[List[str]]) -> SequenceDict:
         """
-        FANUC 좌표 CSV 파일의 raw 리스트를 의미있는 딕셔너리 시퀀스로 파싱합니다.
-        (에러 처리는 제외)
-
-        CSV 데이터는 이미 List[List[str]] 형태로 로드되었다고 가정하며,
-        내부 데이터는 ['키', '값', '키', '값', ...] 형태로 나열되어 있습니다.
+        raw 리스트를 CSV_SCHEMA에 맞춰 파싱
         
         인자:
-            data (List[List[str]]): CSV 로더에서 반환된 형태
+            data: [['PRLINE', '1', 'F', '10', ...], ...] 형태의 리스트
             
         반환:
-            Dict[str, Dict[str, float]]: {'1': {'feed_rate': 10.0, 'radius_r': 5.0, ...}, ...}
+            {'1': {'turntable_feed_rate': 10.0, ...}, ...}
         """
-        
-        # CSV 키와 최종 딕셔너리 이름의 매핑 정의
-        KEY_MAPPING = {
-            'F': 'feed_rate',            # 초당 회전속도 (feed rate)
-            'U': 'polar_coord_θ',        # 각도 (극좌표계의 θ)
-            'X': 'polar_coord_radius',   # 반지름 (극좌표계의 r)
-            'Z': 'paraboloid_height',    # 파라볼로이드 높이
-            'B': 'tool_stroke_rpm',      # 툴 스트로크 속도 (rpm)
-        }
-
         parsed_data: SequenceDict = {}
 
-        for row_list in data:
+        for row_index, row_list in enumerate(data):
             if not row_list:
                 continue
                 
             temp_dict: CoordinateDict = {}
-            sequence_number: str = ""
+            sequence_id: str = ""
             
-            # 키(PRLINE, F, U, X, Z, A, B)와 값(1, 10, 0, 5, ...)이 번갈아 나옴
+            # 키-값 쌍으로 순회 (Step 2)
+            # 예: row_list[0]='PRLINE', row_list[1]='1', row_list[2]='F', row_list[3]='10' ...
             for i in range(0, len(row_list), 2):
                 if i + 1 >= len(row_list):
                     break
@@ -138,20 +127,32 @@ class SequenceCsvParser(BaseParser):
                 key = row_list[i].strip()
                 value_str = row_list[i+1].strip()
                 
-                if key == 'PRLINE':
-                    sequence_number = value_str
+                # 스키마에 정의된 키인지 확인
+                if key in CSV_SCHEMA:
+                    schema_info = CSV_SCHEMA[key]
+                    field_name = schema_info['name']
+                    data_type = schema_info['type']
+                    
+                    # 'id' (PRLINE)는 시퀀스 키로 사용
+                    if field_name == 'id':
+                        sequence_id = value_str # 정수로 변환하지 않고 문자열 키로 유지
+                    else:
+                        # 스키마에 정의된 타입(float 등)으로 변환하여 저장
+                        try:
+                            temp_dict[field_name] = data_type(value_str)
+
+                        except ValueError as e:
+                            # 변환 실패 시 에러 발생 (어떤 값이 문제인지 알려줌)
+                            raise ValueError(
+                                f"CSV 파싱 오류 ({row_index+1} 번째 줄) "
+                                f"키 '{key}'의 값 '{value_str}'을(를) {data_type.__name__} 타입으로 변환할 수 없습니다."
+                            ) from e
                 
-                elif key in KEY_MAPPING:
-                    new_key = KEY_MAPPING[key]
-                    temp_dict[new_key] = float(value_str)
-                
-                # 'A' 키와 그 값은 KEY_MAPPING에 없으므로 무시됨
-            
-            if sequence_number:
-                parsed_data[sequence_number] = temp_dict
+            # 유효한 ID가 있으면 결과에 추가
+            if sequence_id:
+                parsed_data[sequence_id] = temp_dict
                 
         return parsed_data
-
 
 
 class SequenceParserManager:
