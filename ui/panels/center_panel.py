@@ -24,7 +24,7 @@ class CenterPanel(QFrame):
 
         layout = QVBoxLayout(self)
 
-        connection_status = QGroupBox("Connection Status")
+        world_position = QGroupBox("World Position")
         robot_position = RobotPositionWidget()
         # MainViewModel에서 TargetPositionViewModel을 꺼내서 주입
         target_position = TargetPositionWidget(self.vm.target_position_vm)
@@ -35,13 +35,13 @@ class CenterPanel(QFrame):
         # 위젯 배치를 위한 임시 스타일 표시
         # TODO: 모든 위젯들 완성 후 삭제해야 된다
         #       styles/stylesheet.qss 보다 아래 코드가 우선순위가 더 높다
-        connection_status.setStyleSheet("color: black; border: 1px solid red;")
+        world_position.setStyleSheet("color: black; border: 1px solid green;")
         robot_position.setStyleSheet("color: black; border: 1px solid black;")
         user_position.setStyleSheet("color: black; border: 1px solid green;")
 
-        layout.addWidget(connection_status, stretch=1)
-        layout.addWidget(robot_position,    stretch=2)
-        layout.addWidget(target_position,   stretch=1)
-        layout.addWidget(user_position,     stretch=1)
+        layout.addWidget(world_position,    stretch=1)  # 1/5 -> 20%
+        layout.addWidget(robot_position,    stretch=2)  # 2/5 -> 40%
+        layout.addWidget(target_position,   stretch=1)  # 1/5 -> 20%
+        layout.addWidget(user_position,     stretch=1)  # 1/5 -> 20%
 
 
