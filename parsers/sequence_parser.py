@@ -22,14 +22,14 @@
 """
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 from .base_parser import BaseParser
-from config.data_formats import TXT_SCHEMA, CSV_SCHEMA
+from config.data_formats import CSV_SCHEMA, DEFAULT_VALUES
 
 
 
 # 타입 힌트를 위한 별칭 정의
-CoordinateDict = Dict[str, float]
+CoordinateDict = Dict[str, Union[float, str]]
 SequenceDict = Dict[str, CoordinateDict]
 
 
@@ -147,7 +147,10 @@ class SequenceCsvParser(BaseParser):
                                 f"CSV 파싱 오류 ({row_index+1} 번째 줄) "
                                 f"키 '{key}'의 값 '{value_str}'을(를) {data_type.__name__} 타입으로 변환할 수 없습니다."
                             ) from e
-                
+
+            # 기본값(status, result) 추가
+            temp_dict.update(DEFAULT_VALUES)
+
             # 유효한 ID가 있으면 결과에 추가
             if sequence_id:
                 parsed_data[sequence_id] = temp_dict

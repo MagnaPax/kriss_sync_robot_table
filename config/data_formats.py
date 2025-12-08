@@ -23,7 +23,7 @@ CSV_SCHEMA: dict[str, dict] = {
     'F': {'name': 'turntable_feed_rate','type': float},     # 초당 회전속도 (feed rate)
     'U': {'name': 'polar_coord_theta',  'type': float},     # 각도 (극좌표계의 θ)
     'X': {'name': 'polar_coord_radius', 'type': float},     # 반지름 (극좌표계의 r)
-    'Z': {'name': 'paraboloid_height',  'type': float},     # 파라볼로이드 높이
+    'Z': {'name': 'paraboloid_height',  'type': float},     # 파라볼로이드 높이 (쌍곡포물면)
     'A': {'name': 'untitle',            'type': float},     # 의미 없음. 그냥 0
     'B': {'name': 'tool_stroke_rpm',    'type': float},     # 툴 스트로크 속도 (rpm)
 }
@@ -84,6 +84,43 @@ FANUC_SCHEMA: dict[str, dict] = {
     'P': {'source': 'p',    'type': float},
     'R': {'source': 'r',    'type': float}
 }
+
+
+
+# =============================================================================
+# DEFAULT_VALUES 관리 상수 (오타 방지용)
+# =============================================================================
+class TaskStatus:
+    """작업 진행 상태"""
+    UNPROCESSED = 'unprocessed' # 대기 중 (아직 시작 안 함)
+    PROCESSING = 'processing'   # 실행 중 (현재 로봇이 이동 중)
+    PROCESSED = 'processed'     # 완료됨 (이 줄은 실행 끝남)
+
+class TaskResult:
+    """작업 최종 결과"""
+    PENDING = 'pending'         # 결과 대기 (아직 모름)
+    COMPLETED = 'completed'     # 성공
+    FAILED = 'failed'           # 실패 (에러 발생)
+
+
+# =============================================================================
+# 시퀀스 처리 상태 (원본 CSV 파일에는 없지만 내부적으로 필요한 필드들)
+# =============================================================================
+DEFAULT_VALUES: dict[str, str] = {
+    'status': TaskStatus.UNPROCESSED,
+    'result': TaskResult.PENDING
+}
+
+
+
+
+
+
+
+
+
+
+
 
 # =============================================================================
 # 통합 데이터 스키마
