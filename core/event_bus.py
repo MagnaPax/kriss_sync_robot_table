@@ -247,7 +247,7 @@ class EventBus(QObject):
     # =========================================================================
     # Data Events (데이터 변경)
     # =========================================================================
-    sequence_data_updated = pyqtSignal(list)
+    sequence_data_updated = pyqtSignal(dict)
     """
     시퀀스 데이터가 새로 로드되거나 변경되었을 때 발행
     
@@ -257,7 +257,12 @@ class EventBus(QObject):
         - ProgressBarViewModel (총 단계 수 계산)
     
     Args:
-        list: 원본 파일에서 파싱이 끝난 시퀀스 데이터 [{'F':100, 'X':10...}, ...]
+        dict: 원본 파일에서 파싱이 끝난 시퀀스 데이터 
+        예 :
+            {
+                '1': {'turntable_feed_rate': 10.0, 'polar_coord_theta': 0.0, ...},
+                '2': {'turntable_feed_rate': 10.0, 'polar_coord_theta': 51.42857142857143, ...}
+            }
     """
 
 
