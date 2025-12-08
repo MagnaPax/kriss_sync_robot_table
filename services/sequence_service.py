@@ -10,16 +10,19 @@ from PyQt6.QtCore import QObject, QTimer, pyqtSlot, QThread, Qt, QMetaObject
 
 class SequenceService(QObject):
     """
+    스레드 : 메인 스레드(UI 스레드)
     역할:
         워커 스레드 관리
     """
-
-    
 
     def __init__(self):
         super().__init__()
 
         self._log_prefix = f"[{self.__class__.__name__}]"
+
+        # 읽어 온 시퀀스 데이터 보관 
+        # 데이터 공유(EVENT_BUS.sequence_data_updated.emit)한 이후에 다른 위젯이 달라고 할 때 주려고
+        self._current_sequence_data: list = []
 
         # 새로운 사무실(QThread) '공간 확보'
         self._thread: QThread | None = None
@@ -75,11 +78,13 @@ class SequenceService(QObject):
             raise ValueError(msg)
 
 
-    @pyqtSlot(bool, str, list)
+    @pyqtSlot(bool, str, dict)
     def _handle_file_load_result(self, success: bool, msg: str, sequence_data: list):
         """파일 로드 워커 실행 결과 처리"""
         level = "INFO" if success else "ERROR"
         EVENT_BUS.ui_log_message.emit(msg, level)
+
+        EVENT_BUS.ui_log_message.emit(f"_handle_file_load_result에 들어온 파일 내용\n{sequence_data}", "DEBUG")
 
     @pyqtSlot()
     def _cleanup(self):
