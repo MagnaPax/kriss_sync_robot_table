@@ -23,7 +23,7 @@
 
 from pathlib import Path
 from typing import Any, Dict, List
-from base_parser import BaseParser
+from .base_parser import BaseParser
 from config.data_formats import TXT_SCHEMA, CSV_SCHEMA
 
 
