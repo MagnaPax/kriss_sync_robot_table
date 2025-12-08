@@ -189,10 +189,10 @@ class TaskManagerWidget(BaseWidget):
         """
         # QFileDialog를 사용하여 문자열 경로 획득
         file_path_str, _ = QFileDialog.getOpenFileName(
-            self, # 부모 위젯
-            "좌표 시퀀스 파일 선택", # 다이얼로그 제목
-            "", # 기본 디렉토리
-            "텍스트 파일 (*.txt);;모든 파일 (*.*)" # 파일 필터
+            self,                   # 부모 위젯
+            "시퀀스 파일 선택",     # 다이얼로그 제목
+            "/",                    # 다이얼로그 창에서 처음 열어볼 디렉토리
+            "시퀀스 파일 (*.csv)"   # 파일 필터
         )
         
         if file_path_str:
