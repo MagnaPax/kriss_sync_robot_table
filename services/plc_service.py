@@ -237,6 +237,10 @@ class PLCService(QObject):
         self._thread.start()
 
 
+
+    # ==========================================================
+    # [슬롯] Worker 시그널에 대한 처리
+    # ==========================================================
     @pyqtSlot(bool, str)
     def _handle_worker_result(self, success: bool, msg: str):
         """워커 실행 결과 처리"""
