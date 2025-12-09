@@ -147,7 +147,7 @@ class FanucCommander:
         return {key: current[key] - previous[key] for key in current.keys()}
 
 
-    def execute_sequence(self, coordinates: list[dict], check_stop_func=None):
+    def run_legacy_sequence(self, coordinates: list[dict], check_stop_func=None):
         """
         원본 main() 함수의 핵심 로직을 수행
         """

@@ -11,6 +11,7 @@ from communication.twincat_connector import TwinCATConnector
 from communication.fanuc_commander import FanucCommander
 from config.data_formats import *
 from typing import Dict, List, Any
+from core.event_bus import EVENT_BUS
 
 
 
@@ -58,8 +59,8 @@ class PLCWorker(QObject):
                     fanuc_data = self._transform_to_fanuc_format(self.data)
 
                     # Commander 호출
-                    # FanucCommander.execute_sequence는 (bool, str)을 반환하므로 그대로 받음
-                    success, msg = self.commander.execute_sequence(
+                    # FanucCommander.run_legacy_sequence (bool, str)을 반환하므로 그대로 받음
+                    success, msg = self.commander.run_legacy_sequence(
                         fanuc_data, 
                         check_stop_func=self._is_interrupted
                     )
