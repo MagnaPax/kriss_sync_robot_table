@@ -2,13 +2,15 @@
 """
 데이터 파일 형식 명세 (Schema Definitions)
 ---------------------------------------
-TXT, CSV 파서 및 매크로 저장 시 사용되는 컬럼 순서와 키 매핑을 정의
+외부 파일(CSV, TXT)과 내부 로직, 그리고 PLC 통신 간의 데이터 구조를 정의합니다.
+
+데이터 흐름:
+    1. 파일 로드 (CSV/TXT) -> [CSV_SCHEMA / TXT_SCHEMA]를 사용해 파싱
+    2. 파서 -> [DEFAULT_VALUES] (status, result) 주입
+    3. Service/Worker -> [FANUC_SCHEMA]를 사용해 PLC 전송용 데이터로 변환
 
 사용법:
-    from config.data_formats import TXT_SCHEMA, CSV_SCHEMA, MACRO_SCHEMA
-
-    field_keys = list(TXT_SCHEMA.keys())
-    print(field_keys)
+    from config.data_formats import TXT_SCHEMA, CSV_SCHEMA
 """
 
 from typing import List, Dict
@@ -16,22 +18,27 @@ from typing import List, Dict
 
 
 # =============================================================================
-# CSV 파일 형식
+# [INPUT] 외부 파일 파싱용 스키마
 # =============================================================================
+
+# --- CSV 파일 형식 (통합 제어용) --- #
+# 용도: 로봇 팔과 턴테이블을 동시에 제어하는 시퀀스 파일 (*.csv)
+# 특징: 'TwinCATCommander'의 'IntegratedExecutor'에서 사용됨
+# 매핑: 파일 헤더(Key) -> 내부 변수명(Name) & 데이터 타입(Type)
 CSV_SCHEMA: dict[str, dict] = {
-    'PRLINE': {'name': 'id','type': int},                   # 시퀀스 번호
-    'F': {'name': 'turntable_feed_rate','type': float},     # 초당 회전속도 (feed rate)
-    'U': {'name': 'polar_coord_theta',  'type': float},     # 각도 (극좌표계의 θ)
-    'X': {'name': 'polar_coord_radius', 'type': float},     # 반지름 (극좌표계의 r)
-    'Z': {'name': 'paraboloid_height',  'type': float},     # 파라볼로이드 높이 (쌍곡포물면)
-    'A': {'name': 'untitle',            'type': float},     # 의미 없음. 그냥 0
-    'B': {'name': 'tool_stroke_rpm',    'type': float},     # 툴 스트로크 속도 (rpm)
+    'PRLINE': {'name': 'id','type': int},                   # 시퀀스 고유 번호 (Key로 사용됨)
+    'F': {'name': 'turntable_feed_rate','type': float},     # 턴테이블 회전 속도
+    'U': {'name': 'polar_coord_theta',  'type': float},     # 극좌표계 Theta (각도) -> 턴테이블 회전량
+    'X': {'name': 'polar_coord_radius', 'type': float},     # 극좌표계 Radius (반지름)
+    'Z': {'name': 'paraboloid_height',  'type': float},     # 쌍곡포물면 높이 (Z축)
+    'A': {'name': 'untitle',            'type': float},     # (사용 안 함) 더미 데이터
+    'B': {'name': 'tool_stroke_rpm',    'type': float},     # 엔드 이펙터(Tool) 스트로크 속도
 }
 
-
-# =============================================================================
-# TXT 파일 형식 (순서가 중요함)
-# =============================================================================
+# --- TXT 파일 형식  --- #
+# 용도: 구형 시퀀스 파일 (*.txt)
+# 특징: 로봇 좌표(X~R) 외에도 턴테이블(T) 및 툴 회전(M, N) 제어가 포함됨
+# 주의: 파일에 헤더가 없으므로 '순서'가 매우 중요함 (인덱스 0~9 매핑)
 TXT_SCHEMA: dict[str, dict] = {
     'F': {'name': 'feed_rate',          'type': float},     # 이동 속도 (deg/sec) 또는 (mm/sec)
     'T': {'name': 'turntable_deg',      'type': float},     # 턴테이블 각도 (deg)
@@ -47,12 +54,12 @@ TXT_SCHEMA: dict[str, dict] = {
 
 
 # =============================================================================
-# 매크로 데이터 형식
+# [STORAGE] 매크로 저장/로드용 스키마
 # =============================================================================
-# 매크로 저장 시 사용되는 키 목록 (검증용)
+# 용도: 사용자 정의 매크로(MacroSettingsDialog)를 JSON 파일로 저장하거나 검증할 때 사용
 MACRO_SCHEMA: dict[str, type] = {
     'macro_id': str,
-    'name': str,
+    'name': str,        # 사용자 지정 설명 (예: "홈 위치")
     'x': float,
     'y': float,
     'z': float,
@@ -73,8 +80,11 @@ MACRO_UI_LABELS: Dict[str, str] = {
 
 
 # =============================================================================
-# FANUC 실행용
+# [OUTPUT] PLC 통신용
 # =============================================================================
+# 용도: 내부 데이터를 PLC(TwinCAT/FANUC)가 이해할 수 있는 키로 최종 변환
+# 매핑: 내부 변수명(Source) -> PLC 데이터 키(Key)
+# 위치: Worker의 _transform_to_fanuc_format 메서드에서 참조함
 FANUC_SCHEMA: dict[str, dict] = { 
     'F': {'source': 'feed', 'type': float},
     'X': {'source': 'x',    'type': float},
@@ -88,7 +98,7 @@ FANUC_SCHEMA: dict[str, dict] = {
 
 
 # =============================================================================
-# DEFAULT_VALUES 관리 상수 (오타 방지용)
+# [INTERNAL] 상태 관리 상수 및 기본값
 # =============================================================================
 class TaskStatus:
     """작업 진행 상태"""
@@ -103,55 +113,9 @@ class TaskResult:
     FAILED = 'failed'           # 실패 (에러 발생)
 
 
-# =============================================================================
-# 시퀀스 처리 상태 (원본 CSV 파일에는 없지만 내부적으로 필요한 필드들)
-# =============================================================================
+# 용도: 파일에는 없지만, 앱 구동을 위해 파서가 강제로 주입해야 하는 기본값들
+# 위치: SequenceParser.parse() 메서드에서 사용됨
 DEFAULT_VALUES: dict[str, str] = {
     'status': TaskStatus.UNPROCESSED,
     'result': TaskResult.PENDING
-}
-
-
-
-
-
-
-
-
-
-
-
-
-# =============================================================================
-# 통합 데이터 스키마
-# =============================================================================
-
-# 통합 데이터 스키마
-UNIFIED_DATA: dict[str, type] = {
-
-    # 1. 메타 데이터 (추적용)
-    'source':   str,    # 데이터 출처 (예: "UI", "TXT", "CSV")
-    'name':     str,    # 명령 이름 (예: "GoTo", "Macro_1")
-    'seq_id':   int,    # [CSV] PRLINE (시퀀스 번호)
-
-    # 로봇 제어
-    'feed':     float,  # robot_feed_rate
-    'x':        float,  # x_coord
-    'y':        float,  # y_coord
-    'z':        float,  # z_coord
-    'w':        float,  # w_angle
-    'p':        float,  # p_angle
-    'r':        float,  # r_angle
-    'rpm_rot':  float,  # tool_rotation_rpm (M)
-    'rpm_rev':  float,  # tool_revolution_rpm (N)
-    
-    # 턴테이블
-    'tt_feed':  float,  # turntable_feed_rate
-    'radius':   float,  # polar_coord_radius
-    'theta':    float,  # polar_coord_theta
-    'para_z':   float,  # paraboloid_height
-    'stroke':   float,  # tool_stroke_rpm
-
-    # 기타
-    'dummy':    float   # [CSV] A (의미 없는 더미 값)
 }
