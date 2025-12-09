@@ -51,6 +51,7 @@ class TwinCATConnector:
     def handle(self) -> Union[pyads.Connection, MockConnection]:
         """
         연결된 pyads 객체 반환 (Commander가 사용)
+            변수(_twincat)에 저장된 값을 그때그때 꺼내준다
         """
         if self._twincat is None or not self._is_connected:
             raise ConnectionError("TwinCAT 연결이 초기화되지 않았거나 끊어졌습니다.")
@@ -73,7 +74,7 @@ class TwinCATConnector:
             return
 
         try:
-            # 1. Connection 객체 생성
+            # 1. Connection(연결객체) 생성
             if not self._is_demo:
                 # 실제 배포 환경
                 self._twincat = pyads.Connection(self.ams_net_id, self.port)

@@ -25,7 +25,12 @@ class FanucCommander:
 
     @property
     def _plc(self) -> Union[pyads.Connection, 'MockConnection']:
-        """Connector의 활성 핸들을 가져오는 단축 속성"""
+        """
+        Connector의 활성 핸들을 가져오는 단축 속성
+
+        사용 예:
+            self._plc : TwinCATConnector.handle 실행돼서 _twincat 반환됨
+        """
         return self.connector.handle
 
 
