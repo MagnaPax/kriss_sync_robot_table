@@ -1,13 +1,13 @@
 # services/plc_service.py
 import time
-from PyQt6.QtCore import QObject, QTimer, pyqtSlot, QThread, Qt, QMetaObject
 from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import QObject, QTimer, pyqtSlot, QThread, Qt, QMetaObject
 
 from core.event_bus import EVENT_BUS
-from communication.twincat_connector import TwinCATConnector
-from communication.fanuc_commander import FanucCommander
 from workers.plc_worker import PLCWorker
 from models.position_model import Position
+from communication.twincat_connector import TwinCATConnector
+from communication.twincat_commander import TwinCATCommander
 
 
 
@@ -26,7 +26,7 @@ class PLCService(QObject):
         
         # 서비스가 Model을 소유 - 연결과 명령 담당 객체 생성
         self.connector = TwinCATConnector()
-        self.commander = FanucCommander(self.connector)
+        self.commander = TwinCATCommander(self.connector)
 
 
         # --- 비동기 작업용 스레드/워커 변수 --- #
