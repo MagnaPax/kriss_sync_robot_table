@@ -55,7 +55,7 @@ class TargetPositionViewModel(QObject):
 
 
 
-    def request_move_robot(self, position: Position):
+    def request_move_robot(self, position_obj: Position):
         """
         로봇 이동 명령을 PLCService로 위임
         View에서 직접 호출
@@ -64,10 +64,10 @@ class TargetPositionViewModel(QObject):
         # 상태 알림
         #   사용자에게 명령이 시스템으로 전송됐다는 피드백 주기 위해
         # View에게 전화 걸어서 알림
-        self.state_changed.emit(f"이동 명령 전송 중... (좌표: {position})")
+        self.state_changed.emit(f"이동 명령 전송 중... (좌표: {position_obj})")
 
         # PLCService 호출
         # PLCService.move_robot()은 내부적으로 QThread와 Worker를 생성, 
         # UI 멈춤 없이 비동기로 통신을 수행
-        self._plc_service.move_robot(position)
+        self._plc_service.move_robot(position_obj)
 

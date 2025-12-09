@@ -177,13 +177,13 @@ class PLCService(QObject):
         self._start_worker('STOP', log_msg="프로세스 중지 요청...")
 
 
-    def move_robot(self, position:Position):
+    def move_robot(self, position_obj:Position):
         """좌표 이동 요청"""
 
         try:
             # 객체 -> 딕셔너리 변환
             # Worker는 내부적으로 딕셔너리 리스트를 처리하도록 설계되어 있기 때문
-            coords_dict = position.to_unified_dict()
+            coords_dict = position_obj.to_unified_dict()
 
             # 메타 데이터 추가(빼도 됨)
             coords_dict['name'] = 'Manual_Position_Obj'
@@ -192,7 +192,7 @@ class PLCService(QObject):
             sequence_data = [coords_dict]
 
             # Worker 호출
-            self._start_worker('MOVE', data=sequence_data, log_msg=f"단일 명령 이동: {position}")
+            self._start_worker('MOVE', data=sequence_data, log_msg=f"단일 명령 이동: {position_obj}")
 
         except Exception as e:
             EVENT_BUS.ui_log_message.emit(f"좌표 이동 실패: {e}", "ERROR")

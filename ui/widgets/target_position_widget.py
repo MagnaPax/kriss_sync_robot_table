@@ -310,6 +310,9 @@ class TargetPositionWidget(BaseWidget):
     def _extract_data_from_ui(self) -> Position:
         """
         QLineEdit 객체들에서 데이터만 뽑아서 Position 객체를 만든다.
+        뷰모델에게 QLineEdit 객체를 넘기지 않고 데이터 뽑아서 넘기는 이유
+            - 워커가 이 객체를 들고 백그라운드 스레드에서 작업하면 스레드 충돌로 에러난다
+            - 뷰모델이 뷰와 결합해서 뷰를 바꿀 때 뷰모델까지 바꿔야 된다
         """
         data = {}
 
@@ -476,14 +479,14 @@ class TargetPositionWidget(BaseWidget):
 
         try:
             # QLineEdit 객체로부터 데이터 추출
-            ui_data = self._extract_data_from_ui()
+            line_edit_data = self._extract_data_from_ui()
 
             EVENT_BUS.ui_log_message.emit(
-                f"{self.log_prefix} 사용자의 이동 명령(GoTo) 요청: {ui_data}", 
+                f"{self.log_prefix} 사용자의 이동 명령(GoTo) 요청: {line_edit_data}", 
                 "INFO"
             )
 
-            self.vm.request_move_robot(ui_data)
+            self.vm.request_move_robot(line_edit_data)
 
         except ValueError as e:
             msg = "이동 명령 실패: 좌표값 입력 오류 (숫자가 아닌 문자가 포함됨)"
