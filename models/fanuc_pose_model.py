@@ -7,8 +7,17 @@ from typing import Dict, Any
 @dataclass(frozen=True, slots=True)
 class FANUCPose:
     """
-    불변 좌표 객체
-    로봇이 움직이는 데 필요한 모든 정보
+    FANUC 로봇 좌표 데이터 객체
+        내부 로직용: ViewModel, Service, Worker 사이에서 데이터를 주고받을 때 사용
+    
+    Attributes:
+        x (float): X축 좌표 (mm) - 로봇 베이스 기준 전후
+        y (float): Y축 좌표 (mm) - 로봇 베이스 기준 좌우
+        z (float): Z축 좌표 (mm) - 로봇 베이스 기준 상하
+        w (float): W (Yaw) - X축 기준 회전 각도 (deg)
+        p (float): P (Pitch) - Y축 기준 회전 각도 (deg)
+        r (float): R (Roll) - Z축 기준 회전 각도 (deg)
+        f (float): Feed Rate - 이동 속도 (mm/sec)
     """
     x: float = 0.0
     y: float = 0.0
@@ -16,15 +25,14 @@ class FANUCPose:
     w: float = 0.0
     p: float = 0.0
     r: float = 0.0
-    feed: float = 0.0  # 속도 정보
+    f: float = 0.0  # 속도 정보
 
     def to_dict(self) -> Dict[str, float]:
-        return {"x": self.x, "y": self.y, "z": self.z, "w": self.w, "p": self.p, "r": self.r}
+        return {"f":self.f, "x": self.x, "y": self.y, "z": self.z, "w": self.w, "p": self.p, "r": self.r}
     
     def to_unified_dict(self) -> Dict[str, Any]:
         # dataclasses.asdict를 쓰면 자동으로 딕셔너리가 된다
         return asdict(self)
-
 
 
 class FANUCPoseModel:
@@ -93,6 +101,13 @@ class FANUCPoseModel:
             return macros[macro_id]
         except KeyError:
             raise KeyError(f"매크로 '{macro_id}'를 찾을 수 없습니다.")
+
+
+
+
+
+
+
 
 
 
