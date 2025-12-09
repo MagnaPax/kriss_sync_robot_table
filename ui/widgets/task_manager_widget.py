@@ -164,21 +164,21 @@ class TaskManagerWidget(BaseWidget):
 
 
 
-    # --- 슬롯 ---
+    # --- 슬롯 메서드 [반응] 이벤트 발생했다는 신호 수신 -> _handle 메서드에 일 시키자 ---
     @pyqtSlot()
     def _on_load_clicked(self):
         self._handle_load_file_button_clicked()
 
-
     @pyqtSlot()
     def _on_start_clicked(self):
-        print("START 버튼 클릭됨")
+        self._handle_start_button_clicked()
 
     @pyqtSlot()
     def _on_stop_clicked(self):
         print("STOP 버튼 클릭됨")
 
 
+    # --- [처리] UI 차원에서 해야 할 일 --- #
     @pyqtSlot()
     def _handle_load_file_button_clicked(self):
         """ 
@@ -209,6 +209,20 @@ class TaskManagerWidget(BaseWidget):
 
         else:
             EVENT_BUS.ui_log_message.emit("파일 선택이 취소되었습니다.", "INFO")
+
+    def _handle_start_button_clicked(self):
+        """
+        START 버튼 클릭 시: 파일이 로드되었는지 확인하고 VM에 시퀀스 시작을 요청
+        """
+        # 방어 코드 - 읽은 파일이 없으면 뷰모델 호출 안 함
+        if self.lbl_filename is None or self.lbl_filename.text() == "FileName..." or not self.lbl_filename.text(): return
+
+        EVENT_BUS.ui_log_message.emit(f"[{self.__class__.__name__}] START 버튼 클릭됨 - 작업 시작 요청", "INFO")
+
+        self.vm.start_sequence()
+
+
+
 
 
 
