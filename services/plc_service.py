@@ -5,7 +5,7 @@ from PyQt6.QtCore import QObject, QTimer, pyqtSlot, QThread, Qt, QMetaObject
 
 from core.event_bus import EVENT_BUS
 from workers.plc_worker import PLCWorker
-from models.position_model import Position
+from models.fanuc_pose_model import FANUCPose
 from communication.twincat_connector import TwinCATConnector
 from communication.twincat_commander import TwinCATCommander
 
@@ -177,13 +177,13 @@ class PLCService(QObject):
         self._start_worker('STOP', log_msg="프로세스 중지 요청...")
 
 
-    def move_robot(self, position_obj:Position):
+    def move_robot(self, fanuc_pose_obj:FANUCPose):
         """좌표 이동 요청"""
 
         try:
             # 객체 -> 딕셔너리 변환
             # Worker는 내부적으로 딕셔너리 리스트를 처리하도록 설계되어 있기 때문
-            coords_dict = position_obj.to_unified_dict()
+            coords_dict = fanuc_pose_obj.to_unified_dict()
 
             # 메타 데이터 추가(빼도 됨)
             coords_dict['name'] = 'Manual_Position_Obj'
@@ -192,7 +192,7 @@ class PLCService(QObject):
             sequence_data = [coords_dict]
 
             # Worker 호출
-            self._start_worker('MOVE', data=sequence_data, log_msg=f"단일 명령 이동: {position_obj}")
+            self._start_worker('MOVE', data=sequence_data, log_msg=f"단일 명령 이동: {fanuc_pose_obj}")
 
         except Exception as e:
             EVENT_BUS.ui_log_message.emit(f"좌표 이동 실패: {e}", "ERROR")

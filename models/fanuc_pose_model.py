@@ -1,11 +1,11 @@
-# models/position_model.py
+# models/fanuc_pose_model.py
 from __future__ import annotations
 from dataclasses import dataclass, asdict
 from typing import Dict, Any
 
 
 @dataclass(frozen=True, slots=True)
-class Position:
+class FANUCPose:
     """
     불변 좌표 객체
     로봇이 움직이는 데 필요한 모든 정보
@@ -27,7 +27,7 @@ class Position:
 
 
 
-class PositionModel:
+class FANUCPoseModel:
     """
     순수 비즈니스 로직
     """
@@ -37,22 +37,22 @@ class PositionModel:
     
 
     @staticmethod
-    def parse_positions_from_data(data: Dict[str, Any]) -> Dict[str, Position]:
+    def parse_poses_from_data(data: Dict[str, Any]) -> Dict[str, FANUCPose]:
         """
-        매크로 딕셔너리 데이터를 Position 객체 딕셔너리로 파싱(변환)
+        매크로 딕셔너리 데이터를 FANUCPose 객체 딕셔너리로 파싱(변환)
         실패 시 예외 발생 → Worker가 잡아야 함
         """
         if not isinstance(data, dict):
             raise TypeError("매크로 데이터는 dict 형식이어야 합니다.")
 
-        result: Dict[str, Position] = {}
+        result: Dict[str, FANUCPose] = {}
 
         for macro_id, macro_data in data.items():
             if not isinstance(macro_data, dict):
                 raise ValueError(f"매크로 '{macro_id}'의 데이터가 dict가 아닙니다.")
 
-            position = PositionModel._create_position(macro_data, macro_id)
-            result[macro_id] = position
+            pose = FANUCPoseModel._create_pose(macro_data, macro_id)
+            result[macro_id] = pose
 
         if not result:
             raise ValueError("로드된 매크로가 하나도 없습니다.")
@@ -60,9 +60,9 @@ class PositionModel:
         return result
 
     @staticmethod
-    def _create_position(macro_data: Dict[str, Any], macro_id: str) -> Position:
+    def _create_pose(macro_data: Dict[str, Any], macro_id: str) -> FANUCPose:
         """
-        단일 매크로에서 Position 생성
+        단일 매크로에서 FANUCPose 생성
         변환 실패 시 명확한 예외
         """
         def get_float(key: str) -> float:
@@ -74,7 +74,7 @@ class PositionModel:
             except (TypeError, ValueError):
                 raise ValueError(f"매크로 '{macro_id}'의 '{key}' 값이 숫자가 아닙니다: {value}")
 
-        return Position(
+        return FANUCPose(
             x=get_float("x"),
             y=get_float("y"),
             z=get_float("z"),
@@ -84,9 +84,9 @@ class PositionModel:
         )
 
     @staticmethod
-    def get_position(macros: Dict[str, Position], macro_id: str) -> Position:
+    def get_pose(macros: Dict[str, FANUCPose], macro_id: str) -> FANUCPose:
         """
-        매크로 ID로 Position 반환
+        매크로 ID로 FANUCPose 반환
         없으면 KeyError → Worker가 처리
         """
         try:
@@ -102,13 +102,13 @@ class PositionModel:
 # Smoke Test
 """
 실행 명령어
-python -m models.position_model
+python -m models.pose_model
 """
 # ==========================================================
 if __name__ == '__main__':
     
     print("=" * 70)
-    print("PositionModel 단독 실행 테스트")
+    print("FANUCPoseModel 단독 실행 테스트")
     print("=" * 70)
 
     # --- 테스트용 샘플 데이터 ---
@@ -137,19 +137,19 @@ if __name__ == '__main__':
     }
 
     # 파싱 결과를 담을 변수를 미리 초기화합니다.
-    positions: Dict[str, Position] = {}
+    poses: Dict[str, FANUCPose] = {}
 
     # 1. 파싱 성공 테스트
     print("\n1️⃣  파싱 성공 테스트:")
     try:
-        positions = PositionModel.parse_positions_from_data(sample_json_data)
-        print(f"   ✅ 파싱 성공. {len(positions)}개 매크로 로드됨.")
-        print(f"   Macro_1 Position: {positions['Macro_1']}")
-        print(f"   Macro_2 Position: {positions['Macro_2']}")
+        poses = FANUCPoseModel.parse_poses_from_data(sample_json_data)
+        print(f"   ✅ 파싱 성공. {len(poses)}개 매크로 로드됨.")
+        print(f"   Macro_1 FANUCPose: {poses['Macro_1']}")
+        print(f"   Macro_2 FANUCPose: {poses['Macro_2']}")
         
-        # 2. 특정 Position 가져오기 테스트
-        print("\n2️⃣  get_position() 성공 테스트:")
-        pos1 = PositionModel.get_position(positions, "Macro_1")
+        # 2. 특정 FANUCPose 가져오기 테스트
+        print("\n2️⃣  get_pose() 성공 테스트:")
+        pos1 = FANUCPoseModel.get_pose(poses, "Macro_1")
         print(f"   ✅ 'Macro_1' 가져오기 성공: {pos1}")
         assert pos1.x == 100.1
         
@@ -162,7 +162,7 @@ if __name__ == '__main__':
         "Macro_Bad": { "y": 1.0, "z": 1.0, "w": 0, "p": 0, "r": 0 }
     }
     try:
-        PositionModel.parse_positions_from_data(invalid_data_missing_key)
+        FANUCPoseModel.parse_poses_from_data(invalid_data_missing_key)
     except KeyError as e:
         print(f"   ✅ 의도된 예외 발생(KeyError): {e}") #
     except Exception as e:
@@ -174,16 +174,16 @@ if __name__ == '__main__':
         "Macro_Bad2": { "x": "NotANumber", "y": 1, "z": 1, "w": 0, "p": 0, "r": 0 }
     }
     try:
-        PositionModel.parse_positions_from_data(invalid_data_bad_type)
+        FANUCPoseModel.parse_poses_from_data(invalid_data_bad_type)
     except ValueError as e:
         print(f"   ✅ 의도된 예외 발생(ValueError): {e}") #
     except Exception as e:
         print(f"   ❌ 잘못된 예외 발생: {type(e).__name__}: {e}")
         
-    # 5. get_position 실패 테스트
-    print("\n5️⃣  get_position() 실패 테스트 (없는 ID):")
+    # 5. get_pose 실패 테스트
+    print("\n5️⃣  get_pose() 실패 테스트 (없는 ID):")
     try:
-        PositionModel.get_position(positions, "Macro_99")
+        FANUCPoseModel.get_pose(poses, "Macro_99")
     except KeyError as e:
         print(f"   ✅ 의도된 예외 발생(KeyError): {e}") #
     except Exception as e:
