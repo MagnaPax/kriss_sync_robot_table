@@ -19,7 +19,7 @@ from functools import partial
 from ui.widgets.base_widget import BaseWidget
 from ui.dialogs.macro_settings_dialog import MacroSettingsDialog
 from core.event_bus import EVENT_BUS
-from models.position_model import Position
+from models.fanuc_pose_model import FANUCPose
 
 
 
@@ -307,9 +307,9 @@ class TargetPositionWidget(BaseWidget):
 
 
     # --- 헬퍼 메서드 --- #
-    def _extract_data_from_ui(self) -> Position:
+    def _extract_data_from_ui(self) -> FANUCPose:
         """
-        QLineEdit 객체들에서 데이터만 뽑아서 Position 객체를 만든다.
+        QLineEdit 객체들에서 데이터만 뽑아서 FANUCPose 객체를 만든다.
         뷰모델에게 QLineEdit 객체를 넘기지 않고 데이터 뽑아서 넘기는 이유
             - 워커가 이 객체를 들고 백그라운드 스레드에서 작업하면 스레드 충돌로 에러난다
             - 뷰모델이 뷰와 결합해서 뷰를 바꿀 때 뷰모델까지 바꿔야 된다
@@ -338,14 +338,14 @@ class TargetPositionWidget(BaseWidget):
         else:
             feed_val = 50.0 # 못 찾으면 기본값
         
-        return Position(
+        return FANUCPose(
             x=data['x'],
             y=data['y'],
             z=data['z'],
             w=data['w'],
             p=data['p'],
             r=data['r'],
-            feed=feed_val
+            f=feed_val
         )
 
 
@@ -505,7 +505,7 @@ python -m ui.widgets.target_position_widget
 if __name__ == '__main__':
     import sys
     from PyQt6.QtWidgets import QApplication, QMainWindow
-    from models.position_model import PositionModel
+    from models.fanuc_pose_model import FANUCPoseModel
     from pathlib import Path
     
     # [추가 1] 로그 리스너 임포트
@@ -528,7 +528,7 @@ if __name__ == '__main__':
     log_listener = LogListener()
 
     # 1. Model 생성
-    model = PositionModel()
+    model = FANUCPoseModel()
     
     # 2. PLC Service 생성 및 연결
     plc_service = PLCService()
