@@ -1,4 +1,4 @@
-# communication/fanuc_commander.py
+# communication/fanuc_adapter.py
 import time
 import pyads
 from typing import TYPE_CHECKING, Union
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 
-class FanucCommander:
+class FanucAdapter:
     """
     FANUC 로봇 통신 로직을 담당하는 Model 클래스
     원본 파일: TxtFileReadFANUC.py
@@ -29,7 +29,7 @@ class FanucCommander:
         Connector의 활성 핸들을 가져오는 단축 속성
 
         사용 예:
-            self._plc : TwinCATConnector.handle 실행돼서 _twincat 반환됨
+            self._plc : TwinCATConnector.handle 실행돼서 _twincat(트윈캣 핸들) 반환됨
         """
         return self.connector.handle
 

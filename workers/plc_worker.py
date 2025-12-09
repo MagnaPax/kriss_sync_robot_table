@@ -8,7 +8,7 @@
 """
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, QThread
 from communication.twincat_connector import TwinCATConnector
-from communication.fanuc_commander import FanucCommander
+from communication.fanuc_adapter import FanucAdapter
 from config.data_formats import *
 from typing import Dict, List, Any
 from core.event_bus import EVENT_BUS
@@ -22,7 +22,7 @@ class PLCWorker(QObject):
     result = pyqtSignal(bool, str)       # 결과 (성공여부, 메시지)
 
 
-    def __init__(self, connector: TwinCATConnector, commander: FanucCommander, command: str, data=None):
+    def __init__(self, connector: TwinCATConnector, commander: FanucAdapter, command: str, data=None):
         """
         Args:
             connector: '연결' 관리를 위한 객체
@@ -59,7 +59,7 @@ class PLCWorker(QObject):
                     fanuc_data = self._transform_to_fanuc_format(self.data)
 
                     # Commander 호출
-                    # FanucCommander.run_legacy_sequence (bool, str)을 반환하므로 그대로 받음
+                    # FanucAdapter.run_legacy_sequence (bool, str)을 반환하므로 그대로 받음
                     success, msg = self.commander.run_legacy_sequence(
                         fanuc_data, 
                         check_stop_func=self._is_interrupted
@@ -145,5 +145,5 @@ class PLCWorker(QObject):
                     converted_item[fanuc_key] = target_type() # 0.0
 
             transformed_list.append(converted_item)
-            
+
         return transformed_list
