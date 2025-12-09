@@ -22,7 +22,7 @@ class SequenceService(QObject):
 
         # 읽어 온 시퀀스 데이터 보관 
         # 데이터 공유(EVENT_BUS.sequence_data_updated.emit)한 이후에 다른 위젯이 달라고 할 때 주려고
-        self._current_sequence_data: dict
+        self._sequence_data: dict
 
         # 새로운 사무실(QThread) '공간 확보'
         self._thread: QThread | None = None
@@ -88,7 +88,7 @@ class SequenceService(QObject):
 
         if success:
             # 데이터 보관 - 나중에 누가 달라고 할 때를 대비
-            self._current_sequence_data = sequence_data
+            self._sequence_data = sequence_data
 
             # 시퀀스 내용을 방송으로 송출
             #   "데이터 준비됐습니다~ 필요한 분들 가져다 쓰세요"
