@@ -33,16 +33,16 @@ CSV_SCHEMA: dict[str, dict] = {
 # TXT 파일 형식 (순서가 중요함)
 # =============================================================================
 TXT_SCHEMA: dict[str, dict] = {
-    'F': {'name': 'robot_feed_rate',     'type': float},     # 로봇 이동 속도 (mm/sec)
-    'T': {'name': 'turntable_deg',       'type': float},     # 턴테이블 각도 (deg)
-    'X': {'name': 'x_coord',             'type': float},     # X 좌표 (mm)
-    'Y': {'name': 'y_coord',             'type': float},     # Y 좌표 (mm)
-    'Z': {'name': 'z_coord',             'type': float},     # Z 좌표 (mm)
-    'W': {'name': 'w_angle',             'type': float},     # W 각도 (deg)
-    'P': {'name': 'p_angle',             'type': float},     # P 각도 (deg)
-    'R': {'name': 'r_angle',             'type': float},     # R 각도 (deg)
-    'M': {'name': 'tool_rotation_rpm',   'type': float},     # 툴 자전 속도 (rpm)
-    'N': {'name': 'tool_revolution_rpm', 'type': float}      # 툴 공전 속도 (rpm)
+    'F': {'name': 'feed_rate',          'type': float},     # 이동 속도 (deg/sec) 또는 (mm/sec)
+    'T': {'name': 'turntable_deg',      'type': float},     # 턴테이블 각도 (deg)
+    'X': {'name': 'x_coord',            'type': float},     # X 좌표 (mm)
+    'Y': {'name': 'y_coord',            'type': float},     # Y 좌표 (mm)
+    'Z': {'name': 'z_coord',            'type': float},     # Z 좌표 (mm)
+    'W': {'name': 'w_angle',            'type': float},     # W 각도 (deg)
+    'P': {'name': 'p_angle',            'type': float},     # P 각도 (deg)
+    'R': {'name': 'r_angle',            'type': float},     # R 각도 (deg)
+    'M': {'name': 'tool_rotation_rpm',  'type': float},     # 툴 자전 속도 (rpm)
+    'N': {'name': 'tool_revolution_rpm','type': float}      # 툴 공전 속도 (rpm)
 }
 
 
