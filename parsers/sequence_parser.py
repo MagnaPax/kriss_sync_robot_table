@@ -153,7 +153,7 @@ class SequenceCsvParser(BaseParser):
 
             # 유효한 ID가 있으면 결과에 추가
             if sequence_id:
-                parsed_data[sequence_id] = temp_dict
+                parsed_data[sequence_id] = temp_dict    # <--- 순서대로 꽂힘!
                 
         return parsed_data
 
