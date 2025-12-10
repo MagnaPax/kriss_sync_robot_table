@@ -7,17 +7,29 @@ from typing import Dict, Any
 @dataclass(frozen=True, slots=True)
 class FANUCPose:
     """
-    FANUC 로봇 좌표 데이터 객체
-        내부 로직용: ViewModel, Service, Worker 사이에서 데이터를 주고받을 때 사용
-    
-    Attributes:
-        x (float): X축 좌표 (mm) - 로봇 베이스 기준 전후
-        y (float): Y축 좌표 (mm) - 로봇 베이스 기준 좌우
-        z (float): Z축 좌표 (mm) - 로봇 베이스 기준 상하
-        w (float): W (Yaw) - X축 기준 회전 각도 (deg)
-        p (float): P (Pitch) - Y축 기준 회전 각도 (deg)
-        r (float): R (Roll) - Z축 기준 회전 각도 (deg)
-        f (float): Feed Rate - 이동 속도 (mm/sec)
+    FANUC 로봇 좌표 데이터 모델 (앱 도메인 모델)
+
+        목적:
+            로봇 포즈를 사람이 이해하기 좋은 형태로 표현한 값
+            실제 로봇 포즈 저장
+            
+        용도:
+            내부 로직용: ViewModel, Service, Worker 사이에서 데이터를 주고받을 때 사용
+
+        역할:
+            데이터 모델
+
+        동작:
+            좌표 데이터가 상태(state)
+        
+        Attributes:
+            x (float): X축 좌표 (mm) - 로봇 베이스 기준 전후
+            y (float): Y축 좌표 (mm) - 로봇 베이스 기준 좌우
+            z (float): Z축 좌표 (mm) - 로봇 베이스 기준 상하
+            w (float): W (Yaw) - X축 기준 회전 각도 (deg)
+            p (float): P (Pitch) - Y축 기준 회전 각도 (deg)
+            r (float): R (Roll) - Z축 기준 회전 각도 (deg)
+            f (float): Feed Rate - 이동 속도 (mm/sec)
     """
     x: float = 0.0
     y: float = 0.0
