@@ -3,6 +3,7 @@ import time
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QObject, QTimer, pyqtSlot, QThread, Qt, QMetaObject
 
+from typing import Any, Dict, List
 from core.event_bus import EVENT_BUS
 from workers.plc_worker import PLCWorker
 from models.fanuc_pose_model import FANUCPose
@@ -202,6 +203,15 @@ class PLCService(QObject):
 
         # Worker 호출
         self._start_worker('MOVE', data=sequence_data, log_msg=f"단일 명령 이동: {fanuc_pose_obj}")
+
+
+    def process_sequence_data(self, csv_data: dict):
+        """"""
+        # 리스트로 감싸서 sequence 형태로 만듦 (TwinCATCommander가 list[dict]를 기대함)
+        sequence_data = list(csv_data.values())
+
+        # Worker 호출
+        self._start_worker('MOVE', data=sequence_data, log_msg=f"csv 시퀀스 명령: {csv_data}")
 
 
     def _start_worker(self, command: str, data=None, log_msg: str = ""):
