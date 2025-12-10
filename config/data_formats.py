@@ -42,12 +42,12 @@ CSV_SCHEMA: dict[str, dict] = {
 TXT_SCHEMA: dict[str, dict] = {
     'F': {'name': 'feed_rate',          'type': float},     # 이동 속도 (deg/sec) 또는 (mm/sec)
     'T': {'name': 'turntable_deg',      'type': float},     # 턴테이블 각도 (deg)
-    'X': {'name': 'x_coord',            'type': float},     # X 좌표 (mm)
-    'Y': {'name': 'y_coord',            'type': float},     # Y 좌표 (mm)
-    'Z': {'name': 'z_coord',            'type': float},     # Z 좌표 (mm)
-    'W': {'name': 'w_angle',            'type': float},     # W 각도 (deg)
-    'P': {'name': 'p_angle',            'type': float},     # P 각도 (deg)
-    'R': {'name': 'r_angle',            'type': float},     # R 각도 (deg)
+    'X': {'name': 'axis_x',             'type': float},     # X 좌표 (mm)
+    'Y': {'name': 'axis_y',             'type': float},     # Y 좌표 (mm)
+    'Z': {'name': 'axis_z',             'type': float},     # Z 좌표 (mm)
+    'W': {'name': 'yaw',                'type': float},     # Yaw(회전) 각도 (deg)
+    'P': {'name': 'pitch',              'type': float},     # Pitch(상하 기울기) 각도 (deg)
+    'R': {'name': 'roll',               'type': float},     # Roll(좌우 비틀기) 각도 (deg)
     'M': {'name': 'tool_rotation_rpm',  'type': float},     # 툴 자전 속도 (rpm)
     'N': {'name': 'tool_revolution_rpm','type': float}      # 툴 공전 속도 (rpm)
 }
@@ -59,7 +59,7 @@ TXT_SCHEMA: dict[str, dict] = {
 # 용도: 사용자 정의 매크로(MacroSettingsDialog)를 JSON 파일로 저장하거나 검증할 때 사용
 MACRO_SCHEMA: dict[str, type] = {
     'macro_id': str,
-    'name': str,        # 사용자 지정 설명 (예: "홈 위치")
+    'name': str,        # 사용자 지정 제목 (예: "홈 위치")
     'x': float,
     'y': float,
     'z': float,
