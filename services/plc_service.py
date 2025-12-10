@@ -180,7 +180,7 @@ class PLCService(QObject):
         self._start_worker('STOP', log_msg="프로세스 중지 요청...")
 
 
-    def move_robot(self, fanuc_pose_obj:FANUCPose):
+    def move_robot_by_pose(self, fanuc_pose_obj:FANUCPose):
         """
         좌표로 이동
 

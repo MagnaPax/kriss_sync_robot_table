@@ -69,5 +69,5 @@ class TargetPositionViewModel(QObject):
         # PLCService 호출
         # PLCService.move_robot()은 내부적으로 QThread와 Worker를 생성, 
         # UI 멈춤 없이 비동기로 통신을 수행
-        self._plc_service.move_robot(fanuc_pose_obj)
+        self._plc_service.move_robot_by_pose(fanuc_pose_obj)
 
