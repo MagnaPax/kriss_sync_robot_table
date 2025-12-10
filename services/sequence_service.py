@@ -105,6 +105,14 @@ class SequenceService(QObject):
             self._thread.quit()     # Thread의 이벤트 루프 종료 요청 - 남아 있는 이벤트 처리 후 종료
             self._thread.wait(2000) # 사무실이 안전하게 문 닫을 때까지 2초동안 기다림
 
+        # 비서(Worker) 정리
         if self._worker:
             self._worker.deleteLater()  # 비서 정리 → Qt의 메모리 관리 시스템에 맡겨서 안전하게 폐기
             self._worker = None         # Python 레벨에서도 비서 레퍼런스 해제(메모리 누수 방지)
+
+        # 사무실(Thread) 정리
+        if self._thread:
+            # deleteLater는 '나중에' 지우라는 예약어이므로 즉시 None이 되지 않음.
+            # 하지만 더 이상 이 변수를 쓰면 안 되므로, 파이썬 쪽 레퍼런스를 끊어야 함.
+            self._thread.deleteLater()  # Qt에게 삭제 요청
+            self._thread = None         # [핵심] 파이썬 변수 초기화
