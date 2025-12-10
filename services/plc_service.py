@@ -23,6 +23,9 @@ class PLCService(QObject):
     
     def __init__(self):
         super().__init__()
+
+        # 로그 메세지의 말머리(로그 발생 위치 표시)
+        self._log_prefix = f"[{self.__class__.__name__}]"
         
         # 서비스가 Model을 소유 - 연결과 명령 담당 객체 생성
         self.connector = TwinCATConnector()
@@ -178,24 +181,27 @@ class PLCService(QObject):
 
 
     def move_robot(self, fanuc_pose_obj:FANUCPose):
-        """좌표 이동 요청"""
+        """
+        좌표로 이동
 
-        try:
-            # 객체 -> 딕셔너리 변환
-            # Worker는 내부적으로 딕셔너리 리스트를 처리하도록 설계되어 있기 때문
-            coords_dict = fanuc_pose_obj.to_unified_dict()
+            뷰,뷰모델,서비스:   앱 도메인 레이어
+            워커:               백그라운드 작업자
+            모델, 유틸리티 등:  하드웨어/인프라 레이어
 
-            # 메타 데이터 추가(빼도 됨)
-            coords_dict['name'] = 'Manual_Position_Obj'
+            즉, 서비스 | 워커 이렇게 나뉘어진다
+            그렇기 때문에 서비스 레이어인 여기서
+                앱 도메인 모델(FANUCPose 객체) → 파이썬 자료형(딕셔너리, 리스트 등) 변환
+        """
 
-            # Worker 규격(List[Dict])에 맞춰 포장
-            sequence_data = [coords_dict]
+        # 워커에게 넘겨줄 데이터(= 외부로 노출 가능) -> 키값을 의미있는 값으로 변환
+        #   외부 노출: json파일저장, 로깅 등
+        fanuc_pose_data = fanuc_pose_obj.to_dict_with_meaningful_names()
 
-            # Worker 호출
-            self._start_worker('MOVE', data=sequence_data, log_msg=f"단일 명령 이동: {fanuc_pose_obj}")
+        # 리스트로 감싸서 sequence 형태로 만듦 (TwinCATCommander가 list[dict]를 기대함)
+        sequence_data = [fanuc_pose_data]
 
-        except Exception as e:
-            EVENT_BUS.ui_log_message.emit(f"좌표 이동 실패: {e}", "ERROR")
+        # Worker 호출
+        self._start_worker('MOVE', data=sequence_data, log_msg=f"단일 명령 이동: {fanuc_pose_obj}")
 
 
     def _start_worker(self, command: str, data=None, log_msg: str = ""):
