@@ -48,12 +48,13 @@ class TaskManagerViewModel(QObject):
 
     def start_sequence(self):
         """View의 START 버튼 클릭 이벤트 처리"""
-        EVENT_BUS.ui_log_message.emit(f"{self._log_prefix} 시퀀스 실행 시작", "DEBUG")
 
         # 방어코드 - 시퀀스 데이터가 없으면 서비스 호출 안 함
         if not self._cached_data: return
 
         EVENT_BUS.ui_log_message.emit(f"{self._log_prefix} 시퀀스 실행 요청 (데이터 {len(self._cached_data)}건)", "INFO")
+
+        self._plc_service.process_sequence_data(self._cached_data)
 
 
     # --- 슬롯 메서드 --- #
