@@ -74,38 +74,12 @@ View → ViewModel → Service → Worker
 
 from PyQt6.QtCore import QObject, pyqtSignal, QMetaObject, QMetaMethod
 from typing import Optional, Literal
-from dataclasses import dataclass
-
-
-# =============================================================================
-# 데이터 구조 정의
-# 휴먼에러 발생하면 IDE, 타입검사기에 의해 경고 나타내도록 하기 위해
-# =============================================================================
-@dataclass
-class RobotState:
-    """로봇 상태 데이터 구조"""
-    x: float
-    y: float
-    z: float
-    w: float
-    p: float
-    r: float
-    state: Literal['idle', 'moving', 'error']
-
-
-@dataclass
-class TurntableState:
-    """턴테이블 상태 데이터 구조"""
-    angle: float
-    rounds: int
-    state: Literal['idle', 'rotating', 'error']
-
 
 
 
 class EventBus(QObject):
     """전역 이벤트 버스"""
-    
+
     # =========================================================================
     # System-level Events (전역 시스템 이벤트)
     # =========================================================================
@@ -157,7 +131,6 @@ class EventBus(QObject):
     사용자에게 전달(=UI에 표시)해야 하거나 관리자에게 알려야 하는(=로그 파일 기록) 모든 로그 메시지
         -> ∴ LogListener가 청취해서 로그 기록에 사용한다
         -> ViewModel, Service, Worker 모두가 emit 할 수 있다
-    
 
     Args:
         str: 메시지 내용
@@ -184,63 +157,6 @@ class EventBus(QObject):
     Example:
         EVENT_BUS.connection_status_changed.emit(True)
         EVENT_BUS.connection_status_changed.connect(self.on_connection_changed)
-    """
-    
-    
-    # =========================================================================
-    # Robot Events (로봇 도메인)
-    # =========================================================================
-    robot_position_changed = pyqtSignal(RobotState)
-    """
-    로봇 위치 변경 시그널
-        여러 UI가 듣고 갱신해야 함 (robot_position_widget 등)
-    
-    Args:
-        RobotState: 로봇 상태 데이터
-    
-    Example:
-        state = RobotState(x=100.0, y=200.0, z=50.0,
-                        w=0.0, p=0.0, r=0.0, state='moving')
-        EVENT_BUS.robot_position_changed.emit(state)
-    """
-    
-    turntable_state_updated = pyqtSignal(TurntableState)
-    """
-    턴테이블 상태 변경
-    
-    Args:
-        TurntableState: 턴테이블 상태 데이터
-    """
-    
-    current_state_updated = pyqtSignal(dict)
-    """
-    현재 시스템 상태 업데이트 시그널 - 로봇 or 장치 종합 상태
-    
-    Args:
-        dict: {
-            'm1_rpm': float,
-            'm2_rpm': float,
-            'robot_speed': float,
-            'pressure': float,
-            ...
-        }
-    """
-
-
-    # =========================================================================
-    # UI Interaction Events (UI 상호작용)
-    # =========================================================================
-    macro_settings_changed = pyqtSignal(dict)
-    """
-    매크로 설정 변경
-
-    여러 화면/뷰모델에서 동시에 반응할 수 있는 전역 이벤트
-
-        예:
-            매크로 편집 다이얼로그
-            타겟 위치 위젯
-            사이드바 매크로 리스트
-            그 외 다른 모듈들도 구독 가능
     """
 
 
