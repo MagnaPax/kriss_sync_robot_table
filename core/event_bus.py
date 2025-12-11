@@ -185,7 +185,7 @@ class EventBus(QObject):
     # =========================================================================
     # Execution Status Events (작업 실행 상태)
     # =========================================================================
-    sequence_progress_updated = pyqtSignal(int, int, dict, str)
+    sequence_progress_updated = pyqtSignal(int, int, str)
     """
     시퀀스 진행 상태 변경 알림
 
@@ -193,20 +193,32 @@ class EventBus(QObject):
         - 현재 실행 중인 시퀀스 ID를 UI에 표시
         - 프로그래스 바 갱신 (current / total * 100)
         - 작업 완료/실패 여부 UI 갱신
-        - 로봇 애니메이션 갱신 등
 
     Args:
         int: 시퀀스 ID (또는 현재 순번)
         int: 전체 시퀀스 개수
-        dict: 시퀀스 데이터
         str: 상태값 ('processing', 'processed', 'failed', 'unprocessed')
 
     Example:
         # 3번 시퀀스 실행 시작 (총 10개 중)
-        EVENT_BUS.task_status_changed.emit(3, 10, 'processing')
+        EVENT_BUS.sequence_progress_updated.emit(3, 10, 'processing')
     """        
 
 
+    # =========================================================================
+    # 기기들의 위치 정보
+    # =========================================================================
+    robot_target_updated = pyqtSignal(object)
+    """
+    로봇 위치 정보
+        Args: FANUCPose 객체
+    """
+
+    turntable_target_updated = pyqtSignal(object)
+    """
+    턴테이블 목표 위치 업데이트 (UI: 턴테이블 패널용)
+        Args: TurntablePose 객체
+    """
 
 
 
