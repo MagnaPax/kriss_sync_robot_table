@@ -76,7 +76,7 @@ class FanucOnlyExecutor(BaseExecutor):
                 # 데이터에 'id'가 있으면 가져오고, 없다면 루프 인덱스(idx)를 id로 사용
                 current_id = row.get('id') or idx
 
-                # 현재 시퀀스 진행상태 방송(진행중)
+                # 현재 시퀀스 진행상태 방송: 진행중
                 EVENT_BUS.sequence_progress_updated.emit(current_id, num_sequences, "processing")
 
                 feed_rate = row.get('f', 10.0)
@@ -133,7 +133,7 @@ class FanucOnlyExecutor(BaseExecutor):
                         # 아직 준비 안 됨 -> 대기
                         time.sleep(0.01)
 
-                # 현재 시퀀스 진행상태 방송(완료)
+                # 현재 시퀀스 진행상태 방송: 완료
                 EVENT_BUS.sequence_progress_updated.emit(current_id, num_sequences, "processed")
 
             # 3. 종료 신호
@@ -230,22 +230,18 @@ class TurntableOnlyExecutor(BaseExecutor):
                 
                 current_id = row.get('id') or idx
 
-                # 현재 시퀀스 진행상태 방송(진행중)
+                # 현재 시퀀스 진행상태 방송: 진행중
                 EVENT_BUS.sequence_progress_updated.emit(current_id, num_sequences, "processing")
                 
-                target_pose = TurntablePose(
-                angle=float(row.get('angle') or row.get('T', 0.0)),
-                velocity=float(row.get('velocity') or row.get('turntable_feed_rate', 10.0))
-                )
+                # 데이터 추출 (키 매핑)
+                angle_val = float(row.get('angle') or row.get('T', 0.0))
+                velocity_val = float(row.get('velocity') or row.get('turntable_feed_rate', 10.0))
+
                 # 현재 턴테이블 위치 방송
+                target_pose = TurntablePose(angle=angle_val, velocity=velocity_val)
                 EVENT_BUS.turntable_target_updated.emit(target_pose)
 
-                # 데이터 추출 (키 매핑)
-                # 모델 키 'angle' 또는 레거시 키 'T' 사용
-                target_angle = float(row.get('angle') or row.get('T', 0.0))
-                # 모델 키 'velocity' 또는 레거시 키 'turntable_feed_rate' 사용
-                target_velocity = float(row.get('velocity') or row.get('turntable_feed_rate', 10.0))
-                
+
                 # --- 핸드셰이킹 (Busy Check) ---
                 while True:
                     # 턴테이블 Busy 확인
@@ -255,7 +251,7 @@ class TurntableOnlyExecutor(BaseExecutor):
                     # 하지만 연속 동작을 원한다면 로봇과 동일하게 (not init_done or is_busy) 사용
                     if not is_busy:
                         # 1. 이동 명령 전송 (Rising Edge 발생)
-                        adapter.move_to(target_angle, target_velocity)
+                        adapter.move_to(angle_val, velocity_val)
                         
                         init_done = True
                         
@@ -273,7 +269,7 @@ class TurntableOnlyExecutor(BaseExecutor):
                     else:
                         time.sleep(0.1)
 
-                # 현재 시퀀스 진행상태 방송(완료)
+                # 현재 시퀀스 진행상태 방송: 완료
                 EVENT_BUS.sequence_progress_updated.emit(current_id, num_sequences, row, "processed")
 
             # 3. 종료 신호 (서보 오프 등)
