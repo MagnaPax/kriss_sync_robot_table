@@ -75,7 +75,7 @@ class FanucOnlyExecutor(BaseExecutor):
                 current_id = row.get('id') or idx
 
                 # 현재 시퀀스 진행상태 방송
-                EVENT_BUS.sequence_progress_updated.emit(current_id, num_sequences, "processing")
+                EVENT_BUS.sequence_progress_updated.emit(current_id, num_sequences, row, "processing")
 
                 feed_rate = row.get('f', 10.0)
 
@@ -124,7 +124,7 @@ class FanucOnlyExecutor(BaseExecutor):
                         time.sleep(0.01)
 
                 # 현재 시퀀스 처리 완료 방송
-                EVENT_BUS.sequence_progress_updated.emit(current_id, num_sequences, "processed")
+                EVENT_BUS.sequence_progress_updated.emit(current_id, num_sequences, row, "processed")
 
             # 3. 종료 신호
             adapter.set_finish_signals()
