@@ -297,6 +297,10 @@ class TargetPositionWidget(BaseWidget):
             line_edit.setObjectName(f"line_edit_{axis}") # QSS 적용을 위한 ID
             line_edit.setPlaceholderText(f"{axis} 값 입력...")
 
+            # FEED RATE일 경우 기본값으로 10을 표시하기 
+            if axis == "FEED RATE":
+                line_edit.setText("10") # 기본값 설정
+
             # 만든 위젯을 보관함에 저장
             self.coord_widgets[axis] = line_edit
             
@@ -327,16 +331,18 @@ class TargetPositionWidget(BaseWidget):
                 # (여기서 에러가 나면 호출부의 try-except가 잡음)
                 val = float(text) if text else 0.0
                 data[axis] = val
-                # data[axis] = float(text) if text else 0.0
             else:
                 data[axis] = 0.0
 
+        # 이동 속도 값
         feed_widget = self.coord_widgets.get('FEED RATE')
         if feed_widget:
             text = feed_widget.text().strip()
+            # 값이 비어있으면 10.0을 사용
             feed_val = float(text) if text else 10.0
         else:
-            feed_val = 50.0 # 못 찾으면 기본값
+            # 위젯 자체를 못 찾았을 때
+            feed_val = 10.0
         
         return FANUCPose(
             x=data['x'],
