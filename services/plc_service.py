@@ -194,9 +194,8 @@ class PLCService(QObject):
                 앱 도메인 모델(FANUCPose 객체) → 파이썬 자료형(딕셔너리, 리스트 등) 변환
         """
 
-        # 워커에게 넘겨줄 데이터(= 외부로 노출 가능) -> 키값을 의미있는 값으로 변환
-        #   외부 노출: json파일저장, 로깅 등
-        fanuc_pose_data = fanuc_pose_obj.to_dict_with_meaningful_names()
+        # 딕셔너리로 변경
+        fanuc_pose_data = fanuc_pose_obj.to_dict_preserving_key_names()
 
         # 리스트로 감싸서 sequence 형태로 만듦 (TwinCATCommander가 list[dict]를 기대함)
         sequence_data = [fanuc_pose_data]
