@@ -56,9 +56,10 @@ class FanucOnlyExecutor(BaseExecutor):
         return required_keys.issubset(sample_data.keys())
 
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
-        print(f"[{self.__class__.__name__}] FANUC 단독 제어 시작 (데이터 {len(sequence_data)}건)")
+        EVENT_BUS.ui_log_message.emit(f"[{self.__class__.__name__}] FANUC 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
 
         adapter = self.robot
+        num_sequences = len(sequence_data)  # 전체 시퀀스 갯수
 
         try:
             init_done = False       # 첫 번째 명령을 보냈는지 확인하는 Flag
@@ -72,7 +73,9 @@ class FanucOnlyExecutor(BaseExecutor):
 
                 # 데이터에 'id'가 있으면 가져오고, 없다면 루프 인덱스(idx)를 id로 사용
                 current_id = row.get('id') or idx
-                # TODO: current_id 를 이벤트 버스에 실어서 방송하기
+
+                # 현재 시퀀스 진행상태 방송
+                EVENT_BUS.sequence_progress_updated.emit(current_id, num_sequences, "processing")
 
                 feed_rate = row.get('f', 10.0)
 
@@ -111,7 +114,7 @@ class FanucOnlyExecutor(BaseExecutor):
                     if (not init_done) or is_busy:
                         adapter.send_data_packet(feed_rate, deltas)
 
-                        init_done = True    # 첫 번째 명령 실행됐다고 표시
+                        init_done = True    # 첫 번째 명령 실행했다고 체크
                         time.sleep(0.01)    # 통신 안정화
 
                         # 다음 시퀀스로 이동
@@ -119,6 +122,9 @@ class FanucOnlyExecutor(BaseExecutor):
                     else:
                         # 아직 준비 안 됨 -> 대기
                         time.sleep(0.01)
+
+                # 현재 시퀀스 처리 완료 방송
+                EVENT_BUS.sequence_progress_updated.emit(current_id, num_sequences, "processed")
 
             # 3. 종료 신호
             adapter.set_finish_signals()
@@ -139,8 +145,7 @@ class IntegratedExecutor(BaseExecutor):
         return required_keys.issubset(sample_data.keys())
 
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
-        print(f"[{self.__class__.__name__}] 로봇+턴테이블 통합 제어 모드로 실행 (데이터 {len(sequence_data)}건)")
-
+        EVENT_BUS.ui_log_message.emit(f"[{self.__class__.__name__}] CSV 파일 통합 제어 모드로 실행 (데이터 {len(sequence_data)}건)", "INFO")
         
         print(f"처리할 csv 파일의 데이터 값\n{sequence_data}\n")
 
@@ -175,7 +180,7 @@ class LegacyIntegratedExecutor(BaseExecutor):
         return required_keys.issubset(sample_data.keys())
 
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
-        print(f"[{self.__class__.__name__}] 레거시 파일 모드로 실행 (데이터 {len(sequence_data)}건)")
+        EVENT_BUS.ui_log_message.emit(f"[{self.__class__.__name__}] 레거시 파일 모드로 실행 (데이터 {len(sequence_data)}건)", "INFO")
 
         return True, "레거시 파일 모드 실행 완료 -> TODO: 로직 만들어야 된다"
 
