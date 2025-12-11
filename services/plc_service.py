@@ -1,14 +1,14 @@
 # services/plc_service.py
 import time
-from PyQt6.QtCore import QObject, QTimer, pyqtSlot, QThread, Qt, QMetaObject
 from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import QObject, QTimer, pyqtSlot, QThread, Qt, QMetaObject
 
+from typing import Any, Dict, List
 from core.event_bus import EVENT_BUS
+from workers.plc_worker import PLCWorker
+from models.fanuc_pose_model import FANUCPose
 from communication.twincat_connector import TwinCATConnector
 from communication.twincat_commander import TwinCATCommander
-from workers.plc_worker import PLCWorker as Worker
-from utils.coordinate_utils import dict_to_axis_list
-
 
 
 
@@ -24,6 +24,9 @@ class PLCService(QObject):
     
     def __init__(self):
         super().__init__()
+
+        # 로그 메세지의 말머리(로그 발생 위치 표시)
+        self._log_prefix = f"[{self.__class__.__name__}]"
         
         # 서비스가 Model을 소유 - 연결과 명령 담당 객체 생성
         self.connector = TwinCATConnector()
@@ -34,7 +37,7 @@ class PLCService(QObject):
         # 새로운 사무실(QThread) '공간 확보'
         self._thread: QThread | None = None
         # 비서(Worker) 직군 '정원 확보'
-        self._worker: Worker | None = None
+        self._worker: PLCWorker | None = None
 
 
         # --- 연결 상태 정기적으로 확인 (Heartbeat) --- #
@@ -166,39 +169,9 @@ class PLCService(QObject):
     # ==========================================================
     # [비동기] 로봇 제어 명령 (Worker 사용)
     # ==========================================================
-
-    def move_robot(self, coords_dic: dict):
-        """
-        좌표 이동 요청
-        Args: 
-            coords_dict (dict): {'X': 10.5, 'Y': ...} 형태의 딕셔너리
-        """
-        try:
-            # 딕셔너리를 리스트로 변환 [x, y, z, w, p, r, f]
-            # (prev_coords, init_done 등은 Worker나 Commander 내부에서 관리하거나
-            #  필요하다면 여기서 인자로 넘겨줘야 함. 
-            #  현재 TwinCATCommander.write_move_command는 내부 상태를 인자로 받도록 설계되었으므로
-            #  ViewModel이 상태를 관리하고 있다면 그 값들도 인자로 받아야 한다.
-            #  하지만 일단 좌표만 넘기는 구조로 작성)
-
-            # NOTE: 현재 Commander 구조상 previous_coords 등의 상태 관리가 필요하므로
-            #       단순 좌표만으로는 부족할 수 있습니다. 
-            #       ViewModel이 상태를 관리한다면 move_robot(coords, prev, init_done...) 형태가 되어야 합니다.
-            #       여기서는 일단 좌표 변환 후 Worker로 넘기는 구조만 잡습니다.
-
-            coords_list = dict_to_axis_list(coords_dic)
-
-            # Worker에게 전달할 데이터 패키징 (ViewModel에서 받은 전체 인자들을 넘겨야 함)
-            # 여기서는 편의상 coords_list만 넘기는 예시입니다. 실제로는 ViewModel과 맞춰야 합니다.
-            self._start_worker('MOVE', data=[coords_list], log_msg="좌표 전송 및 이동 중...")
-
-        except Exception as e:
-            EVENT_BUS.ui_log_message.emit(f"좌표 이동 실패: {e}", "ERROR")
-
-
-
     def start_process(self):
         self._start_worker('START', log_msg="프로세스 시작 요청...")
+
 
     def stop_process(self):
         # 진행 중인 워커가 있다면 중단 요청
@@ -207,7 +180,39 @@ class PLCService(QObject):
 
         self._start_worker('STOP', log_msg="프로세스 중지 요청...")
 
-    
+
+    def move_robot_by_pose(self, fanuc_pose_obj:FANUCPose):
+        """
+        좌표로 이동
+
+            뷰,뷰모델,서비스:   앱 도메인 레이어
+            워커:               백그라운드 작업자
+            모델, 유틸리티 등:  하드웨어/인프라 레이어
+
+            즉, 서비스 | 워커 이렇게 나뉘어진다
+            그렇기 때문에 서비스 레이어인 여기서
+                앱 도메인 모델(FANUCPose 객체) → 파이썬 자료형(딕셔너리, 리스트 등) 변환
+        """
+
+        # 딕셔너리로 변경
+        fanuc_pose_data = fanuc_pose_obj.to_dict_preserving_key_names()
+
+        # 리스트로 감싸서 sequence 형태로 만듦 (TwinCATCommander가 list[dict]를 기대함)
+        sequence_data = [fanuc_pose_data]
+
+        # Worker 호출
+        self._start_worker('MOVE', data=sequence_data, log_msg=f"단일 명령 이동: {fanuc_pose_obj}")
+
+
+    def process_sequence_data(self, csv_data: dict):
+        """"""
+        # 리스트로 감싸서 sequence 형태로 만듦 (TwinCATCommander가 list[dict]를 기대함)
+        sequence_data = list(csv_data.values())
+
+        # Worker 호출
+        self._start_worker('MOVE', data=sequence_data, log_msg=f"csv 시퀀스 명령: {csv_data}")
+
+
     def _start_worker(self, command: str, data=None, log_msg: str = ""):
         """비동기 워커 스레드 생성 및 실행 (공통 로직)"""
 
@@ -216,29 +221,24 @@ class PLCService(QObject):
                 self._thread.requestInterruption()  # 강제 중단 요청
             else:
                 EVENT_BUS.ui_log_message.emit("이전 작업이 아직 진행중입니다", "WARNING")
+                return # 이전 작업이 있다면 중복 실행 방지
 
         if log_msg:
             EVENT_BUS.ui_log_message.emit(log_msg, "INFO")
-
 
         # 사무실 계약
         self._thread = QThread()
 
         # 비서(Worker) 채용
-        self._worker = Worker(self.connector, self.commander, command, data)
+        self._worker = PLCWorker(self.connector, self.commander, command, data)
 
         # 비서를 새 사무실로 전근 발령 - moveToThread() : 스레드 소속 변경
         self._worker.moveToThread(self._thread)
 
 
-
-        # --- 비서가 해야할 일 예약 --- #
-        # 비서가 전화로 보고(emit)하는 일에 대한 각각의 처리(Slot) 예약(connect)
+        # 비서의 전화보고(emit)를 받고 어떻게 처리(Slot)할지 미리 정해놓기(connect)
         self._worker.result.connect(self._handle_worker_result)
         self._worker.finished.connect(self._cleanup)
-        self._worker.finished.connect(self._thread.quit) # type: ignore
-        self._worker.finished.connect(self._worker.deleteLater)
-
 
         # --- 사무실(Thread)에서 벌어질 이벤트 예약(connect) ---
         # 사무실 문 열리면 비서에게 “일 시작해라” 지시
@@ -247,18 +247,15 @@ class PLCService(QObject):
         self._thread.finished.connect(self._thread.deleteLater)
 
 
-
         # 사무실 오픈(스레드 시작)
         # 사무실 문을 열고 내부 이벤트 루프를 가동하는 것
         self._thread.start()
 
 
-        # 비서에게 "사무실 열리면 이 일 먼저 처리해" 하고 할 일을 업무상자(이벤트 큐)에 등록
-        # 비서가 (그 사무실의 이벤트 루프 안에서) 일을 시작하도록 예약하는 것
-        # invokeMethod 추가: 즉시 큐 등록 -> 더 빠르고 안전한 스타트를 보장이라는 뜻
-        QMetaObject.invokeMethod(self._worker, "run", Qt.ConnectionType.QueuedConnection)
 
-
+    # ==========================================================
+    # [슬롯] Worker 시그널에 대한 처리
+    # ==========================================================
     @pyqtSlot(bool, str)
     def _handle_worker_result(self, success: bool, msg: str):
         """워커 실행 결과 처리"""
@@ -272,10 +269,17 @@ class PLCService(QObject):
         우아하게 종료하고 메모리 누수 없이 안전하게 폐기하는 함수
         """
         if self._thread and self._thread.isRunning():
-            # Thread의 이벤트 루프 종료 요청 - 우아한 종료(남아 있는 이벤트 처리 후 종료)
-            self._thread.quit()     # 사무실 닫기
-            self._thread.wait(3000) # 사무실이 안전하게 문 닫을 때까지 기다림
+            self._thread.quit()     # Thread의 이벤트 루프 종료 요청 - 남아 있는 이벤트 처리 후 종료
+            self._thread.wait(2000) # 사무실이 안전하게 문 닫을 때까지 2초동안 기다림
 
+        # 비서(Worker) 정리
         if self._worker:
             self._worker.deleteLater()  # 비서 정리 → Qt의 메모리 관리 시스템에 맡겨서 안전하게 폐기
             self._worker = None         # Python 레벨에서도 비서 레퍼런스 해제(메모리 누수 방지)
+
+        # 사무실(Thread) 정리
+        if self._thread:
+            # deleteLater는 '나중에' 지우라는 예약어이므로 즉시 None이 되지 않음.
+            # 하지만 더 이상 이 변수를 쓰면 안 되므로, 파이썬 쪽 레퍼런스를 끊어야 함.
+            self._thread.deleteLater()  # Qt에게 삭제 요청
+            self._thread = None         # [핵심] 파이썬 변수 초기화

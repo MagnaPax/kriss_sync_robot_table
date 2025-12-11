@@ -12,6 +12,22 @@ from ui.widgets.base_widget import BaseWidget
 from ui.widgets.status_indicator_box import StatusIndicatorBox
 
 
+
+
+
+
+# TODO: 이 뷰의 뷰모델의 __int__ 메서드에 아래 내용 추가해야 한다
+#   현재 진행중인 시퀀스 구독(connect)해서 UI 갱신하게 만들어야 된다
+
+
+
+
+
+
+
+
+
+
 # ==========================================================
 # 1. 로봇 시각화(애니메이션) 위젯 (내부용)
 # ==========================================================

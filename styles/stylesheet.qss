@@ -75,14 +75,6 @@ QWidget#right_panel {
    ---------------------------------------- 
 */
 
-/* CurrentStateWidget 스타일 */
-/* QWidget#current_state_widget QLabel {
-    color: #808080;
-    font-size: 14px;
-    border: none; 
-    background-color: transparent; 
-} */
-
 
 /* CurrentStateWidget 스타일 */
 #current_state_widget {
@@ -100,6 +92,102 @@ QWidget#right_panel {
     border-radius: 3px;
 }
 
+/* TargetPositionWidget 전용 스타일 */
+/* 메인 그룹박스 (Target Position) 테두리는 보이게 하기 */
+#target_position_widget > QGroupBox {
+    border: 1px solid #94a3b8; /* 차분한 회색 테두리 */
+    border-radius: 6px;
+    margin-top: 20px; /* 제목 공간 확보 */
+    font-weight: bold;
+    color: #333333; /* 제목 글자색 (어두운 색) */
+}
+
+#target_position_widget > QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left; /* 제목 왼쪽 정렬 */
+    padding: 0 10px;
+    background-color: transparent; /* 배경 투명 */
+}
+
+/* 내부 섹션 테두리 제거 */
+#target_position_widget QFrame#section_edit_macro, 
+#target_position_widget QFrame#section_coordinate, 
+#target_position_widget QFrame#section_robot_coordinate, 
+#target_position_widget QFrame#section_turtable_coordinate, 
+#target_position_widget QFrame#section_macro_buttons, 
+#target_position_widget QFrame#section_go_to, 
+#target_position_widget QFrame#section_feed_rate {
+    border: none;
+    background: transparent;
+}
+
+/* 라벨 (X, Y, Z, Feed Rate 등) 스타일 강화 (가독성 확보) */
+#target_position_widget QLabel {
+    font-weight: bold;
+    color: #333333; /* 어두운 회색 (가독성) */
+}
+
+/* 입력창 (QLineEdit, QDoubleSpinBox) 스타일 */
+#target_position_widget QLineEdit, 
+#target_position_widget QDoubleSpinBox {
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    padding: 6px;
+    background-color: #ffffff; /* 흰색 배경 */
+    color: #333333; /* 짙은 글자색 */
+    font-size: 14px;
+    selection-background-color: #5D9CEC;
+}
+
+#target_position_widget QLineEdit:focus, 
+#target_position_widget QDoubleSpinBox:focus {
+    border: 2px solid #5D9CEC; /* 포커스 시 파란 테두리 */
+}
+
+
+/* TaskManagerWidget 전용 스타일 */
+/* 1. 메인 그룹박스 스타일 (TargetPosition과 통일) */
+#task_manager_widget > QGroupBox {
+    border: 1px solid #94a3b8;
+    border-radius: 6px;
+    margin-top: 20px;
+    font-weight: bold;
+    color: #333333;
+}
+
+#task_manager_widget > QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 10px;
+    background-color: transparent;
+}
+
+/* 2. 정보 타이틀 라벨 (Feed, Runtime) - 하늘색 강조 */
+#task_manager_widget QLabel#info_title {
+    color: #4FC1E9;  /* 기존 인라인 스타일 색상 */
+    font-weight: bold;
+    font-size: 13px;
+}
+
+/* 3. 정보 값 라벨 (숫자) - 굵게 */
+#task_manager_widget QLabel#info_value {
+    color: #333333;
+    font-weight: bold;
+    font-size: 13px;
+    margin-right: 5px;
+}
+
+/* 4. 파일명 라벨 - 일반 텍스트 */
+#task_manager_widget QLabel#filename_label {
+    color: #333333;
+    font-weight: normal;
+}
+
+/* (참고) 버튼은 py 코드에서 setProperty("type", "general")을 했으므로
+   기존의 보라색 버튼 스타일이 자동으로 적용됩니다. */
+
+
+
 
 /* ----------------------------------------
    버튼 스타일 (QPushButton)
@@ -110,7 +198,7 @@ QWidget#right_panel {
 /* 사용법: button.setProperty("type", "general") */
 QPushButton[type="general"] {
     background-color: #6f42c1; /* 보라색 배경 */
-    color: white;
+    color: #F0F0F0;
     font-weight: bold;
     border: 1px solid #5a359e; /* 살짝 어두운 테두리 */
     border-radius: 4px; /* 기존 패널과 일치 */
@@ -131,17 +219,17 @@ QPushButton[type="general"]:pressed {
 /* 2. 특수/주요 버튼 (파란색) */
 /* 사용법: button.setProperty("type", "special") */
 QPushButton[type="special"] {
-    background-color: #007BFF; /* 밝은 파란색 */
-    color: white;
+    background-color: #5D9CEC; /* 파스텔 블루 */
+    color: #F0F0F0;
     font-weight: bold;
-    border: 1px solid #0069d9;
+    border: 1px solid #4A89DC;  /* 약간 진한 파스텔 테두리 */
     border-radius: 4px;
-    padding: 5px 10px;
+    padding: 6px 10px;
 }
 
 QPushButton[type="special"]:hover {
-    background-color: #008bff;
-    border-color: #007BFF;
+    background-color: #4A89DC;  /* 호버 시 조금 더 진해짐 */
+    border-color: #5D9CEC;
 }
 
 QPushButton[type="special"]:pressed {
@@ -154,7 +242,7 @@ QPushButton[type="special"]:pressed {
 /* 사용법: button.setObjectName("emergency_button") */
 QPushButton#emergency_button {
     background-color: #DC3545; /* 기존 'disconnected'와 동일한 강조색 */
-    color: white;
+    color: #F0F0F0;
     font-weight: bold;
     font-size: 14px; /* 다른 버튼보다 조금 더 크게 */
     border: 1px solid #b02a37;

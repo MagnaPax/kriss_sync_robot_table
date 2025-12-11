@@ -17,7 +17,7 @@ class LeftPanel(QFrame):
 
         # 위젯들
         self.logo_widget = LogoWidget()
-        world_position = QGroupBox("World Position")
+        connection_status = QGroupBox("Connection Status")
 
         
         # --- TurntableWidget을 QGroupBox 안에 넣기 ---
@@ -41,11 +41,11 @@ class LeftPanel(QFrame):
 
         turntable_group.setStyleSheet("color: black; border: 1px solid red;")
         current_state_group.setStyleSheet("color: black; border: 1px solid black;")
-        world_position.setStyleSheet("color: black; border: 1px solid green;")
+        connection_status.setStyleSheet("color: black; border: 1px solid green;")
 
 
         # 바탕 레이아웃에 위젯 추가
-        main_layout.addWidget(self.logo_widget,  stretch=1)  # 1/5 -> 20%
-        main_layout.addWidget(turntable_group,   stretch=2)  # 2/5 -> 40%
-        main_layout.addWidget(current_state_group, stretch=1)# 1/5 -> 20%
-        main_layout.addWidget(world_position,    stretch=1)  # 1/5 -> 20%
+        main_layout.addWidget(self.logo_widget,  stretch=1)     # 1/5 -> 20%
+        main_layout.addWidget(turntable_group,   stretch=2)     # 2/5 -> 40%
+        main_layout.addWidget(current_state_group, stretch=1)   # 1/5 -> 20%
+        main_layout.addWidget(connection_status,    stretch=1)  # 1/5 -> 20%

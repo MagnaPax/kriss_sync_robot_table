@@ -1,17 +1,20 @@
 # communication/twincat_commander.py
 """
 TwinCAT Commander (Model Layer)
-    원본파일(TxtFileReadFANUC.py)의 main 함수 로직
+    전략 패턴(Strategy Pattern) 사용
 
-역할: FANUC 로봇 제어 로직 (좌표 전송, 시작/정지, 핸드셰이킹)
+    역할:
+        TwinCAT 에 연결된 기기(FANUC 로봇, 턴테이블) 제어
 """
 import time
 import pyads
-from typing import Tuple, Optional, Union, TYPE_CHECKING, Callable
+from abc import ABC, abstractmethod
+from typing import Tuple, Optional, Union, TYPE_CHECKING, Callable, List, Any
 
+from core.event_bus import EVENT_BUS
+from communication.fanuc_adapter import FanucAdapter
 from communication.twincat_connector import TwinCATConnector
-from communication.fanuc_utils import send_feed, send_coordinate, pause_process, resume_process
-
+from communication.turntable_adapter import TurntableAdapter
 
 
 # 타입 검사기(Pylance)에게만 MockConnection의 존재를 알려줌
@@ -20,107 +23,214 @@ if TYPE_CHECKING:
     from communication.mock_plc import MockConnection
 
 
+# =========================================================
+# 1. 추상 실행기 (Base Executor)
+# =========================================================
+class BaseExecutor(ABC):
+    def __init__(self, robot: FanucAdapter, turntable: TurntableAdapter):
+        self.robot = robot
+        self.table = turntable
 
-class TwinCATCommander:
+    @abstractmethod
+    def can_execute(self, sample_data: dict) -> bool:
+        """이 데이터 형식을 처리할 수 있는지 확인"""
+        pass
+
+    @abstractmethod
+    def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
+        """실제 실행 로직"""
+        pass
+
+
+# =========================================================
+# 2. 전략 구현 (Strategies)
+# =========================================================
+
+class FanucOnlyExecutor(BaseExecutor):
+    """로봇 단독 제어"""
+
+    def can_execute(self, sample_data: dict) -> bool:
+        # FANUCPose 객체의 키들이 포함되어 있는지 확인
+        required_keys = {'w', 'p', 'r'} 
+        return required_keys.issubset(sample_data.keys())
+
+    def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
+        EVENT_BUS.ui_log_message.emit(f"[{self.__class__.__name__}] FANUC 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
+
+        adapter = self.robot
+        num_sequences = len(sequence_data)  # 전체 시퀀스 갯수
+
+        try:
+            init_done = False       # 첫 번째 명령을 보냈는지 확인하는 Flag
+            previous_coords = None  # 이전 명령
+
+            # 1. 초기 신호 전송
+            adapter.set_initial_signals()
+
+            # 2. 시퀀스 루프
+            for idx, row in enumerate(sequence_data, 1):
+
+                # 데이터에 'id'가 있으면 가져오고, 없다면 루프 인덱스(idx)를 id로 사용
+                current_id = row.get('id') or idx
+
+                # 현재 시퀀스 진행상태 방송
+                EVENT_BUS.sequence_progress_updated.emit(current_id, num_sequences, row, "processing")
+
+                feed_rate = row.get('f', 10.0)
+
+                current_coords = {
+                    'x': row['x'], 'y': row['y'], 'z': row['z'],
+                    'w': row['w'], 'p': row['p'], 'r': row['r']
+                }
+
+
+                # --- 증분 이동(Incremental/Relative Move) 제어 --- #
+                # TP 프로그램이 Absolute 가 아닌 Relative 로 설정되어 있음
+
+                # 첫 번째 시퀀스
+                if previous_coords is None:
+                    # 이동량(deltas)을 현재 좌표 그대로 설정
+                    deltas = current_coords.copy()
+                    # 기준점 업데이트
+                    previous_coords = current_coords.copy()
+
+                # 첫 번째 시퀀스 아니면
+                else:
+                    # 이동해야 될 양 = (현재 목표 - 직전 목표)
+                    deltas = {key: current_coords[key] - previous_coords[key] for key in current_coords}
+
+                    # 기준점 업데이트 (이번 목표가 다음번의 기준이 됨)
+                    previous_coords = current_coords.copy()
+
+
+                # --- 핸드셰이킹 (Busy Check) --- #
+                while True:
+                    # 로봇이 움직이는 중인지 확인
+                    is_busy = adapter.read_busy_signal()
+
+                    # 로봇이 움직이는 동안(Busy) 미리 다음 명령을 전송한다
+                    #   -> 멈추지 않는 연속적인 동작을 위해
+                    if (not init_done) or is_busy:
+                        adapter.send_data_packet(feed_rate, deltas)
+
+                        init_done = True    # 첫 번째 명령 실행했다고 체크
+                        time.sleep(0.01)    # 통신 안정화
+
+                        # 다음 시퀀스로 이동
+                        break
+                    else:
+                        # 아직 준비 안 됨 -> 대기
+                        time.sleep(0.01)
+
+                # 현재 시퀀스 처리 완료 방송
+                EVENT_BUS.sequence_progress_updated.emit(current_id, num_sequences, row, "processed")
+
+            # 3. 종료 신호
+            adapter.set_finish_signals()
+            return True, "작업 완료"
+        
+        except Exception as e:
+            adapter.set_emergency_stop()
+            return False, f"실행 중 에러 발생: {e}"
+
+
+class IntegratedExecutor(BaseExecutor):
     """
-    TwinCAT Commander (Model Layer)
-    역할: FANUC 로봇 제어 로직 (좌표 전송, 시작/정지, 핸드셰이킹)
+    CSV 파일 형식 (로봇 + 턴테이블 통합 제어)
+    """
+    def can_execute(self, sample_data: dict) -> bool:
+        # CSV_SCHEMA의 키들이 포함되어 있는지 확인
+        required_keys = {'polar_coord_theta', 'polar_coord_radius'}
+        return required_keys.issubset(sample_data.keys())
+
+    def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
+        EVENT_BUS.ui_log_message.emit(f"[{self.__class__.__name__}] CSV 파일 통합 제어 모드로 실행 (데이터 {len(sequence_data)}건)", "INFO")
+        
+        print(f"처리할 csv 파일의 데이터 값\n{sequence_data}\n")
+
+        """
+        # 1. 시작 신호
+        self.robot.start_sequence_plc_signals()
+        # self.table.start_signal()
+
+        # 2. 통합 루프
+        for row in sequence_data:
+            # 동기화 및 전송 로직...
+
+            current_id = row.get('id')
+
+            # TODO: current_id 를 이벤트 버스에 실어서 방송하기
+            pass
+        
+        # 3. 종료 신호
+        self.robot.end_sequence_plc_signals()
+        """
+        return True, "통합 제어 실행 완료 (구현 필요)"
+
+
+class LegacyIntegratedExecutor(BaseExecutor):
+    """
+    레거시 TXT 파일 형식
+    """
+
+    def can_execute(self, sample_data: dict) -> bool:
+        # TXT_SCHEMA의 키들이 포함되어 있는지 확인
+        required_keys = {'turntable_deg', 'tool_rotation_rpm', 'tool_revolution_rpm'}
+        return required_keys.issubset(sample_data.keys())
+
+    def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
+        EVENT_BUS.ui_log_message.emit(f"[{self.__class__.__name__}] 레거시 파일 모드로 실행 (데이터 {len(sequence_data)}건)", "INFO")
+
+        return True, "레거시 파일 모드 실행 완료 -> TODO: 로직 만들어야 된다"
+
+
+
+
+# =========================================================
+# 3. 게이트웨이 (The Commander)
+# =========================================================
+class TwinCATCommander:
+
+    """
+    데이터 형식에 따라 적절한 Executor를 선택하여 실행하는 '게이트웨이'
     """
     def __init__(self, connector: TwinCATConnector):
         self.connector = connector
-        self._prev_coords: Optional[dict] = None
+        
+        # 하위 장치 컨트롤러
+        self.robot = FanucAdapter(connector)
+        self.turntable = TurntableAdapter(connector)
 
-    @property
-    def plc(self) -> Union[pyads.Connection, 'MockConnection']:
-        """Connector의 활성 핸들을 가져오는 단축 속성"""
-        return self.connector.handle
-
-
-
-    """
-    TxtFileReadFANUC 로직 그대로
-
-        변경 사항: 
-            plc -> self.plc
-            로그 처리
-            리턴값 추가
-    """
-    def start_process(self) -> Tuple[bool, str]:
-        # RSR신호 Pulse
-        print("TP Program Start")
-        self.plc.write_by_name('MAIN.Robot1._UI1.UI10_RSR2', True, pyads.PLCTYPE_BOOL)   # MAIN.Robot1._UI1.UI09_RSR1 = RSR0001 / MAIN.Robot1._UI1.UI10_RSR2 = RSR0002
-        time.sleep(0.05)
-
-        # Loop신호(ON이면 루프 반복, OFF이면 루프 종료)
-        self.plc.write_by_name('MAIN.Robot1._UI1.DI181', True, pyads.PLCTYPE_BOOL)
-
-        self._prev_coords = None
-        return True, "시작 신호 전송"
-    
-    def stop_process(self) -> Tuple[bool, str]:
-        # Sequence 종료 시 루프 신호 OFF 
-        self.plc.write_by_name('MAIN.Robot1._UI1.UI10_RSR2', False, pyads.PLCTYPE_BOOL)
-        self.plc.write_by_name('MAIN.Robot1._UI1.DI181', False, pyads.PLCTYPE_BOOL)
-
-        return True, "정지 신호 전송"
+        # 등록된 실행기들 (우선순위 순서대로)
+        self.executors: List[BaseExecutor] = [
+            LegacyIntegratedExecutor(self.robot, self.turntable),   # 특정 키값이 더 많은 것을 먼저 검사
+            IntegratedExecutor(self.robot, self.turntable),
+            FanucOnlyExecutor(self.robot, self.turntable),  # x,y,z 중복된 키값이 많은 조건을 마지막에
+        ]
 
 
-    def pause_process(self):
-        # fanuc_utils의 함수에 연결 객체(self.plc)를 넘겨줌
-        pause_process(self.plc)
-
-    def resume_process(self):
-        resume_process(self.plc)
-
-
-    # ======================================================
-    def write_move_command(self, coords, previous_coords, init_done, i, lines, check_stop: Optional[Callable[[], bool]] = None) -> Tuple[dict, bool]:
+    def execute_sequence_with_executor(self, sequence_data: list[dict[str, Any]]) -> tuple[bool, str]:
         """
-        단일 좌표 이동 명령
-        
-        Args:
-            plc:               TwinCAT 연결 객체
-            coords:            현재 스텝에서 이동할 목표 좌표 (F, X, Y, Z, W, P, R)
-            previous_coords:   직전 스텝의 좌표 (Delta 계산용)
-            init_done:         첫 번째 이동 명령이 수행되었는지 여부 (True/False)
-            i:                 현재 처리 중인 라인 번호 (로그 출력용)
-            lines:             전체 시퀀스 데이터 리스트 (전체 진행률 표시용)
-            check_stop (Callable): 중단 요청이 있는지 확인하는 함수 (True면 중단)
+        [Gateway Logic]
+        1. 데이터의 첫 줄을 샘플로 채취하여 적절한 실행기를 찾는다
+        2. 찾은 Executor를 실행한다
         """
+        if not sequence_data:
+            return False, "데이터가 비어있습니다."
+
+        sample_row = sequence_data[0]
+
+        print(f"\n샘플 데이터: {sample_row}\n")
         
-        # 1. Delta 계산
-        if previous_coords is None:
-            deltas = coords.copy()
-        else:
-            deltas = {key: coords[key] - previous_coords[key] for key in coords.keys()}
-        
-        previous_coords = coords
-
-        # 2. 대기 및 전송 루프
-        while True:
-            # [수정] msvcrt 대신 외부에서 주입된 중단 체크 함수 사용
-            if check_stop and check_stop():
-                raise InterruptedError("사용자에 의해 중단됨")
-
-            # [로직] 첫 줄이거나(init_done=False) OR 로봇이 요청(DO45=True)하면 전송
-            if (not init_done) or self.plc.read_by_name('MAIN.Robot1._UO1.DO45', pyads.PLCTYPE_BOOL):
-                
-                # (로그 출력 생략...)
-
-                # 데이터 전송
-                send_feed(self.plc, coords['F'])
-                send_coordinate(self.plc, deltas['X'], "X")
-                send_coordinate(self.plc, deltas['Y'], "Y")
-                send_coordinate(self.plc, deltas['Z'], "Z")
-                send_coordinate(self.plc, deltas['W'], "W")
-                send_coordinate(self.plc, deltas['P'], "P")
-                send_coordinate(self.plc, deltas['R'], "R")
-
-                init_done = True
+        # 1. 적절한 Executor 찾기
+        target_executor = None
+        for executor in self.executors:
+            if executor.can_execute(sample_row):
+                target_executor = executor
                 break
-            
-            else:
-                # 신호 대기 (Polling)
-                time.sleep(0.005)
-        
-        return previous_coords, init_done
+
+        # 2. 찾은 Executor에게 실행 위임
+        if target_executor:
+            return target_executor.execute(sequence_data)
+        else:
+            return False, "지원하지 않는 데이터 형식입니다."

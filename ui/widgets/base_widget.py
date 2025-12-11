@@ -48,6 +48,10 @@ class BaseWidget(QWidget):
             parent: 부모 위젯 (None이면 독립 창)
         """
         super().__init__(parent)
+
+        # 모든 자식 위젯이 공통으로 사용할 로그 말머리
+        # self.__class__.__name__은 자식 클래스의 이름이 들어가게 된다
+        self.log_prefix = f"[{self.__class__.__name__}]"
         
         # 내부 상태
         self._is_enabled = True       # 위젯 활성화 상태
