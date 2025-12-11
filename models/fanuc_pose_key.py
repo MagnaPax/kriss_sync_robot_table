@@ -121,3 +121,25 @@ class FANUCPoseKey(str, Enum):
             "MAIN.Robot1._UI1.Xh0" (X축의 High 바이트 0번 비트)
         """
         return f"MAIN.Robot1._UI1.{self.value}h{bit_index}"
+
+
+
+# =============================================================================
+# 제어 신호 정의
+# =============================================================================
+class FanucSignal(str, Enum):
+    """
+    FANUC 로봇 제어를 위한 디지털 신호(Bit) 주소 모음
+    """
+    # [입력] Robot <- PLC (보내는 신호)
+    RSR2_START = "MAIN.Robot1._UI1.UI10_RSR2"       # 작업 시작 요청 (Pulse)
+    LOOP_ON    = "MAIN.Robot1._UI1.DI181"           # 연속 재생 (ON=반복)
+    CYCLE_STOP = "MAIN.Robot1._UI1.UI04_CycleStop"  # 비상 정지 / 정지
+    
+    # [출력] Robot -> PLC (읽는 신호)
+    BUSY       = "MAIN.Robot1._UO1.DO45"            # 로봇이 움직이는 중 (Busy)
+
+    @property
+    def path(self) -> str:
+        """PLC 주소 반환"""
+        return self.value
