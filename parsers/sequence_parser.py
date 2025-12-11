@@ -132,12 +132,13 @@ class SequenceCsvParser(BaseParser):
                     schema_info = CSV_SCHEMA[key]
                     field_name = schema_info['name']
                     data_type = schema_info['type']
-                    
-                    # 'id' (PRLINE)는 시퀀스 키로 사용
+
                     if field_name == 'id':
                         sequence_id = value_str # 정수로 변환하지 않고 문자열 키로 유지
+                        temp_dict['id'] = int(value_str)
+
                     else:
-                        # 스키마에 정의된 타입(float 등)으로 변환하여 저장
+                        # 나머지 데이터 처리
                         try:
                             temp_dict[field_name] = data_type(value_str)
 
