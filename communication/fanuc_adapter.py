@@ -100,18 +100,18 @@ class FanucAdapter:
     # 컴퓨터의 실수(Float, 12.34)를 PLC가 이해하는 정수 비트 배열로 변환
     # ==========================================================================
 
-    def send_data_packet(self, feed: float, delta: dict):
+    def send_data_packet(self, feed_rate: float, delta: dict):
         """
         [데이터 패킷 전송]
         속도(Feed)와 6개 축의 이동량(Delta)을 한 번에 전송
 
         Args:
-            feed (float): 이동 속도
+            feed_rate (float): 이동 속도
             delta (dict): {'x': 10.0, 'y': -5.5 ...} 형태의 증분값 딕셔너리
                         (주의: 키는 소문자일 수도 있고 대문자일 수도 있음. model_key로 해결)
         """
         # 1. 속도 전송
-        self._send_feed(feed)
+        self._send_feed(feed_rate)
 
         # 2. 6개 축 좌표 전송
         # FANUCPoseKey(X, Y, Z...)를 하나씩 꺼내서 반복
@@ -226,7 +226,8 @@ class FanucAdapter:
         DO45 (Digital Output 45번) 핀을 확인한다
         
         반환:
-            True: 나 지금 바빠 (움직이는 중이야)
+            True: 이전 명령을 접수해서 현재 로봇이 움직이고 있다
+                ⚠️ 하지만 현재 input register 는 비어있기 때문에 다음 명령 받을 수 있다!!!
             False: 안 바쁘다 (다음 명령 줘)
         """
         return bool(self._plc.read_by_name(FanucSignal.BUSY.path, pyads.PLCTYPE_BOOL))
