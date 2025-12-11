@@ -225,8 +225,8 @@ class EventBus(QObject):
             ...
         }
     """
-    
-    
+
+
     # =========================================================================
     # UI Interaction Events (UI 상호작용)
     # =========================================================================
@@ -255,7 +255,7 @@ class EventBus(QObject):
         - TaskManagerViewModel (파일 정보 표시)
         - BatchProcessingViewModel (일괄 처리 준비)
         - ProgressBarViewModel (총 단계 수 계산)
-    
+
     Args:
         dict: 원본 파일에서 파싱이 끝난 시퀀스 데이터 
         예 :
@@ -265,6 +265,28 @@ class EventBus(QObject):
             }
     """
 
+
+    # =========================================================================
+    # Execution Status Events (작업 실행 상태)
+    # =========================================================================
+    sequence_progress_updated = pyqtSignal(int, int, str)
+    """
+    시퀀스 진행 상태 변경 알림
+
+    용도:
+        - 현재 실행 중인 시퀀스 ID를 UI에 표시
+        - 프로그래스 바 갱신 (current / total * 100)
+        - 작업 완료/실패 여부 UI 갱신
+
+    Args:
+        int: 시퀀스 ID (또는 현재 순번)
+        int: 전체 시퀀스 개수
+        str: 상태값 ('processing', 'processed', 'failed', 'unprocessed')
+
+    Example:
+        # 3번 시퀀스 실행 시작 (총 10개 중)
+        EVENT_BUS.task_status_changed.emit(3, 10, 'processing')
+    """        
 
 
 
