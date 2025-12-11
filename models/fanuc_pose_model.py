@@ -42,7 +42,7 @@ class FANUCPose:
     def to_dict_with_meaningful_names(self) -> Dict[str, float]:
         return {"feed_rate":self.f, "axis_x": self.x, "axis_y": self.y, "axis_z": self.z, "yaw_w": self.w, "pitch_p": self.p, "roll_r": self.r}
     
-    def to_dict_preserving_names(self) -> Dict[str, Any]:
+    def to_dict_preserving_key_names(self) -> Dict[str, Any]:
         # dataclasses.asdict를 쓰면 자동으로 딕셔너리가 된다(키값은 똑같음)
         return asdict(self)
 
