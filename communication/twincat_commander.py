@@ -15,7 +15,6 @@ from core.event_bus import EVENT_BUS
 from communication.fanuc_adapter import FanucAdapter
 from communication.twincat_connector import TwinCATConnector
 from communication.turntable_adapter import TurntableAdapter
-from communication.fanuc_utils import send_feed, send_coordinate, pause_process, resume_process
 
 
 # 타입 검사기(Pylance)에게만 MockConnection의 존재를 알려줌
