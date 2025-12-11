@@ -139,8 +139,12 @@ class IntegratedExecutor(BaseExecutor):
         return required_keys.issubset(sample_data.keys())
 
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
-        print(f"[{__class__.__name__}] 로봇+턴테이블 통합 제어 모드로 실행합니다.")
+        print(f"[{self.__class__.__name__}] 로봇+턴테이블 통합 제어 모드로 실행 (데이터 {len(sequence_data)}건)")
+
         
+        print(f"처리할 csv 파일의 데이터 값\n{sequence_data}\n")
+
+        """
         # 1. 시작 신호
         self.robot.start_sequence_plc_signals()
         # self.table.start_signal()
@@ -148,14 +152,19 @@ class IntegratedExecutor(BaseExecutor):
         # 2. 통합 루프
         for row in sequence_data:
             # 동기화 및 전송 로직...
+
+            current_id = row.get('id')
+
+            # TODO: current_id 를 이벤트 버스에 실어서 방송하기
             pass
         
         # 3. 종료 신호
         self.robot.end_sequence_plc_signals()
+        """
         return True, "통합 제어 실행 완료 (구현 필요)"
 
 
-class LegacyTXTEscutor(BaseExecutor):
+class LegacyIntegratedExecutor(BaseExecutor):
     """
     레거시 TXT 파일 형식
     """
@@ -166,11 +175,10 @@ class LegacyTXTEscutor(BaseExecutor):
         return required_keys.issubset(sample_data.keys())
 
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
-        # 기존 FanucAdapter 있던 루프 로직을 사용하거나 여기서 구현
-        print(f"[{__class__.__name__}] 레거시 파일 모드로 실행합니다.")
+        print(f"[{self.__class__.__name__}] 레거시 파일 모드로 실행 (데이터 {len(sequence_data)}건)")
 
-        # FanucAdapter의 레거시 시퀀스 실행 로직에 위임
-        return self.robot.run_legacy_sequence(sequence_data)
+        return True, "레거시 파일 모드 실행 완료 -> TODO: 로직 만들어야 된다"
+
 
 
 
@@ -191,9 +199,9 @@ class TwinCATCommander:
 
         # 등록된 실행기들 (우선순위 순서대로)
         self.executors: List[BaseExecutor] = [
-            IntegratedExecutor(self.robot, self.turntable), # 더 구체적인 조건을 먼저 검사
-            FanucOnlyExecutor(self.robot, self.turntable),  # 일반적인 조건
-            LegacyTXTEscutor(self.robot, self.turntable)
+            LegacyIntegratedExecutor(self.robot, self.turntable),   # 특정 키값이 더 많은 것을 먼저 검사
+            IntegratedExecutor(self.robot, self.turntable),
+            FanucOnlyExecutor(self.robot, self.turntable),  # x,y,z 중복된 키값이 많은 조건을 마지막에
         ]
 
 
