@@ -39,7 +39,7 @@ class TurntableAdapter:
     def set_initial_signals(self):
         """
         [시퀀스 시작 전 준비]
-        서보 모터 전원을 켜고, 이동 트리거를 초기화합니다.
+        서보 모터 전원을 켜고, 이동 트리거를 초기화한다
         """
         plc = self._plc
 
@@ -71,7 +71,7 @@ class TurntableAdapter:
         plc.write_by_name(TurntableSignal.SERVO_ON.path, False, pyads.PLCTYPE_BOOL)
 
     def set_emergency_stop(self):
-        """[비상 정지] 즉시 서보를 끕니다."""
+        """[비상 정지] 즉시 서보를 끈다"""
         # 턴테이블은 별도의 Stop 신호가 없으므로 Servo OFF로 대응
         self.set_finish_signals()
 
@@ -83,7 +83,7 @@ class TurntableAdapter:
     def move_to(self, angle: float, velocity: float):
         """
         [이동 명령 전송]
-        목표 각도와 속도를 입력하고 이동 신호를 켭니다.
+        목표 각도와 속도를 입력하고 이동 신호를 켠다
         
         Args:
             angle (float): 목표 각도 (deg)

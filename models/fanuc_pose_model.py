@@ -56,7 +56,7 @@ class FANUCPoseModel:
         2. 안전한 타입 변환 (str -> float)
         3. 도메인 객체(FANUCPose) 생성 및 반환
         
-    이 클래스는 상태를 가지지 않으므로(Stateless), 모든 메서드는 정적(@staticmethod)입니다.
+    이 클래스는 상태를 가지지 않으므로(Stateless), 모든 메서드는 정적(@staticmethod)이다
     """
 
     def do_task(self) -> str:
@@ -214,7 +214,7 @@ if __name__ == '__main__':
         }
     }
 
-    # 파싱 결과를 담을 변수를 미리 초기화합니다.
+    # 파싱 결과를 담을 변수를 미리 초기화한다
     poses: Dict[str, FANUCPose] = {}
 
     # 1. 파싱 성공 테스트

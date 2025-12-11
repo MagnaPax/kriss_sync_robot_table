@@ -42,7 +42,7 @@ class SequenceTxtParser(BaseParser):
 
     def parse(self, data: str | List[str]) -> SequenceDict:
         """
-        FANUC 좌표 TXT 파일의 raw 문자열 리스트를 의미있는 딕셔너리 시퀀스로 파싱합니다.
+        FANUC 좌표 TXT 파일의 raw 문자열 리스트를 의미있는 딕셔너리 시퀀스로 파싱
 
         인자:
             data (List[str]): 각 줄이 '값 값 값...' 형태인 문자열 리스트 (공백 분리)
@@ -87,7 +87,7 @@ class SequenceTxtParser(BaseParser):
             for name, value_str in zip(FIELD_NAMES, values):
                 coords[name] = float(value_str)
             
-            # 딕셔너리 삽입 순서는 FIELD_NAMES와 동일하며, 키는 할당된 값과 일치합니다.
+            # 딕셔너리 삽입 순서는 FIELD_NAMES와 동일하며, 키는 할당된 값과 일치한다
             parsed_data[str(i)] = coords
                 
         return parsed_data

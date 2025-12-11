@@ -45,7 +45,7 @@ from utils.logger import Logger # Logger를 임포트하여 로거가 초기화�
 def logger_paths():
     """
     Logger를 초기화하고 로그 파일 경로를 반환.
-    module 스코프로 모든 테스트 실행 전 딱 한 번만 실행됩니다.
+    module 스코프로 모든 테스트 실행 전 딱 한 번만 실행된다
     
     file_handler.py가 로그를 쓰기 전에
     Logger가 먼저 초기화되는 것을 보장합니다.

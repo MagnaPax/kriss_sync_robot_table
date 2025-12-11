@@ -54,7 +54,6 @@ class _RobotVisualizer(QWidget):
 
 
     def paintEvent(self, event) -> None:  # type: ignore[override]
-        """위젯을 그립니다."""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(QPen(QColor("#333"), 10, cap=Qt.PenCapStyle.RoundCap, join=Qt.PenJoinStyle.RoundJoin))
@@ -245,7 +244,7 @@ class RobotPositionWidget(BaseWidget):
         self.state_indicator.safe_update_data(state_data)
 
     def clear_widget(self):
-        """위젯을 초기 상태(중심, off)로 리셋합니다."""
+        """위젯을 초기 상태(중심, off)로 리셋"""
         self.update_data({
             'x': 0.5,
             'height': 0.5,

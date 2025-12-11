@@ -530,7 +530,7 @@ if __name__ == '__main__':
 
     app = QApplication(sys.argv)
     
-    # [추가 2] 로그 리스너 가동 (이제 에러가 콘솔에 보입니다)
+    # 로그 리스너 가동 (에러가 콘솔에 보인다)
     log_listener = LogListener()
 
     # 1. Model 생성
