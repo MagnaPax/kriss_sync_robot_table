@@ -71,8 +71,6 @@ class PLCWorker(QObject):
                 # --- 이동 명령 (Commander 사용) --- #
                 case 'MOVE':
 
-                    EVENT_BUS.ui_log_message.emit(f"\n\n{self._log_prefix} match-case:MOVE 들어온 값의 형태: {type(self.sequence_data)}\n값:\n{self.sequence_data}\n\n", "DEBUG")
-
                     # 데이터 유효성 검사 (None 체크)
                     if self.sequence_data is None:
                         raise ValueError("MOVE 명령에 필요한 데이터가 없습니다.")
