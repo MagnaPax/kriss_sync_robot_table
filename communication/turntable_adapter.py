@@ -116,19 +116,19 @@ class TurntableAdapter:
 
 
     # ==========================================================================
-    # 3. 상태 읽기 (피드백)
+    # 3. 상태 읽기 (피드백 듣기)
     # ==========================================================================
 
     def read_busy_signal(self) -> bool:
         """
         [Busy 신호 확인]
         MAIN.bMoveAbsBusy 확인
-        
+
         Returns:
             True: 이동 중
             False: 대기 중 (이동 완료)
         """
-        return self._plc.read_by_name(TurntableSignal.BUSY.path, pyads.PLCTYPE_BOOL)
+        return bool(self._plc.read_by_name(TurntableSignal.BUSY.path, pyads.PLCTYPE_BOOL))
 
     def read_current_angle(self) -> float:
         """
