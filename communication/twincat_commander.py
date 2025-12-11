@@ -52,15 +52,82 @@ class FanucOnlyExecutor(BaseExecutor):
 
     def can_execute(self, sample_data: dict) -> bool:
         # FANUCPose 객체의 키들이 포함되어 있는지 확인
-        required_keys = {'axis_x', 'yaw_w'} 
+        required_keys = {'w', 'p', 'r'} 
         return required_keys.issubset(sample_data.keys())
 
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
-        # 기존 FanucAdapter 있던 루프 로직을 사용하거나 여기서 구현
-        print(f"[{__class__.__name__}] FANUC 단독 제어 모드로 실행합니다.")
+        print(f"[{self.__class__.__name__}] FANUC 단독 제어 시작 (데이터 {len(sequence_data)}건)")
 
-        # FanucAdapter의 레거시 시퀀스 실행 로직에 위임
-        return self.robot.run_legacy_sequence(sequence_data)
+        adapter = self.robot
+
+        try:
+            init_done = False       # 첫 번째 명령을 보냈는지 확인하는 Flag
+            previous_coords = None  # 이전 명령
+
+            # 1. 초기 신호 전송
+            adapter.set_initial_signals()
+
+            # 2. 시퀀스 루프
+            for idx, row in enumerate(sequence_data, 1):
+
+                # 데이터에 'id'가 있으면 가져오고, 없다면 루프 인덱스(idx)를 id로 사용
+                current_id = row.get('id') or idx
+                # TODO: current_id 를 이벤트 버스에 실어서 방송하기
+
+                feed_rate = row.get('f', 10.0)
+
+                current_coords = {
+                    'x': row['x'], 'y': row['y'], 'z': row['z'],
+                    'w': row['w'], 'p': row['p'], 'r': row['r']
+                }
+
+
+                # --- 증분 이동(Incremental/Relative Move) 제어 --- #
+                # TP 프로그램이 Absolute 가 아닌 Relative 로 설정되어 있음
+
+                # 첫 번째 시퀀스
+                if previous_coords is None:
+                    # 이동량(deltas)을 현재 좌표 그대로 설정
+                    deltas = current_coords.copy()
+                    # 기준점 업데이트
+                    previous_coords = current_coords.copy()
+
+                # 첫 번째 시퀀스 아니면
+                else:
+                    # 이동해야 될 양 = (현재 목표 - 직전 목표)
+                    deltas = {key: current_coords[key] - previous_coords[key] for key in current_coords}
+
+                    # 기준점 업데이트 (이번 목표가 다음번의 기준이 됨)
+                    previous_coords = current_coords.copy()
+
+
+                # --- 핸드셰이킹 (Busy Check) --- #
+                while True:
+                    # 로봇이 움직이는 중인지 확인
+                    is_busy = adapter.read_busy_signal()
+
+                    # 로봇이 움직이는 동안(Busy) 미리 다음 명령을 전송한다
+                    #   -> 멈추지 않는 연속적인 동작을 위해
+                    if (not init_done) or is_busy:
+                        adapter.send_data_packet(feed_rate, deltas)
+
+                        init_done = True    # 첫 번째 명령 실행됐다고 표시
+                        time.sleep(0.01)    # 통신 안정화
+
+                        # 다음 시퀀스로 이동
+                        break
+                    else:
+                        # 아직 준비 안 됨 -> 대기
+                        time.sleep(0.01)
+
+            # 3. 종료 신호
+            adapter.set_finish_signals()
+            return True, "작업 완료"
+        
+        except Exception as e:
+            adapter.set_emergency_stop()
+            return False, f"실행 중 에러 발생: {e}"
+
 
 class IntegratedExecutor(BaseExecutor):
     """
