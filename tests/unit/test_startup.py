@@ -27,8 +27,8 @@ def mock_splash():
 def mock_event_bus(mocker):
     """EventBus 시그널 Mocking"""
     return {
-        'ui_log': mocker.patch.object(EVENT_BUS, 'ui_log_message'),
-        'sys_info': mocker.patch.object(EVENT_BUS, 'system_info')
+        'ui_log': mocker.patch.object(EVENT_BUS, 'log.message'),
+        'sys_info': mocker.patch.object(EVENT_BUS, 'system.info')
     }
 
 # ------------------------------------------------------------------

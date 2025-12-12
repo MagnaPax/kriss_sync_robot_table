@@ -392,7 +392,7 @@ class TargetPositionWidget(BaseWidget):
     @pyqtSlot(dict)
     def _on_macro_data_loaded(self, data: dict):
         """"""
-        EVENT_BUS.ui_log_message.emit(
+        EVENT_BUS.log.message.emit(
             f"매크로 데이터 로드 완료 (총 {len(data)}개 항목)", 
             "INFO"
         )
@@ -427,7 +427,7 @@ class TargetPositionWidget(BaseWidget):
 
         직접 MacroSettingsDialog 를 연다
         """
-        EVENT_BUS.ui_log_message.emit(f"{self.log_prefix} 매크로 편집 다이얼로그(MacroSettingsDialog) 열림", "INFO")
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 편집 다이얼로그(MacroSettingsDialog) 열림", "INFO")
 
         dialog = MacroSettingsDialog(parent=self)
 
@@ -453,7 +453,7 @@ class TargetPositionWidget(BaseWidget):
 
         # 어떤 매크로를 불러왔는지 이름과 함께 기록
         macro_name = macro_data.get('name', 'No Name')
-        EVENT_BUS.ui_log_message.emit(
+        EVENT_BUS.log.message.emit(
             f"매크로 불러오기: {macro_id} ('{macro_name}') -> 입력창 갱신", 
             "INFO"
         )        
@@ -487,7 +487,7 @@ class TargetPositionWidget(BaseWidget):
             # QLineEdit 객체로부터 데이터 추출
             line_edit_data = self._extract_data_from_ui()
 
-            EVENT_BUS.ui_log_message.emit(
+            EVENT_BUS.log.message.emit(
                 f"{self.log_prefix} 사용자의 이동 명령(GoTo) 요청: {line_edit_data}", 
                 "INFO"
             )
@@ -496,7 +496,7 @@ class TargetPositionWidget(BaseWidget):
 
         except ValueError as e:
             msg = "이동 명령 실패: 좌표값 입력 오류 (숫자가 아닌 문자가 포함됨)"
-            EVENT_BUS.ui_log_message.emit(msg, "WARNING")
+            EVENT_BUS.log.message.emit(msg, "WARNING")
 
             QMessageBox.warning(self, "입력 오류", "좌표값은 숫자만 입력 가능합니다.")
 

@@ -120,7 +120,7 @@ class AppEngine(QApplication):
         여기서부터는 EVENT_BUS를 사용하여 로그를 남길 수 있다
         """
 
-        EVENT_BUS.system_info.emit("시스템 부트스트랩 시작...")
+        EVENT_BUS.system.info.emit("시스템 부트스트랩 시작...")
         
         # 전역 예외 훅 설치
         self._install_exception_hook()
@@ -128,7 +128,7 @@ class AppEngine(QApplication):
         # 스타일시트 로드
         self._load_stylesheet()
 
-        EVENT_BUS.system_info.emit("시스템 부트스트랩 완료")
+        EVENT_BUS.system.info.emit("시스템 부트스트랩 완료")
 
 
     def _install_exception_hook(self):
@@ -139,11 +139,11 @@ class AppEngine(QApplication):
         """
         try:
             install_global_exception_hook()
-            EVENT_BUS.ui_log_message.emit(
+            EVENT_BUS.log.message.emit(
                 "전역 예외 훅 설치됨", "INFO"
             )
         except Exception as e:
-            EVENT_BUS.ui_log_message.emit(
+            EVENT_BUS.log.message.emit(
                 f"❌ 전역 예외 훅 설치 실패: {e}", "ERROR"
             )
 
@@ -155,15 +155,15 @@ class AppEngine(QApplication):
 
         try:
             load_and_apply_stylesheet(self, STYLESHEET_PATH)
-            EVENT_BUS.ui_log_message.emit(
+            EVENT_BUS.log.message.emit(
                 f"스타일시트 로드됨: {STYLESHEET_PATH.name}", "INFO"
             )
         except FileOperationError as e:
-            EVENT_BUS.ui_log_message.emit(
+            EVENT_BUS.log.message.emit(
                 f"  ⚠ 스타일시트 로드 실패: {e}", "WARNING"
             )
         except Exception as e:
-            EVENT_BUS.ui_log_message.emit(
+            EVENT_BUS.log.message.emit(
                 f"  ⚠ 스타일시트 적용 중 알 수 없는 오류: {e}", "ERROR"
             )
 
@@ -181,11 +181,11 @@ class AppEngine(QApplication):
             aboutToQuit 시그널에 의해 자동 호출됨
         """
 
-        EVENT_BUS.ui_log_message.emit("앱 종료 시작...", "INFO")
+        EVENT_BUS.log.message.emit("앱 종료 시작...", "INFO")
 
         # 모든 모듈에게 "종료 준비"라고 방송
-        EVENT_BUS.app_shutting_down.emit()
-        EVENT_BUS.ui_log_message.emit("종료 이벤트 발행됨", "INFO")
+        EVENT_BUS.system.shutting_down.emit()
+        EVENT_BUS.log.message.emit("종료 이벤트 발행됨", "INFO")
         
         try:
             # EVENT BUS 정리

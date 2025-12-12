@@ -11,7 +11,7 @@ EventBus와 Logger를 느슨하게 연결하는 중재자
 - Logger는 LogListener를 모름
 
 아키텍처:
-    Service/ViewModel → EVENT_BUS.ui_log_message.emit()
+    Service/ViewModel → EVENT_BUS.log.message.emit()
                               ↓
                         LogListener (subscribe)
                               ↓
@@ -25,7 +25,7 @@ EventBus와 Logger를 느슨하게 연결하는 중재자
     
     # 이후 어디서든 로그 발행 가능
     from core.event_bus import EVENT_BUS
-    EVENT_BUS.ui_log_message.emit("작업 완료", "INFO")
+    EVENT_BUS.log.message.emit("작업 완료", "INFO")
 """
 
 from utils.logger import get_logger
@@ -37,7 +37,7 @@ class LogListener:
     EventBus의 UI 로그 메시지를 Logger로 전달하는 중재자
     
     역할:
-    - EVENT_BUS.ui_log_message 시그널 구독
+    - EVENT_BUS.log.message 시그널 구독
     - 로그 레벨에 따라 Logger의 적절한 메서드 호출
     - EventBus와 Logger의 결합 제거
     
@@ -52,8 +52,8 @@ class LogListener:
         # Logger 인스턴스 생성
         self.logger = get_logger(__name__)
         
-        # EventBus의 ui_log_message 시그널 구독
-        EVENT_BUS.ui_log_message.connect(self.on_log_message)
+        # EventBus의 log.message 시그널 구독
+        EVENT_BUS.log.message.connect(self.on_log_message)
         
         self.logger.info("LogListener 초기화 완료 - EventBus와 Logger 연결됨")
     
@@ -150,15 +150,15 @@ if __name__ == "__main__":
     print("\n2️⃣  EventBus를 통한 로그 발행:")
     print("   (콘솔과 파일에 로그가 기록되어야 함)\n")
     
-    EVENT_BUS.ui_log_message.emit("디버그 메시지 테스트", "DEBUG")
-    EVENT_BUS.ui_log_message.emit("정보 메시지 테스트", "INFO")
-    EVENT_BUS.ui_log_message.emit("경고 메시지 테스트", "WARNING")
-    EVENT_BUS.ui_log_message.emit("에러 메시지 테스트", "ERROR")
-    EVENT_BUS.ui_log_message.emit("치명적 에러 테스트", "CRITICAL")
+    EVENT_BUS.log.message.emit("디버그 메시지 테스트", "DEBUG")
+    EVENT_BUS.log.message.emit("정보 메시지 테스트", "INFO")
+    EVENT_BUS.log.message.emit("경고 메시지 테스트", "WARNING")
+    EVENT_BUS.log.message.emit("에러 메시지 테스트", "ERROR")
+    EVENT_BUS.log.message.emit("치명적 에러 테스트", "CRITICAL")
     
     # 3. 알 수 없는 레벨 테스트
     print("\n3️⃣  알 수 없는 로그 레벨 테스트:")
-    EVENT_BUS.ui_log_message.emit("알 수 없는 레벨", "UNKNOWN")
+    EVENT_BUS.log.message.emit("알 수 없는 레벨", "UNKNOWN")
     
     # 4. 로그 파일 확인
     from utils.logger import LoggerConfig

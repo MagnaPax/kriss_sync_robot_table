@@ -16,7 +16,7 @@ def test_real_logging_to_file(qapp):
     
     # 2. 실제 에러 로그 발생시키기
     test_msg = f"이것은 실제 파일 기록 테스트입니다. (Time: {time.time()})"
-    EVENT_BUS.ui_log_message.emit(test_msg, "ERROR")
+    EVENT_BUS.log.message.emit(test_msg, "ERROR")
     
     # 3. 파일 확인
     from config.paths import LOG_DIR

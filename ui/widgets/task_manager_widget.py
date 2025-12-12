@@ -202,13 +202,13 @@ class TaskManagerWidget(BaseWidget):
             if self.lbl_filename:
                 self.lbl_filename.setText(file_path_obj.name)
 
-            EVENT_BUS.ui_log_message.emit(f"파일 선택됨: {file_path_obj}", "INFO")
+            EVENT_BUS.log.message.emit(f"파일 선택됨: {file_path_obj}", "INFO")
             
             # Path 객체를 VM의 슬롯으로 전달
             self.vm.load_sequence_data(file_path_obj)
 
         else:
-            EVENT_BUS.ui_log_message.emit("파일 선택이 취소되었습니다.", "INFO")
+            EVENT_BUS.log.message.emit("파일 선택이 취소되었습니다.", "INFO")
 
     def _handle_start_button_clicked(self):
         """
@@ -217,7 +217,7 @@ class TaskManagerWidget(BaseWidget):
         # 방어 코드 - 읽은 파일이 없으면 뷰모델 호출 안 함
         if self.lbl_filename is None or self.lbl_filename.text() == "FileName..." or not self.lbl_filename.text(): return
 
-        EVENT_BUS.ui_log_message.emit(f"[{self.__class__.__name__}] START 버튼 클릭됨 - 작업 시작 요청", "INFO")
+        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] START 버튼 클릭됨 - 작업 시작 요청", "INFO")
 
         self.vm.start_sequence()
 

@@ -58,7 +58,7 @@ class FanucOnlyExecutor(BaseExecutor):
         return required_keys.issubset(sample_data.keys())
 
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
-        EVENT_BUS.ui_log_message.emit(f"[{self.__class__.__name__}] FANUC 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
+        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] FANUC 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
 
         adapter = self.robot
         num_sequences = len(sequence_data)  # 전체 시퀀스 갯수
@@ -77,7 +77,7 @@ class FanucOnlyExecutor(BaseExecutor):
                 current_id = row.get('id') or idx
 
                 # 현재 시퀀스 진행상태 방송: 진행중
-                EVENT_BUS.sequence_progress_updated.emit(current_id, num_sequences, "processing")
+                EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, "processing")
 
                 feed_rate = row.get('f', 10.0)
 
@@ -92,7 +92,7 @@ class FanucOnlyExecutor(BaseExecutor):
                 f=row.get('f', 0.0)
                 )
                 # 현재 로봇 위치 방송
-                EVENT_BUS.robot_target_updated.emit(target_pose)
+                EVENT_BUS.control.robot_target.emit(target_pose)
 
 
                 # --- 증분 이동(Incremental/Relative Move) 제어 --- #
@@ -134,7 +134,7 @@ class FanucOnlyExecutor(BaseExecutor):
                         time.sleep(0.01)
 
                 # 현재 시퀀스 진행상태 방송: 완료
-                EVENT_BUS.sequence_progress_updated.emit(current_id, num_sequences, "processed")
+                EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, "processed")
 
             # 3. 종료 신호
             adapter.set_finish_signals()
@@ -155,7 +155,7 @@ class IntegratedExecutor(BaseExecutor):
         return required_keys.issubset(sample_data.keys())
 
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
-        EVENT_BUS.ui_log_message.emit(f"[{self.__class__.__name__}] CSV 파일 통합 제어 모드로 실행 (데이터 {len(sequence_data)}건)", "INFO")
+        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] CSV 파일 통합 제어 모드로 실행 (데이터 {len(sequence_data)}건)", "INFO")
         
         print(f"처리할 csv 파일의 데이터 값\n{sequence_data}\n")
 
@@ -190,7 +190,7 @@ class LegacyIntegratedExecutor(BaseExecutor):
         return required_keys.issubset(sample_data.keys())
 
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
-        EVENT_BUS.ui_log_message.emit(f"[{self.__class__.__name__}] 레거시 파일 모드로 실행 (데이터 {len(sequence_data)}건)", "INFO")
+        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 레거시 파일 모드로 실행 (데이터 {len(sequence_data)}건)", "INFO")
 
         return True, "레거시 파일 모드 실행 완료 -> TODO: 로직 만들어야 된다"
 
@@ -214,7 +214,7 @@ class TurntableOnlyExecutor(BaseExecutor):
         return has_turntable and not has_robot
 
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
-        EVENT_BUS.ui_log_message.emit(f"[{self.__class__.__name__}] 턴테이블 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
+        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 턴테이블 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
 
         adapter = self.table # TurntableAdapter
         num_sequences = len(sequence_data)
@@ -231,7 +231,7 @@ class TurntableOnlyExecutor(BaseExecutor):
                 current_id = row.get('id') or idx
 
                 # 현재 시퀀스 진행상태 방송: 진행중
-                EVENT_BUS.sequence_progress_updated.emit(current_id, num_sequences, "processing")
+                EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, "processing")
                 
                 # 데이터 추출 (키 매핑)
                 angle_val = float(row.get('angle') or row.get('T', 0.0))
@@ -239,7 +239,7 @@ class TurntableOnlyExecutor(BaseExecutor):
 
                 # 현재 턴테이블 위치 방송
                 target_pose = TurntablePose(angle=angle_val, velocity=velocity_val)
-                EVENT_BUS.turntable_target_updated.emit(target_pose)
+                EVENT_BUS.control.turntable_target.emit(target_pose)
 
 
                 # --- 핸드셰이킹 (Busy Check) ---
@@ -270,7 +270,7 @@ class TurntableOnlyExecutor(BaseExecutor):
                         time.sleep(0.1)
 
                 # 현재 시퀀스 진행상태 방송: 완료
-                EVENT_BUS.sequence_progress_updated.emit(current_id, num_sequences, "processed")
+                EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, "processed")
 
             # 3. 종료 신호 (서보 오프 등)
             adapter.set_finish_signals()
