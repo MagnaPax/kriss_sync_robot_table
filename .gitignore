@@ -836,3 +836,4 @@ tests/README.md
 /docs/개발용문서들
 models/README.md
 models/README.md
+tests/unit/test_turntable.py
