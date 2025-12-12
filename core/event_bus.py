@@ -73,11 +73,107 @@ View → ViewModel → Service → Worker
 """
 
 from PyQt6.QtCore import QObject, pyqtSignal, QMetaObject, QMetaMethod
-from typing import Optional, Literal
+from typing import Optional, TYPE_CHECKING
+
+
+# =============================================================================
+# 1. 내부 백엔드 (실제 QObject) - 외부에는 숨깁니다.
+# =============================================================================
+class _EventBusBackend(QObject):
+    """
+    실제 시그널을 정의하는 Qt 객체입니다.
+    이 클래스는 앱(QApplication)이 준비된 후에 생성됩니다.
+    """
+    
+    # --- System Events ---
+    system_error = pyqtSignal(str)
+    system_info = pyqtSignal(str)
+    app_shutting_down = pyqtSignal()
+
+    # --- Log Events ---
+    ui_log_message = pyqtSignal(str, str)
+
+    # --- Connection Events ---
+    connection_status_changed = pyqtSignal(bool)
+
+    # --- Data Events ---
+    sequence_data_updated = pyqtSignal(dict)
+    sequence_progress_updated = pyqtSignal(int, int, str)
+
+    # --- Robot/Turntable Events ---
+    robot_target_updated = pyqtSignal(object)
+    turntable_target_updated = pyqtSignal(object)
+
+    def __init__(self):
+        super().__init__()
+
+    def disconnect_all(self, signal_name: str | None = None):
+        meta_obj = self.metaObject()
+        if meta_obj is None: return
+        for i in range(meta_obj.methodCount()):
+            method = meta_obj.method(i)
+            if method.methodType() == QMetaMethod.MethodType.Signal:
+                current_signal_name = method.name().data().decode('utf-8')
+                if signal_name is None or current_signal_name == signal_name:
+                    try: getattr(self, current_signal_name).disconnect()
+                    except TypeError: pass
 
 
 
-class EventBus(QObject):
+
+# =============================================================================
+# 2. 공개 EventBus (안전한 껍데기)
+# =============================================================================
+class EventBus:
+    """
+    외부에서 사용하는 EventBus 클래스입니다.
+    QObject를 상속받지 않았기 때문에 Import 시점에 충돌이 절대 발생하지 않습니다.
+    """
+    
+    def __init__(self):
+        # 내부적으로 진짜 QObject를 담을 변수 (초기엔 None)
+        self._backend: Optional[_EventBusBackend] = None
+
+    @property
+    def _qobject(self) -> _EventBusBackend:
+        """
+        진짜 객체가 필요할 때(사용 시점) 생성하는 '게으른 로더'입니다.
+        """
+        if self._backend is None:
+            # 이 코드가 실행될 때는 이미 main.py에서 AppEngine이 생성된 후입니다.
+            self._backend = _EventBusBackend()
+        return self._backend
+
+    def __getattr__(self, name):
+        """
+        사용자가 EVENT_BUS.system_info 를 찾으면 이 함수가 호출됩니다.
+        내부 백엔드(_EventBusBackend)에게 그 요청을 토스합니다.
+        """
+        return getattr(self._qobject, name)
+
+    # (편의 기능) disconnect_all 같은 메서드도 백엔드로 연결
+    def disconnect_all(self, signal_name: str | None = None):
+        self._qobject.disconnect_all(signal_name)
+
+# =============================================================================
+# 전역 인스턴스
+# =============================================================================
+# IDE(VS Code)에게는 "이거 _EventBusBackend 야"라고 거짓말을 해서 자동완성을 돕습니다.
+if TYPE_CHECKING:
+    EVENT_BUS = _EventBusBackend()
+else:
+    # 실제 런타임에는 안전한 껍데기(EventBus)가 나갑니다.
+    EVENT_BUS = EventBus()
+
+
+
+
+
+
+
+
+
+class OLDEventBus(QObject):
     """전역 이벤트 버스"""
 
     # =========================================================================
@@ -227,42 +323,15 @@ class EventBus(QObject):
     # ------------------------------------------------------------------------ #
 
 
-    # =========================================================================
-    # 싱글톤 구현
-    # =========================================================================
 
-    _instance: Optional['EventBus'] = None      # 이 클래스의 유일한 인스턴스를 담을 공간
-    
-    
-    def __new__(cls) -> 'EventBus':
-        """인스턴스 중복 생성 방지"""
-
-        # 이 클래스의 인스턴스가 있으면 다시 만들지 말고 있는거 다시 써라
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialize() # 여기서 딱 1번만 호출함!
-        return cls._instance
-    
-    
     def __init__(self):
-        """
-        파이썬은 __new__ 로 객체를 생성하면 초기화를 위해 항상 __init__ 을 호출한다
-        하지만 실제 초기화는 _initialize에서 끝났으므로
-        여기서는 아무것도 하지 않는다
-
-        하는 일도 없는데 지우지 않는 이유:
-            이 클래스가 상속받은 부모(QObject)의 __init__ 는 하는일이 많다.
-            만약 __init__ 를 아예 안 만들면 파이썬이 자동으로 QObject.__init__ 를 호출한다
-            그럼 기존에 연결된 시그널들이 다 끊기고 초기화 된다 -> 망함
-            그래서 __init__ 를 만든 뒤 pass 로 아무일도 안 시키는 것 
-        """        
-        pass
-    
-
-    def _initialize(self):
-        """초기화 (최초 1회만 실행)"""
-        # QObject C++ 초기화는 여기서 딱 한 번 수행
         super().__init__()
+
+        # 안전장치: 이미 만들어진 적이 있다면 에러 발생
+        if EventBus._is_created:
+            raise RuntimeError("EventBus는 이미 생성되었습니다! 전역 변수 EVENT_BUS를 사용하세요.")
+            
+        EventBus._is_created = True
 
 
 
@@ -295,12 +364,5 @@ class EventBus(QObject):
                     except TypeError:
                         # 이미 연결이 없는 시그널에 disconnect()를 호출하면 TypeError 발생
                         pass
-
-
-
-# =============================================================================
-# 전역 인스턴스
-# =============================================================================
-EVENT_BUS = EventBus()
 
 

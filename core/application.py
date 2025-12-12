@@ -79,84 +79,20 @@ class AppEngine(QApplication):
         LogListener는 외부에서 생성해야 함 (의존성 주입)
     """
     
-    # 싱글톤 패턴
-    _instance: Optional['AppEngine'] = None
-    _initialized: bool = False
-    
-    
-    def __new__(cls, *args, **kwargs) -> "AppEngine":
-        """
-        싱글톤 인스턴스 생성
-        
-        흐름:
-        1. 기존 QApplication 인스턴스 확인
-        2. 없으면 새로운 AppEngine 생성
-        3. 있으면:
-            - AppEngine이면 재사용
-            - 다른 QApplication이면 에러
-        
-        Returns:
-            AppEngine: 유일한 인스턴스
-            
-        Raises:
-            TypeError: 다른 QApplication 인스턴스가 이미 존재하는 경우
-        """
-
-        # 싱글톤 패턴
-        # 이미 AppEngine 인스턴스가 있으면 반환
-        if cls._instance is not None:
-            return cls._instance
-        
-        # Logger 초기화
-        # 아직 LogListener가 연결되지 않았으므로 직접 로깅
-        logger = get_logger(__name__)
-        
-        # 기존 QApplication 인스턴스 확인
-        existing_instance = QApplication.instance()
-        
-        if existing_instance is None:
-            # 새로운 AppEngine 생성
-            logger.info("AppEngine 인스턴스 생성 중...")
-            cls._instance = super().__new__(cls)
-            
-        elif isinstance(existing_instance, cls):
-            # 이미 AppEngine 인스턴스가 존재
-            logger.info("기존 AppEngine 인스턴스 재사용")
-            cls._instance = existing_instance
-
-        else:
-            # 다른 QApplication이 이미 존재 (에러)
-            error_msg = (
-                "QApplication 인스턴스가 이미 존재하지만 AppEngine이 아닙니다. "
-                "AppEngine을 먼저 생성해야 합니다."
-            )
-            logger.error(error_msg)
-            raise TypeError(error_msg)
-        
-        return cls._instance
-
-
     def __init__(self, argv=None):
         """
         AppEngine 초기화
 
-        EventBus나 Settings 클래스처럼 _initialize 메서드를 따로 만들고 __new__에서 호출하는 방식이 가장 깔끔하지만, 이 클래스가 상속하는 QApplication은 C++ 레벨의 초기화 문제 때문에 __init__에서 super().__init__을 부르는 현재 방식이 더 안정적일 수 있다
-
-
-        Args:
-            argv: 커맨드 라인 인자 (None이면 sys.argv 사용)
-
         이 메서드는 너무 빨리 실행되기 때문에 EVENT BUS 아닌 직접 로그
         """
 
-        # (방어코드) 초기화는 1회만 수행
-        # _initialized 플래그 사용
-        if AppEngine._initialized:
-            return
-        
         # 아직 LogListener가 연결되지 않았으므로 직접 로깅
         self.logger = get_logger(__name__)
         
+        # 2. 부모(QApplication) 초기화
+        # sys.argv가 없으면 빈 리스트 전달 (안전장치)
+        args = argv if argv is not None else []
+
         try:
             # QApplication 초기화
             super().__init__(argv or sys.argv)
@@ -173,11 +109,8 @@ class AppEngine(QApplication):
         # 실제 초기화를 담당하는 bootstrap 메서드는 `./main.py` 에서 호출
         # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- #
 
-        # aboutToQuit 시그널 연결 (앱 종료 시 정리)
+        # 3. 종료 시그널 연결 (앱 종료 시 정리: _shutdown)
         self.aboutToQuit.connect(self._shutdown)
-
-        # 초기화 완료
-        AppEngine._initialized = True
 
 
     def bootstrap(self):
