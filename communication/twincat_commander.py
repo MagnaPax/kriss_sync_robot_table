@@ -270,7 +270,7 @@ class TurntableOnlyExecutor(BaseExecutor):
                         time.sleep(0.1)
 
                 # 현재 시퀀스 진행상태 방송: 완료
-                EVENT_BUS.sequence_progress_updated.emit(current_id, num_sequences, row, "processed")
+                EVENT_BUS.sequence_progress_updated.emit(current_id, num_sequences, "processed")
 
             # 3. 종료 신호 (서보 오프 등)
             adapter.set_finish_signals()
