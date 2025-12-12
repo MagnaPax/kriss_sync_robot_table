@@ -138,6 +138,7 @@ class LogSignals(QObject):
     UI 출력과 파일 기록을 통합 관리하기 위한 채널입니다.
     """
     
+    # TODO: 다음 프로젝트에는 ['메시지, 레벨, 로그 발생 장소'] 를 넣을 수 있게 개선하기
     message = pyqtSignal(str, str)
     """
     통합 로그 메시지 발행
