@@ -169,6 +169,45 @@ class PLCService(QObject):
     # ==========================================================
     # [비동기] 로봇 제어 명령 (Worker 사용)
     # ==========================================================
+    def _start_worker(self, command: str, data=None, log_msg: str = ""):
+        """비동기 워커 스레드 생성 및 실행 (공통 로직)"""
+
+        if self._thread and self._thread.isRunning():
+            if command == 'STOP':
+                self._thread.requestInterruption()  # 강제 중단 요청
+            else:
+                EVENT_BUS.log.message.emit("이전 작업이 아직 진행중입니다", "WARNING")
+                return # 이전 작업이 있다면 중복 실행 방지
+
+        if log_msg:
+            EVENT_BUS.log.message.emit(log_msg, "INFO")
+
+        # 사무실 계약
+        self._thread = QThread()
+
+        # 비서(Worker) 채용
+        self._worker = PLCWorker(self.connector, self.commander, command, data)
+
+        # 비서를 새 사무실로 전근 발령 - moveToThread() : 스레드 소속 변경
+        self._worker.moveToThread(self._thread)
+
+
+        # 비서의 전화보고(emit)를 받고 어떻게 처리(Slot)할지 미리 정해놓기(connect)
+        self._worker.result.connect(self._handle_worker_result)
+        self._worker.finished.connect(self._cleanup)
+
+        # --- 사무실(Thread)에서 벌어질 이벤트 예약(connect) ---
+        # 사무실 문 열리면 비서에게 “일 시작해라” 지시
+        self._thread.started.connect(self._worker.run)
+        # 사무실이 문 닫히면 → 사무실 정리하고 폐기하도록 예약
+        self._thread.finished.connect(self._thread.deleteLater)
+
+
+        # 사무실 오픈(스레드 시작)
+        # 사무실 문을 열고 내부 이벤트 루프를 가동하는 것
+        self._thread.start()
+
+
     def start_process(self):
         self._start_worker('START', log_msg="프로세스 시작 요청...")
 
@@ -213,45 +252,8 @@ class PLCService(QObject):
         self._start_worker('MOVE', data=sequence_data, log_msg=f"csv 시퀀스 명령: {csv_data}")
 
 
-    def _start_worker(self, command: str, data=None, log_msg: str = ""):
-        """비동기 워커 스레드 생성 및 실행 (공통 로직)"""
-
-        if self._thread and self._thread.isRunning():
-            if command == 'STOP':
-                self._thread.requestInterruption()  # 강제 중단 요청
-            else:
-                EVENT_BUS.log.message.emit("이전 작업이 아직 진행중입니다", "WARNING")
-                return # 이전 작업이 있다면 중복 실행 방지
-
-        if log_msg:
-            EVENT_BUS.log.message.emit(log_msg, "INFO")
-
-        # 사무실 계약
-        self._thread = QThread()
-
-        # 비서(Worker) 채용
-        self._worker = PLCWorker(self.connector, self.commander, command, data)
-
-        # 비서를 새 사무실로 전근 발령 - moveToThread() : 스레드 소속 변경
-        self._worker.moveToThread(self._thread)
-
-
-        # 비서의 전화보고(emit)를 받고 어떻게 처리(Slot)할지 미리 정해놓기(connect)
-        self._worker.result.connect(self._handle_worker_result)
-        self._worker.finished.connect(self._cleanup)
-
-        # --- 사무실(Thread)에서 벌어질 이벤트 예약(connect) ---
-        # 사무실 문 열리면 비서에게 “일 시작해라” 지시
-        self._thread.started.connect(self._worker.run)
-        # 사무실이 문 닫히면 → 사무실 정리하고 폐기하도록 예약
-        self._thread.finished.connect(self._thread.deleteLater)
-
-
-        # 사무실 오픈(스레드 시작)
-        # 사무실 문을 열고 내부 이벤트 루프를 가동하는 것
-        self._thread.start()
-
-
+    def set_robot_speed(self, feed_rate: float):
+        self._start_worker('SET_SPEED', data=feed_rate, log_msg=f"로봇 속도 설정 변경 요청: {feed_rate} mm/sec")
 
     # ==========================================================
     # [슬롯] Worker 시그널에 대한 처리

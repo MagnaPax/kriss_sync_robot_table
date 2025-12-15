@@ -317,13 +317,13 @@ class TargetPositionWidget(BaseWidget):
                 spin_box.setObjectName(f"spinbox_{axis.lower().replace(' ', '_')}")
 
                 # 설정 적용
-                spin_box.setRange(0.0, 100.0)       # 범위 0 ~ 100
+                spin_box.setRange(0.0, 1000.0)      # 범위 0 ~ 1000
                 spin_box.setValue(10.0)             # 기본값 10
                 spin_box.setSingleStep(5.0)         # 1회 클릭 시 5씩 증감
                 spin_box.setSuffix(" mm/sec")       # 단위 표시
                 spin_box.setKeyboardTracking(False) # (엔터, 포커스 이동, 스핀박스 버튼 클릭)만 시그널 발생
                 spin_box.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons) # Up/Down 화살표 제거
-                spin_box.focusInEvent = lambda e: QTimer.singleShot(0, spin_box.selectAll)  # 전체선택 되게
+                spin_box.focusInEvent = lambda e: QTimer.singleShot(0, spin_box.selectAll)  # 전체선택(사용자 입력편의성 향상)
 
                 input_widget = spin_box
 
@@ -519,9 +519,9 @@ class TargetPositionWidget(BaseWidget):
         EVENT_BUS.log.message.emit(f"UI 업데이트 완료: 매크로 ID({macro_id})", "DEBUG")
 
     @pyqtSlot(float)
-    def _on_feed_rate_changed(self, value: float):
+    def _on_feed_rate_changed(self, feed_rate: float):
         """FEED RATE 스핀박스 값 변경됐을 때"""
-        EVENT_BUS.log.message.emit(f"FEED RATE 스핀박스 값 변경됨\n사용자 입력값:{value}", "DEBUG")
+        self.vm.update_feed_rate(feed_rate)
 
     @pyqtSlot()
     def _on_goto_btn_clicked(self):
