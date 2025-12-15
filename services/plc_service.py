@@ -65,7 +65,7 @@ class PLCService(QObject):
             # 성공하면 Heartbeat 타이머 시작
             self._heartbeat_timer.start()
             
-            EVENT_BUS.connection_status_changed.emit(True)
+            EVENT_BUS.conn.status_changed.emit(True)
             EVENT_BUS.log.message.emit("PLC 연결 성공 및 모니터링 시작", "INFO")
             
         except Exception as e:
@@ -80,7 +80,7 @@ class PLCService(QObject):
         
         if self.connector.is_connected:
             self.connector.disconnect()
-            EVENT_BUS.connection_status_changed.emit(False)
+            EVENT_BUS.conn.status_changed.emit(False)
             EVENT_BUS.log.message.emit("PLC 연결이 안전하게 해제되었습니다.", "INFO")
 
 
@@ -116,7 +116,7 @@ class PLCService(QObject):
                     ui_callback(success_msg, 100)
 
                 EVENT_BUS.system.info.emit("TwinCAT 연결 성공")
-                EVENT_BUS.connection_status_changed.emit(True)
+                EVENT_BUS.conn.status_changed.emit(True)
                 EVENT_BUS.log.message.emit(success_msg, "INFO")
 
                 # 연결 확인 다시 시작
@@ -158,7 +158,7 @@ class PLCService(QObject):
             # --- 비상 상황 알림 --- #
 
             # 통신 연결 상태 변경 시그널 emit
-            EVENT_BUS.connection_status_changed.emit(False)
+            EVENT_BUS.conn.status_changed.emit(False)
             EVENT_BUS.log.message.emit("⚠️ TwinCAT 연결 끊김 감지!", "ERROR")
 
             # 시스템 에러 발생 시그널 emit

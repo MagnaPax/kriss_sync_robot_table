@@ -41,17 +41,17 @@ class MainViewModel(QObject):
             VM : 재난 채널(system.error)에 주파수를 맞춰놓음
             S  : 방송국(EventBus)의 재난 채널(system.error)에 대고 소리침
             VM : PLCService 가 소리치는 것을 들음
-            VM : _handle_system.error 에게 일하라고 시킴
+            VM : _handle_system_error 에게 일하라고 시킴
         """
 
         # 'connection_status_changed' 라는 주파수에서 방송이 나오면 내 전화기(self.connection_status)로 연결해
-        EVENT_BUS.connection_status_changed.connect(self.connection_status)
+        EVENT_BUS.conn.status_changed.connect(self.connection_status)
 
-        # system.error 에서 방송 나오면 _handle_system.error 한테 일 시킴
-        EVENT_BUS.system.error.connect(self._handle_system.error)
+        # system.error 에서 방송 나오면 _handle_system_error 한테 일 시킴
+        EVENT_BUS.system.error.connect(self._handle_system_error)
 
         # connection_status_changed 방송 나오면 _update_twincat_widget_status 한테 일 시킴
-        EVENT_BUS.connection_status_changed.connect(self._update_twincat_widget_status)
+        EVENT_BUS.conn.status_changed.connect(self._update_twincat_widget_status)
 
 
         # --- 초기 상태 동기화 --- #
@@ -88,7 +88,7 @@ class MainViewModel(QObject):
     # [EventBus -> ViewModel] 내부 로직 처리
     # ==========================================================
     
-    def _handle_system.error(self, message: str):
+    def _handle_system_error(self, message: str):
         """시스템 에러 발생 시 처리"""
         if message == "TwinCAT_DISCONNECTED":
             # "복구 화면 띄워!"라고 방송 송출 - View 가 듣고 있다가 UI 처리
