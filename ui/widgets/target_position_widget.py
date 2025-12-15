@@ -519,7 +519,6 @@ class TargetPositionWidget(BaseWidget):
         """
         'GoTo' 버튼이 클릭되었을 때 실행할 함수
         """
-
         try:
             # QLineEdit 객체로부터 데이터 추출
             line_edit_data = self._extract_data_from_ui()
@@ -532,10 +531,11 @@ class TargetPositionWidget(BaseWidget):
             self.vm.request_move_robot(line_edit_data)
 
         except ValueError as e:
-            msg = "이동 명령 실패: 좌표값 입력 오류 (숫자가 아닌 문자가 포함됨)"
-            EVENT_BUS.log.message.emit(msg, "WARNING")
+            error_msg = "좌표값 입력 오류: 숫자만 입력 가능합니다."
+            EVENT_BUS.log.message.emit(error_msg, "WARNING")
 
-            QMessageBox.warning(self, "입력 오류", "좌표값은 숫자만 입력 가능합니다.")
+            # 에러 시그널 방출
+            self.error_occurred.emit(error_msg)
 
 
 
