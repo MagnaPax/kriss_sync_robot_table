@@ -339,7 +339,7 @@ class TwinCATCommander:
         else:
             return False, "지원하지 않는 데이터 형식입니다."
 
-    def update_speed_if_moving(self, feed_rate: float) -> str | None:
+    def apply_user_feed_rate_when_moving(self, feed_rate: float) -> str | None:
         """"""
 
         is_moving = self.robot.read_busy_signal()

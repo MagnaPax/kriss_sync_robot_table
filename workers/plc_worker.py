@@ -83,7 +83,7 @@ class PLCWorker(QObject):
                 case 'SET_SPEED':
                     EVENT_BUS.log.message.emit(f"{self._log_prefix} 이동속도:{self.data}\n데이터 타입: {type(self.data)}", "DEBUG")
 
-                    result_msg = self.commander.update_feed_rate_if_robot_moving(float(self.data))
+                    result_msg = self.commander.apply_user_feed_rate_when_moving(float(self.data))
 
                     if result_msg:
                         self.result.emit(True, result_msg)
