@@ -31,6 +31,10 @@ class FanucAdapter:
         # 지갑(Connector)을 받아서 저장
         self.connector = connector
 
+        # 사용자 입력에 의해 바뀐 이동 속도 저장
+        self.override_feed_rate: Union[float, None] = None
+
+
 
     @property
     def _plc(self) -> Union[pyads.Connection, 'MockConnection']:
@@ -100,6 +104,13 @@ class FanucAdapter:
     # --------------------------------------------------------------------------
     # 컴퓨터의 실수(Float, 12.34)를 PLC가 이해하는 정수 비트 배열로 변환
     # ==========================================================================
+
+    def send_instant_feed(self, feed_rate: float):
+        """
+        [공개 메서드] 이동 중인 로봇의 속도 비트를 즉시 갱신
+        """
+        # 내부의 _send_feed 메서드를 재활용
+        self._send_feed(feed_rate)
 
     def send_data_packet(self, feed_rate: float, delta: dict):
         """
