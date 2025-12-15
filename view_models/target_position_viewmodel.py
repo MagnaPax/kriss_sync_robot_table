@@ -43,15 +43,15 @@ class TargetPositionViewModel(QObject):
 
             if macro_data:
                 self.macros_loaded.emit(macro_data)
-                EVENT_BUS.ui_log_message.emit(f"{self.log_prefix} 매크로 데이터 로드 성공", "INFO")
+                EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 데이터 로드 성공", "INFO")
                 
             else:
                 self.state_changed.emit("매크로 데이터 로드 실패")
-                EVENT_BUS.ui_log_message.emit(f"{self.log_prefix} 매크로 데이터 로드 실패", "ERROR")
+                EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 데이터 로드 실패", "ERROR")
 
         except Exception as e:
             self.state_changed.emit(f"매크로 데이터 로드 실패: {e}")
-            EVENT_BUS.ui_log_message.emit(f"{self.log_prefix} 매크로 데이터 로드 실패: {e}", "ERROR")
+            EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 데이터 로드 실패: {e}", "ERROR")
 
 
 

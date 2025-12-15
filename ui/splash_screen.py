@@ -17,7 +17,7 @@ class SplashScreen(QWidget):
         self.setFixedSize(400, 250)
 
         # 메인 레이아웃 및 배경 위젯 설정
-        # (투명 배경 위에서 둥근 테두리를 표현하기 위해 내부 위젯을 하나 둡니다)
+        # (투명 배경 위에서 둥근 테두리를 표현하기 위해 내부 위젯을 하나 둔다)
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0) # 여백 제거
 

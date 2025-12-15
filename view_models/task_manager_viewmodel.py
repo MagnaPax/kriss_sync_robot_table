@@ -40,7 +40,7 @@ class TaskManagerViewModel(QObject):
     def load_sequence_data(self, file_path: Path):
         """View의 LOAD 버튼 클릭 이벤트 처리"""
 
-        EVENT_BUS.ui_log_message.emit(f"{self._log_prefix} 시퀀스 데이터 읽기 시작", "DEBUG")
+        EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 데이터 읽기 시작", "DEBUG")
 
         # Service에게 시킴
         self._sequence_service.load_sequence_file(file_path)
@@ -52,7 +52,7 @@ class TaskManagerViewModel(QObject):
         # 방어코드 - 시퀀스 데이터가 없으면 서비스 호출 안 함
         if not self._cached_data: return
 
-        EVENT_BUS.ui_log_message.emit(f"{self._log_prefix} 시퀀스 실행 요청 (데이터 {len(self._cached_data)}건)", "INFO")
+        EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 실행 요청 (데이터 {len(self._cached_data)}건)", "INFO")
 
         self._plc_service.process_sequence_data(self._cached_data)
 

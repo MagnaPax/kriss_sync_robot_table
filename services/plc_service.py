@@ -48,7 +48,7 @@ class PLCService(QObject):
 
         # --- 앱 종료 시 연결 끊기 --- #
         # AppEngine이 종료 신호를 보내면 -> disconnect_plc 메서드가 자동 실행됨
-        EVENT_BUS.app_shutting_down.connect(self.disconnect_plc)
+        EVENT_BUS.system.shutting_down.connect(self.disconnect_plc)
 
 
 
@@ -66,10 +66,10 @@ class PLCService(QObject):
             self._heartbeat_timer.start()
             
             EVENT_BUS.connection_status_changed.emit(True)
-            EVENT_BUS.ui_log_message.emit("PLC 연결 성공 및 모니터링 시작", "INFO")
+            EVENT_BUS.log.message.emit("PLC 연결 성공 및 모니터링 시작", "INFO")
             
         except Exception as e:
-            EVENT_BUS.ui_log_message.emit(f"PLC 연결 실패: {e}", "ERROR")
+            EVENT_BUS.log.message.emit(f"PLC 연결 실패: {e}", "ERROR")
 
 
     @pyqtSlot()
@@ -81,7 +81,7 @@ class PLCService(QObject):
         if self.connector.is_connected:
             self.connector.disconnect()
             EVENT_BUS.connection_status_changed.emit(False)
-            EVENT_BUS.ui_log_message.emit("PLC 연결이 안전하게 해제되었습니다.", "INFO")
+            EVENT_BUS.log.message.emit("PLC 연결이 안전하게 해제되었습니다.", "INFO")
 
 
     def connect_with_retry(self, ui_callback=None) -> bool:
@@ -115,9 +115,9 @@ class PLCService(QObject):
                 if ui_callback:
                     ui_callback(success_msg, 100)
 
-                EVENT_BUS.system_info.emit("TwinCAT 연결 성공")
+                EVENT_BUS.system.info.emit("TwinCAT 연결 성공")
                 EVENT_BUS.connection_status_changed.emit(True)
-                EVENT_BUS.ui_log_message.emit(success_msg, "INFO")
+                EVENT_BUS.log.message.emit(success_msg, "INFO")
 
                 # 연결 확인 다시 시작
                 self._heartbeat_timer.start()
@@ -128,7 +128,7 @@ class PLCService(QObject):
                 return True
 
             except Exception as e:
-                EVENT_BUS.ui_log_message.emit(f"TwinCAT 접속 시도({i}) 실패: {e}", "ERROR")
+                EVENT_BUS.log.message.emit(f"TwinCAT 접속 시도({i}) 실패: {e}", "ERROR")
 
                 if i < max_retries:
                     if ui_callback:
@@ -139,7 +139,7 @@ class PLCService(QObject):
                     while time.time() < end_time:
                         QApplication.processEvents()
                 else:
-                    EVENT_BUS.ui_log_message.emit("TwinCAT 연결 실패", "CRITICAL")
+                    EVENT_BUS.log.message.emit("TwinCAT 연결 실패", "CRITICAL")
                     return False
 
         return False
@@ -159,10 +159,10 @@ class PLCService(QObject):
 
             # 통신 연결 상태 변경 시그널 emit
             EVENT_BUS.connection_status_changed.emit(False)
-            EVENT_BUS.ui_log_message.emit("⚠️ TwinCAT 연결 끊김 감지!", "ERROR")
+            EVENT_BUS.log.message.emit("⚠️ TwinCAT 연결 끊김 감지!", "ERROR")
 
             # 시스템 에러 발생 시그널 emit
-            EVENT_BUS.system_error.emit("TwinCAT_DISCONNECTED")
+            EVENT_BUS.system.error.emit("TwinCAT_DISCONNECTED")
 
 
 
@@ -220,11 +220,11 @@ class PLCService(QObject):
             if command == 'STOP':
                 self._thread.requestInterruption()  # 강제 중단 요청
             else:
-                EVENT_BUS.ui_log_message.emit("이전 작업이 아직 진행중입니다", "WARNING")
+                EVENT_BUS.log.message.emit("이전 작업이 아직 진행중입니다", "WARNING")
                 return # 이전 작업이 있다면 중복 실행 방지
 
         if log_msg:
-            EVENT_BUS.ui_log_message.emit(log_msg, "INFO")
+            EVENT_BUS.log.message.emit(log_msg, "INFO")
 
         # 사무실 계약
         self._thread = QThread()
@@ -260,7 +260,7 @@ class PLCService(QObject):
     def _handle_worker_result(self, success: bool, msg: str):
         """워커 실행 결과 처리"""
         level = "INFO" if success else "ERROR"
-        EVENT_BUS.ui_log_message.emit(msg, level)
+        EVENT_BUS.log.message.emit(msg, level)
 
     @pyqtSlot()
     def _cleanup(self):

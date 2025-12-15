@@ -82,7 +82,7 @@ def test_connection_status_relay(viewmodel, qtbot):
     # Then: ViewModel의 시그널이 발사되었고, 값(True)이 일치하는지 확인
     assert blocker.args == [True]
 
-def test_system_error_handling_disconnected(viewmodel, qtbot):
+def test_system.error_handling_disconnected(viewmodel, qtbot):
     """
     [시나리오] EventBus에서 'TwinCAT_DISCONNECTED' 에러가 오면,
              ViewModel이 '복구 다이얼로그 표시' 시그널을 보내는지 확인
@@ -90,9 +90,9 @@ def test_system_error_handling_disconnected(viewmodel, qtbot):
     # show_recovery_dialog 시그널 대기
     with qtbot.waitSignal(viewmodel.show_recovery_dialog, timeout=1000):
         # When: 시스템 에러 발생 (연결 끊김)
-        EVENT_BUS.system_error.emit("TwinCAT_DISCONNECTED")
+        EVENT_BUS.system.error.emit("TwinCAT_DISCONNECTED")
 
-def test_system_error_handling_other_errors(viewmodel, qtbot):
+def test_system.error_handling_other_errors(viewmodel, qtbot):
     """
     [시나리오] 'TwinCAT_DISCONNECTED' 이외의 에러는 
              복구 다이얼로그 시그널을 보내지 않아야 함
@@ -100,4 +100,4 @@ def test_system_error_handling_other_errors(viewmodel, qtbot):
     # 시그널이 발생하지 않음을 검증 (assertNotEmitted)
     with qtbot.assertNotEmitted(viewmodel.show_recovery_dialog):
         # When: 다른 종류의 에러 발생
-        EVENT_BUS.system_error.emit("Some Other Random Error")
+        EVENT_BUS.system.error.emit("Some Other Random Error")

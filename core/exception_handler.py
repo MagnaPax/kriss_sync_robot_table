@@ -100,7 +100,7 @@ def install_global_exception_hook():
         try:
             from core.event_bus import EVENT_BUS
             error_message = f"{exc_type.__name__}: {exc_value}"
-            EVENT_BUS.system_error.emit(error_message)
+            EVENT_BUS.system.error.emit(error_message)
         except ImportError:
             # EventBus가 없으면 무시
             pass

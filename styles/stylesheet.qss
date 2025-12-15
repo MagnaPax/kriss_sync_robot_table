@@ -184,7 +184,7 @@ QWidget#right_panel {
 }
 
 /* (참고) 버튼은 py 코드에서 setProperty("type", "general")을 했으므로
-   기존의 보라색 버튼 스타일이 자동으로 적용됩니다. */
+   기존의 보라색 버튼 스타일이 자동으로 적용됨 */
 
 
 

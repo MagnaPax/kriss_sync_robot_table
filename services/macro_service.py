@@ -76,7 +76,7 @@ class MacroService:
                 return False
 
             # 로깅 (성공)
-            EVENT_BUS.ui_log_message.emit(
+            EVENT_BUS.log.message.emit(
                 f"[매크로 저장 완료] {macro_id}",
                 "INFO"
             )
@@ -85,7 +85,7 @@ class MacroService:
         
         except FileOperationError as e:
             # 로깅 (실패)
-            EVENT_BUS.ui_log_message.emit(
+            EVENT_BUS.log.message.emit(
                 f"[매크로 저장 오류] 파일: {path}, 이유: {type(e.original).__name__}",
                 "ERROR"
             )
@@ -103,7 +103,7 @@ class MacroService:
         except FileOperationError as e:
             # FileNotFoundError → 정상 작동(첫 실행 시 파일이 없는 것이 정상)
             if isinstance(e.original, FileNotFoundError):
-                EVENT_BUS.ui_log_message.emit(
+                EVENT_BUS.log.message.emit(
                     f"[매크로 파일 없음] 새 파일 생성 예정: {path}",
                     "INFO"
                 )
@@ -111,7 +111,7 @@ class MacroService:
                 return self.DEFAULT_MACRO_DATA.copy()
 
             # 진짜 에러만 로그 발생
-            EVENT_BUS.ui_log_message.emit(
+            EVENT_BUS.log.message.emit(
                 f"[파일 로드 오류] {e} — 원인:{type(e.original).__name__}, 파일:{e.path}",
                 "ERROR",
             )
@@ -122,12 +122,12 @@ class MacroService:
         try:
             # 매개변수로 받은 file_handler 함수를 사용하여 파일 저장
             file_handler(path, data)
-            EVENT_BUS.ui_log_message.emit(
+            EVENT_BUS.log.message.emit(
                 f"[매크로 저장 완료] {path}", 
                 "INFO"
             )
         except FileOperationError as e:
-            EVENT_BUS.ui_log_message.emit(
+            EVENT_BUS.log.message.emit(
                 f"[매크로 저장 오류] {e} — 원인:{type(e.original).__name__}, 파일:{e.path}",
                 "ERROR",
             )

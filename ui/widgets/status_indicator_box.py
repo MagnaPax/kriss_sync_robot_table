@@ -40,7 +40,7 @@ class StatusIndicatorBox(BaseWidget):
     def update_data(self, data: dict):
         """
         data: { 'state': 'running', 'title': '새 제목'} 형태의 딕셔너리.
-                'state'와 'title' 키가 반드시 포함되어야 합니다.
+                'state'와 'title' 키가 반드시 포함되어야 한다
         """
         # 1. 데이터 추출 (키가 없으면 BaseWidget의 safe_update_data에서 처리됨)
         state = data['state']

@@ -76,7 +76,7 @@ class PLCWorker(QObject):
                         raise ValueError("MOVE 명령에 필요한 데이터가 없습니다.")
 
                     # Commander 호출 (데이터 형식에 맞는 Executor를 찾아 실행)
-                    # find_executor는 (bool, str) 튜플을 반환합니다.
+                    # find_executor는 (bool, str) 튜플을 반환
                     is_success, msg = self.commander.execute_sequence_with_executor(self.sequence_data)
 
 

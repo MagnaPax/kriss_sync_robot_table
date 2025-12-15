@@ -1,6 +1,7 @@
 # communication/fanuc_adapter.py
 import time
 import pyads
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Union
 from communication.twincat_connector import TwinCATConnector
 from models.fanuc_pose_key import FANUCPoseKey, FanucSignal
@@ -51,7 +52,7 @@ class FanucAdapter:
     def set_initial_signals(self):
         """
         [시퀀스 시작 전 준비]
-        로봇이 움직이기 전에 필요한 모든 스위치를 초기 위치로 돌려놓습니다.
+        로봇이 움직이기 전에 필요한 모든 스위치를 초기 위치로 돌려놓는다
         """
         plc = self._plc
 
@@ -217,7 +218,7 @@ class FanucAdapter:
     # ==========================================================================
     # 3. 상태 읽기 (로봇의 대답 듣기)
     # --------------------------------------------------------------------------
-    # 로봇이 현재 바쁜지(Busy) 확인합니다.
+    # 로봇이 현재 바쁜지(Busy) 확인
     # ==========================================================================
 
     def read_busy_signal(self) -> bool:
@@ -231,3 +232,17 @@ class FanucAdapter:
             False: 안 바쁘다 (다음 명령 줘)
         """
         return bool(self._plc.read_by_name(FanucSignal.BUSY.path, pyads.PLCTYPE_BOOL))
+
+
+
+    # TODO: FANUC 현재위치(피드백) 읽어오기
+    # TODO: PLCService._check_heartbeat 에서 월드 코디네이터, 툴 코디네이터도 이벤트 버스에 실어보냄
+
+    # WORLD 좌표: 로봇 발바닥(Base) 기준 절대 좌표
+    # TOOL 좌표: 로봇 손끝(TCP) 기준 좌표
+
+    def read_current_pose(self):
+        """
+        로봇의 현재 위치(World coordinates, Tool coordinates)를 PLC에서 읽어옴
+            로봇팀이 해당 PLC 주소를 매핑해줬다는 전제 하에 동작
+        """

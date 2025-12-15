@@ -36,10 +36,10 @@ def mock_event_bus(mocker):
     """
     # 주의: 시그널 객체 자체를 Mock으로 교체해야 함
     mocks = {
-        'ui_log': mocker.patch.object(EVENT_BUS, 'ui_log_message'),
+        'ui_log': mocker.patch.object(EVENT_BUS, 'log.message'),
         'conn_status': mocker.patch.object(EVENT_BUS, 'connection_status_changed'),
-        'sys_error': mocker.patch.object(EVENT_BUS, 'system_error'),
-        'sys_info': mocker.patch.object(EVENT_BUS, 'system_info')
+        'sys_error': mocker.patch.object(EVENT_BUS, 'system.error'),
+        'sys_info': mocker.patch.object(EVENT_BUS, 'system.info')
     }
     return mocks
 

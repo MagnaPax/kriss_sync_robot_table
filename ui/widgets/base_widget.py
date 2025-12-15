@@ -101,7 +101,7 @@ class BaseWidget(QWidget):
         Controller 혹은 ViewModel 에서 호출
         
         MainViewModel에서 이 메서드를 호출하여
-        모든 위젯에 안전하게 데이터를 전달합니다.
+        모든 위젯에 안전하게 데이터를 전달
         
         Args:
             data: 업데이트할 데이터

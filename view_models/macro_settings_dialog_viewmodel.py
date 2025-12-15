@@ -60,7 +60,7 @@ class MacroSettingsDialogViewModel(QObject):
 
         else:
             # 사용자 입력 저장 실패
-            # 뷰는 MacroService 가 '방송'한 ui_log_message와 아래의 save_macro_failed 중에서 적절한 것을 골라서 사용자에게 보여줄 수 있다
+            # 뷰는 MacroService 가 '방송'한 log.message와 아래의 save_macro_failed 중에서 적절한 것을 골라서 사용자에게 보여줄 수 있다
             error_message = "매크로 저장 실패. 다시 시도해 주세요. 계속 실패한다면 관리자에게 문의하세요."
             self.save_macro_failed.emit(error_message)  # View에 알림 전송
 

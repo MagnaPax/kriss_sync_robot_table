@@ -47,7 +47,7 @@ class SequenceWorker(QObject):
             error_msg = f"{self._log_prefix} 파일({self._file_path}) 읽기 실패: {e}"
 
             # 에러 로그 '방송'
-            EVENT_BUS.ui_log_message.emit(error_msg, "ERROR")
+            EVENT_BUS.log.message.emit(error_msg, "ERROR")
 
             # 파일 읽기 실패 '보고'
             self.result.emit(False, error_msg, {})
@@ -68,7 +68,7 @@ class SequenceWorker(QObject):
             error_msg = f"{self._log_prefix} 파일({self._file_path}) 파싱 실패: {e}"
 
             # 에러 로그 '방송'
-            EVENT_BUS.ui_log_message.emit(error_msg, "ERROR")
+            EVENT_BUS.log.message.emit(error_msg, "ERROR")
 
             # 파싱 실패 '보고'
             self.result.emit(False, error_msg, {})

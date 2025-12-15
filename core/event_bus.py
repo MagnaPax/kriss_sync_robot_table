@@ -73,185 +73,205 @@ View → ViewModel → Service → Worker
 """
 
 from PyQt6.QtCore import QObject, pyqtSignal, QMetaObject, QMetaMethod
-from typing import Optional, Literal
+from typing import Optional, TYPE_CHECKING
 
 
-
-class EventBus(QObject):
-    """전역 이벤트 버스"""
-
-    # =========================================================================
-    # System-level Events (전역 시스템 이벤트)
-    # =========================================================================
-    system_error = pyqtSignal(str)
+# =============================================================================
+# 1. 시그널 그룹 정의 (카테고리별로 분리)
+# =============================================================================
+class SystemSignals(QObject):
     """
-    시스템 에러 발생 시그널 - 시스템의 치명적 오류
-
-    시스템의 치명적 오류는 여러 UI/뷰모델/서비스가 동시에 반응해야 한다.
-        예: PLC 연결 실패 → 상태 UI, 콘솔 UI, 팝업 UI 등이 동시에 반응 필요.
+    [시스템 레벨 이벤트 그룹]
+    애플리케이션의 생명주기(Lifecycle) 및 전역 상태(Health)와 관련된 시그널 모음입니다.
+    """
+    
+    error = pyqtSignal(str)
+    """
+    시스템 치명적 오류 발생 (Critical Error)
+    
+    단순 경고가 아닌, 프로세스 중단이나 사용자의 즉각적인 개입이 필요한 에러입니다.
+    이 시그널은 모든 뷰와 서비스가 '비상 정지' 또는 '에러 모드'로 진입하게 합니다.
     
     Args:
-        str: 에러 메시지
-    
-    Example:
-        EVENT_BUS.system_error.emit("PLC 연결 실패")
-    """
-    
-    system_info = pyqtSignal(str)
-    """
-    시스템 정보 메시지
-        예: “로봇 초기화 완료”
-    
-    Args:
-        str: 정보 메시지
-    """
-
-    app_shutting_down = pyqtSignal()
-    """
-    애플리케이션 종료 시작 시그널
-    
-    역할:
-        - 앱이 종료되기 직전에 모든 모듈에게 알림
-        - 리소스 정리, 파일 저장, 스레드 종료 등의 기회를 제공
+        str (message): 에러 상세 내용 (예: "PLC Heartbeat Timeout", "Database Connection Failed")
         
-    청취 대상:
-        - PLCService (연결 해제)
-        - LogListener (로그 파일 닫기)
-        - ConfigManager (설정 저장)
+    Subscribers:
+        - MainStatusBar: 붉은색 에러 메시지 표시
+        - PopupManager: 에러 모달창 팝업
+        - LogManager: CRITICAL 레벨로 로그 기록
     """
 
-
-    # =========================================================================
-    # UI Log Events (UI + Logger 출력)
-    # =========================================================================
-    # TODO: 다음 프로젝트때는 아래처럼 개선하기
-    # pyqtSignal(str, str, str) -> 메시지, 레벨, 로그 발생 장소
-    ui_log_message = pyqtSignal(str, str)
+    info = pyqtSignal(str)
     """
-    사용자에게 전달(=UI에 표시)해야 하거나 관리자에게 알려야 하는(=로그 파일 기록) 모든 로그 메시지
-        -> ∴ LogListener가 청취해서 로그 기록에 사용한다
-        -> ViewModel, Service, Worker 모두가 emit 할 수 있다
-
-    Args:
-        str: 메시지 내용
-        str: 로그 레벨 ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')
-    """
+    시스템 일반 알림 (System Notification)
     
-    
-    # =========================================================================
-    # Connection Events (통신 레벨)
-    # =========================================================================
-    connection_status_changed = pyqtSignal(bool)
-    """
-    통신 연결 상태 변경 시그널 - 장치 연결/해제
-
-        청취 대상 :
-            상단 상태바
-            로그창
-            연결 관리 화면
-            자동실행 스레드
+    사용자에게 방해되지 않는 수준의 시스템 상태 변화나 완료 메시지를 전달합니다.
     
     Args:
-        bool: True=연결됨, False=연결 끊김
+        str (message): 사용자에게 보여줄 메시지 (예: "설정 파일 저장됨", "초기화 완료")
+        
+    Subscribers:
+        - MainStatusBar: 하단 상태바에 3초간 메시지 표시 후 소거
+    """
+
+    shutting_down = pyqtSignal()
+    """
+    애플리케이션 종료 시퀀스 시작 (Graceful Shutdown)
+    
+    앱이 완전히 꺼지기 직전에 발생합니다. 각 모듈은 이 신호를 받으면 
+    즉시 하던 일을 멈추고 안전하게 리소스를 반환해야 합니다.
+    
+    Trigger:
+        - MainWindow의 closeEvent 발생 시
+        - 메뉴의 '종료' 버튼 클릭 시
+        
+    Subscribers (Action):
+        - ConnectionService: 소켓 연결 close
+        - LogManager: 파일 핸들 flush 및 close
+        - WorkerThreads: 실행 중인 스레드 안전 종료 (quit/wait)
+    """
+
+
+class LogSignals(QObject):
+    """
+    [로깅 이벤트 그룹]
+    UI 출력과 파일 기록을 통합 관리하기 위한 채널입니다.
+    """
+    
+    # TODO: 다음 프로젝트에는 ['메시지, 레벨, 로그 발생 장소'] 를 넣을 수 있게 개선하기
+    message = pyqtSignal(str, str)
+    """
+    통합 로그 메시지 발행
+    
+    UI(LogWidget)와 파일(FileHandler) 양쪽에 로그를 남기기 위한 단일 진입점입니다.
+    직접 파일에 쓰지 말고 반드시 이 시그널을 통해야 스레드 안전성이 보장됩니다.
+    
+    Args:
+        str (msg): 로그 내용 본문
+        str (level): 로그 레벨 ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')
+                     * 레벨에 따라 UI에서의 텍스트 색상이 결정됨
     
     Example:
-        EVENT_BUS.connection_status_changed.emit(True)
-        EVENT_BUS.connection_status_changed.connect(self.on_connection_changed)
+        event_bus.log.message.emit("데이터 파싱 시작", "INFO")
     """
 
 
-    # =========================================================================
-    # Data Events (데이터 변경)
-    # =========================================================================
-    sequence_data_updated = pyqtSignal(dict)
+class ConnSignals(QObject):
     """
-    시퀀스 데이터가 새로 로드되거나 변경되었을 때 발행
+    [통신 상태 이벤트 그룹]
+    PLC, Robot Controller 등 외부 장비와의 연결 상태를 관리합니다.
+    """
     
-    구독 대상:
-        - TaskManagerViewModel (파일 정보 표시)
-        - BatchProcessingViewModel (일괄 처리 준비)
-        - ProgressBarViewModel (총 단계 수 계산)
-
+    status_changed = pyqtSignal(bool)
+    """
+    메인 장비 연결 상태 변경 알림
+    
+    앱의 조작 가능 여부(Enable/Disable)를 결정하는 가장 중요한 플래그입니다.
+    
     Args:
-        dict: 원본 파일에서 파싱이 끝난 시퀀스 데이터 
-        예 :
-            {
-                '1': {'turntable_feed_rate': 10.0, 'polar_coord_theta': 0.0, ...},
-                '2': {'turntable_feed_rate': 10.0, 'polar_coord_theta': 51.42857142857143, ...}
-            }
+        bool (is_connected): 
+            - True: 연결 성공 (조작 가능)
+            - False: 연결 끊김 (조작 불가, 재연결 시도 중)
+            
+    Subscribers:
+        - MainToolbar: 연결 아이콘 색상 변경 (Green/Red)
+        - ControlPanel: 버튼 활성화/비활성화 처리
     """
 
 
-    # =========================================================================
-    # Execution Status Events (작업 실행 상태)
-    # =========================================================================
-    sequence_progress_updated = pyqtSignal(int, int, dict, str)
+class DataSignals(QObject):
     """
-    시퀀스 진행 상태 변경 알림
-
-    용도:
-        - 현재 실행 중인 시퀀스 ID를 UI에 표시
-        - 프로그래스 바 갱신 (current / total * 100)
-        - 작업 완료/실패 여부 UI 갱신
-        - 로봇 애니메이션 갱신 등
-
+    [데이터 및 비즈니스 로직 이벤트 그룹]
+    작업 데이터(Sequence)의 로드, 변경 및 실행 진행률을 담당합니다.
+    """
+    
+    sequence_updated = pyqtSignal(dict)
+    """
+    시퀀스 데이터 로드/갱신 완료 알림
+    
+    파일을 열거나, 편집 후 저장했을 때 발생합니다. 
+    관련된 모든 뷰모델은 이 데이터를 받아 UI를 갱신해야 합니다.
+    
     Args:
-        int: 시퀀스 ID (또는 현재 순번)
-        int: 전체 시퀀스 개수
-        dict: 시퀀스 데이터
-        str: 상태값 ('processing', 'processed', 'failed', 'unprocessed')
+        dict (sequence_data): 파싱이 완료된 전체 시퀀스 데이터 구조체
+        
+    Example Data Structure:
+        {
+            'header': {'version': 1.2, 'author': 'Kim'},
+            'items': [
+                {'id': 1, 'cmd': 'MOVE', 'params': {'x': 100, 'y': 200}},
+                {'id': 2, 'cmd': 'WELD', 'params': {'current': 150}}
+            ]
+        }
+    """
 
-    Example:
-        # 3번 시퀀스 실행 시작 (총 10개 중)
-        EVENT_BUS.task_status_changed.emit(3, 10, 'processing')
-    """        
-
-
-
-
-
-    # ------------------------------------------------------------------------ #
-    # ------------------------------------------------------------------------ #
-    # ------------------------------------------------------------------------ #
-
-
-    # =========================================================================
-    # 싱글톤 구현
-    # =========================================================================
-
-    _instance: Optional['EventBus'] = None      # 이 클래스의 유일한 인스턴스를 담을 공간
+    progress_updated = pyqtSignal(int, int, str)
+    """
+    작업 실행 진행률 업데이트 (Real-time Progress)
     
+    현재 실행 중인 시퀀스 단계와 상태를 UI에 반영합니다.
     
-    def __new__(cls) -> 'EventBus':
-        """인스턴스 중복 생성 방지"""
+    Args:
+        int (current_step): 현재 실행 중인 스텝 번호 (1부터 시작)
+        int (total_steps): 전체 스텝 개수 (Progress Bar 계산용)
+        str (status): 현재 스텝의 상태 ('PROCESSING', 'DONE', 'FAILED', 'WAITING')
+    """
 
-        # 이 클래스의 인스턴스가 있으면 다시 만들지 말고 있는거 다시 써라
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialize() # 여기서 딱 1번만 호출함!
-        return cls._instance
+
+class ControlSignals(QObject):
+    """
+    [제어 및 모니터링 이벤트 그룹]
+    로봇이나 턴테이블의 실시간 위치 정보나 목표값 등 고빈도 데이터를 처리합니다.
+    """
     
+    robot_target = pyqtSignal(object)
+    """
+    로봇 TCP(Tool Center Point) 위치 정보 업데이트
     
+    로봇으로부터 수신된 실시간 좌표값입니다. (주기: 약 100ms)
+    
+    Args:
+        object (RobotPose): 
+            - .x, .y, .z, .w, .p, .r 속성을 가진 포즈 객체
+            - 3D 시뮬레이터 뷰와 좌표 표시 패널 갱신용
+    """
+
+    turntable_target = pyqtSignal(object)
+    """
+    턴테이블 회전 정보 업데이트
+    
+    Args:
+        object (TurntablePose):
+            - .angle (float): 현재 각도
+            - .velocity (float): 현재 회전 속도
+    """
+
+
+# =============================================================================
+# 2. 실제 QObject
+# =============================================================================
+class _EventBusBackend(QObject):
+    """
+    실제 시그널을 정의하는 Qt 객체
+
+    이 클래스는 앱(QApplication)이 준비된 후에 생성된다
+    각 기능별 시그널 클래스들을 멤버로 포함하여 계층 구조를 형성
+    """
+
     def __init__(self):
-        """
-        파이썬은 __new__ 로 객체를 생성하면 초기화를 위해 항상 __init__ 을 호출한다
-        하지만 실제 초기화는 _initialize에서 끝났으므로
-        여기서는 아무것도 하지 않는다
-
-        하는 일도 없는데 지우지 않는 이유:
-            이 클래스가 상속받은 부모(QObject)의 __init__ 는 하는일이 많다.
-            만약 __init__ 를 아예 안 만들면 파이썬이 자동으로 QObject.__init__ 를 호출한다
-            그럼 기존에 연결된 시그널들이 다 끊기고 초기화 된다 -> 망함
-            그래서 __init__ 를 만든 뒤 pass 로 아무일도 안 시키는 것 
-        """        
-        pass
-    
-
-    def _initialize(self):
-        """초기화 (최초 1회만 실행)"""
-        # QObject C++ 초기화는 여기서 딱 한 번 수행
         super().__init__()
 
+        # 각 시그널 그룹을 한 줄로 선언
+        self.system = SystemSignals()
+        self.log = LogSignals()
+        self.conn = ConnSignals()
+        self.data = DataSignals()
+        self.control = ControlSignals()
+        
+        # (편의상 그룹 리스트 보관 - disconnect_all 등 관리 목적)
+        self._signal_groups = [
+            self.system, self.log, self.conn, self.data, self.control
+        ]
 
 
     def disconnect_all(self, signal_name: str | None = None):
@@ -259,8 +279,9 @@ class EventBus(QObject):
         EventBus의 모든 시그널 또는 특정 시그널의 연결을 해제
         
         Args:
-            signal_name (str, optional): 연결을 해제할 특정 시그널의 이름.
-                                        None이면 모든 시그널을 해제
+            signal_name (str, optional): 
+                연결을 해제할 특정 시그널의 이름
+                None이면 모든 시그널을 해제
         """
         meta_obj = self.metaObject()
         
@@ -277,18 +298,66 @@ class EventBus(QObject):
                 
                 # 특정 시그널만 해제하거나 모든 시그널을 해제
                 if signal_name is None or current_signal_name == signal_name:
-                    signal_instance = getattr(self, current_signal_name)
                     try:
-                        signal_instance.disconnect()
-                    except TypeError:
-                        # 이미 연결이 없는 시그널에 disconnect()를 호출하면 TypeError 발생
-                        pass
+                        # getattr로 가져올 때 없는 이름이면 AttributeError 발생 가능
+                        signal = getattr(self, current_signal_name, None)
+                        if signal:
+                            signal.disconnect()
+                    except (TypeError, RuntimeError):
+                        pass    # 연결 없는 경우 or 이미 삭제된 객체에 disconnect()를 호출하면
+
+
+
+# =============================================================================
+# 3. 공개 EventBus - 다른 파일들은 리팩토링 되어서 싱글톤이 없어진 것을 모르게
+# =============================================================================
+class EventBus:
+    """
+    [전역 이벤트 버스 (Global Event Bus) - 외부에서 사용]
+    
+    애플리케이션 내의 '느슨한 결합(Loose Coupling)'을 위해 존재하는 싱글톤 성격의 통신 허브
+    UI(View), 로직(Service/Worker), 데이터(Model/ViewModel) 간의 직접적인 참조를 끊고
+    이벤트 기반으로 데이터를 주고받기 위해 사용한다
+    QObject를 상속받지 않았기 때문에 Import 시점에 충돌이 절대 발생하지 않는다
+
+    사용 원칙:
+        1. Publisher (발행자): 누가 받는지 신경 쓰지 않고 emit 한다
+        2. Subscriber (구독자): 누가 보냈는지 신경 쓰지 않고 connect 하여 로직을 수행
+    """
+    
+    def __init__(self):
+        # 내부적으로 진짜 QObject를 담을 변수 (초기엔 None)
+        self._backend: Optional[_EventBusBackend] = None
+
+    @property
+    def _qobject(self) -> _EventBusBackend:
+        """
+        진짜 객체가 필요할 때(사용 시점) 생성하는 '게으른 로더'입니다.
+        """
+        if self._backend is None:
+            # 이 코드가 실행될 때는 이미 main.py에서 AppEngine이 생성된 후입니다.
+            self._backend = _EventBusBackend()
+        return self._backend
+
+    def __getattr__(self, name):
+        """
+        사용자가 EVENT_BUS.system.info 를 찾으면 이 함수가 호출됩니다.
+        내부 백엔드(_EventBusBackend)에게 그 요청을 토스합니다.
+        """
+        return getattr(self._qobject, name)
+
+    # (편의 기능) disconnect_all 같은 메서드도 백엔드로 연결
+    def disconnect_all(self, signal_name: str | None = None):
+        self._qobject.disconnect_all(signal_name)
 
 
 
 # =============================================================================
 # 전역 인스턴스
 # =============================================================================
-EVENT_BUS = EventBus()
-
-
+# IDE(VS Code)에게는 "이거 _EventBusBackend 야"라고 거짓말을 해서 자동완성을 돕습니다.
+if TYPE_CHECKING:
+    EVENT_BUS = _EventBusBackend()
+else:
+    # 실제 런타임에는 안전한 껍데기(EventBus)가 나갑니다.
+    EVENT_BUS = EventBus()

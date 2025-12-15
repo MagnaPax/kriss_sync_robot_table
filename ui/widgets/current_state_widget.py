@@ -124,7 +124,7 @@ class CurrentStateWidget(BaseWidget):
 
 
     def clear_widget(self):
-        """위젯을 초기 상태(0, off)로 리셋합니다."""
+        """위젯을 초기 상태(0, off)로 리셋한다"""
         self.update_data({
             'm1_rpm': 0,
             'm2_rpm': 0,

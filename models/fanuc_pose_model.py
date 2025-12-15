@@ -49,8 +49,16 @@ class FANUCPose:
 
 class FANUCPoseModel:
     """
-    순수 비즈니스 로직
+    FANUCPose 객체 생성을 담당하는 팩토리(Factory) 및 검증 클래스
+    
+    역할:
+        1. 외부 데이터(JSON, Dict)의 유효성 검사 (Validation)
+        2. 안전한 타입 변환 (str -> float)
+        3. 도메인 객체(FANUCPose) 생성 및 반환
+        
+    이 클래스는 상태를 가지지 않으므로(Stateless), 모든 메서드는 정적(@staticmethod)이다
     """
+
     def do_task(self) -> str:
         msg: str = "Hello, MVVM"
         return msg
@@ -59,9 +67,26 @@ class FANUCPoseModel:
     @staticmethod
     def parse_poses_from_data(data: Dict[str, Any]) -> Dict[str, FANUCPose]:
         """
-        매크로 딕셔너리 데이터를 FANUCPose 객체 딕셔너리로 파싱(변환)
-        실패 시 예외 발생 → Worker가 잡아야 함
+        매크로 파일 내용(Dict)을 파싱하여 FANUCPose 객체들의 딕셔너리로 변환
+
+        설명:
+            파일에서 읽어온 Raw Data를 
+            앱에서 안전하게 쓸 수 있는 객체(Object)로 대량 변환
+            그 과정에서 데이터 구조가 올바른지 검사
+
+        Args:
+            data (Dict[str, Any]): JSON 파일에서 로드한 원본 데이터
+                                예: {'Macro_1': {'x': 100, ...}, ...}
+
+        Returns:
+            Dict[str, FANUCPose]: 변환된 매크로 ID와 포즈 객체의 맵
+                                예: {'Macro_1': FANUCPose(...), ...}
+
+        Raises:
+            TypeError: 입력받은 데이터가 딕셔너리가 아닐 때
+            ValueError: 내부 데이터 구조가 잘못되었거나, 데이터가 비어있을 때
         """
+
         if not isinstance(data, dict):
             raise TypeError("매크로 데이터는 dict 형식이어야 합니다.")
 
@@ -69,30 +94,49 @@ class FANUCPoseModel:
 
         for macro_id, macro_data in data.items():
             if not isinstance(macro_data, dict):
-                raise ValueError(f"매크로 '{macro_id}'의 데이터가 dict가 아닙니다.")
+                raise ValueError(f"매크로 '{macro_id}'의 데이터 형식이 올바르지 않습니다 (dict여야 함).")
 
+            # 개별 포즈 생성 위임
             pose = FANUCPoseModel._create_pose(macro_data, macro_id)
             result[macro_id] = pose
 
         if not result:
-            raise ValueError("로드된 매크로가 하나도 없습니다.")
+            raise ValueError("로드된 매크로 데이터가 없습니다 (빈 파일).")
 
         return result
 
     @staticmethod
     def _create_pose(macro_data: Dict[str, Any], macro_id: str) -> FANUCPose:
         """
-        단일 매크로에서 FANUCPose 생성
-        변환 실패 시 명확한 예외
+        (내부 헬퍼) 단일 딕셔너리 데이터를 FANUCPose 객체로 변환한다
+
+        설명:
+            - 필수 키(x, y, z, w, p, r)가 모두 있는지 검사
+            - 값이 숫자로 변환 가능한지 확인 (문자열 "10.5" -> 실수 10.5)
+            - 하나라도 문제가 있으면 즉시 에러를 발생시켜 잘못된 데이터가 흐르는 것을 방지
+
+        Args:
+            macro_data (Dict): 매크로 하나의 데이터 (예: {'x': 10, 'y': 20 ...})
+            macro_id (str): 에러 메시지에 표시할 매크로 ID
+
+        Returns:
+            FANUCPose: 생성된 불변(Frozen) 데이터 객체
         """
         def get_float(key: str) -> float:
             value = macro_data.get(key)
             if value is None:
-                raise KeyError(f"매크로 '{macro_id}'에 필수 키 '{key}'가 없습니다.")
+                raise KeyError(f"매크로 '{macro_id}' 데이터에 필수 키 '{key}'가 누락되었습니다.")
             try:
                 return float(value)
             except (TypeError, ValueError):
                 raise ValueError(f"매크로 '{macro_id}'의 '{key}' 값이 숫자가 아닙니다: {value}")
+
+        # f(Feed)는 필수가 아니므로 get을 사용 (기본값 0.0)
+        feed_val = macro_data.get('f', 0.0)
+        try:
+            feed_val = float(feed_val)
+        except:
+            feed_val = 0.0
 
         return FANUCPose(
             x=get_float("x"),
@@ -100,26 +144,33 @@ class FANUCPoseModel:
             z=get_float("z"),
             w=get_float("w"),
             p=get_float("p"),
-            r=get_float("r")
+            r=get_float("r"),
+            f=feed_val
         )
 
     @staticmethod
     def get_pose(macros: Dict[str, FANUCPose], macro_id: str) -> FANUCPose:
         """
-        매크로 ID로 FANUCPose 반환
-        없으면 KeyError → Worker가 처리
+        변환된 매크로 목록에서 특정 ID의 포즈를 안전하게 가져온다
+
+        설명:
+            단순히 macros[id]를 하는 것보다, 
+            찾는 키가 없을 때 더 명확한 에러 메시지를 제공하기 위해 사용
+
+        Args:
+            macros (Dict): 파싱이 완료된 FANUCPose 딕셔너리
+            macro_id (str): 찾고 싶은 매크로 ID
+
+        Returns:
+            FANUCPose: 해당 ID의 포즈 객체
+
+        Raises:
+            KeyError: 해당 ID가 존재하지 않을 때
         """
         try:
             return macros[macro_id]
         except KeyError:
-            raise KeyError(f"매크로 '{macro_id}'를 찾을 수 없습니다.")
-
-
-
-
-
-
-
+            raise KeyError(f"요청한 매크로 ID '{macro_id}'를 찾을 수 없습니다.")
 
 
 
@@ -163,7 +214,7 @@ if __name__ == '__main__':
         }
     }
 
-    # 파싱 결과를 담을 변수를 미리 초기화합니다.
+    # 파싱 결과를 담을 변수를 미리 초기화한다
     poses: Dict[str, FANUCPose] = {}
 
     # 1. 파싱 성공 테스트

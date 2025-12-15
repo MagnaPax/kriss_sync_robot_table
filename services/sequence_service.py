@@ -37,7 +37,7 @@ class SequenceService(QObject):
         """
 
         if self._thread and self._thread.isRunning():
-            EVENT_BUS.ui_log_message.emit("이전 작업이 아직 진행중입니다", "WARNING")
+            EVENT_BUS.log.message.emit("이전 작업이 아직 진행중입니다", "WARNING")
             return # 이전 작업이 있다면 중복 실행 방지
 
         # csv 파일이 맞는지 확인
@@ -74,7 +74,7 @@ class SequenceService(QObject):
 
         if file_path.suffix.lower() != '.csv':
             msg = f"{self._log_prefix} csv 파일이 아닙니다: {file_path}"
-            EVENT_BUS.ui_log_message.emit(f"{msg}", "ERROR")
+            EVENT_BUS.log.message.emit(f"{msg}", "ERROR")
             raise ValueError(msg)
 
 
@@ -84,7 +84,7 @@ class SequenceService(QObject):
 
         # 상태 로그 방송
         level = "INFO" if success else "ERROR"
-        EVENT_BUS.ui_log_message.emit(msg, level)
+        EVENT_BUS.log.message.emit(msg, level)
 
         if success:
             # 데이터 보관 - 나중에 누가 달라고 할 때를 대비

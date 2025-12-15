@@ -98,14 +98,14 @@ class StartupManager:
                 
                 # 성공 피드백
                 splash.update_status("드라이버 로드 완료.", 40)
-                EVENT_BUS.system_info.emit("TwinCAT 통신 모듈(DLL) 로드 성공")
+                EVENT_BUS.system.info.emit("TwinCAT 통신 모듈(DLL) 로드 성공")
                 
                 QApplication.processEvents()
                 time.sleep(0.8) # 사용자가 성공 메시지를 볼 수 있게 잠시 대기
                 return True
 
             except Exception as e:
-                EVENT_BUS.ui_log_message.emit(f"드라이버 로드 시도({i}) 실패: {e}", "ERROR")
+                EVENT_BUS.log.message.emit(f"드라이버 로드 시도({i}) 실패: {e}", "ERROR")
                 
                 if i < max_retries:
                     splash.update_status(f"드라이버 로드 실패. 재시도 중...", 10)
@@ -119,7 +119,7 @@ class StartupManager:
     def _show_critical_error(self, parent, title, error_msg):
         """치명적 에러 처리"""
         msg = f"{title}: {error_msg}"
-        EVENT_BUS.ui_log_message.emit(msg, "CRITICAL")
+        EVENT_BUS.log.message.emit(msg, "CRITICAL")
 
         QMessageBox.critical(
             parent, 
