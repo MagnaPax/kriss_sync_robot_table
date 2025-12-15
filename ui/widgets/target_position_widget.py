@@ -1,5 +1,5 @@
 # ui/widgets/target_position_widget.py
-from PyQt6.QtCore import Qt, pyqtSlot
+from PyQt6.QtCore import Qt, pyqtSlot, QTimer
 from PyQt6.QtWidgets import (
     QVBoxLayout, 
     QGroupBox, 
@@ -11,17 +11,16 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox,
     QGridLayout,
     QPushButton,
-    QMessageBox,
-    QWidget
+    QAbstractSpinBox
 )
-from typing import Dict, Any, TYPE_CHECKING, Union
 from functools import partial
+from typing import Dict, Any, TYPE_CHECKING, Union
 
-from ui.widgets.base_widget import BaseWidget
-from ui.dialogs.macro_settings_dialog import MacroSettingsDialog
 from core.event_bus import EVENT_BUS
+from ui.widgets.base_widget import BaseWidget
 from models.fanuc_pose_model import FANUCPose
-
+from utils.validators import NumericValidator
+from ui.dialogs.macro_settings_dialog import MacroSettingsDialog
 
 
 # 런타임에는 import 하지 않음
@@ -297,10 +296,18 @@ class TargetPositionWidget(BaseWidget):
 
             if axis not in ["FEED RATE"]:
                 # 일반 좌표는 QLineEdit 사용
-                label = QLabel(f"{axis}:")
                 line_edit = QLineEdit()
                 line_edit.setObjectName(f"line_edit_{axis}") # QSS 적용을 위한 ID
                 line_edit.setPlaceholderText(f"{axis} 값 입력...")
+
+                # 숫자만 입력 가능하도록 유효성 검사기 추가
+                # 에러 발생 시 BaseWidget의 error_occurred 시그널을 통해 알림
+                validator = NumericValidator(
+                    error_callback=lambda msg: self.error_occurred.emit(msg),
+                    parent=line_edit
+                )
+                validator.setDecimals(3) # 소수점 3자리까지 허용
+                line_edit.setValidator(validator)                
 
                 input_widget = line_edit
 
@@ -310,11 +317,13 @@ class TargetPositionWidget(BaseWidget):
                 spin_box.setObjectName(f"spinbox_{axis.lower().replace(' ', '_')}")
 
                 # 설정 적용
-                spin_box.setRange(0.0, 1000.0)    # 범위 0 ~ 1000
-                spin_box.setValue(10.0)           # 기본값 10
-                spin_box.setSingleStep(5.0)       # 1회 클릭 시 5씩 증감
-                spin_box.setSuffix(" mm/sec")     # 단위 표시
+                spin_box.setRange(0.0, 100.0)       # 범위 0 ~ 100
+                spin_box.setValue(10.0)             # 기본값 10
+                spin_box.setSingleStep(5.0)         # 1회 클릭 시 5씩 증감
+                spin_box.setSuffix(" mm/sec")       # 단위 표시
                 spin_box.setKeyboardTracking(False) # (엔터, 포커스 이동, 스핀박스 버튼 클릭)만 시그널 발생
+                spin_box.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons) # Up/Down 화살표 제거
+                spin_box.focusInEvent = lambda e: QTimer.singleShot(0, spin_box.selectAll)  # 전체선택 되게
 
                 input_widget = spin_box
 
