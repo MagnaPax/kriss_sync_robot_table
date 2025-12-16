@@ -221,30 +221,28 @@ class DataSignals(QObject):
 class ControlSignals(QObject):
     """
     [제어 및 모니터링 이벤트 그룹]
-    로봇이나 턴테이블의 실시간 위치 정보나 목표값 등 고빈도 데이터를 처리합니다.
+    로봇이나 턴테이블의 실시간 위치 정보나 목표값 등 고빈도(약 0.1초마다) 호출 데이터를 처리
     """
     
-    robot_feedback = pyqtSignal(object)
+    robot_current_pose = pyqtSignal(object)
     """
     FANUC 현재 World 좌표 정보
         바닥(베이스 좌표계) 기준 TCP(Tool Center Point) 위치
     
     Args:
-        object (RobotPose): 
-            - .x, .y, .z, .w, .p, .r 속성을 가진 FANUCPose 객체
+        - .x, .y, .z, .w, .p, .r 속성을 가진 FANUCPose 객체
     """
 
-    tool_feedback = pyqtSignal(object)
+    tool_current_pose = pyqtSignal(object)
     """FANUC 현재 Tool 좌표 정보"""
 
-    turntable_feedback = pyqtSignal(object)
+    turntable_current_pose = pyqtSignal(object)
     """
-    턴테이블 현재 각도/속도 정보
+    턴테이블 현재 각도/속도 정보 (TurntablePose)
     
     Args:
-        object (TurntablePose):
-            - .angle (float): 현재 각도
-            - .velocity (float): 현재 회전 속도
+        - .angle (float): 현재 각도
+        - .velocity (float): 현재 회전 속도
     """
 
 
