@@ -224,21 +224,22 @@ class ControlSignals(QObject):
     로봇이나 턴테이블의 실시간 위치 정보나 목표값 등 고빈도 데이터를 처리합니다.
     """
     
-    robot_target = pyqtSignal(object)
+    robot_feedback = pyqtSignal(object)
     """
-    로봇 TCP(Tool Center Point) 위치 정보 업데이트
-    
-    로봇으로부터 수신된 실시간 좌표값입니다. (주기: 약 100ms)
+    FANUC 현재 World 좌표 정보
+        바닥(베이스 좌표계) 기준 TCP(Tool Center Point) 위치
     
     Args:
         object (RobotPose): 
-            - .x, .y, .z, .w, .p, .r 속성을 가진 포즈 객체
-            - 3D 시뮬레이터 뷰와 좌표 표시 패널 갱신용
+            - .x, .y, .z, .w, .p, .r 속성을 가진 FANUCPose 객체
     """
 
-    turntable_target = pyqtSignal(object)
+    tool_feedback = pyqtSignal(object)
+    """FANUC 현재 Tool 좌표 정보"""
+
+    turntable_feedback = pyqtSignal(object)
     """
-    턴테이블 회전 정보 업데이트
+    턴테이블 현재 각도/속도 정보
     
     Args:
         object (TurntablePose):
