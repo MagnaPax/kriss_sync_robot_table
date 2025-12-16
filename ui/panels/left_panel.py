@@ -1,13 +1,20 @@
 # ui/panels/left_panel.py
-from PyQt6.QtWidgets import QFrame, QVBoxLayout, QGroupBox, QSizePolicy
+from PyQt6.QtWidgets import QFrame, QVBoxLayout, QGroupBox
+from typing import TYPE_CHECKING
 from ..widgets import LogoWidget
 from ..widgets import TurntableWidget
 from ..widgets import CurrentStateWidget
 
+if TYPE_CHECKING:
+    from view_models.main_window_viewmodel import MainViewModel
 
 class LeftPanel(QFrame):
-    def __init__(self, parent=None):    # 부모가 없을 수도 있다(독립적 테스트 가능)
+    def __init__(self, view_model: "MainViewModel", parent=None):    # 부모가 없을 수도 있다(독립적 테스트 가능)
         super().__init__(parent)
+
+        # 뷰모델 저장 (나중에 자식 위젯들이 데이터 필요할 때 여기서 꺼내 줌)
+        self.vm = view_model
+
         self.setObjectName("left_panel")
         self.setFrameShape(QFrame.Shape.StyledPanel)    # 프레임의 기본 형태 설정
         self.setFrameShadow(QFrame.Shadow.Sunken)       # 프레임의 입체감(빛, 음영) 설정

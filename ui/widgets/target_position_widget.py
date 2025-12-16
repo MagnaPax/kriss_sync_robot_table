@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QAbstractSpinBox
 )
 from functools import partial
-from typing import Dict, Any, TYPE_CHECKING, Union
+from typing import Dict, Any, TYPE_CHECKING, Union, Optional
 
 from core.event_bus import EVENT_BUS
 from ui.widgets.base_widget import BaseWidget
@@ -40,10 +40,10 @@ class TargetPositionWidget(BaseWidget):
         - 'GoTo' 버튼 클릭 시 `goto_requested` 시그널 발생
     """
 
-    def __init__(self, view_model: "TargetPositionViewModel", parent=None):
+    def __init__(self, parent=None):
         # ViewModel 인스턴스를 클래스 속성으로 저장
         # super().__init__() 전에 저장
-        self.vm = view_model
+        self.vm: Optional["TargetPositionViewModel"] = None
 
         # 좌표값 입력 위젯들을 저장할 보관함
         self.coord_widgets: Dict[str, Union[QLineEdit, QDoubleSpinBox]] = {}
@@ -65,9 +65,16 @@ class TargetPositionWidget(BaseWidget):
         # 클릭 이벤트 처리 (UI 생성 후)
         self._bind_events()
 
+    # 외부에서 뷰모델을 꽂아주는 함수(Setter) 추가
+    def set_view_model(self, view_model: "TargetPositionViewModel"):
+        """외부에서 뷰모델 주입 시 호출"""
+        self.vm = view_model
+        
+        # [중요] VM이 생겼을 때 시그널 연결
+        self.vm.macros_loaded.connect(self._on_macro_data_loaded)
+        
         # 매크로가 저장된 파일에서 값 가져오기
         self.vm.load_macro_data()
-
 
     def _init_ui(self):
         """
@@ -248,7 +255,6 @@ class TargetPositionWidget(BaseWidget):
         # 인스턴스 변수에 버튼 객체 저장
         self.edit_macro_button = self._create_button(title="Edit Macro", type="special")
         return self.edit_macro_button
-        # return self._create_button(title="Edit Macro", type="special")
     
     def _create_macro_button(self, macro_id: str) -> QPushButton:
         """ 
@@ -396,9 +402,6 @@ class TargetPositionWidget(BaseWidget):
         시그널-슬롯(_on으로 시작하는 메서드) connect를 모아놓음 - 버튼 눌리면 어떤 일을 할 지 약속
         """
 
-        # 매크로 데이터 바인딩
-        self.vm.macros_loaded.connect(self._on_macro_data_loaded)
-
         # self.edit_macro_button이 None이 아님을 명시적으로 확인 (Pylance 경고 해결 및 런타임 안정성)
         assert self.edit_macro_button is not None, "Edit Macro 버튼이 생성되지 않았습니다."
         self.edit_macro_button.clicked.connect(self._on_edit_macro_button_clicked)
@@ -462,6 +465,8 @@ class TargetPositionWidget(BaseWidget):
 
         직접 MacroSettingsDialog 를 연다
         """
+        if not self.vm: return
+
         EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 편집 다이얼로그(MacroSettingsDialog) 열림", "INFO")
 
         dialog = MacroSettingsDialog(parent=self)
@@ -521,13 +526,16 @@ class TargetPositionWidget(BaseWidget):
     @pyqtSlot(float)
     def _on_feed_rate_changed(self, feed_rate: float):
         """FEED RATE 스핀박스 값 변경됐을 때"""
-        self.vm.update_feed_rate(feed_rate)
+        if self.vm:
+            self.vm.update_feed_rate(feed_rate)
 
     @pyqtSlot()
     def _on_goto_btn_clicked(self):
         """
         'GoTo' 버튼이 클릭되었을 때 실행할 함수
         """
+        if not self.vm: return
+
         try:
             # QLineEdit 객체로부터 데이터 추출
             line_edit_data = self._extract_data_from_ui()

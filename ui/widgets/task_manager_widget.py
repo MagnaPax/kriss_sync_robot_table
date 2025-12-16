@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
 )
 from ui.widgets.base_widget import BaseWidget
 from core.event_bus import EVENT_BUS
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 
 if TYPE_CHECKING:
@@ -25,7 +25,7 @@ class TaskManagerWidget(BaseWidget):
     # ========================================
     # 초기화 및 설정 (Initialization)
     # ========================================
-    def __init__(self, view_model: "TaskManagerViewModel", parent=None):
+    def __init__(self, parent=None):
         """Sequence 파일 로드 및 실행 제어 위젯"""
 
         # UI 요소 참조 변수 초기화
@@ -35,13 +35,20 @@ class TaskManagerWidget(BaseWidget):
         self.btn_start = None
         self.btn_stop = None
 
-        self.vm = view_model
+        # ViewModel 인스턴스를 클래스 속성으로 저장
+        # super().__init__() 전에 저장
+        self.vm: Optional["TaskManagerViewModel"] = None
 
         # BaseWidget의 __init__()이 _init_ui() 호출 → 실제 UI 생성
         super().__init__(parent)
 
         # 이벤트 연결 (UI만들어진 뒤)
-        self._bind_events()        
+        self._bind_events()
+
+    # 외부에서 뷰모델을 꽂아주는 함수(Setter) 추가
+    def set_view_model(self, view_model: "TaskManagerViewModel"):
+        """외부에서 뷰모델 주입"""
+        self.vm = view_model
 
     def _init_ui(self):
 
@@ -216,6 +223,10 @@ class TaskManagerWidget(BaseWidget):
             2. 선택된 파일이름 표시
             3. 선택된 파일 VM에 전달
         """
+        if not self.vm:
+            EVENT_BUS.log.message.emit(f"{self.log_prefix} 뷰모델이 연결되지 않았습니다.", "WARNING")
+            return
+
         # QFileDialog를 사용하여 문자열 경로 획득
         file_path_str, _ = QFileDialog.getOpenFileName(
             self,                   # 부모 위젯
@@ -243,6 +254,8 @@ class TaskManagerWidget(BaseWidget):
         """
         START 버튼 클릭 시: 파일이 로드되었는지 확인하고 VM에 시퀀스 시작을 요청
         """
+        # 방어코드 - 뷰모델 없으면
+        if not self.vm: return
         # 방어 코드 - 읽은 파일이 없으면 뷰모델 호출 안 함
         if self.lbl_filename is None or self.lbl_filename.text() == "FileName..." or not self.lbl_filename.text(): return
 
