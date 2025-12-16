@@ -163,8 +163,9 @@ class TaskManagerWidget(BaseWidget):
 
         # 상태에 따른 활성화/비활성화 (BaseWidget 기능 활용)
         if 'is_busy' in data:
+            is_busy = data['is_busy']
             # 로봇이 바쁘면 -> START, LOAD 비활성화 (못 누르게)
-            self.set_enabled(not data['is_busy'])
+            self.set_enabled(not is_busy)
             if self.btn_start: self.btn_start.setEnabled(not is_busy)
             if self.btn_load: self.btn_load.setEnabled(not is_busy)
             if self.btn_stop: self.btn_stop.setEnabled(True)
