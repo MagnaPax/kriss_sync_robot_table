@@ -58,7 +58,11 @@ class FanucOnlyExecutor(BaseExecutor):
         return required_keys.issubset(sample_data.keys())
 
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
+        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 데이터\n{(sequence_data)}\n", "DEBUG")
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] FANUC 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
+
+        # 처리할 전체 시퀀스 데이터 방송
+        EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
 
         adapter = self.robot
 
@@ -168,9 +172,10 @@ class IntegratedExecutor(BaseExecutor):
 
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] CSV 파일 통합 제어 모드로 실행 (데이터 {len(sequence_data)}건)", "INFO")
-        
-        print(f"처리할 csv 파일의 데이터 값\n{sequence_data}\n")
 
+        # 처리할 전체 시퀀스 데이터 방송
+        EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
+        
         """
         # 1. 시작 신호
         self.robot.start_sequence_plc_signals()
@@ -204,6 +209,9 @@ class LegacyIntegratedExecutor(BaseExecutor):
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 레거시 파일 모드로 실행 (데이터 {len(sequence_data)}건)", "INFO")
 
+        # 처리할 전체 시퀀스 데이터 방송
+        EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)        
+
         return True, "레거시 파일 모드 실행 완료 -> TODO: 로직 만들어야 된다"
 
 
@@ -227,6 +235,9 @@ class TurntableOnlyExecutor(BaseExecutor):
 
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 턴테이블 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
+
+        # 처리할 전체 시퀀스 데이터 방송
+        EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
 
         adapter = self.table # TurntableAdapter
         num_sequences = len(sequence_data)
@@ -340,7 +351,7 @@ class TwinCATCommander:
             return False, "지원하지 않는 데이터 형식입니다."
 
     def apply_user_feed_rate_when_moving(self, feed_rate: float) -> str | None:
-        """"""
+        """TargetPositionWidget 에서 사용자가 입력한 Feed Rate 값을 FANUC에 적용"""
 
         is_moving = self.robot.read_busy_signal()
         if is_moving:

@@ -146,6 +146,7 @@ QWidget#right_panel {
 
 
 /* TaskManagerWidget 전용 스타일 */
+/* 버튼은 py 코드 setProperty("type", "general")에 의해 기존의 보라색 버튼 스타일이 자동으로 적용 */
 /* 1. 메인 그룹박스 스타일 (TargetPosition과 통일) */
 #task_manager_widget > QGroupBox {
     border: 1px solid #94a3b8;
@@ -183,8 +184,64 @@ QWidget#right_panel {
     font-weight: normal;
 }
 
-/* (참고) 버튼은 py 코드에서 setProperty("type", "general")을 했으므로
-   기존의 보라색 버튼 스타일이 자동으로 적용됨 */
+
+/* WaypointsWidget (QTableWidget) 스타일 */
+/* 1. 그룹박스 스타일 (TargetPosition, TaskManager와 통일) */
+#waypoints_groupbox {
+    border: 1px solid #94a3b8;
+    border-radius: 6px;
+    margin-top: 20px;
+    font-weight: bold;
+    color: #333333;
+}
+
+#waypoints_groupbox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 10px;
+    background-color: transparent;
+}
+
+/* 2. 테이블 기본 스타일 */
+#waypoints_widget QTableWidget {
+    color: black;
+    background-color: #ffffff;
+    gridline-color: #e0e0e0;     /* 격자 색상 (연한 회색) */
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    selection-background-color: #5D9CEC; /* 선택된 행 배경색 (파란색) */
+    selection-color: #ffffff;            /* 선택된 행 글자색 */
+}
+
+/* 3. 헤더 (Header) 스타일 */
+#waypoints_widget QHeaderView::section {
+    background-color: #f8f9fa;   /* 헤더 배경 (아주 연한 회색) */
+    color: #495057;              /* 헤더 글자색 (진한 회색) */
+    padding: 1px;
+    border: 1px solid #dee2e6;
+    border-top: none;            /* 상단 테두리 제거 (깔끔하게) */
+    font-weight: bold;
+}
+
+/* 4. 줄무늬 (Alternating Row Colors) */
+/* QTableWidget 속성 setAlternatingRowColors(True)일 때 적용됨 */
+#waypoints_widget QTableWidget::item {
+    color: #333333;
+    padding: 4px; /* 셀 내부 여백 */
+}
+
+/* 마우스 호버 시 행 스타일 */
+#waypoints_widget QTableWidget::item:hover {
+    background-color: #f0f4f8; /* 아주 연한 파란색 */
+    color: #000000;            /* 호버 시 완전 검은색 */
+}
+
+/* (참고) 짝수/홀수 행 배경색은 QSS에서 alternate-background-color 속성으로 제어 */
+#waypoints_widget QTableWidget {
+    alternate-background-color: #f1f3f5; /* 연한 회색 줄무늬 */
+}
+
+
 
 
 

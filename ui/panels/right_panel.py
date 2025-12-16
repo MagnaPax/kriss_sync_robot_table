@@ -1,4 +1,6 @@
 from PyQt6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QGroupBox, QFrame
+from ui.widgets.waypoints_widget import WaypointsWidget
+
 
 
 class RightPanel(QFrame):
@@ -12,7 +14,7 @@ class RightPanel(QFrame):
         layout = QVBoxLayout(self)
 
         # 위젯들
-        batch_processing = QGroupBox("Batch Processing")
+        waypoints = WaypointsWidget()
         progress_state = QFrame()
         task_manager = QGroupBox("Task Manager")
         log_robot_movement = QGroupBox("Robot Movement Log")
@@ -24,8 +26,6 @@ class RightPanel(QFrame):
         logs_layout.addWidget(log_batch_completion)
 
 
-
-        batch_processing.setStyleSheet("color: black; border: 1px solid red;")
         progress_state.setStyleSheet("color: black; border: 1px solid black;")
         task_manager.setStyleSheet("color: black; border: 1px solid green;")
         log_robot_movement.setStyleSheet("color: black; border: 1px solid yellow;")
@@ -33,7 +33,7 @@ class RightPanel(QFrame):
 
 
         # 위젯 & 레이아웃 추가
-        layout.addWidget(batch_processing,  10)
+        layout.addWidget(waypoints,  10)
         layout.addWidget(progress_state,    1)
         layout.addWidget(task_manager,      2)
         layout.addLayout(logs_layout,       7)
