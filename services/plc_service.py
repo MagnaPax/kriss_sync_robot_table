@@ -252,13 +252,15 @@ class PLCService(QObject):
         self._start_worker('MOVE', data=sequence_data, log_msg=f"단일 명령 이동: {fanuc_pose_obj}")
 
 
-    def process_sequence_data(self, csv_data: dict):
-        """"""
-        # 리스트로 감싸서 sequence 형태로 만듦 (TwinCATCommander가 list[dict]를 기대함)
-        sequence_data = list(csv_data.values())
-
+    def process_sequence_data(self, csv_data: list):
+        """
+        시퀀스 데이터를 받아 로봇 작업을 시작함
+        Args:
+            sequence_data (list): 실행할 시퀀스 리스트 (List[Dict])
+        """
         # Worker 호출
-        self._start_worker('MOVE', data=sequence_data, log_msg=f"csv 시퀀스 명령: {csv_data}")
+        EVENT_BUS.log.message.emit(f"{self._log_prefix} csv 시퀀스 명령: {csv_data}", "DEBUG")
+
 
 
     def set_robot_speed(self, feed_rate: float):

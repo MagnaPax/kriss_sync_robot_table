@@ -31,10 +31,8 @@ class TaskManagerViewModel(QObject):
 
         # 시퀀스 데이터 시그널 데이터 저장 & 구독
         self._cached_data = None
-        EVENT_BUS.sequence_data_updated.connect(self._on_sequence_data_updated)
+        EVENT_BUS.data.sequence_data_loaded.connect(self._on_sequence_data_updated)
 
-
-    
 
 
     def load_sequence_data(self, file_path: Path):
@@ -47,9 +45,12 @@ class TaskManagerViewModel(QObject):
 
 
     def start_sequence(self):
-        """View의 START 버튼 클릭 이벤트 처리"""
+        """
+        View의 START 버튼 클릭 이벤트 처리
+            작업 시작 (전체 시퀀스 데이터를 실어서 보냄)
+        """
 
-        # 방어코드 - 시퀀스 데이터가 없으면 서비스 호출 안 함
+        # 방어코드
         if not self._cached_data: return
 
         EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 실행 요청 (데이터 {len(self._cached_data)}건)", "INFO")
@@ -58,7 +59,7 @@ class TaskManagerViewModel(QObject):
 
 
     # --- 슬롯 메서드 --- #
-    @pyqtSlot(dict)
-    def _on_sequence_data_updated(self, data: dict):
+    @pyqtSlot(list)
+    def _on_sequence_data_updated(self, data: list):
         """Event Bus를 통해 온 시퀀스 데이터를 캐싱"""
         self._cached_data = data
