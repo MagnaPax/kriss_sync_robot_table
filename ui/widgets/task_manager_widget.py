@@ -29,7 +29,6 @@ class TaskManagerWidget(BaseWidget):
         """Sequence 파일 로드 및 실행 제어 위젯"""
 
         # UI 요소 참조 변수 초기화
-        self.lbl_feed_val = None
         self.lbl_runtime_val = None
         self.btn_load = None
         self.lbl_filename = None
@@ -59,14 +58,8 @@ class TaskManagerWidget(BaseWidget):
         group_layout.setContentsMargins(15, 10, 15, 15)
 
 
-        # --- 정보 표시 (Feed Rate, Runtime) --- #
+        # --- 정보 표시 --- #
         info_layout = QHBoxLayout()
-        
-        # Feed Rate 레이블 
-        lbl_feed_title = QLabel("Feed(mm / sec) :")
-        lbl_feed_title.setObjectName("info_title")  # QSS 식별용 ID
-        self.lbl_feed_val = QLabel("30")
-        self.lbl_feed_val.setObjectName("info_value")
         
         # Runtime 레이블 
         lbl_runtime_title = QLabel("Runtime :")
@@ -74,11 +67,8 @@ class TaskManagerWidget(BaseWidget):
         self.lbl_runtime_val = QLabel("00 : 00 : 00")
         self.lbl_runtime_val.setObjectName("info_value")
 
-        # 배치: (공백) - Feed - (간격) - Runtime
+        # 배치
         info_layout.addStretch(1) # 우측 정렬 효과
-        info_layout.addWidget(lbl_feed_title)
-        info_layout.addWidget(self.lbl_feed_val)
-        info_layout.addSpacing(20)
         info_layout.addWidget(lbl_runtime_title)
         info_layout.addWidget(self.lbl_runtime_val)
         
@@ -170,16 +160,14 @@ class TaskManagerWidget(BaseWidget):
         # Runtime 업데이트
         if 'runtime' in data and self.lbl_runtime_val:
             self.lbl_runtime_val.setText(str(data['runtime']))
-            
-        # Feed Rate 업데이트
-        if 'feed' in data and self.lbl_feed_val:
-            self.lbl_feed_val.setText(str(data['feed']))
-            
+
         # 상태에 따른 활성화/비활성화 (BaseWidget 기능 활용)
         if 'is_busy' in data:
-            # 로봇이 작업중일때는 입력을 막음 (STOP 버튼은 따로 처리 필요하므로 주의)
-            # 여기서는 전체 비활성화 예시
+            # 로봇이 바쁘면 -> START, LOAD 비활성화 (못 누르게)
             self.set_enabled(not data['is_busy'])
+            if self.btn_start: self.btn_start.setEnabled(not is_busy)
+            if self.btn_load: self.btn_load.setEnabled(not is_busy)
+            if self.btn_stop: self.btn_stop.setEnabled(True)
 
     def clear_widget(self):
         """
@@ -190,11 +178,12 @@ class TaskManagerWidget(BaseWidget):
         
         # UI 텍스트 초기화
         if self.lbl_filename:       self.lbl_filename.setText("FileName...")
-        if self.lbl_feed_val:       self.lbl_feed_val.setText("-")
         if self.lbl_runtime_val:    self.lbl_runtime_val.setText("00 : 00 : 00")
         
         # 버튼 활성화 복구
-        self.set_enabled(True)
+        if self.btn_start: self.btn_start.setEnabled(True)
+        if self.btn_load: self.btn_load.setEnabled(True)
+        if self.btn_stop: self.btn_stop.setEnabled(True)
         
         # 부모 클래스의 초기화(데이터 비우기) 호출
         super().clear_widget()
