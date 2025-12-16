@@ -54,7 +54,7 @@ class TaskManagerViewModel(QObject):
         if not self._cached_data: return
 
         EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 실행 요청 (데이터 {len(self._cached_data)}건)", "INFO")
-
+        
         self._plc_service.process_sequence_data(self._cached_data)
 
 
