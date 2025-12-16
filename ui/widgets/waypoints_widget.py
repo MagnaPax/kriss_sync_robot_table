@@ -51,6 +51,8 @@ class WaypointsWidget(BaseWidget):
         # --- 스프레드시트 --- #
         # 테이블 위젯 생성
         self.table = QTableWidget()
+        # 정렬이 안 되게 막기
+        self.table.setSortingEnabled(False)
         # 스타일 설정
         self._setup_table_style()
         # 초기 공백 상태에서도 헤더가 보이도록 기본 키값으로 컬럼 설정
@@ -186,7 +188,6 @@ class WaypointsWidget(BaseWidget):
             self.table.insertRow(row_idx)
             
             # [핵심] 저장해둔 컬럼 순서(self.column_keys)대로 데이터를 뽑아서 셀에 넣음
-            # 더 이상 col_idx를 하드코딩하지 않음!
             for col_idx, key in enumerate(self.column_keys):
 
                 # 데이터가 없으면 빈 문자열 ("-")
@@ -194,7 +195,6 @@ class WaypointsWidget(BaseWidget):
                 
                 self._set_item(row_idx, col_idx, val)
 
-        self.table.setSortingEnabled(True)
         self.group_box.setTitle(f"Waypoints (Total: {len(data)})")
 
 
