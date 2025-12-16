@@ -185,24 +185,13 @@ class DataSignals(QObject):
     작업 데이터(Sequence)의 로드, 변경 및 실행 진행률을 담당합니다.
     """
     
-    sequence_updated = pyqtSignal(dict)
+    sequence_data_loaded = pyqtSignal(list)
     """
-    시퀀스 데이터 로드/갱신 완료 알림
-    
-    파일을 열거나, 편집 후 저장했을 때 발생합니다. 
-    관련된 모든 뷰모델은 이 데이터를 받아 UI를 갱신해야 합니다.
+    시퀀스 데이터 알림
+        모니터링 UI가 현재 작업 목록을 표시할 수 있게 하기 위해
     
     Args:
-        dict (sequence_data): 파싱이 완료된 전체 시퀀스 데이터 구조체
-        
-    Example Data Structure:
-        {
-            'header': {'version': 1.2, 'author': 'Kim'},
-            'items': [
-                {'id': 1, 'cmd': 'MOVE', 'params': {'x': 100, 'y': 200}},
-                {'id': 2, 'cmd': 'WELD', 'params': {'current': 150}}
-            ]
-        }
+        list[dict]: 실행될 전체 시퀀스 데이터 리스트
     """
 
     progress_updated = pyqtSignal(int, int, str)
