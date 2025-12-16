@@ -22,7 +22,9 @@ if TYPE_CHECKING:
 
 class TaskManagerWidget(BaseWidget):
     """Sequence 파일 불러오기"""
-
+    # ========================================
+    # 초기화 및 설정 (Initialization)
+    # ========================================
     def __init__(self, view_model: "TaskManagerViewModel", parent=None):
         """Sequence 파일 로드 및 실행 제어 위젯"""
 
@@ -139,14 +141,6 @@ class TaskManagerWidget(BaseWidget):
         # 전체 레이아웃에 그룹박스 추가
         main_layout.addWidget(base_group_box)
 
-    def update_data(self, data):
-        """데이터 업데이트 (BaseWidget 구현)"""
-        pass
-
-
-    # ==========================================================
-    # 이벤트 발생 시 동작 약속
-    # ==========================================================
     def _bind_events(self):
         """
         전선 연결하기 (아직 불 들어온것 아님)
@@ -162,9 +156,54 @@ class TaskManagerWidget(BaseWidget):
         if self.btn_stop: self.btn_stop.clicked.connect(self._on_stop_clicked)      # STOP 연결
 
 
+    # ===============================================
+    # 데이터 처리
+    # ===============================================
+    def update_data(self, data):
+        """
+        BaseWidget의 safe_update_data()를 통해 호출됨
+        데이터(dict)를 받아 UI에 뿌려주는 역할
+        
+        Args:
+            data (dict): {'feed': 30.0, 'runtime': '00:01:23', 'status': 'running'}
+        """
+        # Runtime 업데이트
+        if 'runtime' in data and self.lbl_runtime_val:
+            self.lbl_runtime_val.setText(str(data['runtime']))
+            
+        # Feed Rate 업데이트
+        if 'feed' in data and self.lbl_feed_val:
+            self.lbl_feed_val.setText(str(data['feed']))
+            
+        # 상태에 따른 활성화/비활성화 (BaseWidget 기능 활용)
+        if 'is_busy' in data:
+            # 로봇이 작업중일때는 입력을 막음 (STOP 버튼은 따로 처리 필요하므로 주의)
+            # 여기서는 전체 비활성화 예시
+            self.set_enabled(not data['is_busy'])
+
+    def clear_widget(self):
+        """
+        초기 상태로 리셋 (BaseWidget.clear_widget 오버라이드)
+            깨끗하게 화면 지우기
+        """
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} UI 초기화", "DEBUG")
+        
+        # UI 텍스트 초기화
+        if self.lbl_filename:       self.lbl_filename.setText("FileName...")
+        if self.lbl_feed_val:       self.lbl_feed_val.setText("-")
+        if self.lbl_runtime_val:    self.lbl_runtime_val.setText("00 : 00 : 00")
+        
+        # 버튼 활성화 복구
+        self.set_enabled(True)
+        
+        # 부모 클래스의 초기화(데이터 비우기) 호출
+        super().clear_widget()
 
 
-    # --- 슬롯 메서드 [반응] 이벤트 발생했다는 신호 수신 -> _handle 메서드에 일 시키자 ---
+    # ===============================================
+    # 이벤트 핸들러 (Slots)
+    #   - 사용자 입력(클릭, 선택)에 대한 반응 처리
+    # ===============================================    
     @pyqtSlot()
     def _on_load_clicked(self):
         self._handle_load_file_button_clicked()
