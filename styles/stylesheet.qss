@@ -211,14 +211,13 @@ QWidget#right_panel {
     border-radius: 4px;
     selection-background-color: #5D9CEC; /* 선택된 행 배경색 (파란색) */
     selection-color: #ffffff;            /* 선택된 행 글자색 */
-    font-size: 13px;
 }
 
 /* 3. 헤더 (Header) 스타일 */
 #waypoints_widget QHeaderView::section {
     background-color: #f8f9fa;   /* 헤더 배경 (아주 연한 회색) */
     color: #495057;              /* 헤더 글자색 (진한 회색) */
-    padding: 6px;
+    padding: 1px;
     border: 1px solid #dee2e6;
     border-top: none;            /* 상단 테두리 제거 (깔끔하게) */
     font-weight: bold;

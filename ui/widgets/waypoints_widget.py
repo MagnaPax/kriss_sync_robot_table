@@ -31,7 +31,6 @@ class WaypointsWidget(BaseWidget):
         # 이벤트 연결
         self._bind_events()
 
-
     def _init_ui(self):
         """
         부모 클래스의 메서드(BaseWidget._init_ui) 오버라이드
@@ -52,7 +51,11 @@ class WaypointsWidget(BaseWidget):
         # --- 스프레드시트 --- #
         # 테이블 위젯 생성
         self.table = QTableWidget()
+        # 스타일 설정
         self._setup_table_style()
+        # 초기 공백 상태에서도 헤더가 보이도록 기본 키값으로 컬럼 설정
+        default_column = ['column title']
+        self._setup_table_columns(default_column)
 
         # 조립
         group_layout.addWidget(self.table)      # 테이블 -> 그룹박스
