@@ -204,6 +204,7 @@ QWidget#right_panel {
 
 /* 2. 테이블 기본 스타일 */
 #waypoints_widget QTableWidget {
+    color: black;
     background-color: #ffffff;
     gridline-color: #e0e0e0;     /* 격자 색상 (연한 회색) */
     border: 1px solid #ced4da;
@@ -226,7 +227,14 @@ QWidget#right_panel {
 /* 4. 줄무늬 (Alternating Row Colors) */
 /* QTableWidget 속성 setAlternatingRowColors(True)일 때 적용됨 */
 #waypoints_widget QTableWidget::item {
+    color: #333333;
     padding: 4px; /* 셀 내부 여백 */
+}
+
+/* 마우스 호버 시 행 스타일 */
+#waypoints_widget QTableWidget::item:hover {
+    background-color: #f0f4f8; /* 아주 연한 파란색 */
+    color: #000000;            /* 호버 시 완전 검은색 */
 }
 
 /* (참고) 짝수/홀수 행 배경색은 QSS에서 alternate-background-color 속성으로 제어 */
