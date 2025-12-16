@@ -40,10 +40,16 @@ class PLCService(QObject):
         self._worker: PLCWorker | None = None
 
 
-        # --- 연결 상태 정기적으로 확인 (Heartbeat) --- #
+        # --- TwinCAT 연결 상태 정기적으로 확인 (Heartbeat) --- #
         self._heartbeat_timer = QTimer()
         self._heartbeat_timer.setInterval(2000) # 2초마다
         self._heartbeat_timer.timeout.connect(self._check_heartbeat)
+
+
+        # --- 실시간 데이터 모니터링 타이머 --- #
+        self._monitor_timer = QTimer()
+        self._monitor_timer.setInterval(100)  # 0.1초마다 실행 (10Hz)
+        self._monitor_timer.timeout.connect(self._monitoring_loop)
 
 
         # --- 앱 종료 시 연결 끊기 --- #
@@ -64,6 +70,9 @@ class PLCService(QObject):
             
             # 성공하면 Heartbeat 타이머 시작
             self._heartbeat_timer.start()
+
+            # 실시간 모니터링 타이머 시작
+            self._monitor_timer.start()
             
             EVENT_BUS.conn.status_changed.emit(True)
             EVENT_BUS.log.message.emit("PLC 연결 성공 및 모니터링 시작", "INFO")
@@ -75,8 +84,10 @@ class PLCService(QObject):
     @pyqtSlot()
     def disconnect_plc(self):
         """연결 해제 (앱 종료 시 or 수동 끊기)"""
+
         # 타이머 먼저 정지 (죽은 연결을 체크하지 않도록)
         self._heartbeat_timer.stop()
+        self._monitor_timer.stop()
         
         if self.connector.is_connected:
             self.connector.disconnect()
@@ -154,9 +165,7 @@ class PLCService(QObject):
         if not is_alive:
             self._heartbeat_timer.stop()
 
-
             # --- 비상 상황 알림 --- #
-
             # 통신 연결 상태 변경 시그널 emit
             EVENT_BUS.conn.status_changed.emit(False)
             EVENT_BUS.log.message.emit("⚠️ TwinCAT 연결 끊김 감지!", "ERROR")
@@ -285,3 +294,31 @@ class PLCService(QObject):
             # 하지만 더 이상 이 변수를 쓰면 안 되므로, 파이썬 쪽 레퍼런스를 끊어야 함.
             self._thread.deleteLater()  # Qt에게 삭제 요청
             self._thread = None         # [핵심] 파이썬 변수 초기화
+
+    # ==========================================================
+    # 실시간 데이터 수집 루프
+    # ==========================================================
+    def _monitoring_loop(self):
+        """
+        0.1초마다 실행되어 로봇/턴테이블의 현재 상태를 읽고 UI에 방송
+        """
+        # 연결 안 되어 있으면 스킵
+        if not self.connector.is_connected:
+            return
+
+        try:
+            # 1. FANUC World 좌표 읽기 & 방송
+            world_pose = self.commander.robot.read_current_world_pose()
+            EVENT_BUS.control.robot_target.emit(world_pose)
+
+            # 2. FANUC Tool 좌표 읽기 & 방송
+            tool_pose = self.commander.robot.read_current_tool_pose()
+            EVENT_BUS.control.robot_tool_pose.emit(tool_pose)
+
+            # 3. 턴테이블 상태 읽기 & 방송
+            table_status = self.commander.turntable.read_current_status()
+            EVENT_BUS.control.turntable_target.emit(table_status)
+
+        except Exception:
+            # 모니터링 중 에러는 로그를 남기지 않음 (로그 폭주 방지)
+            pass
