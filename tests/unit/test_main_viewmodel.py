@@ -77,7 +77,7 @@ def test_connection_status_relay(viewmodel, qtbot):
     # qtbot: 시그널을 감지하는 로봇 (pytest-qt 플러그인 기능)
     with qtbot.waitSignal(viewmodel.connection_status, timeout=1000) as blocker:
         # When: 방송국(EventBus)에서 신호 송출
-        EVENT_BUS.connection_status_changed.emit(True)
+        EVENT_BUS.conn.status_changed.emit(True)
         
     # Then: ViewModel의 시그널이 발사되었고, 값(True)이 일치하는지 확인
     assert blocker.args == [True]

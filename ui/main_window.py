@@ -15,11 +15,11 @@ from PyQt6.QtCore import Qt, pyqtSlot
 from PyQt6.QtGui import QIcon
 
 # 패널 및 위젯
-from ui.panels import left_panel, center_panel, right_panel
 from ui.splash_screen import SplashScreen
-from ui.widgets.status_indicator_box import StatusIndicatorBox
+from ui.widgets.base_widget import BaseWidget
 from view_models.main_window_viewmodel import MainViewModel
-
+from ui.widgets.status_indicator_box import StatusIndicatorBox
+from ui.panels import left_panel, center_panel, right_panel
 
 
 class MainWindow(QMainWindow):
@@ -35,15 +35,15 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(QIcon("resources/icons/kriss.gif"))
         self.setGeometry(100, 100, 1200, 800)  # 초기 창 크기
 
-        # 상태바 설정 (TwinCAT 상태 표시기 추가)
-        self._init_status_bar()
+        # --- UI 초기화 --- #
+        self._init_status_bar()     # 상태바 설정 (TwinCAT 상태 표시기 추가)
+        self._init_central_widget() # 중앙 레이아웃 및 패널 설정
 
-        # 중앙 레이아웃 및 패널 설정
-        self._init_central_widget()
+        # --- 데이터 바인딩 --- #
+        self._bind_viewmodel()      # View <-> ViewModel
 
-        # [핵심] ViewModel과 연결 (Data Binding)
-        self._bind_viewmodel()
-
+        # --- UI 이벤트 바인딩 --- #
+        self._bind_ui_events()
 
 
     # =====================
@@ -100,6 +100,8 @@ class MainWindow(QMainWindow):
 
 
     # ==========================================================
+    # 바인딩 섹션 (데이터 / UI 이벤트 분리)
+    # ==========================================================
     def _bind_viewmodel(self):
         """
         [전선 연결] 
@@ -116,6 +118,34 @@ class MainWindow(QMainWindow):
         # VM에서 전화(show_recovery_dialog 로컬 시그널)가 오면 show_recovery_ui 에 일시킴
         self.vm.show_recovery_dialog.connect(self.show_recovery_ui)
 
+    def _bind_ui_events(self):
+        """
+        위젯들의 UI 이벤트(에러, 알림 등)를 메인 윈도우와 연결
+        
+        모든 위젯이 BaseWidget을 상속받기 때문에
+        일일이 명시하지 않고 'findChildren'으로 찾아서 한꺼번에 연결할 수 있다
+        """
+        
+        # MainWindow 산하의 모든 BaseWidget을 다 찾는다
+        #       LeftPanel, CenterPanel, RightPanel 안에 깊숙이 박힌 것까지 다 찾아낸다
+        all_widgets = self.findChildren(BaseWidget)
+
+        for widget in all_widgets:
+            # 에러 시그널 연결 (중복 연결 방지를 위해 try-except 또는 uniqueConnection 사용 가능)
+            try:
+                # 이미 연결되어 있을 수 있으므로 끊고 다시 연결하거나
+                # 단순히 연결 (Qt는 기본적으로 다중 연결 허용)
+                widget.error_occurred.connect(self.show_error_popup)
+            except Exception:
+                pass
+            
+            # TODO: 나중에 다른 공통 이벤트가 생기면 여기서 또 연결하면 된다
+            # widget.status_changed.connect(self.update_status_bar)
+
+
+    # ==========================================================
+    # 공통 핸들러
+    # ==========================================================
     @pyqtSlot()
     def show_recovery_ui(self):
         """
@@ -148,3 +178,12 @@ class MainWindow(QMainWindow):
                 "재접속 실패", 
                 "연결을 복구할 수 없습니다.\n케이블 연결 상태를 확인 후 다시 시도하십시오."
             )
+
+    @pyqtSlot(str)
+    def show_error_popup(self, error_message: str):
+        """
+        [공통 에러 처리]
+        BaseWidget를 상속받은 모든 위젯에서 self.error_occurred.emit(msg)를 호출하면
+        이 함수가 실행되어 경고창을 띄운다
+        """
+        QMessageBox.critical(self, "오류", error_message)

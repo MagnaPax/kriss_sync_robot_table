@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Union
 from communication.twincat_connector import TwinCATConnector
 from models.fanuc_pose_key import FANUCPoseKey, FanucSignal
+from models.fanuc_pose_model import FANUCPose
+
 
 
 # 실제 런타임에는 실행 안 됨
@@ -30,6 +32,10 @@ class FanucAdapter:
     def __init__(self, connector: TwinCATConnector):
         # 지갑(Connector)을 받아서 저장
         self.connector = connector
+
+        # 사용자 입력에 의해 바뀐 이동 속도 저장
+        self.override_feed_rate: Union[float, None] = None
+
 
 
     @property
@@ -100,6 +106,13 @@ class FanucAdapter:
     # --------------------------------------------------------------------------
     # 컴퓨터의 실수(Float, 12.34)를 PLC가 이해하는 정수 비트 배열로 변환
     # ==========================================================================
+
+    def send_instant_feed(self, feed_rate: float):
+        """
+        [공개 메서드] 이동 중인 로봇의 속도 비트를 즉시 갱신
+        """
+        # 내부의 _send_feed 메서드를 재활용
+        self._send_feed(feed_rate)
 
     def send_data_packet(self, feed_rate: float, delta: dict):
         """
@@ -235,14 +248,93 @@ class FanucAdapter:
 
 
 
+
+
+
+
+
+
+
+
     # TODO: FANUC 현재위치(피드백) 읽어오기
     # TODO: PLCService._check_heartbeat 에서 월드 코디네이터, 툴 코디네이터도 이벤트 버스에 실어보냄
 
     # WORLD 좌표: 로봇 발바닥(Base) 기준 절대 좌표
-    # TOOL 좌표: 로봇 손끝(TCP) 기준 좌표
+    # TOOL 좌표: 로봇 손끝(TCP: Tool Center Point) 기준 좌표
 
     def read_current_pose(self):
         """
         로봇의 현재 위치(World coordinates, Tool coordinates)를 PLC에서 읽어옴
             로봇팀이 해당 PLC 주소를 매핑해줬다는 전제 하에 동작
         """
+    # ==========================================================================
+    # [추가] 4. 피드백 데이터 읽기 (Monitoring)
+    # ==========================================================================
+
+    def read_current_world_pose(self) -> FANUCPose:
+        """
+        [피드백] 로봇의 현재 World 좌표(Cartesian)를 읽어온다.
+        바닥(베이스 좌표계) 기준 TCP:Tool Center Point 위치
+        """
+        plc = self._plc
+        
+        # PLC 변수 주소 (프로젝트 상황에 맞게 수정 필요)
+        # 예: 구조체로 묶여있다면 read_structure 등을 쓸 수도 있지만, 
+        # 안전하게 개별로 읽는 방식을 먼저 구현합니다.
+        try:
+            # 변수명 예시: MAIN.Robot1_Feedback_World_X 
+            # (실제 PLC 변수명 확인 후 수정 필수)
+            prefix = "MAIN.Robot1.Feedback.World" 
+            
+            x = plc.read_by_name(f"{prefix}.X", pyads.PLCTYPE_REAL)
+            y = plc.read_by_name(f"{prefix}.Y", pyads.PLCTYPE_REAL)
+            z = plc.read_by_name(f"{prefix}.Z", pyads.PLCTYPE_REAL)
+            w = plc.read_by_name(f"{prefix}.W", pyads.PLCTYPE_REAL)
+            p = plc.read_by_name(f"{prefix}.P", pyads.PLCTYPE_REAL)
+            r = plc.read_by_name(f"{prefix}.R", pyads.PLCTYPE_REAL)
+            
+            return FANUCPose(x, y, z, w, p, r)
+            
+        except Exception:
+            # 읽기 실패 시(통신 에러 등) 0.0 으로 채워서 반환하거나 None 반환
+            return FANUCPose(0,0,0,0,0,0)
+
+    def read_current_tool_pose(self) -> FANUCPose:
+        """
+        [피드백] Tool Coordinate (TCP:Tool Center Point) 좌표 읽기
+        """
+        plc = self._plc
+        try:
+            # PLC 변수명 예시: MAIN.Robot1.Feedback.Tool.X
+            # (실제 매핑된 변수명으로 수정 필요)
+            prefix = "MAIN.Robot1.Feedback.Tool" 
+            
+            x = plc.read_by_name(f"{prefix}.X", pyads.PLCTYPE_REAL)
+            y = plc.read_by_name(f"{prefix}.Y", pyads.PLCTYPE_REAL)
+            z = plc.read_by_name(f"{prefix}.Z", pyads.PLCTYPE_REAL)
+            w = plc.read_by_name(f"{prefix}.W", pyads.PLCTYPE_REAL)
+            p = plc.read_by_name(f"{prefix}.P", pyads.PLCTYPE_REAL)
+            r = plc.read_by_name(f"{prefix}.R", pyads.PLCTYPE_REAL)
+            
+            return FANUCPose(x, y, z, w, p, r)
+            
+        except Exception:
+            # 읽기 실패 시
+            return FANUCPose(0,0,0,0,0,0)
+
+    def read_current_joint_pose(self) -> list[float]:
+        """
+        [피드백] 로봇의 현재 관절 각도(Joint J1~J6)를 읽어온다.
+        용도: 특이점(Singularity) 감시, 간섭 체크 등
+        """
+        plc = self._plc
+        joints = []
+        prefix = "MAIN.Robot1.Feedback.Joint"
+        
+        try:
+            for i in range(1, 7): # J1 ~ J6
+                val = plc.read_by_name(f"{prefix}.J{i}", pyads.PLCTYPE_REAL)
+                joints.append(val)
+            return joints
+        except Exception:
+            return [0.0] * 6

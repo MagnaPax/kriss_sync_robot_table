@@ -61,6 +61,10 @@ class FanucOnlyExecutor(BaseExecutor):
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] FANUC 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
 
         adapter = self.robot
+
+        # 사용자 입력 feed rate 초기화 (새 작업 시작이기 때문)
+        adapter.override_feed_rate = None
+
         num_sequences = len(sequence_data)  # 전체 시퀀스 갯수
 
         try:
@@ -79,7 +83,15 @@ class FanucOnlyExecutor(BaseExecutor):
                 # 현재 시퀀스 진행상태 방송: 진행중
                 EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, "processing")
 
-                feed_rate = row.get('f', 10.0)
+                # 이동 속도
+                if adapter.override_feed_rate is not None:
+                    # 사용자가 '지금' 바꾼 FEED RATE
+                    feed_rate = adapter.override_feed_rate
+                else:
+                    # GO TO 버튼 눌렀을 때 입력한 FEED RATE
+                    feed_rate = row.get('f', 10.0)
+
+                # 현재 좌표
 
                 current_coords = {
                     'x': row['x'], 'y': row['y'], 'z': row['z'],
@@ -92,7 +104,7 @@ class FanucOnlyExecutor(BaseExecutor):
                 f=row.get('f', 0.0)
                 )
                 # 현재 로봇 위치 방송
-                EVENT_BUS.control.robot_target.emit(target_pose)
+                EVENT_BUS.control.robot_current_pose.emit(target_pose)
 
 
                 # --- 증분 이동(Incremental/Relative Move) 제어 --- #
@@ -239,7 +251,7 @@ class TurntableOnlyExecutor(BaseExecutor):
 
                 # 현재 턴테이블 위치 방송
                 target_pose = TurntablePose(angle=angle_val, velocity=velocity_val)
-                EVENT_BUS.control.turntable_target.emit(target_pose)
+                EVENT_BUS.control.turntable_current_pose.emit(target_pose)
 
 
                 # --- 핸드셰이킹 (Busy Check) ---
@@ -286,9 +298,6 @@ class TurntableOnlyExecutor(BaseExecutor):
 # =========================================================
 class TwinCATCommander:
 
-    """
-    데이터 형식에 따라 적절한 Executor를 선택하여 실행하는 '게이트웨이'
-    """
     def __init__(self, connector: TwinCATConnector):
         self.connector = connector
         
@@ -304,12 +313,11 @@ class TwinCATCommander:
             TurntableOnlyExecutor(self.robot, self.turntable)
         ]
 
-
     def execute_sequence_with_executor(self, sequence_data: list[dict[str, Any]]) -> tuple[bool, str]:
         """
-        [Gateway Logic]
-        1. 데이터의 첫 줄을 샘플로 채취하여 적절한 실행기를 찾는다
-        2. 찾은 Executor를 실행한다
+        데이터 형식에 따라 적절한 Executor를 선택하여 실행하는 [게이트웨이]
+            1. 데이터의 첫 줄을 샘플로 채취하여 적절한 실행기를 찾는다
+            2. 찾은 Executor를 실행한다
         """
         if not sequence_data:
             return False, "데이터가 비어있습니다."
@@ -330,3 +338,20 @@ class TwinCATCommander:
             return target_executor.execute(sequence_data)
         else:
             return False, "지원하지 않는 데이터 형식입니다."
+
+    def apply_user_feed_rate_when_moving(self, feed_rate: float) -> str | None:
+        """"""
+
+        is_moving = self.robot.read_busy_signal()
+        if is_moving:
+            # FANUC의 이동속도 변경
+            self.robot.send_instant_feed(feed_rate)
+
+            # FanucAdapter 변수에 저장
+            # Executor가 다음 루프부터 참조할 수 있게 하기 위함
+            self.robot.override_feed_rate = feed_rate
+
+            msg = f"사용자에 의한 이동 속도 변경: {feed_rate} mm/sec"
+            return msg
+        else:
+            return None

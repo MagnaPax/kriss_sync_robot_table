@@ -1,5 +1,5 @@
 # ui/widgets/target_position_widget.py
-from PyQt6.QtCore import Qt, pyqtSlot
+from PyQt6.QtCore import Qt, pyqtSlot, QTimer
 from PyQt6.QtWidgets import (
     QVBoxLayout, 
     QGroupBox, 
@@ -11,16 +11,16 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox,
     QGridLayout,
     QPushButton,
-    QMessageBox
+    QAbstractSpinBox
 )
-from typing import Dict, Any, TYPE_CHECKING
 from functools import partial
+from typing import Dict, Any, TYPE_CHECKING, Union
 
-from ui.widgets.base_widget import BaseWidget
-from ui.dialogs.macro_settings_dialog import MacroSettingsDialog
 from core.event_bus import EVENT_BUS
+from ui.widgets.base_widget import BaseWidget
 from models.fanuc_pose_model import FANUCPose
-
+from utils.validators import NumericValidator
+from ui.dialogs.macro_settings_dialog import MacroSettingsDialog
 
 
 # 런타임에는 import 하지 않음
@@ -46,7 +46,7 @@ class TargetPositionWidget(BaseWidget):
         self.vm = view_model
 
         # 좌표값 입력 위젯들을 저장할 보관함
-        self.coord_widgets: Dict[str, QLineEdit] = {}
+        self.coord_widgets: Dict[str, Union[QLineEdit, QDoubleSpinBox]] = {}
 
         # 매크로 버튼들을 저장할 보관함
         self.macro_btn_map: Dict[str, QPushButton] = {}
@@ -293,18 +293,43 @@ class TargetPositionWidget(BaseWidget):
 
         for axis in axes:
             label = QLabel(f"{axis}:")
-            line_edit = QLineEdit()
-            line_edit.setObjectName(f"line_edit_{axis}") # QSS 적용을 위한 ID
-            line_edit.setPlaceholderText(f"{axis} 값 입력...")
 
-            # FEED RATE일 경우 기본값으로 10을 표시하기 
-            if axis == "FEED RATE":
-                line_edit.setText("10") # 기본값 설정
+            if axis not in ["FEED RATE"]:
+                # 일반 좌표는 QLineEdit 사용
+                line_edit = QLineEdit()
+                line_edit.setObjectName(f"line_edit_{axis}") # QSS 적용을 위한 ID
+                line_edit.setPlaceholderText(f"{axis} 값 입력...")
+
+                # 숫자만 입력 가능하도록 유효성 검사기 추가
+                # 에러 발생 시 BaseWidget의 error_occurred 시그널을 통해 알림
+                validator = NumericValidator(
+                    error_callback=lambda msg: self.error_occurred.emit(msg),
+                    parent=line_edit
+                )
+                validator.setDecimals(3) # 소수점 3자리까지 허용
+                line_edit.setValidator(validator)                
+
+                input_widget = line_edit
+
+            else:
+                # feed rate는 QDoubleSpinBox 사용
+                spin_box = QDoubleSpinBox()
+                spin_box.setObjectName(f"spinbox_{axis.lower().replace(' ', '_')}")
+
+                # 설정 적용
+                spin_box.setRange(0.0, 1000.0)      # 범위 0 ~ 1000
+                spin_box.setValue(10.0)             # 기본값 10
+                spin_box.setSingleStep(5.0)         # 1회 클릭 시 5씩 증감
+                spin_box.setSuffix(" mm/sec")       # 단위 표시
+                spin_box.setKeyboardTracking(False) # (엔터, 포커스 이동, 스핀박스 버튼 클릭)만 시그널 발생
+                spin_box.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons) # Up/Down 화살표 제거
+                spin_box.focusInEvent = lambda e: QTimer.singleShot(0, spin_box.selectAll)  # 전체선택(사용자 입력편의성 향상)
+
+                input_widget = spin_box
 
             # 만든 위젯을 보관함에 저장
-            self.coord_widgets[axis] = line_edit
-            
-            form_layout.addRow(label, line_edit)
+            self.coord_widgets[axis] = input_widget
+            form_layout.addRow(label, input_widget)
 
         return form_layout
 
@@ -334,15 +359,19 @@ class TargetPositionWidget(BaseWidget):
             else:
                 data[axis] = 0.0
 
-        # 이동 속도 값
+        # 위젯 타입에 따라 값 가져오는 방식 분기
         feed_widget = self.coord_widgets.get('FEED RATE')
+        feed_val = 10.0 # 기본값
+
         if feed_widget:
-            text = feed_widget.text().strip()
-            # 값이 비어있으면 10.0을 사용
-            feed_val = float(text) if text else 10.0
-        else:
-            # 위젯 자체를 못 찾았을 때
-            feed_val = 10.0
+            if isinstance(feed_widget, QDoubleSpinBox):
+                # SpinBox 는 value()로 float값을 직접 가져옴
+                feed_val = feed_widget.value()
+            elif isinstance(feed_widget, QLineEdit):
+                # LineEdit 는 text()로 문자열을 가져옴)
+                text = feed_widget.text().strip()
+                # 값이 비어있으면 10.0을 사용
+                feed_val = float(text) if text else 10.0
         
         return FANUCPose(
             x=data['x'],
@@ -384,6 +413,12 @@ class TargetPositionWidget(BaseWidget):
             assert btn is not None, f"매크로 버튼 '{macro_id}'이 생성되지 않았습니다."
             # partial을 사용하여 어떤 버튼이 눌렸는지(macro_id)를 함께 넘김
             btn.clicked.connect(partial(self._on_macro_btn_clicked, macro_id)) # type: ignore
+
+        # Feed Rate 값 변경 이벤트 연결
+        feed_widget = self.coord_widgets.get('FEED RATE')
+        if feed_widget and isinstance(feed_widget, QDoubleSpinBox):
+            # valueChanged는 값이 변경될 때(버튼 클릭 포함) 발생합니다.
+            feed_widget.valueChanged.connect(self._on_feed_rate_changed)            
 
 
     # ==========================================================
@@ -443,7 +478,7 @@ class TargetPositionWidget(BaseWidget):
         """
         매크로 버튼 클릭 시: 저장된 좌표 데이터를 입력창에 채워넣음
         """
-        print(f"매크로 버튼 클릭됨: {macro_id}")
+        EVENT_BUS.log.message.emit(f"매크로 버튼 클릭됨: {macro_id}", "DEBUG")
 
         # 1. 저장된 데이터가 있는지 확인
         if macro_id not in self.cached_macro_data:
@@ -456,7 +491,7 @@ class TargetPositionWidget(BaseWidget):
         EVENT_BUS.log.message.emit(
             f"매크로 불러오기: {macro_id} ('{macro_name}') -> 입력창 갱신", 
             "INFO"
-        )        
+        )
 
         # 2. 데이터 -> UI 입력창으로 복사
         # 매크로 데이터 키는 소문자('x'), 위젯 키는 대문자('X')임에 주의
@@ -471,18 +506,28 @@ class TargetPositionWidget(BaseWidget):
             # 위젯 가져오기
             line_edit = self.coord_widgets.get(axis)
             
-            if line_edit:
-                # QLineEdit에 값 설정 (소수점 3자리까지 예쁘게)
+            if isinstance(line_edit, QLineEdit):
+                # QLineEdit에 값 설정 (소수점 3자리까지)
                 line_edit.setText(f"{val:.3f}")
 
-        print(f"UI 업데이트 완료 ({macro_id})")
+        # Feed Rate 위젯 값 업데이트(SpinBox 대응)
+        feed_widget = self.coord_widgets.get('FEED RATE')
+        if feed_widget and isinstance(feed_widget, QDoubleSpinBox):
+            feed_val = macro_data.get('f', 10.0)
+            feed_widget.setValue(feed_val)
+
+        EVENT_BUS.log.message.emit(f"UI 업데이트 완료: 매크로 ID({macro_id})", "DEBUG")
+
+    @pyqtSlot(float)
+    def _on_feed_rate_changed(self, feed_rate: float):
+        """FEED RATE 스핀박스 값 변경됐을 때"""
+        self.vm.update_feed_rate(feed_rate)
 
     @pyqtSlot()
     def _on_goto_btn_clicked(self):
         """
         'GoTo' 버튼이 클릭되었을 때 실행할 함수
         """
-
         try:
             # QLineEdit 객체로부터 데이터 추출
             line_edit_data = self._extract_data_from_ui()
@@ -495,10 +540,11 @@ class TargetPositionWidget(BaseWidget):
             self.vm.request_move_robot(line_edit_data)
 
         except ValueError as e:
-            msg = "이동 명령 실패: 좌표값 입력 오류 (숫자가 아닌 문자가 포함됨)"
-            EVENT_BUS.log.message.emit(msg, "WARNING")
+            error_msg = "좌표값 입력 오류: 숫자만 입력 가능합니다."
+            EVENT_BUS.log.message.emit(error_msg, "WARNING")
 
-            QMessageBox.warning(self, "입력 오류", "좌표값은 숫자만 입력 가능합니다.")
+            # 에러 시그널 방출
+            self.error_occurred.emit(error_msg)
 
 
 

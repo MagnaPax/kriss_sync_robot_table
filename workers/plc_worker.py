@@ -32,7 +32,7 @@ class PLCWorker(QObject):
     result = pyqtSignal(bool, str)       # 결과 (성공여부, 메시지)
 
 
-    def __init__(self, connector: TwinCATConnector, commander: TwinCATCommander, command: str, sequence_data: Optional[List[dict[str, Any]]]):
+    def __init__(self, connector: TwinCATConnector, commander: TwinCATCommander, command: str, data: Any):
         """
         Args:
             connector: '연결' 관리를 위한 객체
@@ -48,7 +48,7 @@ class PLCWorker(QObject):
         self.connector = connector
         self.commander = commander
         self.command = command
-        self.sequence_data = sequence_data
+        self.data = data
 
 
     @pyqtSlot()
@@ -72,12 +72,21 @@ class PLCWorker(QObject):
                 case 'MOVE':
 
                     # 데이터 유효성 검사 (None 체크)
-                    if self.sequence_data is None:
+                    if self.data is None:
                         raise ValueError("MOVE 명령에 필요한 데이터가 없습니다.")
 
                     # Commander 호출 (데이터 형식에 맞는 Executor를 찾아 실행)
                     # find_executor는 (bool, str) 튜플을 반환
-                    is_success, msg = self.commander.execute_sequence_with_executor(self.sequence_data)
+                    is_success, msg = self.commander.execute_sequence_with_executor(self.data)
+
+
+                case 'SET_SPEED':
+                    EVENT_BUS.log.message.emit(f"{self._log_prefix} 이동속도:{self.data}\n데이터 타입: {type(self.data)}", "DEBUG")
+
+                    result_msg = self.commander.apply_user_feed_rate_when_moving(float(self.data))
+
+                    if result_msg:
+                        self.result.emit(True, result_msg)
 
 
                 # --- 제어 명령 (Commander 사용) --- #

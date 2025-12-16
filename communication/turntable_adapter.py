@@ -4,6 +4,8 @@ import pyads
 from typing import TYPE_CHECKING, Union
 from communication.twincat_connector import TwinCATConnector
 from models.turntable_key import TurntablePoseKey, TurntableSignal
+from models.turntable_pose_model import TurntablePose
+
 
 # 타입 힌트용
 if TYPE_CHECKING:
@@ -136,3 +138,32 @@ class TurntableAdapter:
         MAIN.CurrentPos 읽기
         """
         return self._plc.read_by_name(TurntableSignal.CURRENT_POS.path, pyads.PLCTYPE_LREAL)
+    
+
+
+
+
+
+    # ==========================================================================
+    # TODO: 상태 읽기 (피드백 듣기)
+    # ==========================================================================
+
+    def read_current_status(self) -> TurntablePose:
+        """
+        [피드백] 턴테이블의 현재 각도와 속도를 한 번에 읽어온다.
+        """
+        try:
+            # 1. 현재 각도 (Position)
+            # 변수명: MAIN.Turntable.CurrentPos (이미 정의된 TurntableSignal 사용 권장)
+            curr_pos = self._plc.read_by_name(TurntableSignal.CURRENT_POS.path, pyads.PLCTYPE_LREAL)
+            
+            # 2. 현재 속도 (Velocity)
+            # 변수명: MAIN.Turntable.CurrentVel (새로 정의하거나 문자열 직접 사용)
+            # 예시: "MAIN.fActVelocity" 혹은 "MAIN.stAxisStatus.fActVelocity"
+            curr_vel_path = "MAIN.Turntable.CurrentVel" 
+            curr_vel = self._plc.read_by_name(curr_vel_path, pyads.PLCTYPE_LREAL)
+            
+            return TurntablePose(angle=curr_pos, velocity=curr_vel)
+            
+        except Exception:
+            return TurntablePose(angle=0.0, velocity=0.0)
