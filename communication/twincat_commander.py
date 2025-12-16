@@ -60,6 +60,9 @@ class FanucOnlyExecutor(BaseExecutor):
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] FANUC 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
 
+        # 처리할 전체 시퀀스 데이터 방송
+        EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
+
         adapter = self.robot
 
         # 사용자 입력 feed rate 초기화 (새 작업 시작이기 때문)
@@ -168,9 +171,10 @@ class IntegratedExecutor(BaseExecutor):
 
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] CSV 파일 통합 제어 모드로 실행 (데이터 {len(sequence_data)}건)", "INFO")
-        
-        print(f"처리할 csv 파일의 데이터 값\n{sequence_data}\n")
 
+        # 처리할 전체 시퀀스 데이터 방송
+        EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
+        
         """
         # 1. 시작 신호
         self.robot.start_sequence_plc_signals()
@@ -204,6 +208,9 @@ class LegacyIntegratedExecutor(BaseExecutor):
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 레거시 파일 모드로 실행 (데이터 {len(sequence_data)}건)", "INFO")
 
+        # 처리할 전체 시퀀스 데이터 방송
+        EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)        
+
         return True, "레거시 파일 모드 실행 완료 -> TODO: 로직 만들어야 된다"
 
 
@@ -227,6 +234,9 @@ class TurntableOnlyExecutor(BaseExecutor):
 
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 턴테이블 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
+
+        # 처리할 전체 시퀀스 데이터 방송
+        EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
 
         adapter = self.table # TurntableAdapter
         num_sequences = len(sequence_data)
