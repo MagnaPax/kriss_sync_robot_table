@@ -259,8 +259,7 @@ class PLCService(QObject):
             sequence_data (list): 실행할 시퀀스 리스트 (List[Dict])
         """
         # Worker 호출
-        EVENT_BUS.log.message.emit(f"{self._log_prefix} csv 시퀀스 명령: {csv_data}", "DEBUG")
-
+        self._start_worker('MOVE', data=csv_data, log_msg=f"csv 시퀀스 명령: {len(csv_data)}건")
 
 
     def set_robot_speed(self, feed_rate: float):
