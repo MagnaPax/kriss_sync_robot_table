@@ -20,6 +20,11 @@ class WaypointsWidget(BaseWidget):
     """
     로봇과 턴테이블의 이동 경로(Sequence)를 스프레드시트 형태로 보여주는 위젯
     """
+
+    # ========================================
+    # 초기화 및 설정 (Initialization)
+    #   - 위젯 생성, UI 기본 설정, 이벤트 연결
+    # ========================================
     def __init__(self, parent=None):
         super().__init__(parent)
 
@@ -28,7 +33,6 @@ class WaypointsWidget(BaseWidget):
 
         # 이벤트 연결
         self._bind_events()
-
 
     def _init_ui(self):
         """
@@ -65,6 +69,16 @@ class WaypointsWidget(BaseWidget):
         # 사용자의 행 선택이 바뀌면(마우스, 키보드) 실행된다
         self.table.itemSelectionChanged.connect(self._on_row_selected)
 
+    def _bind_events(self):
+        # safe_update_data를 연결하면 에러 처리(try-except)까지 BaseWidget이 알아서 해준다
+        EVENT_BUS.data.sequence_data_loaded.connect(self.safe_update_data)
+
+
+
+    # =========================================
+    # UI 구성 및 동적 스타일 
+    #   - 테이블 컬럼/헤더 설정, 폰트 크기 조절
+    # =========================================
     def _setup_table_columns(self, data_keys: List[str]):
         """
         테이블 컬럼 정의 및 헤더 설정
@@ -160,11 +174,11 @@ class WaypointsWidget(BaseWidget):
         self.table.verticalHeader().setDefaultSectionSize(new_font_size + 10)
 
 
-    def _bind_events(self):
-        # safe_update_data를 연결하면 에러 처리(try-except)까지 BaseWidget이 알아서 해준다
-        EVENT_BUS.data.sequence_data_loaded.connect(self.safe_update_data)
 
-
+    # ===============================================
+    # 데이터 처리 (Core Logic)
+    #   - 외부 데이터를 받아와 UI에 반영하거나 초기화
+    # ===============================================
     def update_data(self, data: List[Dict[str, Any]]):
         """
         로봇과 턴테이블이 이동해야 될 경로점들의 데이터를 받아와서 UI를 업데이트한다.
@@ -198,7 +212,6 @@ class WaypointsWidget(BaseWidget):
 
         self.group_box.setTitle(f"Waypoints (Total: {len(data)})")
 
-
     def clear_widget(self):
         """화면을 깨끗하게 지우고 초기화"""
         EVENT_BUS.log.message.emit(f"{self.log_prefix} 위젯 초기화", "DEBUG")
@@ -208,7 +221,6 @@ class WaypointsWidget(BaseWidget):
         self.column_keys = []
         self.group_box.setTitle("Waypoints")
         super().clear_widget()
-
 
     def _set_item(self, row, col, value, original_data=None):
         """헬퍼: 값 포맷팅"""
@@ -229,6 +241,12 @@ class WaypointsWidget(BaseWidget):
 
         self.table.setItem(row, col, item)
 
+
+
+    # ===============================================
+    # 이벤트 핸들러 (Slots)
+    #   - 사용자 입력(클릭, 선택)에 대한 반응 처리
+    # ===============================================
     @pyqtSlot()
     def _on_row_selected(self):
         """
@@ -255,7 +273,10 @@ class WaypointsWidget(BaseWidget):
             if row_data:
                 # 이벤트 버스에 실어서 방송 송출
                 EVENT_BUS.data.waypoints_selected.emit(row_data)
-                EVENT_BUS.log.message.emit(f"선택된 행 데이터: {row_data}", "DEBUG")
+                EVENT_BUS.log.message.emit(f"{self.log_prefix} 선택된 행 데이터: {row_data}", "DEBUG")
+
+
+
 
 
 """
