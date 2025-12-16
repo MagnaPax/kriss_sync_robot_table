@@ -1,7 +1,7 @@
 # ui/widgets/waypoints_widget.py
 
 from typing import Any, List, Dict
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSlot
 from PyQt6.QtWidgets import (
     QVBoxLayout, 
     QVBoxLayout, 
@@ -22,14 +22,13 @@ class WaypointsWidget(BaseWidget):
     """
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.log_prefix = f"[{self.__class__.__name__}]"
-        EVENT_BUS.log.message.emit(f"{self.log_prefix} 초기화", "DEBUG")
 
         # Waypoints 에서 보여줄 키(key)들의 순서를 저장할 리스트
         self.column_keys: List[str] = []
 
         # 이벤트 연결
         self._bind_events()
+
 
     def _init_ui(self):
         """
@@ -62,6 +61,9 @@ class WaypointsWidget(BaseWidget):
         # 조립
         group_layout.addWidget(self.table)      # 테이블 -> 그룹박스
         main_layout.addWidget(self.group_box)   # 그룹박스 -> 메인 위젯
+
+        # 사용자의 행 선택이 바뀌면(마우스, 키보드) 실행된다
+        self.table.itemSelectionChanged.connect(self._on_row_selected)
 
     def _setup_table_columns(self, data_keys: List[str]):
         """
@@ -170,8 +172,7 @@ class WaypointsWidget(BaseWidget):
         if not data:
             return
 
-        # (BaseWidget의 log_prefix 사용)
-        EVENT_BUS.log.message.emit(f"{self.log_prefix} 데이터 로드: {len(data)}건", "DEBUG")
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} 데이터 로드: {len(data)}건\n받은데이터\n{data}", "DEBUG")
 
         self.table.setRowCount(0)
         self.column_keys = [] # 초기화
@@ -182,7 +183,7 @@ class WaypointsWidget(BaseWidget):
         self._setup_table_columns(first_row_keys)
 
         # 2. 데이터 채우기
-        self.table.setSortingEnabled(False)
+        self.table.setSortingEnabled(False)     # 정렬 끄기
         
         for row_idx, row_data in enumerate(data):
             self.table.insertRow(row_idx)
@@ -193,7 +194,7 @@ class WaypointsWidget(BaseWidget):
                 # 데이터가 없으면 빈 문자열 ("-")
                 val = row_data.get(key, "-")
                 
-                self._set_item(row_idx, col_idx, val)
+                self._set_item(row_idx, col_idx, val, original_data=row_data)
 
         self.group_box.setTitle(f"Waypoints (Total: {len(data)})")
 
@@ -209,7 +210,7 @@ class WaypointsWidget(BaseWidget):
         super().clear_widget()
 
 
-    def _set_item(self, row, col, value):
+    def _set_item(self, row, col, value, original_data=None):
         """헬퍼: 값 포맷팅"""
         if isinstance(value, float):
             text = f"{value:.3f}"
@@ -218,9 +219,43 @@ class WaypointsWidget(BaseWidget):
             
         item = QTableWidgetItem(text)
         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Data Embedding
+        #   - 데이터가 아이템(셀)에 딱 달라붙어 다니게(Binding) 하는 방법
+        #   - 왜? -> 정렬/필터링 뒤 인덱스가 꼬이는 것에 영향을 받지 않게 하기 위해
+        #   - 화면에는 안 보이지만 데이터를 저장할 수 있는 공간(Qt.ItemDataRole.UserRole)에 저장
+        if col == 0 and original_data is not None:
+            item.setData(Qt.ItemDataRole.UserRole, original_data)
+
         self.table.setItem(row, col, item)
 
+    @pyqtSlot()
+    def _on_row_selected(self):
+        """
+        [이벤트 핸들러] 행 선택 시 실행
+        1. 선택된 행 확인
+        2. 숨겨둔 데이터 꺼내기
+        3. 방송하기
+        """
+        # 사용자가 선택한 셀의 row 알아내기
+        current_row = self.table.currentRow()
+        
+        if current_row < 0:
+            return
 
+        # current_row의 전체값 알아내기
+        # current_row의 맨 앞 칸(0번째 컬럼(ID))에서 상자(Item 객체)를 꺼낸다.
+        #   이 상자의 비밀 주머니(UserRole) 안에 원본 데이터를 숨겨두었기 때문
+        id_item = self.table.item(current_row, 0)
+
+        if id_item:
+            # 상자의 비밀주머니를 열어서 내용물 꺼내기
+            row_data = id_item.data(Qt.ItemDataRole.UserRole)
+            
+            if row_data:
+                # 이벤트 버스에 실어서 방송 송출
+                EVENT_BUS.data.waypoints_selected.emit(row_data)
+                EVENT_BUS.log.message.emit(f"선택된 행 데이터: {row_data}", "DEBUG")
 
 
 """
