@@ -206,6 +206,13 @@ class DataSignals(QObject):
         str (status): 현재 스텝의 상태 ('PROCESSING', 'DONE', 'FAILED', 'WAITING')
     """
 
+    waypoints_selected = pyqtSignal(dict)
+    """
+    WaypointsWidget에서 행을 클릭했을 때, 해당 행의 원본 데이터를 방송
+    Args:
+        dict: 선택된 행의 전체 데이터 (예: {'id': 1, 'x': 100.0, ...})
+    """
+
 
 class ControlSignals(QObject):
     """
