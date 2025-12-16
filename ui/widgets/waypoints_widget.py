@@ -113,6 +113,47 @@ class WaypointsWidget(BaseWidget):
             v_header.setVisible(False)              # 행 번호 숨김
         self.table.setAlternatingRowColors(True)    # 줄무늬 배경
 
+    def resizeEvent(self, a0):
+        """
+        [동적 폰트 조절]
+        위젯 크기가 변경될 때마다 호출되어, 테이블 폭에 맞춰 글자 크기를 조절함
+        QWidget 클래스의 resizeEvent 메서드를 오버라이드
+        """
+        super().resizeEvent(a0)
+        
+        # 1. 현재 테이블의 너비와 컬럼 개수 확인
+        current_width = self.table.width()
+        col_count = self.table.columnCount()
+        
+        # 데이터가 없어서 컬럼이 0개면 패스
+        if col_count == 0:
+            return
+
+        # 2. 적절한 폰트 크기 계산
+        # 공식: (전체 너비 / 컬럼 수) / 튜닝값
+        # 튜닝값(3.5)은 숫자가 클수록 글자가 작아짐. 직접 보면서 조절 가능.
+        avg_col_width = current_width / col_count
+        new_font_size = int(avg_col_width / 3.0) 
+        
+        # 3. 최소/최대 크기 제한 (너무 작거나 너무 크지 않게)
+        # 최소 8px, 최대 11px로 제한 (원하는 대로 조절하세요)
+        new_font_size = max(7, min(new_font_size, 12))
+        
+        # 4. 폰트 적용
+        # 테이블 본문 폰트 설정
+        font = self.table.font()
+        font.setPointSize(new_font_size)
+        self.table.setFont(font)
+        
+        # 헤더 폰트 설정
+        header = self.table.horizontalHeader()
+        header_font = header.font()
+        header_font.setPointSize(new_font_size)
+        header.setFont(header_font)
+        
+        # 5. 행 높이도 글자에 맞춰 조절 (선택사항)
+        # verticalHeader가 숨겨져 있어도 행 높이는 조절 가능
+        self.table.verticalHeader().setDefaultSectionSize(new_font_size + 10)
 
 
     def _bind_events(self):
