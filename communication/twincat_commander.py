@@ -104,7 +104,7 @@ class FanucOnlyExecutor(BaseExecutor):
                 f=row.get('f', 0.0)
                 )
                 # 현재 로봇 위치 방송
-                EVENT_BUS.control.robot_target.emit(target_pose)
+                EVENT_BUS.control.robot_feedback.emit(target_pose)
 
 
                 # --- 증분 이동(Incremental/Relative Move) 제어 --- #
@@ -251,7 +251,7 @@ class TurntableOnlyExecutor(BaseExecutor):
 
                 # 현재 턴테이블 위치 방송
                 target_pose = TurntablePose(angle=angle_val, velocity=velocity_val)
-                EVENT_BUS.control.turntable_target.emit(target_pose)
+                EVENT_BUS.control.turntable_feedback.emit(target_pose)
 
 
                 # --- 핸드셰이킹 (Busy Check) ---
