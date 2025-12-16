@@ -93,6 +93,9 @@ class SequenceService(QObject):
             # 시퀀스 내용을 방송으로 송출
             #   "데이터 준비됐습니다~ 필요한 분들 가져다 쓰세요"
             EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 파일 데이터 방송 송출 완료: {len(sequence_data)}건", "INFO")
+            EVENT_BUS.log.message.emit(f"\n{self._log_prefix} 데이터\n{sequence_data}", "DEBUG")
+
 
 
     @pyqtSlot()
