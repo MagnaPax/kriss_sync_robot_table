@@ -175,6 +175,8 @@ class IntegratedExecutor(BaseExecutor):
 
         # 처리할 전체 시퀀스 데이터 방송
         EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
+
+        EVENT_BUS.log.message.emit(f"\n\n[{self.__class__.__name__}] 시퀀스:\n{sequence_data}", "DEBUG")
         
         """
         # 1. 시작 신호
