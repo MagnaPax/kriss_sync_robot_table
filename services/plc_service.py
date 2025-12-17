@@ -329,22 +329,19 @@ class PLCService(QObject):
         """
         0.1초마다 실행되어 로봇/턴테이블의 현재 상태를 읽고 UI에 방송
         """
-        # 연결 안 되어 있으면 스킵
-        if not self.connector.is_connected:
-            return
+        if not self.connector.is_connected: return
 
         try:
-            # 1. FANUC World 좌표 읽기 & 방송
+            # 1. FANUC World 현재 위치 읽기 & 방송
             world_pose = self.commander.robot.read_current_world_pose()
-            EVENT_BUS.control.robot_target.emit(world_pose)
+            EVENT_BUS.control.robot_current_pose.emit(world_pose)
 
-            # 2. FANUC Tool 좌표 읽기 & 방송
-            tool_pose = self.commander.robot.read_current_tool_pose()
-            EVENT_BUS.control.robot_tool_pose.emit(tool_pose)
+            # 2. FANUC 이동해야 될 목표 위치 확인 & 방송
+            target_pose = self.commander.robot.read_target_world_pose()
 
-            # 3. 턴테이블 상태 읽기 & 방송
-            table_status = self.commander.turntable.read_current_status()
-            EVENT_BUS.control.turntable_target.emit(table_status)
+            # TODO: 3. 턴테이블 상태 읽기 & 방송
+            # table_status = self.commander.turntable.read_current_status()
+            # EVENT_BUS.control.turntable_current_pose.emit(table_status)
 
         except Exception:
             # 모니터링 중 에러는 로그를 남기지 않음 (로그 폭주 방지)
