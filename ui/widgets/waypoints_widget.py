@@ -3,10 +3,8 @@
 from typing import Any, List, Dict
 from PyQt6.QtCore import Qt, pyqtSlot
 from PyQt6.QtWidgets import (
+    QApplication,
     QVBoxLayout, 
-    QVBoxLayout, 
-    QTableWidget, 
-    QTableWidgetItem, 
     QHeaderView, 
     QGroupBox,
     QAbstractItemView,
@@ -108,11 +106,22 @@ class WaypointsWidget(BaseWidget):
 
         # EVENT_BUS.log.message.emit(f"{self.log_prefix} 데이터 로드: {len(data)}건\n받은데이터\n{data}", "DEBUG")
 
-        # 모델에게 데이터 전달 (여기서 beginResetModel이 호출되며 화면 갱신됨)
-        # 대용량 데이터도 순식간(0.01초 이하)에 처리됨
-        self.model.set_data(data)
+        # 마우스 커서를 '대기 상태(모래시계)'로 변경
+        #   앱이 멈춘 동안에 OS가 알아서 뺑뺑이 돌려줌
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
 
-        self.group_box.setTitle(f"Waypoints (Total: {len(data)})")
+        try:
+            # --- [대용량 데이터 처리 시 이 구간에서 0.x초 멈춤 발생] ---
+            # 모델에게 데이터 전달 (여기서 beginResetModel이 호출되며 화면 갱신됨)
+            self.model.set_data(data)
+
+            self.group_box.setTitle(f"Waypoints (Total: {len(data)})")
+        finally:
+            # 작업이 끝나면(성공하든 실패하든) 커서를 원래대로 복구
+            QApplication.restoreOverrideCursor()
+            
+            # 완료 메시지
+            EVENT_BUS.log.message.emit(f"{self.log_prefix} 데이터 렌더링 완료", "INFO")
 
     def clear_widget(self):
         """화면을 깨끗하게 지우고 초기화"""
