@@ -177,8 +177,57 @@ class IntegratedExecutor(BaseExecutor):
         # 처리할 전체 시퀀스 데이터 방송
         EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
 
-        EVENT_BUS.log.message.emit(f"\n\n[{self.__class__.__name__}] 시퀀스:\n{sequence_data}", "DEBUG")
-        
+        # EVENT_BUS.log.message.emit(f"\n\n[{self.__class__.__name__}] 시퀀스:\n{sequence_data}", "DEBUG")
+
+
+
+        # --- 다른 위젯 시뮬레이션 용 코드 시작 --- #
+        num_sequences = len(sequence_data)
+        try:
+            for dix, row in enumerate(sequence_data, 1):
+
+                # STOP 버튼 감지 코드
+                if (thread := QThread.currentThread()) is not None and thread.isInterruptionRequested():
+                    EVENT_BUS.log.message.emit("사용자 요청에 의해 시뮬레이션 중단", "WARNING")
+                    # 종료 신호 전송 중 에러가 나더라도, 이미 정지 중이므로 에러를 무시하거나 경고만 남김
+                    try:
+                        # self.robot은 FanucAdapter
+                        self.robot.set_finish_signals()
+                    except Exception as e:
+                        # 연결이 끊겨서 전송 못 해도 괜찮음 (어차피 멈추는 중)
+                        EVENT_BUS.log.message.emit(f"종료 신호 전송 스킵 (연결 없음): {e}", "DEBUG")                        
+                        
+                    return False, "User Stopped"
+
+                current_id = row.get('id') or dix
+                EVENT_BUS.log.message.emit(f"현재 진행중 row: {current_id}", "DEBUG")
+
+                EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, "processing")
+                time.sleep(0.5)
+                EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, "processed")
+            return True, "통합 제어 시뮬레이션 완료"
+        except Exception as e:
+            return False, f"통합 제어 시뮬레이션 중 에러: {e}"
+
+        """
+        # TODO: 이 안의 코드 실제 코드에서도 살려야 된다
+        # 실제 운영 코드 예시 (IntegratedExecutor)
+
+                if QThread.currentThread().isInterruptionRequested():
+                    EVENT_BUS.log.message.emit("사용자 요청에 의해 작업 중단", "WARNING")
+                    
+                    try:
+                        # 로봇에게 "작업 끝" 알림
+                        self.robot.set_finish_signals()
+                    except Exception as e:
+                        # 실제 운영 시: 에러가 났다는 사실은 로그에 남겨서 나중에 분석할 수 있게 함
+                        # 하지만 사용자에게 에러 팝업을 띄우거나 앱을 죽이진 않음
+                        EVENT_BUS.log.message.emit(f"종료 신호 전송 실패 (통신 상태 확인 필요): {e}", "WARNING")
+                    
+                    return False, "User Stopped"
+        """
+
+
         """
         # 1. 시작 신호
         self.robot.start_sequence_plc_signals()
