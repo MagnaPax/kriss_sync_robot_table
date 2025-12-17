@@ -71,12 +71,12 @@ class FANUCPoseKey(str, Enum):
 
     # =========================================================
     # PLC 주소 생성 (Adapter에서 f-string 제거용)
+    # 쓰기용 (Input: Robot <- PLC)
     # ---------------------------------------------------------
     # 설명:
     # PLC와 통신할 때 숫자를 통째로 보내는 게 아니라
     # 16개의 전선(비트)으로 쪼개서 보낸다 (이진수 통신)
     # =========================================================
-    
     def tag_check(self) -> str:
         """
         [음수/양수 판별용] 체크 비트의 PLC 주소 반환
@@ -122,6 +122,21 @@ class FANUCPoseKey(str, Enum):
         """
         return f"MAIN.Robot1._UI1.{self.value}h{bit_index}"
 
+
+    # =========================================================
+    #   읽기용 (Output: Robot -> PLC, Feedback)
+    # =========================================================
+    def feedback_tag_check(self) -> str:
+        """[피드백] 부호 비트 주소 (예: MAIN.Robot1._UO1.X_Check)"""
+        return f"MAIN.Robot1._UO1.{self.value}_Check"
+
+    def feedback_tag_low_bit(self, bit_index: int) -> str:
+        """[피드백] 하위 16비트 주소 (l0 ~ l15)"""
+        return f"MAIN.Robot1._UO1.{self.value}l{bit_index}"
+
+    def feedback_tag_high_bit(self, bit_index: int) -> str:
+        """[피드백] 상위 8비트 주소 (h0 ~ h7)"""
+        return f"MAIN.Robot1._UO1.{self.value}h{bit_index}"
 
 
 # =============================================================================
