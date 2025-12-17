@@ -368,3 +368,19 @@ class TwinCATCommander:
             return msg
         else:
             return None
+
+    def read_busy_signal(self) -> bool:
+        """로봇이나 턴테이블 중 하나라도 움직이고 있다면 True(바쁨) 반환"""
+
+        # 로봇 상태 확인
+        robot_busy = False
+        if self.robot:
+            robot_busy = self.robot.read_busy_signal()
+
+        # 턴테이블 상태 확인
+        table_busy = False
+        if self.turntable:
+            table_busy = self.turntable.read_busy_signal()
+
+        # 둘 중 하나라도 바쁘면 시스템은 바쁜 것
+        return robot_busy or table_busy
