@@ -8,6 +8,7 @@ TwinCAT Commander (Model Layer)
 """
 import time
 import pyads
+from PyQt6.QtCore import QThread
 from abc import ABC, abstractmethod
 from typing import Tuple, Optional, Union, TYPE_CHECKING, Callable, List, Any
 
@@ -384,3 +385,23 @@ class TwinCATCommander:
 
         # 둘 중 하나라도 바쁘면 시스템은 바쁜 것
         return robot_busy or table_busy
+
+    def start_sequence_plc_signals(self) -> tuple[bool, str]:
+        """로봇에게 시작 신호(RSR, Loop 등) 전송"""
+        if self.robot:
+            try:
+                self.robot.set_initial_signals()
+                return True, "시작 신호 전송 완료"
+            except Exception as e:
+                return False, f"시작 신호 전송 실패: {e}"
+        return False, "로봇이 연결되지 않았습니다."
+
+    def end_sequence_plc_signals(self) -> tuple[bool, str]:
+        """로봇에게 종료/정지 신호 전송"""
+        if self.robot:
+            try:
+                self.robot.set_finish_signals()
+                return True, "종료 신호 전송 완료"
+            except Exception as e:
+                return False, f"종료 신호 전송 실패: {e}"
+        return False, "로봇이 연결되지 않았습니다."
