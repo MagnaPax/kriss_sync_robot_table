@@ -1,9 +1,12 @@
 # viewmodels/main_window_viewmodel.py
-from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
-from services.plc_service import PLCService
 from core.event_bus import EVENT_BUS
-from view_models.target_position_viewmodel import TargetPositionViewModel
+from services.plc_service import PLCService
+from PyQt6.QtCore import QObject, pyqtSignal
 from models.fanuc_pose_model import FANUCPoseModel
+from services.sequence_service import SequenceService
+from view_models.task_manager_viewmodel import TaskManagerViewModel
+from view_models.target_position_viewmodel import TargetPositionViewModel
+
 
 
 
@@ -26,9 +29,14 @@ class MainViewModel(QObject):
 
         # 하위 뷰모델 생성 및 관리
         self.positon_model = FANUCPoseModel()
-        # 타겟 포지션 뷰모델 생성 (모델 + 서비스 주입)
+
+        # TargetPosition 뷰모델 생성 (모델 + 서비스 주입)
         self.target_position_vm = TargetPositionViewModel(self.positon_model, self._service)
 
+        # TaskManager 뷰모델 생성
+        # TaskManager는 보통 SequenceService가 필요하므로 여기서 생성해서 주입
+        self.sequence_service = SequenceService()
+        self.task_manager_vm = TaskManagerViewModel(self.sequence_service)
 
 
 

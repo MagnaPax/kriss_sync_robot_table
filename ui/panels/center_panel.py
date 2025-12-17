@@ -10,13 +10,11 @@ if TYPE_CHECKING:
     from view_models.main_window_viewmodel import MainViewModel
 
 
-
-
 class CenterPanel(QFrame):
-    def __init__(self, viewmodel: "MainViewModel", parent=None):
+    def __init__(self, view_model: "MainViewModel", parent=None):
         super().__init__(parent)
 
-        self.vm = viewmodel  # 메인 뷰모델 저장 (필요 시 사용)
+        self.vm = view_model  # 메인 뷰모델 저장 (필요 시 사용)
 
         self.setObjectName("center_panel")
         self.setFrameShape(QFrame.Shape.StyledPanel)    # OS/Qt 테마 스타일을 따라감
@@ -26,9 +24,11 @@ class CenterPanel(QFrame):
 
         world_position = QGroupBox("World Position")
         robot_position = RobotPositionWidget()
-        # MainViewModel에서 TargetPositionViewModel을 꺼내서 주입
-        target_position = TargetPositionWidget(self.vm.target_position_vm)
+        target_position = TargetPositionWidget()
         user_position = QGroupBox("User Position")
+
+        # MainViewModel에서 TargetPositionViewModel을 꺼내서 주입
+        target_position.set_view_model(self.vm.target_position_vm)
 
 
 

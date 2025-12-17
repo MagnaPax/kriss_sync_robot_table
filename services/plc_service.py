@@ -225,7 +225,15 @@ class PLCService(QObject):
         # 진행 중인 워커가 있다면 중단 요청
         if self._thread and self._thread.isRunning():
             self._thread.requestInterruption()
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 진행 중인 작업에 중단 요청을 보냈습니다.", "INFO")
 
+            # 앱 충돌 방지 방어코드
+            # 실행 중인 스레드 변수(_thread)를 덮어쓰면 앱이 죽는다(Crash)
+            # 따라서 기존 작업자가 마무리하도록 신호만 보내고 새로운 작업자는 생성하지 않는다
+            # 리턴이 없으면 아래의 _start_worker('STOP')가 실행되어 정리 중이던 스레드가 새로운 스레드에 의해서 쫓겨난다(참조가 사라짐) -> 앱 사망
+            return
+
+        # 만약 실행 중인 게 없다면, 그냥 정지 신호만 한 번 보내줌 (안전장치)
         self._start_worker('STOP', log_msg="프로세스 중지 요청...")
 
 
@@ -252,17 +260,36 @@ class PLCService(QObject):
         self._start_worker('MOVE', data=sequence_data, log_msg=f"단일 명령 이동: {fanuc_pose_obj}")
 
 
-    def process_sequence_data(self, csv_data: dict):
-        """"""
-        # 리스트로 감싸서 sequence 형태로 만듦 (TwinCATCommander가 list[dict]를 기대함)
-        sequence_data = list(csv_data.values())
-
+    def process_sequence_data(self, csv_data: list):
+        """
+        시퀀스 데이터를 받아 로봇 작업을 시작함
+        Args:
+            sequence_data (list): 실행할 시퀀스 리스트 (List[Dict])
+        """
         # Worker 호출
-        self._start_worker('MOVE', data=sequence_data, log_msg=f"csv 시퀀스 명령: {csv_data}")
+        self._start_worker('MOVE', data=csv_data, log_msg=f"csv 시퀀스 명령: {len(csv_data)}건")
 
 
     def set_robot_speed(self, feed_rate: float):
         self._start_worker('SET_SPEED', data=feed_rate, log_msg=f"로봇 속도 설정 변경 요청: {feed_rate} mm/sec")
+
+
+    @property
+    def is_running(self) -> bool:
+        """로봇이나 턴테이블이 현재 작업 중인지 확인"""
+
+        # 연결이 끊겼는가? (연결 없으면 상태 확인 불가)
+        if not self.connector.is_connected:
+            return False
+
+        # 스레드(Python)가 일하고 있는가?
+        if self._thread is not None and self._thread.isRunning():
+            return True
+
+        # 물리 장비(Gadgets)들이 움직이고 있는가?
+        return self.commander.read_busy_signal()
+
+
 
     # ==========================================================
     # [슬롯] Worker 시그널에 대한 처리

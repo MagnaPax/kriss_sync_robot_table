@@ -1,8 +1,9 @@
 # services/sequence_service.py
 from pathlib import Path
+from typing import List, Dict
 from core.event_bus import EVENT_BUS
 from workers.sequence_worker import SequenceWorker
-from PyQt6.QtCore import QObject, QTimer, pyqtSlot, QThread, Qt, QMetaObject
+from PyQt6.QtCore import QObject, pyqtSlot, QThread
 
 
 
@@ -21,8 +22,7 @@ class SequenceService(QObject):
         self._log_prefix = f"[{self.__class__.__name__}]"
 
         # 읽어 온 시퀀스 데이터 보관 
-        # 데이터 공유(EVENT_BUS.sequence_data_updated.emit)한 이후에 다른 위젯이 달라고 할 때 주려고
-        self._sequence_data: dict
+        self._sequence_data: List[dict] = []
 
         # 새로운 사무실(QThread) '공간 확보'
         self._thread: QThread | None = None
@@ -80,19 +80,27 @@ class SequenceService(QObject):
 
     @pyqtSlot(bool, str, dict)
     def _handle_file_load_result(self, success: bool, msg: str, sequence_data: dict):
-        """파일 로드 워커 실행 결과 처리"""
+        """
+        워커가 실행한 파일 읽기 결과 처리
+            워커의 결과물 결과물(dict)을 앱에서 쓸 수 있는 형태(list)로 가공하여 방송
+        """
 
         # 상태 로그 방송
         level = "INFO" if success else "ERROR"
         EVENT_BUS.log.message.emit(msg, level)
 
         if success:
-            # 데이터 보관 - 나중에 누가 달라고 할 때를 대비
-            self._sequence_data = sequence_data
+            # 딕셔너리 -> 리스트 (값만 추출)
+            # data.values()를 통해 순서가 있는 리스트로 만듦
+            sequence_list = list(sequence_data.values())
 
-            # 시퀀스 내용을 방송으로 송출
+            # 데이터 보관 - 나중에 누가 달라고 할 때를 대비
+            self._sequence_data = sequence_list
+
+            # 시퀀스 데이터를 방송으로 송출
             #   "데이터 준비됐습니다~ 필요한 분들 가져다 쓰세요"
-            EVENT_BUS.sequence_data_updated.emit(sequence_data)
+            EVENT_BUS.data.sequence_data_loaded.emit(sequence_list)
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 파일 -> 데이터 처리 완료: {len(sequence_list)}건", "INFO")
 
 
     @pyqtSlot()

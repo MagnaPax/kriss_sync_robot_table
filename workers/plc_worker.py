@@ -90,13 +90,13 @@ class PLCWorker(QObject):
 
 
                 # --- 제어 명령 (Commander 사용) --- #
-                # case 'START':
-                #     is_success, msg = self.commander.start_sequence_plc_signals()
-                # case 'STOP':
-                #     is_success, msg = self.commander.end_sequence_plc_signals()
-                # case _:
-                #     msg = "알 수 없는 명령입니다."
-                #     pass
+                case 'START':
+                    is_success, msg = self.commander.start_sequence_plc_signals()
+                case 'STOP':
+                    is_success, msg = self.commander.end_sequence_plc_signals()
+                case _:
+                    msg = "알 수 없는 명령입니다."
+                    pass
 
         # -----------------------------------------------------------
         # 예외 처리 (로그는 Service가 남기므로 여기선 실패 사유만 전달)

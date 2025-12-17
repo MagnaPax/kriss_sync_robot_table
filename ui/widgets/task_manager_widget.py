@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
 )
 from ui.widgets.base_widget import BaseWidget
 from core.event_bus import EVENT_BUS
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 
 if TYPE_CHECKING:
@@ -22,25 +22,41 @@ if TYPE_CHECKING:
 
 class TaskManagerWidget(BaseWidget):
     """Sequence 파일 불러오기"""
-
-    def __init__(self, view_model: "TaskManagerViewModel", parent=None):
+    # ========================================
+    # 초기화 및 설정 (Initialization)
+    # ========================================
+    def __init__(self, parent=None):
         """Sequence 파일 로드 및 실행 제어 위젯"""
 
         # UI 요소 참조 변수 초기화
-        self.lbl_feed_val = None
         self.lbl_runtime_val = None
         self.btn_load = None
         self.lbl_filename = None
         self.btn_start = None
         self.btn_stop = None
 
-        self.vm = view_model
+        # ViewModel 인스턴스를 클래스 속성으로 저장
+        # super().__init__() 전에 저장
+        self.vm: Optional["TaskManagerViewModel"] = None
 
         # BaseWidget의 __init__()이 _init_ui() 호출 → 실제 UI 생성
         super().__init__(parent)
 
         # 이벤트 연결 (UI만들어진 뒤)
-        self._bind_events()        
+        self._bind_events()
+
+    def set_view_model(self, view_model: "TaskManagerViewModel"):
+        """외부에서 뷰모델을 꽂아주는 함수(Setter)"""
+        self.vm = view_model
+
+        # 로봇과 턴테이블의 바쁨 상태 연결
+        self.vm.device_busy_status.connect(self.update_data)
+
+        # 런타임 시간 업데이트 연결
+        # 뷰모델이 "00:00:01" 보내면 -> 라벨 setText 실행
+        if (lbl := self.lbl_runtime_val) is not None:
+            self.vm.runtime_updated.connect(lbl.setText)
+
 
     def _init_ui(self):
 
@@ -57,14 +73,8 @@ class TaskManagerWidget(BaseWidget):
         group_layout.setContentsMargins(15, 10, 15, 15)
 
 
-        # --- 정보 표시 (Feed Rate, Runtime) --- #
+        # --- 정보 표시 --- #
         info_layout = QHBoxLayout()
-        
-        # Feed Rate 레이블 
-        lbl_feed_title = QLabel("Feed(mm / sec) :")
-        lbl_feed_title.setObjectName("info_title")  # QSS 식별용 ID
-        self.lbl_feed_val = QLabel("30")
-        self.lbl_feed_val.setObjectName("info_value")
         
         # Runtime 레이블 
         lbl_runtime_title = QLabel("Runtime :")
@@ -72,11 +82,8 @@ class TaskManagerWidget(BaseWidget):
         self.lbl_runtime_val = QLabel("00 : 00 : 00")
         self.lbl_runtime_val.setObjectName("info_value")
 
-        # 배치: (공백) - Feed - (간격) - Runtime
+        # 배치
         info_layout.addStretch(1) # 우측 정렬 효과
-        info_layout.addWidget(lbl_feed_title)
-        info_layout.addWidget(self.lbl_feed_val)
-        info_layout.addSpacing(20)
         info_layout.addWidget(lbl_runtime_title)
         info_layout.addWidget(self.lbl_runtime_val)
         
@@ -139,14 +146,6 @@ class TaskManagerWidget(BaseWidget):
         # 전체 레이아웃에 그룹박스 추가
         main_layout.addWidget(base_group_box)
 
-    def update_data(self, data):
-        """데이터 업데이트 (BaseWidget 구현)"""
-        pass
-
-
-    # ==========================================================
-    # 이벤트 발생 시 동작 약속
-    # ==========================================================
     def _bind_events(self):
         """
         전선 연결하기 (아직 불 들어온것 아님)
@@ -162,9 +161,56 @@ class TaskManagerWidget(BaseWidget):
         if self.btn_stop: self.btn_stop.clicked.connect(self._on_stop_clicked)      # STOP 연결
 
 
+    # ===============================================
+    # 데이터 처리
+    # ===============================================
+    def update_data(self, data):
+        """
+        데이터(dict)를 받아 UI 업데이트
+            BaseWidget의 safe_update_data()를 통해 호출됨
+        
+        Args:
+            data (dict): {'is_busy': True/False}
+        """
+
+        # 상태에 따른 활성화/비활성화 (BaseWidget 기능 활용)
+        if 'is_busy' in data:
+            is_busy = data['is_busy']
+
+            # BaseWidget 내부 변수 업데이트
+            self._is_enabled = not is_busy
+
+            # 로봇이 바쁘면 -> START, LOAD 비활성화 (못 누르게)
+            if self.btn_start: self.btn_start.setEnabled(not is_busy)
+            if self.btn_load: self.btn_load.setEnabled(not is_busy)
+
+            # STOP 버튼은 정지를 위해 언제나 활성화
+            if self.btn_stop: self.btn_stop.setEnabled(True)
+
+    def clear_widget(self):
+        """
+        초기 상태로 리셋 (BaseWidget.clear_widget 오버라이드)
+            깨끗하게 화면 지우기
+        """
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} UI 초기화", "DEBUG")
+        
+        # UI 텍스트 초기화
+        if self.lbl_filename:       self.lbl_filename.setText("FileName...")
+        if self.lbl_runtime_val:    self.lbl_runtime_val.setText("00 : 00 : 00")
+        
+        # 버튼 활성화 복구
+        if self.btn_start: self.btn_start.setEnabled(True)
+        if self.btn_load: self.btn_load.setEnabled(True)
+        if self.btn_stop: self.btn_stop.setEnabled(True)
+        
+        # 부모 클래스의 초기화(데이터 비우기) 호출
+        super().clear_widget()
 
 
-    # --- 슬롯 메서드 [반응] 이벤트 발생했다는 신호 수신 -> _handle 메서드에 일 시키자 ---
+    # ===============================================
+    # 이벤트 핸들러 (Slots)
+    #   - 사용자 입력(클릭, 선택)에 대한 반응 처리
+    # ===============================================    
     @pyqtSlot()
     def _on_load_clicked(self):
         self._handle_load_file_button_clicked()
@@ -175,7 +221,12 @@ class TaskManagerWidget(BaseWidget):
 
     @pyqtSlot()
     def _on_stop_clicked(self):
-        print("STOP 버튼 클릭됨")
+        """STOP 버튼 클릭 핸들러"""
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} STOP 버튼 클릭됨", "INFO")
+
+        if self.vm:
+            # 뷰모델에게 멈추라고 요청 (타이머 정지 & 로봇 정지)
+            self.vm.stop_sequence()
 
 
     # --- [처리] UI 차원에서 해야 할 일 --- #
@@ -187,6 +238,10 @@ class TaskManagerWidget(BaseWidget):
             2. 선택된 파일이름 표시
             3. 선택된 파일 VM에 전달
         """
+        if not self.vm:
+            EVENT_BUS.log.message.emit(f"{self.log_prefix} 뷰모델이 연결되지 않았습니다.", "WARNING")
+            return
+
         # QFileDialog를 사용하여 문자열 경로 획득
         file_path_str, _ = QFileDialog.getOpenFileName(
             self,                   # 부모 위젯
@@ -214,10 +269,12 @@ class TaskManagerWidget(BaseWidget):
         """
         START 버튼 클릭 시: 파일이 로드되었는지 확인하고 VM에 시퀀스 시작을 요청
         """
+        # 방어코드 - 뷰모델 없으면
+        if not self.vm: return
         # 방어 코드 - 읽은 파일이 없으면 뷰모델 호출 안 함
         if self.lbl_filename is None or self.lbl_filename.text() == "FileName..." or not self.lbl_filename.text(): return
 
-        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] START 버튼 클릭됨 - 작업 시작 요청", "INFO")
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} START 버튼 클릭됨 - 작업 시작 요청", "INFO")
 
         self.vm.start_sequence()
 
