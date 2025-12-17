@@ -265,6 +265,24 @@ class PLCService(QObject):
     def set_robot_speed(self, feed_rate: float):
         self._start_worker('SET_SPEED', data=feed_rate, log_msg=f"로봇 속도 설정 변경 요청: {feed_rate} mm/sec")
 
+
+    @property
+    def is_running(self) -> bool:
+        """로봇이나 턴테이블이 현재 작업 중인지 확인"""
+
+        # 연결이 끊겼는가? (연결 없으면 상태 확인 불가)
+        if not self.connector.is_connected:
+            return False
+
+        # 스레드(Python)가 일하고 있는가?
+        if self._thread is not None and self._thread.isRunning():
+            return True
+
+        # 물리 장비(Gadgets)들이 움직이고 있는가?
+        return self.commander.read_busy_signal()
+
+
+
     # ==========================================================
     # [슬롯] Worker 시그널에 대한 처리
     # ==========================================================
