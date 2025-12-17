@@ -58,6 +58,16 @@ class TaskManagerViewModel(QObject):
         self._plc_service.process_sequence_data(self._cached_data)
 
 
+    def is_system_busy(self) -> bool:
+        """
+        시스템(PLC/로봇)이 현재 작업 중인지 체크
+        Return:
+            True: 작업 중
+            False: 대기 중
+        """
+        return self._plc_service.is_running
+
+
     # --- 슬롯 메서드 --- #
     @pyqtSlot(list)
     def _on_sequence_data_updated(self, data: list):
