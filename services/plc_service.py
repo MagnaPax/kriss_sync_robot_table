@@ -225,7 +225,15 @@ class PLCService(QObject):
         # 진행 중인 워커가 있다면 중단 요청
         if self._thread and self._thread.isRunning():
             self._thread.requestInterruption()
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 진행 중인 작업에 중단 요청을 보냈습니다.", "INFO")
 
+            # 앱 충돌 방지 방어코드
+            # 실행 중인 스레드 변수(_thread)를 덮어쓰면 앱이 죽는다(Crash)
+            # 따라서 기존 작업자가 마무리하도록 신호만 보내고 새로운 작업자는 생성하지 않는다
+            # 리턴이 없으면 아래의 _start_worker('STOP')가 실행되어 정리 중이던 스레드가 새로운 스레드에 의해서 쫓겨난다(참조가 사라짐) -> 앱 사망
+            return
+
+        # 만약 실행 중인 게 없다면, 그냥 정지 신호만 한 번 보내줌 (안전장치)
         self._start_worker('STOP', log_msg="프로세스 중지 요청...")
 
 
