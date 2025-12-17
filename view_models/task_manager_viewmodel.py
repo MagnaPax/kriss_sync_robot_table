@@ -146,7 +146,7 @@ class TaskManagerViewModel(QObject):
         self.runtime_updated.emit(runtime_str)
 
 
-    @pyqtSlot(int)
+    @pyqtSlot(int, int, str)
     def _check_sequence_finished(self, current_step, total_steps, status):
         """진행 상황을 감시하다가 끝났으면 타이머 정지"""
 
