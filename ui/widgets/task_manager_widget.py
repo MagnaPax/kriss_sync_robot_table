@@ -49,8 +49,14 @@ class TaskManagerWidget(BaseWidget):
         """외부에서 뷰모델을 꽂아주는 함수(Setter)"""
         self.vm = view_model
 
-        # ViewModel의 상태 변화 시그널을 나의 update_data와 연결
+        # 로봇과 턴테이블의 바쁨 상태 연결
         self.vm.device_busy_status.connect(self.update_data)
+
+        # 런타임 시간 업데이트 연결
+        # 뷰모델이 "00:00:01" 보내면 -> 라벨 setText 실행
+        if (lbl := self.lbl_runtime_val) is not None:
+            self.vm.runtime_updated.connect(lbl.setText)
+
 
     def _init_ui(self):
 
@@ -115,7 +121,7 @@ class TaskManagerWidget(BaseWidget):
         control_layout = QHBoxLayout()
         
         # START 버튼
-        self.btn_start = QPushButton("START")
+        self.btn_start = QPushButton("START")   # 초기값
         self.btn_start.setFixedSize(70, 30)
         self.btn_start.setProperty("type", "general")
 
@@ -166,9 +172,15 @@ class TaskManagerWidget(BaseWidget):
         Args:
             data (dict): {'feed': 30.0, 'runtime': '00:01:23', 'status': 'running'}
         """
-        # Runtime 업데이트
-        if 'runtime' in data and self.lbl_runtime_val:
-            self.lbl_runtime_val.setText(str(data['runtime']))
+        # 런타임이 0초보다 크면 멈췄다가 다시 시작한 상태이므로 버튼 제목을 'RESUME'으로 변경
+        #   단, 완전히 끝난 상태가 아니어야 함
+        if 'runtime' in data:
+            current_runtime = data['runtime']
+            if (the_btn := self.btn_start) is not None:
+                if current_runtime == "00 : 00 : 00":
+                    the_btn.setText("START")
+                else:
+                    the_btn.setText("RESUME")
 
         # 상태에 따른 활성화/비활성화 (BaseWidget 기능 활용)
         if 'is_busy' in data:
@@ -213,7 +225,12 @@ class TaskManagerWidget(BaseWidget):
 
     @pyqtSlot()
     def _on_stop_clicked(self):
-        print("STOP 버튼 클릭됨")
+        """STOP 버튼 클릭 핸들러"""
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} STOP 버튼 클릭됨", "INFO")
+
+        if self.vm:
+            # 뷰모델에게 멈추라고 요청 (타이머 정지 & 로봇 정지)
+            self.vm.stop_sequence()
 
 
     # --- [처리] UI 차원에서 해야 할 일 --- #
