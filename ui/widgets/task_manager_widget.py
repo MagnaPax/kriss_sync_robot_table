@@ -121,7 +121,7 @@ class TaskManagerWidget(BaseWidget):
         control_layout = QHBoxLayout()
         
         # START 버튼
-        self.btn_start = QPushButton("START")   # 초기값
+        self.btn_start = QPushButton("START")
         self.btn_start.setFixedSize(70, 30)
         self.btn_start.setProperty("type", "general")
 
@@ -166,29 +166,25 @@ class TaskManagerWidget(BaseWidget):
     # ===============================================
     def update_data(self, data):
         """
-        BaseWidget의 safe_update_data()를 통해 호출됨
-        데이터(dict)를 받아 UI에 뿌려주는 역할
+        데이터(dict)를 받아 UI 업데이트
+            BaseWidget의 safe_update_data()를 통해 호출됨
         
         Args:
-            data (dict): {'feed': 30.0, 'runtime': '00:01:23', 'status': 'running'}
+            data (dict): {'is_busy': True/False}
         """
-        # 런타임이 0초보다 크면 멈췄다가 다시 시작한 상태이므로 버튼 제목을 'RESUME'으로 변경
-        #   단, 완전히 끝난 상태가 아니어야 함
-        if 'runtime' in data:
-            current_runtime = data['runtime']
-            if (the_btn := self.btn_start) is not None:
-                if current_runtime == "00 : 00 : 00":
-                    the_btn.setText("START")
-                else:
-                    the_btn.setText("RESUME")
 
         # 상태에 따른 활성화/비활성화 (BaseWidget 기능 활용)
         if 'is_busy' in data:
             is_busy = data['is_busy']
+
+            # BaseWidget 내부 변수 업데이트
+            self._is_enabled = not is_busy
+
             # 로봇이 바쁘면 -> START, LOAD 비활성화 (못 누르게)
-            self.set_enabled(not is_busy)
             if self.btn_start: self.btn_start.setEnabled(not is_busy)
             if self.btn_load: self.btn_load.setEnabled(not is_busy)
+
+            # STOP 버튼은 정지를 위해 언제나 활성화
             if self.btn_stop: self.btn_stop.setEnabled(True)
 
     def clear_widget(self):
