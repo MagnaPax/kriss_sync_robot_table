@@ -45,10 +45,12 @@ class TaskManagerWidget(BaseWidget):
         # 이벤트 연결 (UI만들어진 뒤)
         self._bind_events()
 
-    # 외부에서 뷰모델을 꽂아주는 함수(Setter) 추가
     def set_view_model(self, view_model: "TaskManagerViewModel"):
-        """외부에서 뷰모델 주입"""
+        """외부에서 뷰모델을 꽂아주는 함수(Setter)"""
         self.vm = view_model
+
+        # ViewModel의 상태 변화 시그널을 나의 update_data와 연결
+        self.vm.device_busy_status.connect(self.update_data)
 
     def _init_ui(self):
 
@@ -259,7 +261,7 @@ class TaskManagerWidget(BaseWidget):
         # 방어 코드 - 읽은 파일이 없으면 뷰모델 호출 안 함
         if self.lbl_filename is None or self.lbl_filename.text() == "FileName..." or not self.lbl_filename.text(): return
 
-        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] START 버튼 클릭됨 - 작업 시작 요청", "INFO")
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} START 버튼 클릭됨 - 작업 시작 요청", "INFO")
 
         self.vm.start_sequence()
 
