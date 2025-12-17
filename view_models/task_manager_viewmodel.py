@@ -18,7 +18,7 @@ class TaskManagerViewModel(QObject):
     sequence_data_loaded_complete = pyqtSignal(dict)    # 파일 읽기 성공
     sequence_data_loaded_failed = pyqtSignal(str)       # 파일 읽기 실패
     device_busy_status = pyqtSignal(dict)               # 로봇과 턴테이블의 busy 상태
-    runtime_updated = pyqtSignal(str)                   # 런타임 시간이 바뀔때
+    runtime_updated = pyqtSignal(str)                   # 런타임 시간 업데이트
 
 
     def __init__(self, sequence_service: SequenceService):
@@ -51,7 +51,7 @@ class TaskManagerViewModel(QObject):
         # --- 시그널 구독 --- #
         # 시퀀스 데이터
         EVENT_BUS.data.sequence_data_loaded.connect(self._on_sequence_data_updated)
-        # 시퀀스 진행률
+        # 진행 상황 모니터링 (작업 끝났는지 감시용)
         EVENT_BUS.data.progress_updated.connect(self._check_sequence_finished)
 
 
@@ -60,8 +60,7 @@ class TaskManagerViewModel(QObject):
         EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 데이터 읽기 시작", "DEBUG")
 
         # 새 파일을 열면 런타임 초기화
-        self._elapsed_seconds = 0
-        self.runtime_updated.emit("00:00:00")
+        self._reset_runtime_timer()
 
         # Service에게 파일 읽기 시킨다
         self._sequence_service.load_sequence_file(file_path)
@@ -76,12 +75,12 @@ class TaskManagerViewModel(QObject):
         # 방어코드
         if not self._cached_sequence_data: return
 
-        # 타이머 시작 (재시작 시 멈춘 곳부터 계속)
-        if not self._runtime_timer.isActive():
-            self._runtime_timer.start()
+        # 런타임 시작
+        self._runtime_timer.start()
 
-        EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 실행 요청 (데이터 {len(self._cached_sequence_data)}건)", "INFO")
+        EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 시작 (데이터 {len(self._cached_sequence_data)}건)", "INFO")
         
+        # 전체 데이터 전송 (시퀀스 처음부터 실행)
         self._plc_service.process_sequence_data(self._cached_sequence_data)
 
     def stop_sequence(self):
@@ -103,7 +102,6 @@ class TaskManagerViewModel(QObject):
         """
         return self._plc_service.is_running
 
-
     def _monitoring_loop(self):
         """
         0.1초마다 실행됨
@@ -123,6 +121,10 @@ class TaskManagerViewModel(QObject):
         # 방송
         # TaskManagerWidget.update_data와 연결
         self.device_busy_status.emit(status_data)
+
+    def _reset_runtime_timer(self):
+        self._elapsed_seconds = 0
+        self.runtime_updated.emit("00 : 00 : 00")
 
 
     # --- 슬롯 메서드 --- #
@@ -150,7 +152,8 @@ class TaskManagerViewModel(QObject):
     def _check_sequence_finished(self, current_step, total_steps, status):
         """진행 상황을 감시하다가 끝났으면 타이머 정지"""
 
-        # 마지막 스텝이고, 상태가 '처리 완료(processed)'라면
+        # 마지막 스텝이고 + 상태가 '처리완료(processed)'라면
         if current_step == total_steps and status == "processed":
-            EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 완료됨. 타이머 정지.", "INFO")
+            # 타이머 정지
             self._runtime_timer.stop()
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 모든 시퀀스 작업 완료 (총 {total_steps}개의 데이터)", "INFO")
