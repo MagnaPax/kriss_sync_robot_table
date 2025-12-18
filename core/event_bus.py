@@ -203,7 +203,7 @@ class DataSignals(QObject):
     Args:
         int (current_step): 현재 실행 중인 스텝 번호 (1부터 시작)
         int (total_steps): 전체 스텝 개수 (Progress Bar 계산용)
-        str (status): 현재 스텝의 상태 ('PROCESSING', 'DONE', 'FAILED', 'WAITING')
+        str (status): 현재 스텝의 상태 ('TaskStatus.UNPROCESSED', 'TaskStatus.PROCESSING', 'TaskStatus.PROCESSED')
     """
 
     waypoints_selected = pyqtSignal(dict)
