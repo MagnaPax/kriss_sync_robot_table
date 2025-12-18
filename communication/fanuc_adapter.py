@@ -84,11 +84,35 @@ class FanucAdapter:
         for key in FANUCPoseKey:
             # 예: "MAIN.Robot1._UI1.X_Check" = False (양수 상태로 초기화)
             plc.write_by_name(key.tag_check(), False, pyads.PLCTYPE_BOOL)
-            time.sleep(0.05) 
+            time.sleep(0.05)
 
 
         # ===============
         # [초기화] 2단계
+        # ===============
+        """
+        def reset_all_axes(plc):
+            #모든 축 비트 초기화
+            for axis in ['X', 'Y', 'Z', 'W', 'P', 'R']:
+                send_bits_to_plc(plc, axis, 0, 0)
+        """
+        
+        """모든 축 비트 초기화"""
+        for axis in ['X', 'Y', 'Z', 'W', 'P', 'R']:
+            # self._send_bits(plc, axis, 0, 0)
+
+            # 24비트 버전    
+            # 하위 16비트
+            for i in range(16):
+                plc.write_by_name(f'MAIN.Robot1._UI1.{axis}l{i}', (0 & (1 << i)) > 0, pyads.PLCTYPE_BOOL)    
+            # 상위 8비트
+            for j in range(8):
+                plc.write_by_name(f'MAIN.Robot1._UI1.{axis}h{j}', (0 & (1 << j)) > 0, pyads.PLCTYPE_BOOL)
+
+
+
+        # ===============
+        # [초기화] 3단계
         # ===============
         # 로봇팀의 start_process(plc)와 동일
         # RSR 신호와 Loop 신호를 ON 하여 TP 프로그램 실행
@@ -269,7 +293,9 @@ class FanucAdapter:
                 ⚠️ 하지만 현재 input register 는 비어있기 때문에 다음 명령 받을 수 있다!!!
             False: 안 바쁘다 (다음 명령 줘)
         """
-        return bool(self._plc.read_by_name(FanucSignal.BUSY.path, pyads.PLCTYPE_BOOL))
+        # return bool(self._plc.read_by_name(FanucSignal.BUSY.path, pyads.PLCTYPE_BOOL))
+        return bool(self._plc.read_by_name(FanucSignal.DONE.path, pyads.PLCTYPE_BOOL))
+
 
 
     # WORLD 좌표: 로봇 발바닥(Base) 기준 절대 좌표
