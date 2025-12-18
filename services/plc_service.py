@@ -336,8 +336,9 @@ class PLCService(QObject):
             world_pose = self.commander.robot.read_current_world_pose()
             EVENT_BUS.control.robot_current_pose.emit(world_pose)
 
-            # 2. FANUC 이동해야 될 목표 위치 확인 & 방송
+            # 2. FANUC 이동해야 될 목표 위치 확인 & 방송 <- 개발용
             target_pose = self.commander.robot.read_target_world_pose()
+            # EVENT_BUS.control.tool_current_pose.emit(target_pose)
 
             # TODO: 3. 턴테이블 상태 읽기 & 방송
             # table_status = self.commander.turntable.read_current_status()
