@@ -51,33 +51,57 @@ class FanucAdapter:
     # 로봇에게 "준비해", "시작해", "멈춰" 같은 상태 신호를 보낸다
     # ==========================================================================
 
+# communication/fanuc_adapter.py
+
     def set_initial_signals(self):
         """
         [시퀀스 시작 전 준비]
-        로봇이 움직이기 전에 필요한 모든 스위치를 초기 위치로 돌려놓는다
+        로봇이 움직이기 전에 필요한 모든 스위치를 초기화 & 시작 신호를 보낸다
         """
+
+        # ===============
+        # [초기화] 1단계
+        # ===============
+        # 로봇팀의 initialize_signals(plc)와 동일
+        # 모든 시작/루프 신호와 체크 비트를 False로 초기화
         plc = self._plc
-
-        # RSR(Robot Service Request) 신호 켜기
-        # "로봇아, 작업 요청이 들어왔어!"라고 알리는 초인종 같은 신호
-        plc.write_by_name(FanucSignal.RSR2_START.path, True, pyads.PLCTYPE_BOOL)
-        
-        # 신호가 확실히 전달되도록 아주 잠깐 누르고 있는다 (0.05초)
-        time.sleep(0.05) 
-
-        # Loop 신호 켜기
-        # "이 작업은 연속으로 계속될 거야"라고 알림(Ture: 루프 반복, False: 루프 종료)
-        plc.write_by_name(FanucSignal.LOOP_ON.path, True, pyads.PLCTYPE_BOOL)
 
         # 비상 정지(Cycle Stop) 해제
         plc.write_by_name(FanucSignal.CYCLE_STOP.path, False, pyads.PLCTYPE_BOOL)
+        time.sleep(0.05) 
 
+        # RSR(Robot Service Request) 신호 끄기
+        plc.write_by_name(FanucSignal.RSR2_START.path, False, pyads.PLCTYPE_BOOL)
+        time.sleep(0.05) 
+
+        # Loop 신호 끄기
+        plc.write_by_name(FanucSignal.LOOP_ON.path, False, pyads.PLCTYPE_BOOL)
+        time.sleep(0.05) 
+
+        # 양수/음수 체크 비트 초기화
         # 모든 축의 방향(양수/음수) 깃발 내리기
         # 모두(X,Y,Z,W,P,R) 초기화
         for key in FANUCPoseKey:
             # 예: "MAIN.Robot1._UI1.X_Check" = False (양수 상태로 초기화)
             plc.write_by_name(key.tag_check(), False, pyads.PLCTYPE_BOOL)
+            time.sleep(0.05) 
 
+
+        # ===============
+        # [초기화] 2단계
+        # ===============
+        # 로봇팀의 start_process(plc)와 동일
+        # RSR 신호와 Loop 신호를 ON 하여 TP 프로그램 실행
+
+        # RSR(Robot Service Request) 신호 켜기
+        # "로봇아, 작업 요청이 들어왔어!"라고 알리는 초인종 같은 신호
+        plc.write_by_name(FanucSignal.RSR2_START.path, True, pyads.PLCTYPE_BOOL)
+        time.sleep(0.05) 
+        
+        # Loop 신호 켜기
+        # "이 작업은 연속으로 계속될 거야"라고 알림(Ture: 루프 반복, False: 루프 종료)
+        plc.write_by_name(FanucSignal.LOOP_ON.path, True, pyads.PLCTYPE_BOOL)
+        time.sleep(0.05) 
 
     def set_finish_signals(self):
         """[시퀀스 종료] 모든 작업을 마치고 신호를 끈다"""
@@ -86,7 +110,6 @@ class FanucAdapter:
         plc.write_by_name(FanucSignal.RSR2_START.path, False, pyads.PLCTYPE_BOOL)
         # 반복 신호 끄기
         plc.write_by_name(FanucSignal.LOOP_ON.path, False, pyads.PLCTYPE_BOOL)
-
 
     def set_emergency_stop(self):
         """[비상 정지] 즉시 멈춤 신호를 보낸다"""
@@ -169,14 +192,14 @@ class FanucAdapter:
         plc.write_by_name(key.tag_check(), rounded < 0, pyads.PLCTYPE_BOOL)
 
 
-    def _send_bits(self, key: FANUCPoseKey, lower_byte: int, high_byte: int):
+    def _send_bits(self, key: FANUCPoseKey, lower_word: int, high_byte: int):
         """
         [비트 단위 전송]
         숫자를 0과 1의 전기 신호로 바꾸어 16개의 스위치(비트)를 켠다
 
         Args:
             key: 어느 축인지 (X, Y...)
-            lower_byte: 하위 8비트 숫자 (0~255)
+            lower_word: 하위 16비트 숫자 (0~255)
             high_byte: 상위 8비트 숫자 (0~255)
         """
         plc = self._plc
@@ -194,7 +217,7 @@ class FanucAdapter:
             # FANUCPoseKey가 주소("MAIN...Xl0")를 만들어줌
             plc.write_by_name(
                 key.tag_low_bit(i), 
-                (lower_byte & (1 << i)) > 0, 
+                (lower_word & (1 << i)) > 0, 
                 pyads.PLCTYPE_BOOL
             )
 
@@ -210,12 +233,11 @@ class FanucAdapter:
     def _send_feed(self, feed_rate: float):
         """
         [속도 전송] 좌표 전송과 원리는 같지만, 축 이름 대신 'F'를 사용
-            20비트 전송 및 소수점 3자리 스케일링 적용
+            20비트(16+4) 전송 및 소수점 3자리 스케일링 적용
         """
         plc = self._plc
 
-        rounded = round(feed_rate, 3)
-        scaled = int(abs(rounded * 1000))
+        scaled = int(abs(round(feed_rate, 3) * 1000))
 
         # Feed는 Enum에 없으므로 여기서 직접 주소를 조합 (Fl0~Fl7, Fh0~Fh1)
         # 로봇측 프로토콜: F는 10비트(하위8 + 상위2)만 사용함
