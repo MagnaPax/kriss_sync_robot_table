@@ -148,11 +148,15 @@ class FanucSignal(str, Enum):
     """
     # [입력] Robot <- PLC (보내는 신호)
     RSR2_START = "MAIN.Robot1._UI1.UI10_RSR2"          # 작업 시작 요청 (Pulse)
-    LOOP_ON    = "MAIN.Robot1._UI1.DI43"                    # 연속 재생 (ON=반복)
+    LOOP_ON = "MAIN.Robot1._UI1.DI43"                    # 루프 반복 여부 (ON=반복)
     CYCLE_STOP = "MAIN.Robot1._UI1.UI04_CycleStop"  # 비상 정지 / 정지
+    START_RE = "MAIN.Robot1._UI1.UI06_Start"             # 재시작 신호
     
     # [출력] Robot -> PLC (읽는 신호)
-    BUSY       = "MAIN.Robot1._UO1.DO45"            # 로봇이 움직이는 중 (Busy)
+    DONE = "MAIN.Robot1._UO1.DO45"            # 받은 명령을 완료했다. done
+    BUSY = "MAIN.Robot1._UO10_Busy"            # 로봇 바쁨 상태 (움직이고 있는 중)
+    PAUSED = "MAIN.Robot1._UO1.UO04_PrgPaused" # 일시정지 상태
+
 
     @property
     def path(self) -> str:
