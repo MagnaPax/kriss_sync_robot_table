@@ -2,6 +2,7 @@ from PyQt6.QtWidgets import QFrame, QVBoxLayout, QGroupBox
 
 from ui.widgets.robot_position_widget import RobotPositionWidget
 from ui.widgets.target_position_widget import TargetPositionWidget
+from ui.widgets.world_coordinates_widget import WorldCoordinatesWidget
 from typing import TYPE_CHECKING
 
 
@@ -22,7 +23,7 @@ class CenterPanel(QFrame):
 
         layout = QVBoxLayout(self)
 
-        world_position = QGroupBox("World Position")
+        world_position = WorldCoordinatesWidget()
         robot_position = RobotPositionWidget()
         target_position = TargetPositionWidget()
         user_position = QGroupBox("User Position")
