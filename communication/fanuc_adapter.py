@@ -139,6 +139,7 @@ class FanucAdapter:
     def _send_coordinate(self, val: float, key: FANUCPoseKey):
         """
         [핵심] 단일 축 좌표 변환 및 전송 로직
+            24비트 전송 & 소수점 셋째자리 스케일링
 
         원리:
             PLC는 소수점(float)을 직접 받지 못한다
@@ -147,19 +148,17 @@ class FanucAdapter:
         """
         plc = self._plc
 
-        # 1. 반올림: 소수점 2자리까지만 유효 (예: 12.3456 -> 12.35)
-        rounded = round(val, 2)
+        # 1. 반올림: 소수점 3자리까지만 유효 (예: 12.3456 -> 12.346)
+        rounded = round(val, 3)
         
-        # 2. 정수화 (Scaling): 100을 곱해서 소수점을 없앰 (예: 12.35 -> 1235)
+        # 2. 정수화 (Scaling): 1000을 곱해서 소수점을 없앰 (예: 12.345 -> 12345)
         #    abs()를 써서 부호(-)를 떼고 절댓값만 취함
-        scaled_int = int(abs(rounded * 100))
+        scaled_int = int(abs(rounded * 1000))
         
         # 3. 비트 쪼개기
-        #    scaled_int라는 큰 숫자를 16개의 작은 전선으로 나누어 보냄
-        #    & 0xFF : 하위 8비트 추출
-        #    >> 8   : 상위 8비트 추출
-        low_word = scaled_int & 0xFF
-        high_word = scaled_int >> 8
+        #    scaled_int라는 큰 숫자를 24개(하위16 + 상위8)의 작은 전선으로 나누어 보냄
+        low_word = scaled_int & 0xFFFF              # 하위 16비트
+        high_word = (scaled_int >> 16) & 0xFF   # 상위 8비트
 
         # 4. 비트 전송 호출
         self._send_bits(key, low_word, high_word)
@@ -182,8 +181,8 @@ class FanucAdapter:
         """
         plc = self._plc
         
-        # 0번부터 7번 비트까지 총 8번 반복
-        for i in range(8):
+        # 0번부터 15번 비트까지 총 16번 반복
+        for i in range(16):
             # -----------------------------------------------------
             # 비트 연산 설명 (Shift & AND)
             # (1 << i) : 1을 i칸만큼 왼쪽으로 밈. (예: i=2면 00000100)
@@ -191,15 +190,16 @@ class FanucAdapter:
             # > 0      : 결과가 0보다 크면 해당 자리에 1이 있다는 뜻
             # -----------------------------------------------------
 
-            # 하위 비트 전송 (예: Xl0, Xl1 ...)
+            # 하위 16비트 전송 (예: l0 ~ l15)
             # FANUCPoseKey가 주소("MAIN...Xl0")를 만들어줌
             plc.write_by_name(
                 key.tag_low_bit(i), 
                 (lower_byte & (1 << i)) > 0, 
                 pyads.PLCTYPE_BOOL
             )
-            
-            # 상위 비트 전송 (예: Xh0, Xh1 ...)
+
+        for i in range(8):
+            # 상위 8비트 전송 (h0 ~ h7)
             plc.write_by_name(
                 key.tag_high_bit(i), 
                 (high_byte & (1 << i)) > 0, 
@@ -210,24 +210,25 @@ class FanucAdapter:
     def _send_feed(self, feed_rate: float):
         """
         [속도 전송] 좌표 전송과 원리는 같지만, 축 이름 대신 'F'를 사용
+            20비트 전송 및 소수점 3자리 스케일링 적용
         """
         plc = self._plc
 
-        rounded = round(feed_rate, 2)
-        scaled = int(abs(rounded * 100))
+        rounded = round(feed_rate, 3)
+        scaled = int(abs(rounded * 1000))
 
         # Feed는 Enum에 없으므로 여기서 직접 주소를 조합 (Fl0~Fl7, Fh0~Fh1)
         # 로봇측 프로토콜: F는 10비트(하위8 + 상위2)만 사용함
         
-        # 하위 8비트 (Fl0 ~ Fl7)
-        for i in range(8):
+        # 하위 16비트 (Fl0 ~ Fl15)
+        for i in range(16):
             plc.write_by_name(f"MAIN.Robot1._UI1.Fl{i}",
                             (scaled & (1 << i)) > 0, pyads.PLCTYPE_BOOL)
 
-        # 상위 2비트 (Fh0 ~ Fh1) -> 2번만 반복
-        for i in range(2):
+        # 상위 4비트 (Fh0 ~ Fh3) -> 4번 반복
+        for i in range(4):
             plc.write_by_name(f"MAIN.Robot1._UI1.Fh{i}",
-                            ((scaled >> 8) & (1 << i)) > 0, pyads.PLCTYPE_BOOL)
+                            ((scaled >> 16) & (1 << i)) > 0, pyads.PLCTYPE_BOOL)
 
 
     # ==========================================================================
@@ -263,6 +264,7 @@ class FanucAdapter:
     def _read_axis_value(self, key: FANUCPoseKey) -> float:
         """
         [헬퍼] 특정 축(Key)의 현재 값을 PLC에서 비트 단위로 읽어와 실수로 변환
+            로봇 피드백 데이터를 24비트/1000 스케일로 읽기
             예외 발생 시 상위로 전파됨
         """
         plc = self._plc
@@ -280,7 +282,7 @@ class FanucAdapter:
             if plc.read_by_name(key.feedback_tag_low_bit(j), pyads.PLCTYPE_BOOL):
                 low_val |= (1 << j)
 
-        # 3. 비트 합치기
+        # 3. 비트 합치기 (24비트)
         raw_val = (top_val << 16) | low_val
 
         # 4. 부호 확인
