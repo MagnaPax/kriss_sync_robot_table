@@ -294,7 +294,7 @@ class FanucAdapter:
             False: 안 바쁘다 (다음 명령 줘)
         """
         # return bool(self._plc.read_by_name(FanucSignal.BUSY.path, pyads.PLCTYPE_BOOL))
-        return bool(self._plc.read_by_name(FanucSignal.DONE.path, pyads.PLCTYPE_BOOL))
+        return bool(self._plc.read_by_name(FanucSignal.COMPLETE.path, pyads.PLCTYPE_BOOL))
 
 
 
