@@ -59,8 +59,8 @@ class FanucOnlyExecutor(BaseExecutor):
         return required_keys.issubset(sample_data.keys())
 
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
-        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 데이터\n{(sequence_data)}\n", "DEBUG")
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] FANUC 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
+        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 에서 처리될 전체 데이터\n{(sequence_data)}\n", "DEBUG")
 
         # 처리할 전체 시퀀스 데이터 방송
         EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
@@ -87,6 +87,8 @@ class FanucOnlyExecutor(BaseExecutor):
 
                 # 현재 시퀀스 진행상태 방송: 진행중
                 EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, "processing")
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 현재 시퀀스 진행상태: {(current_id)}", "DEBUG")
+
 
                 # 이동 속도
                 if adapter.override_feed_rate is not None:
@@ -110,6 +112,7 @@ class FanucOnlyExecutor(BaseExecutor):
                 )
                 # 현재 로봇 위치 방송
                 EVENT_BUS.control.robot_current_pose.emit(target_pose)
+                EVENT_BUS.log.message(f"\n현재 로봇 위치: {target_pose}\n", "DEBUG")
 
 
                 # --- 증분 이동(Incremental/Relative Move) 제어 --- #
@@ -382,13 +385,13 @@ class TwinCATCommander:
             1. 데이터의 첫 줄을 샘플로 채취하여 적절한 실행기를 찾는다
             2. 찾은 Executor를 실행한다
         """
+        
         if not sequence_data:
             return False, "데이터가 비어있습니다."
 
         sample_row = sequence_data[0]
+        print(f"입력된 자료에 맞는 Excutor 선택을 위한 샘플 데이터(sequence_data[0]): {sample_row}")
 
-        print(f"\n샘플 데이터: {sample_row}\n")
-        
         # 1. 적절한 Executor 찾기
         target_executor = None
         for executor in self.executors:
@@ -402,6 +405,8 @@ class TwinCATCommander:
         else:
             return False, "지원하지 않는 데이터 형식입니다."
 
+
+    # --- 로봇에게 내리는 명령들 --- #
     def apply_user_feed_rate_when_moving(self, feed_rate: float) -> str | None:
         """TargetPositionWidget 에서 사용자가 입력한 Feed Rate 값을 FANUC에 적용"""
 
