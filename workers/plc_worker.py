@@ -18,7 +18,6 @@ Worker는 '스레드 + 실행 관리자'
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, QThread
 from communication.twincat_connector import TwinCATConnector
 from communication.twincat_commander import TwinCATCommander
-from communication.fanuc_adapter import FanucAdapter
 from config.data_formats import *
 from typing import Dict, List, Any, Optional
 from core.event_bus import EVENT_BUS
