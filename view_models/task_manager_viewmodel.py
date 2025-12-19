@@ -112,7 +112,11 @@ class TaskManagerViewModel(QObject):
 
     @pyqtSlot()
     def _on_runtime_tick(self):
-        """1초마다 실행되어 시간을 1씩 늘리고 방송"""
+        """
+        시간을 1씩 늘리고 방송
+            단순히 눈에 보이는 타이머 역할이기 때문에 VM에서 구현
+            이 런타임 시간을 로그에 남기는 등의 확장된 기능을 해야 된다면 여기 있으면 안됨
+        """
         self._elapsed_seconds += 1
 
         # 초 -> 시:분:초 문자열 변환
