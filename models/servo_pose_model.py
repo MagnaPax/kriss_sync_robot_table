@@ -24,7 +24,7 @@ class ServoPose:
         return asdict(self)
 
 
-class TurntablePoseModel:
+class ServoPoseModel:
     """
     턴테이블 관련 비즈니스 로직 (파싱, 생성 등)
     """
