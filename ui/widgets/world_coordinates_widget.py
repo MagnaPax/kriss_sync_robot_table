@@ -32,7 +32,11 @@ class WorldCoordinatesWidget(BaseWidget):
 
 
     def set_view_model(self, view_model: "WorldCoordinatesViewModel"):
-        """외부에서 뷰모델을 꽂아주는 함수(Setter)"""
+        """
+        외부에서 뷰모델을 꽂아주는 함수(Setter)
+            MainViewModel 이 WorldCoordinatesViewModel 소유
+            CenterPanel 에서 WorldCoordinatesWidget 에게 주입
+        """
         self.vm = view_model
 
         # 이벤트 연결(vm이 있을때만 연결되게)
