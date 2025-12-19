@@ -53,22 +53,16 @@ class FanucAdapter:
 
 # communication/fanuc_adapter.py
 
-    def set_initial_signals(self):
+    def _init_robot_signals(self):
         """
-        [시퀀스 시작 전 준비]
-        로봇이 움직이기 전에 필요한 모든 스위치를 초기화 & 시작 신호를 보낸다
+        모든 시작/루프 신호와 체크 비트를 False로 초기화
+            원본의 initialize_signals(plc)와 동일
         """
-
-        # ===============
-        # [초기화] 1단계
-        # ===============
-        # 로봇팀의 initialize_signals(plc)와 동일
-        # 모든 시작/루프 신호와 체크 비트를 False로 초기화
         plc = self._plc
 
         # 비상 정지(Cycle Stop) 해제
         plc.write_by_name(FanucSignal.CYCLE_STOP.path, False, pyads.PLCTYPE_BOOL)
-        time.sleep(0.05) 
+        time.sleep(0.05)
 
         # RSR(Robot Service Request) 신호 끄기
         plc.write_by_name(FanucSignal.RSR2_START.path, False, pyads.PLCTYPE_BOOL)
@@ -78,54 +72,45 @@ class FanucAdapter:
         plc.write_by_name(FanucSignal.LOOP_ON.path, False, pyads.PLCTYPE_BOOL)
         time.sleep(0.05) 
 
-        # 양수/음수 체크 비트 초기화
-        # 모든 축의 방향(양수/음수) 깃발 내리기
-        # 모두(X,Y,Z,W,P,R) 초기화
+        # X, Y, Z, W, P, R 모든 축에 대해 반복
         for key in FANUCPoseKey:
+            # --- 모든 축의 방향(양수/음수) 체크 비트 초기화(비트 끄기) --- #
             # 예: "MAIN.Robot1._UI1.X_Check" = False (양수 상태로 초기화)
             plc.write_by_name(key.tag_check(), False, pyads.PLCTYPE_BOOL)
             time.sleep(0.05)
 
+            # --- 모든 축의 비트 값을 0으로 초기화 --- #
+            #   원본의 reset_all_axes(plc)와 동일
+            self._send_bits(key, 0, 0)
+            time.sleep(0.05)
 
-        # ===============
-        # [초기화] 2단계
-        # ===============
+    def _start_process(self):
         """
-        def reset_all_axes(plc):
-            #모든 축 비트 초기화
-            for axis in ['X', 'Y', 'Z', 'W', 'P', 'R']:
-                send_bits_to_plc(plc, axis, 0, 0)
+        RSR 신호와 Loop 신호를 ON 하여 TP 프로그램 실행
+            원본의 start_process(plc)와 동일
         """
-        
-        """모든 축 비트 초기화"""
-        for axis in ['X', 'Y', 'Z', 'W', 'P', 'R']:
-            # self._send_bits(plc, axis, 0, 0)
-
-            # 24비트 버전    
-            # 하위 16비트
-            for i in range(16):
-                plc.write_by_name(f'MAIN.Robot1._UI1.{axis}l{i}', (0 & (1 << i)) > 0, pyads.PLCTYPE_BOOL)    
-            # 상위 8비트
-            for j in range(8):
-                plc.write_by_name(f'MAIN.Robot1._UI1.{axis}h{j}', (0 & (1 << j)) > 0, pyads.PLCTYPE_BOOL)
-
-
-
-        # ===============
-        # [초기화] 3단계
-        # ===============
-        # 로봇팀의 start_process(plc)와 동일
-        # RSR 신호와 Loop 신호를 ON 하여 TP 프로그램 실행
+        plc = self._plc
 
         # RSR(Robot Service Request) 신호 켜기
         # "로봇아, 작업 요청이 들어왔어!"라고 알리는 초인종 같은 신호
         plc.write_by_name(FanucSignal.RSR2_START.path, True, pyads.PLCTYPE_BOOL)
-        time.sleep(0.05) 
+        time.sleep(0.05)
         
         # Loop 신호 켜기
         # "이 작업은 연속으로 계속될 거야"라고 알림(Ture: 루프 반복, False: 루프 종료)
         plc.write_by_name(FanucSignal.LOOP_ON.path, True, pyads.PLCTYPE_BOOL)
-        time.sleep(0.05) 
+        time.sleep(0.05)
+
+    def set_initial_signals(self):
+        """
+        [시퀀스 시작 전 준비]
+        로봇이 움직이기 전에 필요한 모든 스위치를 초기화 & 시작 신호를 보낸다
+        """
+        # [초기화] 1단계 - 체크 비트 False
+        self._init_robot_signals
+        # [초기화] 2단계 - 시작 신호 True
+        self._start_process
+
 
     def set_finish_signals(self):
         """[시퀀스 종료] 모든 작업을 마치고 신호를 끈다"""
