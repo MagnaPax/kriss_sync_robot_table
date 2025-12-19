@@ -2,26 +2,10 @@
 from enum import Enum
 
 class ServoPoseKey(str, Enum):
-    """
-    턴테이블 제어 데이터(Target)의 키 정의 및 PLC 주소 매핑
-    
-    역할:
-        - 딕셔너리 키 관리 ('angle', 'velocity')
-        - PLC Write 주소 관리 ('MAIN.position', 'MAIN.velocity')
-    """
-    ANGLE = "MAIN.position"      # 목표 각도
-    VELOCITY = "MAIN.velocity"   # 회전 속도
+    """서보모터 데이터 키 정의 (UI 표시 및 내부 로직용)"""
 
-    @property
-    def model_key(self) -> str:
-        """
-        데이터 모델(ServoPose)이나 딕셔너리에서 사용하는 키 반환
-        """
-        if self == ServoPoseKey.ANGLE:
-            return "angle"
-        elif self == ServoPoseKey.VELOCITY:
-            return "velocity"
-        return ""
+    ANGLE = "angle"         # 목표 각도
+    VELOCITY = "velocity"   # 회전 속도
 
     @property
     def unit(self) -> str:
@@ -30,29 +14,50 @@ class ServoPoseKey(str, Enum):
             return "deg"
         return "deg/s"
 
-    @property
-    def plc_address(self) -> str:
-        """PLC 변수 주소 (값 그 자체)"""
-        return self.value
-
-
 # =============================================================================
-# 제어 신호 정의 (Control Signals)
+# 제어 신호 정의 (Control Signals) - 동적 주소 생성
 # =============================================================================
-class TurntableSignal(str, Enum):
+class ServoSignal(str, Enum):
     """
-    턴테이블 제어/상태 확인을 위한 PLC 주소 모음
+    Panasonic 서보모터 제어/상태 확인을 위한 PLC 주소 템플릿
+
+    특징:
+        - 문자열 뒤에 축 번호가 붙는 구조 (예: MAIN.bServoOn1, MAIN.bServoOn2)
+        - .path(index) 메서드를 통해 실제 주소를 생성
     """
-    # [입력] PC -> PLC (Write)
-    SERVO_ON     = 'MAIN.bServoOn'      # 서보 모터 전원 ON/OFF
-    MOVE_START   = 'MAIN.bMoveAbsOn'    # 이동 시작 트리거 (Rising Edge)
-    READ_POS_ON  = 'MAIN.bReadPosOn'    # (옵션) 위치 읽기 활성화
 
-    # [출력] PLC -> PC (Read)
-    BUSY         = 'MAIN.bMoveAbsBusy'  # 이동 중 (True=Busy)
-    CURRENT_POS  = 'MAIN.CurrentPos'    # 현재 위치 피드백 (LREAL)
+    # [설정] - 나중에 1,2,3을 끼워넣을 수 있게
+    SERVO_ON     = 'MAIN.bServoOn{}'    # 서보 전원 (BOOL)
+    READ_POS_ON  = 'MAIN.bReadPos{}'    # 위치 읽기 활성화 (BOOL)
+    READ_VEL_ON  = 'MAIN.bReadVel{}'    # 속도 읽기 활성화 (BOOL)
 
-    @property
-    def path(self) -> str:
-        """PLC 주소 반환"""
-        return self.value
+    # [명령]
+    STOP         = 'MAIN.bStop{}'       # 정지 (BOOL)
+    
+    # [이동 - 위치 제어 (턴테이블용)]
+    MOVE_ABS     = 'MAIN.bMoveAbs{}'    # 절대 위치 이동 시작 (BOOL)
+    TARGET_POS   = 'MAIN.pos{}'         # 목표 위치 입력 (LREAL)
+
+    # [이동 - 속도 제어 (툴 모터용)]
+    MOVE_VEL     = 'MAIN.bMoveVel{}'    # 속도 제어 이동 시작 (BOOL)
+    
+    # [공통 입력]
+    TARGET_VEL   = 'MAIN.vel{}'         # 목표 속도 입력 (LREAL) - 위치/속도 모드 공용
+
+    # [피드백 (Read)]
+    BUSY         = 'MAIN.Busy{}'        # 이동 중 여부 (BOOL)
+    ACT_POS      = 'MAIN.Act_pos{}'     # 현재 위치 (LREAL)
+    ACT_VEL      = 'MAIN.Act_vel{}'     # 현재 속도 (LREAL)
+
+    def path(self, axis_index: int) -> str:
+        """
+        축 번호를 받아 실제 PLC 주소를 반환
+        
+        Args:
+            axis_index (int): 1, 2, 3 등 축 번호
+            
+        Returns:
+            'ServoSignal.SERVO_ON.path(1)'로 호출하면 'MAIN.bServoOn1'와 같은 완성된 주소를 반환
+        """
+        return self.value.format(axis_index)
+
