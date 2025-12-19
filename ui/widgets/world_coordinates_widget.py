@@ -3,7 +3,6 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QVBoxLayout, QGroupBox, QGridLayout, QLabel
 from typing import TYPE_CHECKING, Optional
 from ui.widgets.base_widget import BaseWidget
-from core.event_bus import EVENT_BUS
 
 if TYPE_CHECKING:
     from view_models.world_coordinates_viewmodel import WorldCoordinatesViewModel
@@ -30,20 +29,20 @@ class WorldCoordinatesWidget(BaseWidget):
         
         # BaseWidget의 __init__()이 _init_ui() 호출 → 실제 UI 생성
         super().__init__(parent)
-        
-        # 이벤트 연결 (UI만들어진 뒤)
-        self._bind_events()
 
 
     def set_view_model(self, view_model: "WorldCoordinatesViewModel"):
         """외부에서 뷰모델을 꽂아주는 함수(Setter)"""
         self.vm = view_model
 
+        # 이벤트 연결(vm이 있을때만 연결되게)
+        self._bind_events()
+
 
     def _bind_events(self):
         """EventBus 시그널 연결"""
-        # PLCService._on_monitor_tick 에서 방송하는 로봇 현재 위치 수신
-        EVENT_BUS.control.robot_current_pose.connect(self.safe_update_data)
+        if self.vm:
+            self.vm.robot_pose_changed.connect(self.safe_update_data)
 
 
     def _init_ui(self):
