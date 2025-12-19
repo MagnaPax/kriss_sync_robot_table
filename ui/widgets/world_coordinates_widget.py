@@ -50,7 +50,7 @@ class WorldCoordinatesWidget(BaseWidget):
         """UI 구성"""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
-        self.setObjectName("world_coordinates_widget")  # 스타일시트 적용 위한 ID
+        self.setObjectName("world_coordinates_widget")  # 스타일시트 적용 위한 QSS ID 부여
 
         # 그룹박스
         group_box = QGroupBox("FANUC World Coordinates")
@@ -70,11 +70,11 @@ class WorldCoordinatesWidget(BaseWidget):
 
         # 값 레이블 스타일 및 정렬 (우측 정렬해야 숫자 자리수가 맞아 보임)
         for lbl in [self.lbl_x, self.lbl_y, self.lbl_z, self.lbl_w, self.lbl_p, self.lbl_r]:
-            lbl.setStyleSheet("font-weight: bold; color: #333; font-family: Consolas, Monospace;") 
+            lbl.setObjectName("wc_value")  # QSS ID
             lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-        # 반복문으로 3단 구성 (이름 | 값 | 단위) 배치
-        # 데이터 정의: (행 번호, 이름, 값 위젯, 단위 텍스트)
+        # 배치 (이름 | 값 | 단위)
+        # 데이터 순서: 행 번호, 이름, 값 위젯, 단위 텍스트
         rows = [
             (0, "X", self.lbl_x, "mm"),
             (1, "Y", self.lbl_y, "mm"),
@@ -91,7 +91,7 @@ class WorldCoordinatesWidget(BaseWidget):
             # 2열: 값 (숫자)
             grid_layout.addWidget(val_lbl, row_idx, 1)
             
-            # 3열: 단위 (새로운 라벨 생성)
+            # 3열: 단위
             unit_lbl = QLabel(unit_text)
             unit_lbl.setStyleSheet("color: gray; font-size: 11px;") # 단위는 조금 작고 연하게
             grid_layout.addWidget(unit_lbl, row_idx, 2)
@@ -105,7 +105,8 @@ class WorldCoordinatesWidget(BaseWidget):
 
     def update_data(self, data):
         """
-        데이터 업데이트 (FANUCPose 객체 수신)
+        data를 받아 UI 업데이트
+            BaseWidget의 safe_update_data()를 통해 호출됨
         """
         # data는 FANUCPose 객체여야 함 (속성: x, y, z, w, p, r)
         if hasattr(data, 'x'):
