@@ -17,13 +17,9 @@ class ServoAdapter:
     Panasonic 서보 모터(총 3축) 통신 로직을 담당하는 Model 레이어
     
     [관리 대상]
-    - Axis 1: Tool 공전 모터
-    - Axis 2: Tool 자전 모터
-    - Axis 3: 턴테이블 모터
-    
-    [역할]
-    - FanucAdapter와 동일한 위상의 하드웨어 드라이버
-    - LREAL(실수) 데이터를 쓰고 읽음
+        - Axis 1: Tool 공전 모터 (Velocity Mode)
+        - Axis 2: Tool 자전 모터 (Velocity Mode)
+        - Axis 3: 턴테이블 모터 (Position Mode)
     """
 
     def __init__(self, connector: TwinCATConnector):
@@ -64,20 +60,62 @@ class ServoAdapter:
         # 신호 안정화 대기 (하드웨어 특성 고려)
         time.sleep(0.05)
 
-        # 3. 짧은 대기 후 정지 신호 해제 (Pulse 방식인 경우 대비)
-        #    Test 파일에서는 s키 누르면 0.5초간 Stop을 주는 로직이 있었음
-        time.sleep(0.1)
+
+    # ==========================================================================
+    # 2. 안전 정지 (Stop & Safety)
+    # ==========================================================================
+    def stop_axis(self, axis_index: int):
+        """
+        [개별 정지] 특정 축을 안전하게 정지시킨다.
+        원본 1219_Test.py의 's' 키 입력 시 동작 로직을 그대로 구현함.
+        
+        시퀀스:
+            1. 이동 신호(MoveVel/MoveAbs) 끄기 (Latch 해제)
+            2. 정지 신호(bStop) 켜기
+            3. 0.5초 대기 (감속 및 정지 시간 확보)
+            4. 정지 신호(bStop) 끄기 (Reset)
+        """
+        plc = self._plc
+
+        # 1. 이동 신호 해제 (Latch 풀기)
+        #    속도 제어용과 위치 제어용 신호 모두 끔 (안전 제일)
+        plc.write_by_name(ServoSignal.MOVE_VEL.path(axis_index), False, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(ServoSignal.MOVE_ABS.path(axis_index), False, pyads.PLCTYPE_BOOL)
+        
+        # 2. 정지 신호 인가 (bStop = True)
+        plc.write_by_name(ServoSignal.STOP.path(axis_index), True, pyads.PLCTYPE_BOOL)
+        
+        # 3. 물리적 감속 대기 (원본 코드의 time.sleep(0.5) 반영)
+        time.sleep(0.5)
+        
+        # 4. 정지 신호 해제 (다시 움직일 수 있게 준비)
         plc.write_by_name(ServoSignal.STOP.path(axis_index), False, pyads.PLCTYPE_BOOL)
 
 
-    def clear_trigger(self, axis_index: int):
+    def emergency_stop_all(self):
         """
-        [트리거 초기화] 이동 신호(Rising Edge용)를 False로 내린다.
+        [긴급 정지] 모든 서보 축(1, 2, 3)을 즉시 정지시킨다.
+        's' 키를 눌렀을 때 1, 2번 축이 동시에 멈추던 기능을 확장함.
         """
+        # 1. 모든 축에 대해 정지 시퀀스 수행
+        #    순차적으로 호출하면 0.5초씩 딜레이가 생기므로, 
+        #    여기서는 "신호 쏘기 -> 대기 -> 신호 끄기"를 한 번에 처리하여 반응 속도를 높임
+        
         plc = self._plc
-        plc.write_by_name(ServoSignal.MOVE_VEL.path(axis_index), False, pyads.PLCTYPE_BOOL)
-        plc.write_by_name(ServoSignal.MOVE_ABS.path(axis_index), False, pyads.PLCTYPE_BOOL)
+        axes = [1, 2, 3]
 
+        # (A) 모든 축 이동 해제 & 정지 신호 ON
+        for i in axes:
+            plc.write_by_name(ServoSignal.MOVE_VEL.path(i), False, pyads.PLCTYPE_BOOL)
+            plc.write_by_name(ServoSignal.MOVE_ABS.path(i), False, pyads.PLCTYPE_BOOL)
+            plc.write_by_name(ServoSignal.STOP.path(i), True, pyads.PLCTYPE_BOOL)
+        
+        # (B) 공통 대기 (0.5초)
+        time.sleep(0.5)
+
+        # (C) 모든 축 정지 신호 OFF
+        for i in axes:
+            plc.write_by_name(ServoSignal.STOP.path(i), False, pyads.PLCTYPE_BOOL)        
 
     # ==========================================================================
     # 2. 상태 모니터링 (Read Feedback)
@@ -88,6 +126,7 @@ class ServoAdapter:
         PLC: MAIN.Busy{i}
         """
         try:
+            # 원본 코드: plc.read_by_name('MAIN.Busy1', ...)
             return bool(self._plc.read_by_name(ServoSignal.BUSY.path(axis_index), pyads.PLCTYPE_BOOL))
         except Exception:
             return False
@@ -125,7 +164,7 @@ class ServoAdapter:
         plc.write_by_name(ServoSignal.TARGET_VEL.path(axis_index), target_velocity, pyads.PLCTYPE_LREAL)
         
         # 2. 속도 제어 트리거 ON (MAIN.bMoveVel{i})
-        #    Test1.py: plc.write_by_name('MAIN.bMoveVel1', True, ...)
+        #    Latch 방식이므로 True로 유지
         plc.write_by_name(ServoSignal.MOVE_VEL.path(axis_index), True, pyads.PLCTYPE_BOOL)
 
 
