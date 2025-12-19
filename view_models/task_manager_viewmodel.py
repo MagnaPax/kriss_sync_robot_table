@@ -17,7 +17,7 @@ class TaskManagerViewModel(QObject):
     # View에게 상태를 알리는 시그널
     sequence_data_loaded_complete = pyqtSignal(dict)    # 파일 읽기 성공
     sequence_data_loaded_failed = pyqtSignal(str)       # 파일 읽기 실패
-    device_busy_status = pyqtSignal(dict)               # 로봇과 턴테이블의 busy 상태
+    busy_state_changed = pyqtSignal(dict)               # 로봇과 턴테이블의 busy 상태
     runtime_updated = pyqtSignal(str)                   # 런타임 시간 업데이트
 
 
@@ -104,8 +104,8 @@ class TaskManagerViewModel(QObject):
 
     def _monitoring_loop(self):
         """
-        0.1초마다 실행됨
         서비스에게 '바쁘냐'고 물어보고 그 결과를 UI로 방송
+            로봇이 움직이는 동안 START나 LOAD 버튼을 또 누르지 못하게 막기 위함
         """
         # 상태 확인
         is_busy = self._plc_service.is_running
@@ -120,7 +120,7 @@ class TaskManagerViewModel(QObject):
 
         # 방송
         # TaskManagerWidget.update_data와 연결
-        self.device_busy_status.emit(status_data)
+        self.busy_state_changed.emit(status_data)
 
     def _reset_runtime_timer(self):
         self._elapsed_seconds = 0
