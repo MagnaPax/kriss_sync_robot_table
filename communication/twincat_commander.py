@@ -7,17 +7,17 @@ TwinCAT Commander (Model Layer)
         TwinCAT 에 연결된 기기(FANUC 로봇, 턴테이블) 제어
 """
 import time
-import pyads
-from PyQt6.QtCore import QThread
+from PyQt6.QtCore import QThread, QObject
 from abc import ABC, abstractmethod
-from typing import Tuple, Optional, Union, TYPE_CHECKING, Callable, List, Any
+from typing import TYPE_CHECKING, List, Any
 
 from core.event_bus import EVENT_BUS
 from communication.fanuc_adapter import FanucAdapter
-from communication.twincat_connector import TwinCATConnector
 from communication.servo_adapter import ServoAdapter
+from communication.twincat_connector import TwinCATConnector
 from models.fanuc_pose_model import FANUCPose
-from models.servo_pose_model import ServoPose
+from models.servo_pose_model import ServoPose, ServoPoseModel
+from config.data_formats import TaskStatus, SERVO_SCHEMA
 
 
 
@@ -31,9 +31,9 @@ if TYPE_CHECKING:
 # 1. 추상 실행기 (Base Executor)
 # =========================================================
 class BaseExecutor(ABC):
-    def __init__(self, robot: FanucAdapter, turntable: ServoAdapter):
+    def __init__(self, robot: FanucAdapter, servo: ServoAdapter):
         self.robot = robot
-        self.table = turntable
+        self.servo = servo
 
     @abstractmethod
     def can_execute(self, sample_data: dict) -> bool:
@@ -112,7 +112,7 @@ class FanucOnlyExecutor(BaseExecutor):
                 )
                 # 현재 로봇 위치 방송
                 EVENT_BUS.control.robot_current_pose.emit(target_pose)
-                EVENT_BUS.log.message(f"\n현재 로봇 위치: {target_pose}\n", "DEBUG")
+                EVENT_BUS.log.message.emit(f"\n현재 로봇 위치: {target_pose}\n", "DEBUG")
 
 
                 # --- 증분 이동(Incremental/Relative Move) 제어 --- #
@@ -165,6 +165,106 @@ class FanucOnlyExecutor(BaseExecutor):
             return False, f"실행 중 에러 발생: {e}"
 
 
+class ServoOnlyExecutor(BaseExecutor):
+    """
+    [서보 모터 전용 실행기]
+    로봇 없이 Panasonic 서보 모터 3축(툴 2개 + 턴테이블 1개)만 단독 제어
+    """
+
+    def can_execute(self, sample_data: dict) -> bool:
+        # 서보 제어와 관련된 키들이 하나라도 있는지 확인
+        # (툴 공전, 툴 자전, 턴테이블 중 하나만 있어도 서보 제어임)
+        servo_keys = {
+            'turntable_deg', 
+            'tool_revolution_rpm', 
+            'tool_rotation_rpm'
+        }
+        
+        # 키가 하나라도 겹치면 True
+        return not servo_keys.isdisjoint(sample_data.keys())
+
+    def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
+        """
+        [두뇌] 시퀀스 데이터를 순차적으로 실행
+        Returns: (성공여부, 결과메시지)
+        """
+        total_steps = len(sequence_data)
+        EVENT_BUS.log.message.emit(f"서보 시퀀스 시작 (총 {total_steps}건)", "INFO")
+
+        try:
+            # 1. 초기화 (Setup) - 전원 ON
+            for axis_idx in [1, 2, 3]:
+                self.servo.set_servo_state(axis_idx, True)
+
+            # 2. 실행 루프 (Loop)
+            for step_idx, row in enumerate(sequence_data, start=1):
+
+                # (A) [수정] Qt 스레드 중단 요청 확인
+                # self._stop_requested 대신 Qt 네이티브 기능 사용
+                if (thread := QThread.currentThread()) and thread.isInterruptionRequested():
+                    self.servo.emergency_stop_all()
+                    return False, "사용자에 의해 작업이 중단되었습니다."
+
+                # (B) UI 진행률 업데이트
+                EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSING)
+
+                # (C) 명령 생성 및 전송
+                # [Axis 1] Tool 공전
+                pose1 = ServoPoseModel.create_for_axis(row, 'tool_revolution_rpm')
+                if pose1.velocity != 0: 
+                    self.servo.move_velocity(1, pose1.velocity)
+
+                # [Axis 2] Tool 자전
+                pose2 = ServoPoseModel.create_for_axis(row, 'tool_rotation_rpm')
+                if pose2.velocity != 0:
+                    self.servo.move_velocity(2, pose2.velocity)
+
+                # [Axis 3] 턴테이블
+                pose3 = ServoPoseModel.create_for_axis(row, 'turntable_deg')
+                self.servo.move_absolute(3, pose3.angle, pose3.velocity)
+
+                # (D) 대기 (Stop-and-Go)
+                if not self._wait_for_turntable_completion(3):
+                    self.servo.emergency_stop_all()
+                    return False, "작업 중 중단 요청됨"
+
+                # (E) 스텝 완료
+                EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSED)
+                time.sleep(0.05) 
+
+            return True, "모든 서보 시퀀스 작업이 완료되었습니다."
+
+        except Exception as e:
+            self.servo.emergency_stop_all()
+            EVENT_BUS.log.message.emit(f"서보 실행 중 오류: {e}", "ERROR")
+            return False, f"오류 발생: {str(e)}"
+
+        finally:
+            # 3. 종료 처리 (Teardown)
+            self.servo.emergency_stop_all()
+            for axis_idx in [1, 2, 3]:
+                self.servo.set_servo_state(axis_idx, False)
+
+
+    def _wait_for_turntable_completion(self, axis_idx: int) -> bool:
+        """턴테이블 이동 완료 대기 (Busy Check)"""
+        timeout = time.time() + 2.0
+        
+        # 1. Busy 뜰 때까지 대기
+        while not self.servo.is_busy(axis_idx):
+            # [수정] 중단 요청 확인
+            if (thread := QThread.currentThread()) and thread.isInterruptionRequested(): return False
+            if time.time() > timeout: break 
+            time.sleep(0.05)
+
+        # 2. Busy 꺼질 때까지 대기
+        while self.servo.is_busy(axis_idx):
+            # [수정] 중단 요청 확인
+            if (thread := QThread.currentThread()) and thread.isInterruptionRequested(): return False
+            time.sleep(0.05)
+            
+        return True
+
 class IntegratedExecutor(BaseExecutor):
     """
     CSV 파일 형식 (로봇 + 턴테이블 통합 제어)
@@ -216,7 +316,7 @@ class IntegratedExecutor(BaseExecutor):
         # TODO: 이 안의 코드 실제 코드에서도 살려야 된다
         # 실제 운영 코드 예시 (IntegratedExecutor)
 
-                if QThread.currentThread().isInterruptionRequested():
+                if (thread := QThread.currentThread()) and thread.isInterruptionRequested():
                     EVENT_BUS.log.message.emit("사용자 요청에 의해 작업 중단", "WARNING")
                     
                     try:
@@ -234,7 +334,7 @@ class IntegratedExecutor(BaseExecutor):
         """
         # 1. 시작 신호
         self.robot.start_sequence_plc_signals()
-        # self.table.start_signal()
+        # self.servo.start_signal()
 
         # 2. 통합 루프
         for row in sequence_data:
@@ -294,7 +394,7 @@ class TurntableOnlyExecutor(BaseExecutor):
         # 처리할 전체 시퀀스 데이터 방송
         EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
 
-        adapter = self.table # ServoAdapter
+        adapter = self.servo # ServoAdapter
         num_sequences = len(sequence_data)
 
         try:
@@ -373,6 +473,7 @@ class TwinCATCommander:
         # 등록된 실행기들 (우선순위 순서대로)
         self.executors: List[BaseExecutor] = [
             LegacyIntegratedExecutor(self.robot, self.turntable),   # 특정 키값이 더 많은 것을 먼저 검사
+            ServoOnlyExecutor(self.robot, self.turntable),
             IntegratedExecutor(self.robot, self.turntable),
             FanucOnlyExecutor(self.robot, self.turntable),  # x,y,z 중복된 키값이 많은 조건을 마지막에
             TurntableOnlyExecutor(self.robot, self.turntable)
