@@ -78,91 +78,77 @@ class ServoAdapter:
         plc.write_by_name(ServoSignal.MOVE_VEL.path(axis_index), False, pyads.PLCTYPE_BOOL)
         plc.write_by_name(ServoSignal.MOVE_ABS.path(axis_index), False, pyads.PLCTYPE_BOOL)
 
+
     # ==========================================================================
-    # 2. 데이터 전송 (이동 명령)
+    # 2. 상태 모니터링 (Read Feedback)
     # ==========================================================================
-    def move_to(self, angle: float, velocity: float):
+    def is_busy(self, axis_index: int) -> bool:
         """
-        [이동 명령 전송]
-        목표 각도와 속도를 입력하고 이동 신호를 켠다
+        [상태 확인] 해당 축이 현재 움직이고 있는가?
+        PLC: MAIN.Busy{i}
+        """
+        try:
+            return bool(self._plc.read_by_name(ServoSignal.BUSY.path(axis_index), pyads.PLCTYPE_BOOL))
+        except Exception:
+            return False
+
+
+    def read_current_pose(self, axis_index: int) -> dict:
+        """
+        [피드백] 현재 위치와 속도를 읽어온다.
+        PLC: MAIN.Act_pos{i}, MAIN.Act_vel{i}
+        """
+        try:
+            curr_pos = self._plc.read_by_name(ServoSignal.ACT_POS.path(axis_index), pyads.PLCTYPE_LREAL)
+            curr_vel = self._plc.read_by_name(ServoSignal.ACT_VEL.path(axis_index), pyads.PLCTYPE_LREAL)
+            return {'position': curr_pos, 'velocity': curr_vel}
+        except Exception:
+            return {'position': 0.0, 'velocity': 0.0}
+        
+
+    # ==========================================================================
+    # 3. 이동 명령 (Write Command)
+    # ==========================================================================
+
+    def move_velocity(self, axis_index: int, target_velocity: float):
+        """
+        [속도 제어 이동] Tool 공전/자전용 (Axis 1, 2)
+        특징: 목표 위치 없이 '속도'만 주고 계속 회전함 (bMoveVel)
         
         Args:
-            angle (float): 목표 각도 (deg)
-            velocity (float): 회전 속도 (deg/s)
+            axis_index: 축 번호
+            target_velocity: 목표 속도 (deg/s) - 이미 스케일링 된 값
+        """
+        plc = self._plc
+        
+        # 1. 속도 입력 (MAIN.vel{i})
+        plc.write_by_name(ServoSignal.TARGET_VEL.path(axis_index), target_velocity, pyads.PLCTYPE_LREAL)
+        
+        # 2. 속도 제어 트리거 ON (MAIN.bMoveVel{i})
+        #    Test1.py: plc.write_by_name('MAIN.bMoveVel1', True, ...)
+        plc.write_by_name(ServoSignal.MOVE_VEL.path(axis_index), True, pyads.PLCTYPE_BOOL)
+
+
+    def move_absolute(self, axis_index: int, target_pos: float, target_velocity: float):
+        """
+        [위치 제어 이동] 턴테이블용 (Axis 3)
+        특징: 목표 '위치'로 이동 후 멈춤 (bMoveAbs)
+        
+        Args:
+            axis_index: 축 번호
+            target_pos: 목표 각도 (deg)
+            target_velocity: 이동 속도 (deg/s)
         """
         plc = self._plc
 
-        # 1. 데이터 쓰기 (LREAL)
-        # MAIN.position = angle
-        plc.write_by_name(ServoPoseKey.ANGLE.plc_address, angle, pyads.PLCTYPE_LREAL)
+        # 1. 목표 위치 입력 (MAIN.pos{i})
+        plc.write_by_name(ServoSignal.TARGET_POS.path(axis_index), target_pos, pyads.PLCTYPE_LREAL)
+
+        # 2. 이동 속도 입력 (MAIN.vel{i})
+        plc.write_by_name(ServoSignal.TARGET_VEL.path(axis_index), target_velocity, pyads.PLCTYPE_LREAL)
         
-        # MAIN.velocity = velocity
-        plc.write_by_name(ServoPoseKey.VELOCITY.plc_address, velocity, pyads.PLCTYPE_LREAL)
-        
-        # 2. 이동 트리거 (Rising Edge 발생 필요)
-        # 일단 False로 확실히 내렸다가 True로 올려야 PLC가 변화를 감지함
-        # (Executor에서 제어할 수도 있지만, 편의상 여기서 Pulse를 만듦)
-        plc.write_by_name(ServoSignal.MOVE_START.path, False, pyads.PLCTYPE_BOOL)
-        time.sleep(0.01) 
-        plc.write_by_name(ServoSignal.MOVE_START.path, True, pyads.PLCTYPE_BOOL)
-
-    def reset_trigger(self):
-        """
-        [트리거 리셋]
-        이동 완료 후 신호를 False로 되돌린다
-        다음 이동 시 Rising Edge(False->True)를 만들기 위함
-        """
-        self._plc.write_by_name(ServoSignal.MOVE_START.path, False, pyads.PLCTYPE_BOOL)
-
-
-
-    # ==========================================================================
-    # 3. 상태 읽기 (피드백 듣기)
-    # ==========================================================================
-
-    def read_busy_signal(self) -> bool:
-        """
-        [Busy 신호 확인]
-        MAIN.bMoveAbsBusy 확인
-
-        Returns:
-            True: 이동 중
-            False: 대기 중 (이동 완료)
-        """
-        return bool(self._plc.read_by_name(ServoSignal.BUSY.path, pyads.PLCTYPE_BOOL))
-
-    def read_current_angle(self) -> float:
-        """
-        [현재 위치 확인]
-        MAIN.CurrentPos 읽기
-        """
-        return self._plc.read_by_name(ServoSignal.CURRENT_POS.path, pyads.PLCTYPE_LREAL)
-    
-
-
-
-
-
-    # ==========================================================================
-    # TODO: 상태 읽기 (피드백 듣기)
-    # ==========================================================================
-
-    def read_current_status(self) -> ServoPose:
-        """
-        [피드백] 턴테이블의 현재 각도와 속도를 한 번에 읽어온다.
-        """
-        try:
-            # 1. 현재 각도 (Position)
-            # 변수명: MAIN.Turntable.CurrentPos (이미 정의된 ServoSignal 사용 권장)
-            curr_pos = self._plc.read_by_name(ServoSignal.CURRENT_POS.path, pyads.PLCTYPE_LREAL)
-            
-            # 2. 현재 속도 (Velocity)
-            # 변수명: MAIN.Turntable.CurrentVel (새로 정의하거나 문자열 직접 사용)
-            # 예시: "MAIN.fActVelocity" 혹은 "MAIN.stAxisStatus.fActVelocity"
-            curr_vel_path = "MAIN.Turntable.CurrentVel" 
-            curr_vel = self._plc.read_by_name(curr_vel_path, pyads.PLCTYPE_LREAL)
-            
-            return ServoPose(angle=curr_pos, velocity=curr_vel)
-            
-        except Exception:
-            return ServoPose(angle=0.0, velocity=0.0)
+        # 3. 절대 이동 트리거 (Pulse)
+        #    Rising Edge(False -> True)를 만들어야 확실하게 동작함
+        plc.write_by_name(ServoSignal.MOVE_ABS.path(axis_index), False, pyads.PLCTYPE_BOOL)
+        time.sleep(0.01)
+        plc.write_by_name(ServoSignal.MOVE_ABS.path(axis_index), True, pyads.PLCTYPE_BOOL)
