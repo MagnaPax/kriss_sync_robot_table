@@ -49,7 +49,7 @@ class PLCService(QObject):
         # --- 실시간 현재위치 모니터링 타이머 --- #
         self._monitor_timer = QTimer()
         self._monitor_timer.setInterval(100)  # 0.1초마다 실행 (10Hz)
-        self._monitor_timer.timeout.connect(self._monitor_current_poses)
+        self._monitor_timer.timeout.connect(self._on_monitor_tick)
 
 
         # --- 앱 종료 시 연결 끊기 --- #
@@ -286,7 +286,7 @@ class PLCService(QObject):
         if self._thread is not None and self._thread.isRunning():
             return True
 
-        # 물리 장비(Gadgets)들이 움직이고 있는가?
+        # Gadgets(로봇&턴테이블)이 움직이고 있는가?
         return self.commander.are_gagets_busy()
 
 
@@ -325,24 +325,30 @@ class PLCService(QObject):
     # ==========================================================
     # 실시간 데이터 수집 루프
     # ==========================================================
-    def _monitor_current_poses(self):
+    def _on_monitor_tick(self):
         """
         0.1초마다 실행되어 로봇/턴테이블의 현재 상태를 읽고 UI에 방송
         """
         if not self.connector.is_connected: return
 
         try:
-            # 1. FANUC World 현재 위치 읽기 & 방송
+            # --- 1. 위치 방송 --- #
+            # FANUC World 현재 위치 읽기 & 방송
             world_pose = self.commander.robot.read_current_world_pose()
             EVENT_BUS.control.robot_current_pose.emit(world_pose)
 
-            # 2. FANUC 이동해야 될 목표 위치 확인 & 방송 <- 개발용
+            # FANUC 이동해야 될 목표 위치 확인 & 방송 <- 개발용
             target_pose = self.commander.robot.read_target_world_pose()
             # EVENT_BUS.control.tool_current_pose.emit(target_pose)
 
-            # TODO: 3. 턴테이블 상태 읽기 & 방송
+            # TODO: 턴테이블 상태 읽기 & 방송
             # table_status = self.commander.turntable.read_current_status()
             # EVENT_BUS.control.turntable_current_pose.emit(table_status)
+
+            # --- 2. 바쁨 상태 방송 --- #
+            is_busy = self.is_running
+            EVENT_BUS.data.device_busy_status.emit({'is_busy': is_busy})
+
 
         except Exception:
             # 모니터링 중 에러는 로그를 남기지 않음 (로그 폭주 방지)
