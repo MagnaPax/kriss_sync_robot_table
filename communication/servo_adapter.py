@@ -41,48 +41,42 @@ class ServoAdapter:
 
 
     # ==========================================================================
-    # 1. 제어 신호 (Servo ON/OFF, 초기화)
+    # 1. 기본 설정 및 안전 (Setup & Safety)
     # ==========================================================================
-    def set_initial_signals(self):
+    def set_servo_state(self, axis_index: int, enable: bool):
         """
-        [시퀀스 시작 전 준비]
-        서보 모터 전원을 켜고, 이동 트리거를 초기화한다
+        [전원 제어] 특정 축의 서보 모터 전원(Servo ON) 및 읽기 기능을 켠다/끈다.
+        
+        Args:
+            axis_index (int): 축 번호 (1, 2, 3)
+            enable (bool): True(ON) / False(OFF)
         """
         plc = self._plc
-
-        # 1. 서보 온 (Servo ON) - 전원 공급
-        # MAIN.bServoOn = True
-        plc.write_by_name(ServoSignal.SERVO_ON.path, True, pyads.PLCTYPE_BOOL)
-
-        # 2. 위치 읽기 활성화 (모니터링용)
-        # MAIN.bReadPosOn = True
-        plc.write_by_name(ServoSignal.READ_POS_ON.path, True, pyads.PLCTYPE_BOOL)
         
-        # 3. 이동 신호 초기화 (Rising Edge 준비)
-        # 이미 켜져 있을 수 있으므로 False로 내려둠
-        # MAIN.bMoveAbsOn = False
-        plc.write_by_name(ServoSignal.MOVE_START.path, False, pyads.PLCTYPE_BOOL)
+        # 1. 서보 전원 (bServoOn)
+        plc.write_by_name(ServoSignal.SERVO_ON.path(axis_index), enable, pyads.PLCTYPE_BOOL)
         
-        # 신호 안정화 대기
+        # 2. 피드백 읽기 활성화 (bReadPos, bReadVel)
+        #    원본 1219_Test.py의 Servo_Read_On 함수 로직 이식
+        plc.write_by_name(ServoSignal.READ_POS_ON.path(axis_index), enable, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(ServoSignal.READ_VEL_ON.path(axis_index), enable, pyads.PLCTYPE_BOOL)
+
+        # 신호 안정화 대기 (하드웨어 특성 고려)
+        time.sleep(0.05)
+
+        # 3. 짧은 대기 후 정지 신호 해제 (Pulse 방식인 경우 대비)
+        #    Test 파일에서는 s키 누르면 0.5초간 Stop을 주는 로직이 있었음
         time.sleep(0.1)
+        plc.write_by_name(ServoSignal.STOP.path(axis_index), False, pyads.PLCTYPE_BOOL)
 
-    def set_finish_signals(self):
-        """[시퀀스 종료] 모터 전원을 끄거나 대기 상태로 전환"""
+
+    def clear_trigger(self, axis_index: int):
+        """
+        [트리거 초기화] 이동 신호(Rising Edge용)를 False로 내린다.
+        """
         plc = self._plc
-        
-        # 이동 신호 끄기
-        plc.write_by_name(ServoSignal.MOVE_START.path, False, pyads.PLCTYPE_BOOL)
-        
-        # 서보 오프 (안전을 위해 전원 차단)
-        # 필요에 따라 유지할 수도 있지만 안전상 끄는 것을 기본으로 함
-        plc.write_by_name(ServoSignal.SERVO_ON.path, False, pyads.PLCTYPE_BOOL)
-
-    def set_emergency_stop(self):
-        """[비상 정지] 즉시 서보를 끈다"""
-        # 턴테이블은 별도의 Stop 신호가 없으므로 Servo OFF로 대응
-        self.set_finish_signals()
-
-
+        plc.write_by_name(ServoSignal.MOVE_VEL.path(axis_index), False, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(ServoSignal.MOVE_ABS.path(axis_index), False, pyads.PLCTYPE_BOOL)
 
     # ==========================================================================
     # 2. 데이터 전송 (이동 명령)
