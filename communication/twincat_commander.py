@@ -136,12 +136,12 @@ class FanucOnlyExecutor(BaseExecutor):
 
                 # --- 핸드셰이킹 (Busy Check) --- #
                 while True:
-                    # 로봇이 움직이는 중인지 확인
-                    is_busy = adapter.read_busy_signal()
+                    # 로봇이 작업을 잘 마쳤는지 확인
+                    is_complete = adapter.read_complete_signal()
 
-                    # 로봇이 움직이는 동안(Busy) 미리 다음 명령을 전송한다
+                    # 로봇이 움직이는 동안(Digital Output 45번 핀) 미리 다음 명령을 전송한다
                     #   -> 멈추지 않는 연속적인 동작을 위해
-                    if (not init_done) or is_busy:
+                    if (not init_done) or is_complete:
                         adapter.send_data_packet(feed_rate, deltas)
 
                         init_done = True    # 첫 번째 명령 실행했다고 체크
@@ -326,7 +326,6 @@ class TurntableOnlyExecutor(BaseExecutor):
                     is_busy = adapter.read_busy_signal()
                     
                     # 턴테이블은 로봇과 달리 '멈추면 다음 명령(Stop-and-Go)' 방식이 더 안전할 수 있음
-                    # 하지만 연속 동작을 원한다면 로봇과 동일하게 (not init_done or is_busy) 사용
                     if not is_busy:
                         # 1. 이동 명령 전송 (Rising Edge 발생)
                         adapter.move_to(angle_val, velocity_val)
