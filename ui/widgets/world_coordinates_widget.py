@@ -53,7 +53,7 @@ class WorldCoordinatesWidget(BaseWidget):
         """UI 구성"""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
-        self.setObjectName("world_coordinates_widget")  # 스타일시트 적용 위한 QSS ID 부여
+        self.setObjectName("world_coordinates_widget")  # 전체 위젯 ID
 
         # 그룹박스
         group_box = QGroupBox("FANUC World Coordinates")
@@ -89,14 +89,16 @@ class WorldCoordinatesWidget(BaseWidget):
 
         for row_idx, name, val_lbl, unit_text in rows:
             # 1열: 축 이름
-            grid_layout.addWidget(QLabel(f"{name} :"), row_idx, 0)
+            name_lbl = QLabel(f"{name} :")
+            name_lbl.setObjectName("wc_name") # QSS ID
+            grid_layout.addWidget(name_lbl, row_idx, 0)
             
             # 2열: 값 (숫자)
             grid_layout.addWidget(val_lbl, row_idx, 1)
             
             # 3열: 단위
             unit_lbl = QLabel(unit_text)
-            unit_lbl.setStyleSheet("color: gray; font-size: 11px;") # 단위는 조금 작고 연하게
+            unit_lbl.setObjectName("wc_unit") # QSS ID
             grid_layout.addWidget(unit_lbl, row_idx, 2)
 
         # 2열(숫자 부분)이 남는 공간을 차지하도록 설정
@@ -124,7 +126,6 @@ class WorldCoordinatesWidget(BaseWidget):
 
 
 
-
 # ==========================================================
 # Smoke Test
 """
@@ -137,47 +138,69 @@ if __name__ == "__main__":
     import random
     from PyQt6.QtWidgets import QApplication
     from PyQt6.QtCore import QTimer
-
-    # [1] 설정 및 유틸리티 임포트
-    from config.paths import STYLESHEET_PATH
-    from styles.style_manager import load_and_apply_stylesheet
-    
-    # [2] 모델 및 이벤트 버스 임포트
-    from models.fanuc_pose_model import FANUCPose
     from core.event_bus import EVENT_BUS
 
-    # [3] DLL 로드 (사용자 요청)
+
+    # [1] 설정 및 유틸리티
+    from config.paths import STYLESHEET_PATH
+    from styles.style_manager import load_and_apply_stylesheet
     from utils.dll_loader import load_pyads_dll
+
+    # [중요] DLL 로드를 서비스 임포트보다 먼저 수행해야 함 (pyads 의존성 때문)
     try:
         load_pyads_dll()
         print("✅ DLL 로드 완료")
     except Exception as e:
         print(f"⚠️ DLL 로드 실패: {e}")
 
+    # [2] MVVM 아키텍처 요소 임포트
+    from core.event_bus import EVENT_BUS
+    from models.fanuc_pose_model import FANUCPose
+    from services.plc_service import PLCService
+    from view_models.world_coordinates_viewmodel import WorldCoordinatesViewModel
+
     app = QApplication(sys.argv)
 
-    # [4] 스타일시트 적용
+    # 스타일시트 적용
     try:
         load_and_apply_stylesheet(app, STYLESHEET_PATH)
         print("✅ 스타일시트 적용 완료")
     except Exception as e:
         print(f"⚠️ 스타일시트 로드 실패: {e}")
 
-    # [5] 위젯 생성 및 표시
+    # ----------------------------------------------------------------
+    # [3] 아키텍처 조립 (Service -> VM -> View)
+    # ----------------------------------------------------------------
+    
+    # 1. 서비스 생성
+    service = PLCService()
+    
+    # 2. 뷰모델 생성 (내부적으로 EventBus를 구독함)
+    vm = WorldCoordinatesViewModel()
+
+    # 3. 뷰 생성 및 뷰모델 주입
     window = WorldCoordinatesWidget()
-    window.setWindowTitle("World Coordinates (Smoke Test)")
-    window.resize(300, 250)
+    window.set_view_model(vm)
+    
+    window.setWindowTitle("World Coordinates (Architecture Test)")
+    window.resize(350, 250)
     window.show()
 
-    # [6] 데이터 시뮬레이션 (PLCService 역할 흉내내기)
-    # 실제 로봇이 없어도 위젯이 작동하는지 확인하기 위해 
-    # 0.1초마다 랜덤 좌표를 EventBus로 방송합니다.
-    sim_timer = QTimer()
-    sim_timer.setInterval(100)  # 100ms (10Hz)
+    # ----------------------------------------------------------------
+    # [4] 데이터 시뮬레이션 (Mocking)
+    # ----------------------------------------------------------------
+    # 실제 PLC가 없으므로, 서비스가 데이터를 읽어오는 부분만
+    # '랜덤 데이터 생성 함수'로 바꿔치기(Monkey Patch) 합니다.
+    
+    print("🛠️ 모의(Mock) 데이터 환경 구성 중...")
 
-    def simulate_robot_data():
-        # 테스트용 랜덤 좌표 생성
-        fake_pose = FANUCPose(
+    # (A) 강제로 연결된 상태로 위장 (모니터링 루프가 돌기 위해)
+    # TwinCATConnector의 내부 핸들을 가짜 값(1)으로 설정
+    service.connector._handle = 1  # type: ignore
+
+    # (B) 로봇 데이터를 읽어오는 메서드를 '랜덤 함수'로 교체
+    def mock_read_pose():
+        return FANUCPose(
             x=random.uniform(0, 500),
             y=random.uniform(-200, 200),
             z=random.uniform(100, 300),
@@ -185,13 +208,24 @@ if __name__ == "__main__":
             p=random.uniform(-90, 90),
             r=random.uniform(-180, 180)
         )
-        
-        # EventBus로 발송 -> 위젯이 update_data로 수신
-        EVENT_BUS.control.robot_current_pose.emit(fake_pose)
+    
+    # 메서드 덮어쓰기 (Hijacking)
+    service.commander.robot.read_current_world_pose = mock_read_pose
 
-    sim_timer.timeout.connect(simulate_robot_data)
+    # ----------------------------------------------------------------
+    # [5] 타이머 실행 (가상 데이터 직접 방송)
+    # ----------------------------------------------------------------
+    # PLCService를 거치지 않고, 타이머가 직접 mock 데이터를 생성하여
+    # 전역 이벤트 버스로 방송합니다.
+    
+    sim_timer = QTimer()
+    sim_timer.setInterval(100)  # 100ms
+    
+    # [핵심] 타이머마다 mock_read_pose()를 호출하고 그 결과를 직접 emit
+    sim_timer.timeout.connect(lambda: EVENT_BUS.control.robot_current_pose.emit(mock_read_pose()))
+    
     sim_timer.start()
 
-    print("🚀 시뮬레이션 시작: 랜덤 좌표 데이터 전송 중...")
+    print("🚀 시뮬레이션 시작: 타이머가 직접 전역 시그널을 방송합니다.")
 
     sys.exit(app.exec())
