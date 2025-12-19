@@ -1,8 +1,9 @@
 # ui/widgets/world_coordinates_widget.py
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QVBoxLayout, QGroupBox, QGridLayout, QLabel
 from typing import TYPE_CHECKING, Optional
-from PyQt6.QtWidgets import QVBoxLayout, QGroupBox, QFormLayout, QLabel
-from core.event_bus import EVENT_BUS
 from ui.widgets.base_widget import BaseWidget
+from core.event_bus import EVENT_BUS
 
 if TYPE_CHECKING:
     from view_models.world_coordinates_viewmodel import WorldCoordinatesViewModel
@@ -49,12 +50,17 @@ class WorldCoordinatesWidget(BaseWidget):
         """UI 구성"""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
+        self.setObjectName("world_coordinates_widget")  # 스타일시트 적용 위한 ID
 
         # 그룹박스
-        group_box = QGroupBox("Robot World Pose (Feedback)")
-        form_layout = QFormLayout()
+        group_box = QGroupBox("FANUC World Coordinates")
+
+        # 3열 구조(이름 | 값 | 단위)를 위해 QGridLayout 사용
+        grid_layout = QGridLayout()
+        grid_layout.setHorizontalSpacing(10) # 열 사이 간격
+        grid_layout.setVerticalSpacing(5)    # 행 사이 간격
         
-        # 라벨 생성 및 초기화
+        # 레이블 생성 및 초기화
         self.lbl_x = QLabel("0.000")
         self.lbl_y = QLabel("0.000")
         self.lbl_z = QLabel("0.000")
@@ -62,19 +68,38 @@ class WorldCoordinatesWidget(BaseWidget):
         self.lbl_p = QLabel("0.000")
         self.lbl_r = QLabel("0.000")
 
-        # 폼 레이아웃에 추가 (라벨 - 값)
-        # 스타일: 숫자는 굵게 표시
+        # 값 레이블 스타일 및 정렬 (우측 정렬해야 숫자 자리수가 맞아 보임)
         for lbl in [self.lbl_x, self.lbl_y, self.lbl_z, self.lbl_w, self.lbl_p, self.lbl_r]:
-            lbl.setStyleSheet("font-weight: bold; color: #333;")
+            lbl.setStyleSheet("font-weight: bold; color: #333; font-family: Consolas, Monospace;") 
+            lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-        form_layout.addRow("X (mm):", self.lbl_x)
-        form_layout.addRow("Y (mm):", self.lbl_y)
-        form_layout.addRow("Z (mm):", self.lbl_z)
-        form_layout.addRow("W (deg):", self.lbl_w)
-        form_layout.addRow("P (deg):", self.lbl_p)
-        form_layout.addRow("R (deg):", self.lbl_r)
+        # 반복문으로 3단 구성 (이름 | 값 | 단위) 배치
+        # 데이터 정의: (행 번호, 이름, 값 위젯, 단위 텍스트)
+        rows = [
+            (0, "X", self.lbl_x, "mm"),
+            (1, "Y", self.lbl_y, "mm"),
+            (2, "Z", self.lbl_z, "mm"),
+            (3, "W", self.lbl_w, "deg"),
+            (4, "P", self.lbl_p, "deg"),
+            (5, "R", self.lbl_r, "deg"),
+        ]
 
-        group_box.setLayout(form_layout)
+        for row_idx, name, val_lbl, unit_text in rows:
+            # 1열: 축 이름
+            grid_layout.addWidget(QLabel(f"{name} :"), row_idx, 0)
+            
+            # 2열: 값 (숫자)
+            grid_layout.addWidget(val_lbl, row_idx, 1)
+            
+            # 3열: 단위 (새로운 라벨 생성)
+            unit_lbl = QLabel(unit_text)
+            unit_lbl.setStyleSheet("color: gray; font-size: 11px;") # 단위는 조금 작고 연하게
+            grid_layout.addWidget(unit_lbl, row_idx, 2)
+
+        # 2열(숫자 부분)이 남는 공간을 차지하도록 설정
+        grid_layout.setColumnStretch(1, 1)
+
+        group_box.setLayout(grid_layout)
         main_layout.addWidget(group_box)
 
 
