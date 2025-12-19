@@ -237,7 +237,7 @@ class ControlSignals(QObject):
 
     turntable_current_pose = pyqtSignal(object)
     """
-    턴테이블 현재 각도/속도 정보 (TurntablePose)
+    턴테이블 현재 각도/속도 정보 (ServoPose)
     
     Args:
         - .angle (float): 현재 각도

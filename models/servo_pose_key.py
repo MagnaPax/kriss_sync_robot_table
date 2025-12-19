@@ -15,7 +15,7 @@ class ServoPoseKey(str, Enum):
     @property
     def model_key(self) -> str:
         """
-        데이터 모델(TurntablePose)이나 딕셔너리에서 사용하는 키 반환
+        데이터 모델(ServoPose)이나 딕셔너리에서 사용하는 키 반환
         """
         if self == ServoPoseKey.ANGLE:
             return "angle"

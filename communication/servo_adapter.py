@@ -3,8 +3,8 @@ import time
 import pyads
 from typing import TYPE_CHECKING, Union
 from communication.twincat_connector import TwinCATConnector
-from models.turntable_key import ServoPoseKey, TurntableSignal
-from models.turntable_pose_model import TurntablePose
+from models.servo_pose_key import ServoPoseKey, TurntableSignal
+from models.servo_pose_model import ServoPose
 
 
 # 타입 힌트용
@@ -153,7 +153,7 @@ class ServoAdapter:
     # TODO: 상태 읽기 (피드백 듣기)
     # ==========================================================================
 
-    def read_current_status(self) -> TurntablePose:
+    def read_current_status(self) -> ServoPose:
         """
         [피드백] 턴테이블의 현재 각도와 속도를 한 번에 읽어온다.
         """
@@ -168,7 +168,7 @@ class ServoAdapter:
             curr_vel_path = "MAIN.Turntable.CurrentVel" 
             curr_vel = self._plc.read_by_name(curr_vel_path, pyads.PLCTYPE_LREAL)
             
-            return TurntablePose(angle=curr_pos, velocity=curr_vel)
+            return ServoPose(angle=curr_pos, velocity=curr_vel)
             
         except Exception:
-            return TurntablePose(angle=0.0, velocity=0.0)
+            return ServoPose(angle=0.0, velocity=0.0)

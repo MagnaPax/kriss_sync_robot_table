@@ -1,4 +1,4 @@
-# models/turntable_pose_model.py
+# models/servo_pose_model.py
 from __future__ import annotations
 from dataclasses import dataclass, asdict
 from typing import Dict, Any
@@ -6,7 +6,7 @@ from typing import Dict, Any
 
 
 @dataclass(frozen=True, slots=True)
-class TurntablePose:
+class ServoPose:
     """
     턴테이블 제어 데이터 모델
 
@@ -30,9 +30,9 @@ class TurntablePoseModel:
     """
 
     @staticmethod
-    def create_from_data(data: Dict[str, Any]) -> TurntablePose:
+    def create_from_data(data: Dict[str, Any]) -> ServoPose:
         """
-        데이터 딕셔너리에서 TurntablePose 객체 생성
+        데이터 딕셔너리에서 ServoPose 객체 생성
         
         Args:
             data: {'turntable_deg': 90.0, 'turntable_feed_rate': 20.0, ...}
@@ -47,7 +47,7 @@ class TurntablePoseModel:
         # (CSV_SCHEMA의 'turntable_feed_rate' 대응)
         velocity = data.get('velocity') or data.get('turntable_feed_rate', 10.0)
 
-        return TurntablePose(
+        return ServoPose(
             angle=float(angle),
             velocity=float(velocity)
         )

@@ -17,7 +17,7 @@ from communication.fanuc_adapter import FanucAdapter
 from communication.twincat_connector import TwinCATConnector
 from communication.servo_adapter import ServoAdapter
 from models.fanuc_pose_model import FANUCPose
-from models.turntable_pose_model import TurntablePose
+from models.servo_pose_model import ServoPose
 
 
 
@@ -316,7 +316,7 @@ class TurntableOnlyExecutor(BaseExecutor):
                 velocity_val = float(row.get('velocity') or row.get('turntable_feed_rate', 10.0))
 
                 # 현재 턴테이블 위치 방송
-                target_pose = TurntablePose(angle=angle_val, velocity=velocity_val)
+                target_pose = ServoPose(angle=angle_val, velocity=velocity_val)
                 EVENT_BUS.control.turntable_current_pose.emit(target_pose)
 
 
