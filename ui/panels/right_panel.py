@@ -28,8 +28,9 @@ class RightPanel(QFrame):
         log_robot_movement = QGroupBox("Robot Movement Log")
         log_batch_completion = QGroupBox("Batch Completion Log")
 
-        # MainViewModel 안에 있는 'task_manager_vm'만 꺼내서 전달
-        task_manager.set_view_model(view_model.task_manager_vm)
+        # --- 뷰모델 주입 --- #
+        # MainViewModel에서 뷰모델을 꺼내서 주입
+        task_manager.set_view_model(self.vm.task_manager_vm)
 
         # 제일 밑 로그 2개를 위한 수평 레이아웃
         logs_layout = QHBoxLayout()

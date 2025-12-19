@@ -46,7 +46,11 @@ class TaskManagerWidget(BaseWidget):
         self._bind_events()
 
     def set_view_model(self, view_model: "TaskManagerViewModel"):
-        """외부에서 뷰모델을 꽂아주는 함수(Setter)"""
+        """
+        외부에서 뷰모델을 꽂아주는 함수(Setter)
+            MainViewModel 이 TaskManagerViewModel 소유
+            RightPanel 에서 TaskManagerWidget 에게 주입
+        """
         self.vm = view_model
 
         # 로봇과 턴테이블의 바쁨 상태 연결
