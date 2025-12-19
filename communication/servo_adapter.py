@@ -3,7 +3,7 @@ import time
 import pyads
 from typing import TYPE_CHECKING, Union
 from communication.twincat_connector import TwinCATConnector
-from models.servo_pose_key import ServoPoseKey, TurntableSignal
+from models.servo_pose_key import ServoPoseKey, ServoSignal
 from models.servo_pose_model import ServoPose
 
 
@@ -52,16 +52,16 @@ class ServoAdapter:
 
         # 1. 서보 온 (Servo ON) - 전원 공급
         # MAIN.bServoOn = True
-        plc.write_by_name(TurntableSignal.SERVO_ON.path, True, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(ServoSignal.SERVO_ON.path, True, pyads.PLCTYPE_BOOL)
 
         # 2. 위치 읽기 활성화 (모니터링용)
         # MAIN.bReadPosOn = True
-        plc.write_by_name(TurntableSignal.READ_POS_ON.path, True, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(ServoSignal.READ_POS_ON.path, True, pyads.PLCTYPE_BOOL)
         
         # 3. 이동 신호 초기화 (Rising Edge 준비)
         # 이미 켜져 있을 수 있으므로 False로 내려둠
         # MAIN.bMoveAbsOn = False
-        plc.write_by_name(TurntableSignal.MOVE_START.path, False, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(ServoSignal.MOVE_START.path, False, pyads.PLCTYPE_BOOL)
         
         # 신호 안정화 대기
         time.sleep(0.1)
@@ -71,11 +71,11 @@ class ServoAdapter:
         plc = self._plc
         
         # 이동 신호 끄기
-        plc.write_by_name(TurntableSignal.MOVE_START.path, False, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(ServoSignal.MOVE_START.path, False, pyads.PLCTYPE_BOOL)
         
         # 서보 오프 (안전을 위해 전원 차단)
         # 필요에 따라 유지할 수도 있지만 안전상 끄는 것을 기본으로 함
-        plc.write_by_name(TurntableSignal.SERVO_ON.path, False, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(ServoSignal.SERVO_ON.path, False, pyads.PLCTYPE_BOOL)
 
     def set_emergency_stop(self):
         """[비상 정지] 즉시 서보를 끈다"""
@@ -108,9 +108,9 @@ class ServoAdapter:
         # 2. 이동 트리거 (Rising Edge 발생 필요)
         # 일단 False로 확실히 내렸다가 True로 올려야 PLC가 변화를 감지함
         # (Executor에서 제어할 수도 있지만, 편의상 여기서 Pulse를 만듦)
-        plc.write_by_name(TurntableSignal.MOVE_START.path, False, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(ServoSignal.MOVE_START.path, False, pyads.PLCTYPE_BOOL)
         time.sleep(0.01) 
-        plc.write_by_name(TurntableSignal.MOVE_START.path, True, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(ServoSignal.MOVE_START.path, True, pyads.PLCTYPE_BOOL)
 
     def reset_trigger(self):
         """
@@ -118,7 +118,7 @@ class ServoAdapter:
         이동 완료 후 신호를 False로 되돌린다
         다음 이동 시 Rising Edge(False->True)를 만들기 위함
         """
-        self._plc.write_by_name(TurntableSignal.MOVE_START.path, False, pyads.PLCTYPE_BOOL)
+        self._plc.write_by_name(ServoSignal.MOVE_START.path, False, pyads.PLCTYPE_BOOL)
 
 
 
@@ -135,14 +135,14 @@ class ServoAdapter:
             True: 이동 중
             False: 대기 중 (이동 완료)
         """
-        return bool(self._plc.read_by_name(TurntableSignal.BUSY.path, pyads.PLCTYPE_BOOL))
+        return bool(self._plc.read_by_name(ServoSignal.BUSY.path, pyads.PLCTYPE_BOOL))
 
     def read_current_angle(self) -> float:
         """
         [현재 위치 확인]
         MAIN.CurrentPos 읽기
         """
-        return self._plc.read_by_name(TurntableSignal.CURRENT_POS.path, pyads.PLCTYPE_LREAL)
+        return self._plc.read_by_name(ServoSignal.CURRENT_POS.path, pyads.PLCTYPE_LREAL)
     
 
 
@@ -159,8 +159,8 @@ class ServoAdapter:
         """
         try:
             # 1. 현재 각도 (Position)
-            # 변수명: MAIN.Turntable.CurrentPos (이미 정의된 TurntableSignal 사용 권장)
-            curr_pos = self._plc.read_by_name(TurntableSignal.CURRENT_POS.path, pyads.PLCTYPE_LREAL)
+            # 변수명: MAIN.Turntable.CurrentPos (이미 정의된 ServoSignal 사용 권장)
+            curr_pos = self._plc.read_by_name(ServoSignal.CURRENT_POS.path, pyads.PLCTYPE_LREAL)
             
             # 2. 현재 속도 (Velocity)
             # 변수명: MAIN.Turntable.CurrentVel (새로 정의하거나 문자열 직접 사용)
