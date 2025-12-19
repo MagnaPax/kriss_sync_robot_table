@@ -1,7 +1,7 @@
-# models/turntable_key.py
+# models/servo_pose_key.py
 from enum import Enum
 
-class TurntablePoseKey(str, Enum):
+class ServoPoseKey(str, Enum):
     """
     턴테이블 제어 데이터(Target)의 키 정의 및 PLC 주소 매핑
     
@@ -17,16 +17,16 @@ class TurntablePoseKey(str, Enum):
         """
         데이터 모델(TurntablePose)이나 딕셔너리에서 사용하는 키 반환
         """
-        if self == TurntablePoseKey.ANGLE:
+        if self == ServoPoseKey.ANGLE:
             return "angle"
-        elif self == TurntablePoseKey.VELOCITY:
+        elif self == ServoPoseKey.VELOCITY:
             return "velocity"
         return ""
 
     @property
     def unit(self) -> str:
         """UI 표시용 단위"""
-        if self == TurntablePoseKey.ANGLE:
+        if self == ServoPoseKey.ANGLE:
             return "deg"
         return "deg/s"
 

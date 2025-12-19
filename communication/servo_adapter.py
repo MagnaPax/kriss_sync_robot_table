@@ -3,7 +3,7 @@ import time
 import pyads
 from typing import TYPE_CHECKING, Union
 from communication.twincat_connector import TwinCATConnector
-from models.turntable_key import TurntablePoseKey, TurntableSignal
+from models.turntable_key import ServoPoseKey, TurntableSignal
 from models.turntable_pose_model import TurntablePose
 
 
@@ -100,10 +100,10 @@ class ServoAdapter:
 
         # 1. 데이터 쓰기 (LREAL)
         # MAIN.position = angle
-        plc.write_by_name(TurntablePoseKey.ANGLE.plc_address, angle, pyads.PLCTYPE_LREAL)
+        plc.write_by_name(ServoPoseKey.ANGLE.plc_address, angle, pyads.PLCTYPE_LREAL)
         
         # MAIN.velocity = velocity
-        plc.write_by_name(TurntablePoseKey.VELOCITY.plc_address, velocity, pyads.PLCTYPE_LREAL)
+        plc.write_by_name(ServoPoseKey.VELOCITY.plc_address, velocity, pyads.PLCTYPE_LREAL)
         
         # 2. 이동 트리거 (Rising Edge 발생 필요)
         # 일단 False로 확실히 내렸다가 True로 올려야 PLC가 변화를 감지함
