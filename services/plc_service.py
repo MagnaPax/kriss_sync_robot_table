@@ -46,10 +46,10 @@ class PLCService(QObject):
         self._heartbeat_timer.timeout.connect(self._check_heartbeat)
 
 
-        # --- 실시간 데이터 모니터링 타이머 --- #
+        # --- 실시간 현재위치 모니터링 타이머 --- #
         self._monitor_timer = QTimer()
         self._monitor_timer.setInterval(100)  # 0.1초마다 실행 (10Hz)
-        self._monitor_timer.timeout.connect(self._monitoring_loop)
+        self._monitor_timer.timeout.connect(self._monitor_current_poses)
 
 
         # --- 앱 종료 시 연결 끊기 --- #
@@ -325,7 +325,7 @@ class PLCService(QObject):
     # ==========================================================
     # 실시간 데이터 수집 루프
     # ==========================================================
-    def _monitoring_loop(self):
+    def _monitor_current_poses(self):
         """
         0.1초마다 실행되어 로봇/턴테이블의 현재 상태를 읽고 UI에 방송
         """
