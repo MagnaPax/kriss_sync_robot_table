@@ -287,7 +287,7 @@ class PLCService(QObject):
             return True
 
         # 물리 장비(Gadgets)들이 움직이고 있는가?
-        return self.commander.read_busy_signal()
+        return self.commander.are_gagets_busy()
 
 
 
