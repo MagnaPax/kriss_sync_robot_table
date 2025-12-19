@@ -46,7 +46,7 @@ class PLCService(QObject):
         self._heartbeat_timer.timeout.connect(self._check_heartbeat)
 
 
-        # --- 실시간 현재위치 모니터링 타이머 --- #
+        # --- 현재위치 모니터링 타이머(0.1초마다) --- #
         self._monitor_timer = QTimer()
         self._monitor_timer.setInterval(100)  # 0.1초마다 실행 (10Hz)
         self._monitor_timer.timeout.connect(self._on_monitor_tick)
@@ -61,25 +61,6 @@ class PLCService(QObject):
     # ==========================================================
     # 연결 관련 메서드
     # ==========================================================
-
-    def connect_plc(self):
-        """연결 요청"""
-        try:
-            # Model에게 연결 시킴
-            self.connector.connect()
-            
-            # 성공하면 Heartbeat 타이머 시작
-            self._heartbeat_timer.start()
-
-            # 실시간 모니터링 타이머 시작
-            self._monitor_timer.start()
-            
-            EVENT_BUS.conn.status_changed.emit(True)
-            EVENT_BUS.log.message.emit("PLC 연결 성공 및 모니터링 시작", "INFO")
-            
-        except Exception as e:
-            EVENT_BUS.log.message.emit(f"PLC 연결 실패: {e}", "ERROR")
-
 
     @pyqtSlot()
     def disconnect_plc(self):
@@ -118,7 +99,7 @@ class PLCService(QObject):
                     ui_callback(msg, progress)
                 QApplication.processEvents()    # UI 갱신
 
-                # 연결 시도
+                # Model에게 연결하라고 시킴
                 self.connector.connect()
 
                 # 성공 처리
@@ -126,12 +107,16 @@ class PLCService(QObject):
                 if ui_callback:
                     ui_callback(success_msg, 100)
 
+                # 통신 상태 성공 시그널 방송
                 EVENT_BUS.system.info.emit("TwinCAT 연결 성공")
                 EVENT_BUS.conn.status_changed.emit(True)
                 EVENT_BUS.log.message.emit(success_msg, "INFO")
 
-                # 연결 확인 다시 시작
+                # Heartbeat 타이머 시작
                 self._heartbeat_timer.start()
+
+                # 현재위치 모니터링 타이머 시작
+                self._monitor_timer.start()
                 
                 QApplication.processEvents()
                 time.sleep(0.5)
