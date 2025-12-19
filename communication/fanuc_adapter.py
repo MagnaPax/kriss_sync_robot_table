@@ -270,17 +270,26 @@ class FanucAdapter:
 
     def read_busy_signal(self) -> bool:
         """
-        [Busy 신호 확인]
-        DO45 (Digital Output 45번) 핀을 확인한다
+        [물리적 상태] 로봇(FANUC)이 현재 움직이고 있는지 확인
         
         반환:
-            True: 이전 명령을 접수해서 현재 로봇이 움직이고 있다
-                ⚠️ 하지만 현재 input register 는 비어있기 때문에 다음 명령 받을 수 있다!!!
-            False: 안 바쁘다 (다음 명령 줘)
-        """
-        # return bool(self._plc.read_by_name(FanucSignal.BUSY.path, pyads.PLCTYPE_BOOL))
-        return bool(self._plc.read_by_name(FanucSignal.COMPLETE.path, pyads.PLCTYPE_BOOL))
+            - True: 로봇 모터가 구동 중이다 (이동 중)
+            - False: 로봇이 정지해 있음
 
+        용도: '물리'적인 움직임을 확인. 안전 확인용
+        """
+        return bool(self._plc.read_by_name(FanucSignal.BUSY.path, pyads.PLCTYPE_BOOL))
+    
+    def read_complete_signal(self) -> bool:
+        """
+        [논리적 상태] 로봇(FANUC)이 이전 명령을 완료했는지 확인 (핸드셰이킹)
+        
+        반환:
+            - True: 방금 받은 명령 처리 끝났음(혹은 거의 끝남). ∴ 다음 명령 보내도 된다
+                    로봇의 input register 는 비어있기 때문에 다음 명령 받을 수 있다
+            - False: 명령 수행 중
+        """
+        return bool(self._plc.read_by_name(FanucSignal.COMPLETE.path, pyads.PLCTYPE_BOOL))
 
 
     # WORLD 좌표: 로봇 발바닥(Base) 기준 절대 좌표
