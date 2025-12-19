@@ -46,11 +46,15 @@ class TaskManagerWidget(BaseWidget):
         self._bind_events()
 
     def set_view_model(self, view_model: "TaskManagerViewModel"):
-        """외부에서 뷰모델을 꽂아주는 함수(Setter)"""
+        """
+        외부에서 뷰모델을 꽂아주는 함수(Setter)
+            MainViewModel 이 TaskManagerViewModel 소유
+            RightPanel 에서 TaskManagerWidget 에게 주입
+        """
         self.vm = view_model
 
         # 로봇과 턴테이블의 바쁨 상태 연결
-        self.vm.device_busy_status.connect(self.update_data)
+        self.vm.busy_state_changed.connect(self.update_data)
 
         # 런타임 시간 업데이트 연결
         # 뷰모델이 "00:00:01" 보내면 -> 라벨 setText 실행
@@ -241,7 +245,7 @@ class TaskManagerWidget(BaseWidget):
         if not self.vm:
             EVENT_BUS.log.message.emit(f"{self.log_prefix} 뷰모델이 연결되지 않았습니다.", "WARNING")
             return
-
+        """
         # QFileDialog를 사용하여 문자열 경로 획득
         file_path_str, _ = QFileDialog.getOpenFileName(
             self,                   # 부모 위젯
@@ -249,7 +253,8 @@ class TaskManagerWidget(BaseWidget):
             "/",                    # 다이얼로그 창에서 처음 열어볼 디렉토리
             "시퀀스 파일 (*.csv)"   # 파일 필터
         )
-        
+        """
+        file_path_str = "./sequence_sample.csv"
         if file_path_str:
             # 문자열 경로를 pathlib.Path 객체로 변환
             file_path_obj = Path(file_path_str)

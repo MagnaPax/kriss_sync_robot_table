@@ -8,13 +8,11 @@ from models.fanuc_pose_key import FANUCPoseKey, FanucSignal
 from models.fanuc_pose_model import FANUCPose
 
 
-
 # 실제 런타임에는 실행 안 됨
 # 타입 검사기(Pylance)에게만 MockConnection의 존재를 알려줌
 # 순환 참조(Circular Import) 오류를 방지하면서 타입 힌트를 제공하기 위해
 if TYPE_CHECKING:
     from communication.mock_plc import MockConnection
-
 
 
 class FanucAdapter:
@@ -28,14 +26,12 @@ class FanucAdapter:
         TwinCAT Commander: 뇌 
             - 로직(루프, 델타 계산, 핸드셰이킹 등) 담당
     """
-
     def __init__(self, connector: TwinCATConnector):
         # 지갑(Connector)을 받아서 저장
         self.connector = connector
 
         # 사용자 입력에 의해 바뀐 이동 속도 저장
         self.override_feed_rate: Union[float, None] = None
-
 
 
     @property
@@ -55,32 +51,65 @@ class FanucAdapter:
     # 로봇에게 "준비해", "시작해", "멈춰" 같은 상태 신호를 보낸다
     # ==========================================================================
 
-    def set_initial_signals(self):
+# communication/fanuc_adapter.py
+
+    def _init_robot_signals(self):
         """
-        [시퀀스 시작 전 준비]
-        로봇이 움직이기 전에 필요한 모든 스위치를 초기 위치로 돌려놓는다
+        모든 시작/루프 신호와 체크 비트를 False로 초기화
+            원본의 initialize_signals(plc)와 동일
+        """
+        plc = self._plc
+
+        # 비상 정지(Cycle Stop) 해제
+        plc.write_by_name(FanucSignal.CYCLE_STOP.path, False, pyads.PLCTYPE_BOOL)
+        time.sleep(0.05)
+
+        # RSR(Robot Service Request) 신호 끄기
+        plc.write_by_name(FanucSignal.RSR2_START.path, False, pyads.PLCTYPE_BOOL)
+        time.sleep(0.05) 
+
+        # Loop 신호 끄기
+        plc.write_by_name(FanucSignal.LOOP_ON.path, False, pyads.PLCTYPE_BOOL)
+        time.sleep(0.05) 
+
+        # X, Y, Z, W, P, R 모든 축에 대해 반복
+        for key in FANUCPoseKey:
+            # --- 모든 축의 방향(양수/음수) 체크 비트 초기화(비트 끄기) --- #
+            # 예: "MAIN.Robot1._UI1.X_Check" = False (양수 상태로 초기화)
+            plc.write_by_name(key.tag_check(), False, pyads.PLCTYPE_BOOL)
+            time.sleep(0.05)
+
+            # --- 모든 축의 비트 값을 0으로 초기화 --- #
+            #   원본의 reset_all_axes(plc)와 동일
+            self._send_bits(key, 0, 0)
+            time.sleep(0.05)
+
+    def _start_process(self):
+        """
+        RSR 신호와 Loop 신호를 ON 하여 TP 프로그램 실행
+            원본의 start_process(plc)와 동일
         """
         plc = self._plc
 
         # RSR(Robot Service Request) 신호 켜기
         # "로봇아, 작업 요청이 들어왔어!"라고 알리는 초인종 같은 신호
         plc.write_by_name(FanucSignal.RSR2_START.path, True, pyads.PLCTYPE_BOOL)
+        time.sleep(0.05)
         
-        # 신호가 확실히 전달되도록 아주 잠깐 누르고 있는다 (0.05초)
-        time.sleep(0.05) 
-
         # Loop 신호 켜기
         # "이 작업은 연속으로 계속될 거야"라고 알림(Ture: 루프 반복, False: 루프 종료)
         plc.write_by_name(FanucSignal.LOOP_ON.path, True, pyads.PLCTYPE_BOOL)
+        time.sleep(0.05)
 
-        # 비상 정지(Cycle Stop) 해제
-        plc.write_by_name(FanucSignal.CYCLE_STOP.path, False, pyads.PLCTYPE_BOOL)
-
-        # 모든 축의 방향(양수/음수) 깃발 내리기
-        # 모두(X,Y,Z,W,P,R) 초기화
-        for key in FANUCPoseKey:
-            # 예: "MAIN.Robot1._UI1.X_Check" = False (양수 상태로 초기화)
-            plc.write_by_name(key.tag_check(), False, pyads.PLCTYPE_BOOL)
+    def set_initial_signals(self):
+        """
+        [시퀀스 시작 전 준비]
+        로봇이 움직이기 전에 필요한 모든 스위치를 초기화 & 시작 신호를 보낸다
+        """
+        # [초기화] 1단계 - 체크 비트 False
+        self._init_robot_signals
+        # [초기화] 2단계 - 시작 신호 True
+        self._start_process
 
 
     def set_finish_signals(self):
@@ -90,7 +119,6 @@ class FanucAdapter:
         plc.write_by_name(FanucSignal.RSR2_START.path, False, pyads.PLCTYPE_BOOL)
         # 반복 신호 끄기
         plc.write_by_name(FanucSignal.LOOP_ON.path, False, pyads.PLCTYPE_BOOL)
-
 
     def set_emergency_stop(self):
         """[비상 정지] 즉시 멈춤 신호를 보낸다"""
@@ -113,6 +141,7 @@ class FanucAdapter:
         """
         # 내부의 _send_feed 메서드를 재활용
         self._send_feed(feed_rate)
+
 
     def send_data_packet(self, feed_rate: float, delta: dict):
         """
@@ -142,6 +171,7 @@ class FanucAdapter:
     def _send_coordinate(self, val: float, key: FANUCPoseKey):
         """
         [핵심] 단일 축 좌표 변환 및 전송 로직
+            24비트 전송 & 소수점 셋째자리 스케일링
 
         원리:
             PLC는 소수점(float)을 직접 받지 못한다
@@ -150,39 +180,41 @@ class FanucAdapter:
         """
         plc = self._plc
 
-        # 1. 반올림: 소수점 2자리까지만 유효 (예: 12.3456 -> 12.35)
-        rounded = round(val, 2)
+        # 1. 반올림: 소수점 3자리까지만 유효 (예: 12.3456 -> 12.346)
+        rounded = round(val, 3)
         
-        # 2. 정수화 (Scaling): 100을 곱해서 소수점을 없앰 (예: 12.35 -> 1235)
+        # 2. 정수화 (Scaling): 1000을 곱해서 소수점을 없앰 (예: 12.345 -> 12345)
         #    abs()를 써서 부호(-)를 떼고 절댓값만 취함
-        scaled_int = int(abs(rounded * 100))
+        scaled_int = int(abs(rounded * 1000))
         
-        # 3. 비트 쪼개기 및 전송
-        #    scaled_int라는 큰 숫자를 16개의 작은 전선으로 나누어 보냄
-        #    & 0xFF : 하위 8비트 추출
-        #    >> 8   : 상위 8비트 추출
-        self._send_bits(key, scaled_int & 0xFF, scaled_int >> 8)
+        # 3. 비트 쪼개기
+        #    scaled_int라는 큰 숫자를 24개(하위16 + 상위8)의 작은 전선으로 나누어 보냄
+        low_word = scaled_int & 0xFFFF              # 하위 16비트
+        high_word = (scaled_int >> 16) & 0xFF   # 상위 8비트
+
+        # 4. 비트 전송 호출
+        self._send_bits(key, low_word, high_word)
         
-        # 4. 부호(Sign) 전송
+        # 5. 부호(Sign) 전송
         #    값이 0보다 작으면 Check 비트를 True(ON)로 켬
         #    key.tag_check() -> "MAIN.Robot1._UI1.X_Check"
         plc.write_by_name(key.tag_check(), rounded < 0, pyads.PLCTYPE_BOOL)
 
 
-    def _send_bits(self, key: FANUCPoseKey, lower_byte: int, high_byte: int):
+    def _send_bits(self, key: FANUCPoseKey, lower_word: int, high_byte: int):
         """
         [비트 단위 전송]
         숫자를 0과 1의 전기 신호로 바꾸어 16개의 스위치(비트)를 켠다
 
         Args:
             key: 어느 축인지 (X, Y...)
-            lower_byte: 하위 8비트 숫자 (0~255)
+            lower_word: 하위 16비트 숫자 (0~255)
             high_byte: 상위 8비트 숫자 (0~255)
         """
         plc = self._plc
         
-        # 0번부터 7번 비트까지 총 8번 반복
-        for i in range(8):
+        # 0번부터 15번 비트까지 총 16번 반복
+        for i in range(16):
             # -----------------------------------------------------
             # 비트 연산 설명 (Shift & AND)
             # (1 << i) : 1을 i칸만큼 왼쪽으로 밈. (예: i=2면 00000100)
@@ -190,42 +222,44 @@ class FanucAdapter:
             # > 0      : 결과가 0보다 크면 해당 자리에 1이 있다는 뜻
             # -----------------------------------------------------
 
-            # 하위 비트 전송 (예: Xl0, Xl1 ...)
+            # 하위 16비트 전송 (예: l0 ~ l15)
             # FANUCPoseKey가 주소("MAIN...Xl0")를 만들어줌
             plc.write_by_name(
                 key.tag_low_bit(i), 
-                (lower_byte & (1 << i)) > 0, 
+                (lower_word & (1 << i)) > 0, 
                 pyads.PLCTYPE_BOOL
             )
-            
-            # 상위 비트 전송 (예: Xh0, Xh1 ...)
+
+        for i in range(8):
+            # 상위 8비트 전송 (h0 ~ h7)
             plc.write_by_name(
                 key.tag_high_bit(i), 
                 (high_byte & (1 << i)) > 0, 
                 pyads.PLCTYPE_BOOL
             )
 
+
     def _send_feed(self, feed_rate: float):
         """
         [속도 전송] 좌표 전송과 원리는 같지만, 축 이름 대신 'F'를 사용
+            20비트(16+4) 전송 및 소수점 3자리 스케일링 적용
         """
         plc = self._plc
 
-        rounded = round(feed_rate, 2)
-        scaled = int(abs(rounded * 100))
+        scaled = int(abs(round(feed_rate, 3) * 1000))
 
         # Feed는 Enum에 없으므로 여기서 직접 주소를 조합 (Fl0~Fl7, Fh0~Fh1)
         # 로봇측 프로토콜: F는 10비트(하위8 + 상위2)만 사용함
         
-        # 하위 8비트 (Fl0 ~ Fl7)
-        for i in range(8):
+        # 하위 16비트 (Fl0 ~ Fl15)
+        for i in range(16):
             plc.write_by_name(f"MAIN.Robot1._UI1.Fl{i}",
                             (scaled & (1 << i)) > 0, pyads.PLCTYPE_BOOL)
 
-        # 상위 2비트 (Fh0 ~ Fh1) -> 2번만 반복
-        for i in range(2):
+        # 상위 4비트 (Fh0 ~ Fh3) -> 4번 반복
+        for i in range(4):
             plc.write_by_name(f"MAIN.Robot1._UI1.Fh{i}",
-                            ((scaled >> 8) & (1 << i)) > 0, pyads.PLCTYPE_BOOL)
+                            ((scaled >> 16) & (1 << i)) > 0, pyads.PLCTYPE_BOOL)
 
 
     # ==========================================================================
@@ -236,105 +270,139 @@ class FanucAdapter:
 
     def read_busy_signal(self) -> bool:
         """
-        [Busy 신호 확인]
-        DO45 (Digital Output 45번) 핀을 확인한다
+        [물리적 상태] 로봇(FANUC)이 현재 움직이고 있는지 확인
         
         반환:
-            True: 이전 명령을 접수해서 현재 로봇이 움직이고 있다
-                ⚠️ 하지만 현재 input register 는 비어있기 때문에 다음 명령 받을 수 있다!!!
-            False: 안 바쁘다 (다음 명령 줘)
+            - True: 로봇 모터가 구동 중이다 (이동 중)
+            - False: 로봇이 정지해 있음
+
+        용도: '물리'적인 움직임을 확인. 안전 확인용
         """
         return bool(self._plc.read_by_name(FanucSignal.BUSY.path, pyads.PLCTYPE_BOOL))
+    
+    def read_complete_signal(self) -> bool:
+        """
+        [논리적 상태] 로봇(FANUC)이 이전 명령을 완료했는지 확인 (핸드셰이킹)
+        
+        반환:
+            - True: 방금 받은 명령 처리 끝났음(혹은 거의 끝남). ∴ 다음 명령 보내도 된다
+                    로봇의 input register 는 비어있기 때문에 다음 명령 받을 수 있다
+            - False: 명령 수행 중
+        """
+        return bool(self._plc.read_by_name(FanucSignal.COMPLETE.path, pyads.PLCTYPE_BOOL))
 
-
-
-
-
-
-
-
-
-
-
-    # TODO: FANUC 현재위치(피드백) 읽어오기
-    # TODO: PLCService._check_heartbeat 에서 월드 코디네이터, 툴 코디네이터도 이벤트 버스에 실어보냄
 
     # WORLD 좌표: 로봇 발바닥(Base) 기준 절대 좌표
     # TOOL 좌표: 로봇 손끝(TCP: Tool Center Point) 기준 좌표
 
-    def read_current_pose(self):
-        """
-        로봇의 현재 위치(World coordinates, Tool coordinates)를 PLC에서 읽어옴
-            로봇팀이 해당 PLC 주소를 매핑해줬다는 전제 하에 동작
-        """
     # ==========================================================================
-    # [추가] 4. 피드백 데이터 읽기 (Monitoring)
+    # 4. 피드백 데이터 읽기
     # ==========================================================================
+    """
+    목적:           로봇이 "실제로 어디에 있는가?" 확인
+    데이터 방향:    로봇 → PLC (로봇이 보고함)
+    용도:           UI에 현재 로봇 위치 표시, 작업 완료 확인
+    """
+    def _read_axis_value(self, key: FANUCPoseKey) -> float:
+        """
+        [헬퍼] 특정 축(Key)의 현재 값을 PLC에서 비트 단위로 읽어와 실수로 변환
+            로봇 피드백 데이터를 24비트/1000 스케일로 읽기
+            예외 발생 시 상위로 전파됨
+        """
+        plc = self._plc
+
+        # 1. 상위 8비트 읽기 (High Byte: h0 ~ h7)
+        top_val = 0
+        for i in range(8):
+            # key.feedback_tag_high_bit(i) -> "MAIN.Robot1._UO1.Xh0" 등을 자동 생성
+            if plc.read_by_name(key.feedback_tag_high_bit(i), pyads.PLCTYPE_BOOL):
+                top_val |= (1 << i)
+
+        # 2. 하위 16비트 읽기 (Low Word: l0 ~ l15)
+        low_val = 0
+        for j in range(16):
+            if plc.read_by_name(key.feedback_tag_low_bit(j), pyads.PLCTYPE_BOOL):
+                low_val |= (1 << j)
+
+        # 3. 비트 합치기 (24비트)
+        raw_val = (top_val << 16) | low_val
+
+        # 4. 부호 확인
+        is_negative = plc.read_by_name(key.feedback_tag_check(), pyads.PLCTYPE_BOOL)
+
+        # 5. 스케일링 (1/1000)
+        scaled_val = raw_val / 1000.0
+
+        if is_negative:
+            scaled_val = -scaled_val
+
+        return round(scaled_val, 3)
 
     def read_current_world_pose(self) -> FANUCPose:
         """
-        [피드백] 로봇의 현재 World 좌표(Cartesian)를 읽어온다.
+        [피드백] 로봇의 현재 World 좌표(Cartesian)를 읽기
         바닥(베이스 좌표계) 기준 TCP:Tool Center Point 위치
         """
-        plc = self._plc
-        
-        # PLC 변수 주소 (프로젝트 상황에 맞게 수정 필요)
-        # 예: 구조체로 묶여있다면 read_structure 등을 쓸 수도 있지만, 
-        # 안전하게 개별로 읽는 방식을 먼저 구현합니다.
-        try:
-            # 변수명 예시: MAIN.Robot1_Feedback_World_X 
-            # (실제 PLC 변수명 확인 후 수정 필수)
-            prefix = "MAIN.Robot1.Feedback.World" 
-            
-            x = plc.read_by_name(f"{prefix}.X", pyads.PLCTYPE_REAL)
-            y = plc.read_by_name(f"{prefix}.Y", pyads.PLCTYPE_REAL)
-            z = plc.read_by_name(f"{prefix}.Z", pyads.PLCTYPE_REAL)
-            w = plc.read_by_name(f"{prefix}.W", pyads.PLCTYPE_REAL)
-            p = plc.read_by_name(f"{prefix}.P", pyads.PLCTYPE_REAL)
-            r = plc.read_by_name(f"{prefix}.R", pyads.PLCTYPE_REAL)
-            
-            return FANUCPose(x, y, z, w, p, r)
-            
-        except Exception:
-            # 읽기 실패 시(통신 에러 등) 0.0 으로 채워서 반환하거나 None 반환
-            return FANUCPose(0,0,0,0,0,0)
+        return FANUCPose(
+            x = self._read_axis_value(FANUCPoseKey.X),
+            y = self._read_axis_value(FANUCPoseKey.Y),
+            z = self._read_axis_value(FANUCPoseKey.Z),
+            w = self._read_axis_value(FANUCPoseKey.W),
+            p = self._read_axis_value(FANUCPoseKey.P),
+            r = self._read_axis_value(FANUCPoseKey.R)
+        )
 
-    def read_current_tool_pose(self) -> FANUCPose:
-        """
-        [피드백] Tool Coordinate (TCP:Tool Center Point) 좌표 읽기
-        """
-        plc = self._plc
-        try:
-            # PLC 변수명 예시: MAIN.Robot1.Feedback.Tool.X
-            # (실제 매핑된 변수명으로 수정 필요)
-            prefix = "MAIN.Robot1.Feedback.Tool" 
-            
-            x = plc.read_by_name(f"{prefix}.X", pyads.PLCTYPE_REAL)
-            y = plc.read_by_name(f"{prefix}.Y", pyads.PLCTYPE_REAL)
-            z = plc.read_by_name(f"{prefix}.Z", pyads.PLCTYPE_REAL)
-            w = plc.read_by_name(f"{prefix}.W", pyads.PLCTYPE_REAL)
-            p = plc.read_by_name(f"{prefix}.P", pyads.PLCTYPE_REAL)
-            r = plc.read_by_name(f"{prefix}.R", pyads.PLCTYPE_REAL)
-            
-            return FANUCPose(x, y, z, w, p, r)
-            
-        except Exception:
-            # 읽기 실패 시
-            return FANUCPose(0,0,0,0,0,0)
 
-    def read_current_joint_pose(self) -> list[float]:
+    # ==========================================================================
+    # 5. 모니터링 데이터 읽기 <- 값 확인하는 디버깅 용
+    # ==========================================================================
+    """
+    목적:           PLC가 로봇에게 "어디로 가라고 시켰는가?" 확인
+    데이터 방향:    PLC → 로봇 (PLC가 명령함)
+    용도:           내가 보낸 명령이 PLC 레지스터에 잘 써졌는지 검증
+    """    
+    def _read_target_axis_value(self, key: FANUCPoseKey) -> float:
         """
-        [피드백] 로봇의 현재 관절 각도(Joint J1~J6)를 읽어온다.
-        용도: 특이점(Singularity) 감시, 간섭 체크 등
+        [헬퍼] PLC가 로봇에게 명령 중인 목표값(UI1)을 읽어옴
         """
         plc = self._plc
-        joints = []
-        prefix = "MAIN.Robot1.Feedback.Joint"
-        
-        try:
-            for i in range(1, 7): # J1 ~ J6
-                val = plc.read_by_name(f"{prefix}.J{i}", pyads.PLCTYPE_REAL)
-                joints.append(val)
-            return joints
-        except Exception:
-            return [0.0] * 6
+
+        # 1. 상위 8비트 읽기 (High Byte)
+        top_val = 0
+        for i in range(8):
+            # key.tag_high_bit(i) -> "MAIN.Robot1._UI1.Xh0" (이미 구현된 메서드 사용)
+            if plc.read_by_name(key.tag_high_bit(i), pyads.PLCTYPE_BOOL):
+                top_val |= (1 << i)
+
+        # 2. 하위 16비트 읽기 (Low Word)
+        low_val = 0
+        for j in range(16):
+            if plc.read_by_name(key.tag_low_bit(j), pyads.PLCTYPE_BOOL):
+                low_val += (1 << j)
+
+        # 3. 비트 합치기
+        raw_val = (top_val << 16) + low_val
+
+        # 4. 부호 확인
+        # key.tag_check() -> "MAIN.Robot1._UI1.X_Check"
+        is_negative = plc.read_by_name(key.tag_check(), pyads.PLCTYPE_BOOL)
+
+        # 5. 스케일링
+        scaled_val = raw_val / 1000.0
+        if is_negative:
+            scaled_val = -scaled_val
+
+        return round(scaled_val, 3)
+
+    def read_target_world_pose(self) -> FANUCPose:
+        """
+        [모니터링] 현재 PLC 레지스터에 기록된 '목표 위치(UI1)'를 읽어온다.
+        """
+        return FANUCPose(
+            x = self._read_target_axis_value(FANUCPoseKey.X),
+            y = self._read_target_axis_value(FANUCPoseKey.Y),
+            z = self._read_target_axis_value(FANUCPoseKey.Z),
+            w = self._read_target_axis_value(FANUCPoseKey.W),
+            p = self._read_target_axis_value(FANUCPoseKey.P),
+            r = self._read_target_axis_value(FANUCPoseKey.R)
+        )

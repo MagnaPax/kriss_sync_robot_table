@@ -15,9 +15,9 @@ from typing import Tuple, Optional, Union, TYPE_CHECKING, Callable, List, Any
 from core.event_bus import EVENT_BUS
 from communication.fanuc_adapter import FanucAdapter
 from communication.twincat_connector import TwinCATConnector
-from communication.turntable_adapter import TurntableAdapter
+from communication.servo_adapter import ServoAdapter
 from models.fanuc_pose_model import FANUCPose
-from models.turntable_pose_model import TurntablePose
+from models.servo_pose_model import ServoPose
 
 
 
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 # 1. 추상 실행기 (Base Executor)
 # =========================================================
 class BaseExecutor(ABC):
-    def __init__(self, robot: FanucAdapter, turntable: TurntableAdapter):
+    def __init__(self, robot: FanucAdapter, turntable: ServoAdapter):
         self.robot = robot
         self.table = turntable
 
@@ -59,8 +59,8 @@ class FanucOnlyExecutor(BaseExecutor):
         return required_keys.issubset(sample_data.keys())
 
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
-        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 데이터\n{(sequence_data)}\n", "DEBUG")
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] FANUC 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
+        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 에서 처리될 전체 데이터\n{(sequence_data)}\n", "DEBUG")
 
         # 처리할 전체 시퀀스 데이터 방송
         EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
@@ -87,6 +87,8 @@ class FanucOnlyExecutor(BaseExecutor):
 
                 # 현재 시퀀스 진행상태 방송: 진행중
                 EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, "processing")
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 현재 시퀀스 진행상태: {(current_id)}", "DEBUG")
+
 
                 # 이동 속도
                 if adapter.override_feed_rate is not None:
@@ -110,6 +112,7 @@ class FanucOnlyExecutor(BaseExecutor):
                 )
                 # 현재 로봇 위치 방송
                 EVENT_BUS.control.robot_current_pose.emit(target_pose)
+                EVENT_BUS.log.message(f"\n현재 로봇 위치: {target_pose}\n", "DEBUG")
 
 
                 # --- 증분 이동(Incremental/Relative Move) 제어 --- #
@@ -133,12 +136,12 @@ class FanucOnlyExecutor(BaseExecutor):
 
                 # --- 핸드셰이킹 (Busy Check) --- #
                 while True:
-                    # 로봇이 움직이는 중인지 확인
-                    is_busy = adapter.read_busy_signal()
+                    # 로봇이 작업을 잘 마쳤는지 확인
+                    is_complete = adapter.read_complete_signal()
 
-                    # 로봇이 움직이는 동안(Busy) 미리 다음 명령을 전송한다
+                    # 로봇이 움직이는 동안(Digital Output 45번 핀) 미리 다음 명령을 전송한다
                     #   -> 멈추지 않는 연속적인 동작을 위해
-                    if (not init_done) or is_busy:
+                    if (not init_done) or is_complete:
                         adapter.send_data_packet(feed_rate, deltas)
 
                         init_done = True    # 첫 번째 명령 실행했다고 체크
@@ -291,7 +294,7 @@ class TurntableOnlyExecutor(BaseExecutor):
         # 처리할 전체 시퀀스 데이터 방송
         EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
 
-        adapter = self.table # TurntableAdapter
+        adapter = self.table # ServoAdapter
         num_sequences = len(sequence_data)
 
         try:
@@ -313,7 +316,7 @@ class TurntableOnlyExecutor(BaseExecutor):
                 velocity_val = float(row.get('velocity') or row.get('turntable_feed_rate', 10.0))
 
                 # 현재 턴테이블 위치 방송
-                target_pose = TurntablePose(angle=angle_val, velocity=velocity_val)
+                target_pose = ServoPose(angle=angle_val, velocity=velocity_val)
                 EVENT_BUS.control.turntable_current_pose.emit(target_pose)
 
 
@@ -323,7 +326,6 @@ class TurntableOnlyExecutor(BaseExecutor):
                     is_busy = adapter.read_busy_signal()
                     
                     # 턴테이블은 로봇과 달리 '멈추면 다음 명령(Stop-and-Go)' 방식이 더 안전할 수 있음
-                    # 하지만 연속 동작을 원한다면 로봇과 동일하게 (not init_done or is_busy) 사용
                     if not is_busy:
                         # 1. 이동 명령 전송 (Rising Edge 발생)
                         adapter.move_to(angle_val, velocity_val)
@@ -366,7 +368,7 @@ class TwinCATCommander:
         
         # 하위 장치 컨트롤러
         self.robot = FanucAdapter(connector)
-        self.turntable = TurntableAdapter(connector)
+        self.turntable = ServoAdapter(connector)
 
         # 등록된 실행기들 (우선순위 순서대로)
         self.executors: List[BaseExecutor] = [
@@ -382,13 +384,13 @@ class TwinCATCommander:
             1. 데이터의 첫 줄을 샘플로 채취하여 적절한 실행기를 찾는다
             2. 찾은 Executor를 실행한다
         """
+        
         if not sequence_data:
             return False, "데이터가 비어있습니다."
 
         sample_row = sequence_data[0]
+        print(f"입력된 자료에 맞는 Excutor 선택을 위한 샘플 데이터(sequence_data[0]): {sample_row}")
 
-        print(f"\n샘플 데이터: {sample_row}\n")
-        
         # 1. 적절한 Executor 찾기
         target_executor = None
         for executor in self.executors:
@@ -402,10 +404,16 @@ class TwinCATCommander:
         else:
             return False, "지원하지 않는 데이터 형식입니다."
 
-    def apply_user_feed_rate_when_moving(self, feed_rate: float) -> str | None:
+
+    # ================================= #
+    # --- 로봇에게 내리는 명령들 --- #
+    # ================================= #
+    def apply_user_feed_rate_when_moving_robot(self, feed_rate: float) -> str | None:
         """TargetPositionWidget 에서 사용자가 입력한 Feed Rate 값을 FANUC에 적용"""
 
+        # 로봇이 움직이고 있는지 확인
         is_moving = self.robot.read_busy_signal()
+
         if is_moving:
             # FANUC의 이동속도 변경
             self.robot.send_instant_feed(feed_rate)
@@ -419,7 +427,7 @@ class TwinCATCommander:
         else:
             return None
 
-    def read_busy_signal(self) -> bool:
+    def are_gagets_busy(self) -> bool:
         """로봇이나 턴테이블 중 하나라도 움직이고 있다면 True(바쁨) 반환"""
 
         # 로봇 상태 확인

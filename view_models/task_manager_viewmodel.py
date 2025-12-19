@@ -17,7 +17,7 @@ class TaskManagerViewModel(QObject):
     # View에게 상태를 알리는 시그널
     sequence_data_loaded_complete = pyqtSignal(dict)    # 파일 읽기 성공
     sequence_data_loaded_failed = pyqtSignal(str)       # 파일 읽기 실패
-    device_busy_status = pyqtSignal(dict)               # 로봇과 턴테이블의 busy 상태
+    busy_state_changed = pyqtSignal(dict)               # 로봇과 턴테이블의 busy 상태
     runtime_updated = pyqtSignal(str)                   # 런타임 시간 업데이트
 
 
@@ -34,12 +34,6 @@ class TaskManagerViewModel(QObject):
         # 시퀀스 데이터 캐싱 변수
         self._cached_sequence_data = None
 
-        # 상태 모니터링 타이머 설정
-        self._status_timer = QTimer()
-        self._status_timer.setInterval(100)  # 100ms = 0.1초
-        self._status_timer.timeout.connect(self._monitoring_loop)
-        self._status_timer.start()           # 타이머 시작
-
         # --- 런타임 --- #
         # 변수 생성
         self._elapsed_seconds = 0   # 경과 시간 (초)
@@ -53,6 +47,9 @@ class TaskManagerViewModel(QObject):
         EVENT_BUS.data.sequence_data_loaded.connect(self._on_sequence_data_updated)
         # 진행 상황 모니터링 (작업 끝났는지 감시용)
         EVENT_BUS.data.progress_updated.connect(self._check_sequence_finished)
+        # '바쁨 상태' 방송이 오면 -> 내 로컬 시그널(busy_state_changed)로 바로 재방송
+        #   TaskManagerWidget.update_data와 연결
+        EVENT_BUS.data.device_busy_status.connect(self.busy_state_changed.emit)
 
 
     def load_sequence_data(self, file_path: Path):
@@ -102,26 +99,6 @@ class TaskManagerViewModel(QObject):
         """
         return self._plc_service.is_running
 
-    def _monitoring_loop(self):
-        """
-        0.1초마다 실행됨
-        서비스에게 '바쁘냐'고 물어보고 그 결과를 UI로 방송
-        """
-        # 상태 확인
-        is_busy = self._plc_service.is_running
-        
-        # UI(Widget)가 이해할 수 있는 형태(dict)로 포장
-        #   BaseWidget이나 TaskManagerWidget의 update_data는 파라미터로 딕셔너리를 받기 때문
-        status_data = {
-            'is_busy': is_busy,
-            # TODO: 필요하다면 다른 정보도 여기에 추가 가능
-            #       'connection': self._plc_service.is_connected
-        }
-
-        # 방송
-        # TaskManagerWidget.update_data와 연결
-        self.device_busy_status.emit(status_data)
-
     def _reset_runtime_timer(self):
         self._elapsed_seconds = 0
         self.runtime_updated.emit("00 : 00 : 00")
@@ -135,7 +112,11 @@ class TaskManagerViewModel(QObject):
 
     @pyqtSlot()
     def _on_runtime_tick(self):
-        """1초마다 실행되어 시간을 1씩 늘리고 방송"""
+        """
+        시간을 1씩 늘리고 방송
+            단순히 눈에 보이는 타이머 역할이기 때문에 VM에서 구현
+            이 런타임 시간을 로그에 남기는 등의 확장된 기능을 해야 된다면 여기 있으면 안됨
+        """
         self._elapsed_seconds += 1
 
         # 초 -> 시:분:초 문자열 변환

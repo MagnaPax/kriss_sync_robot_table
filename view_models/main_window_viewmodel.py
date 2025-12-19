@@ -6,7 +6,7 @@ from models.fanuc_pose_model import FANUCPoseModel
 from services.sequence_service import SequenceService
 from view_models.task_manager_viewmodel import TaskManagerViewModel
 from view_models.target_position_viewmodel import TargetPositionViewModel
-
+from view_models.world_coordinates_viewmodel import WorldCoordinatesViewModel
 
 
 
@@ -33,9 +33,11 @@ class MainViewModel(QObject):
         # TargetPosition 뷰모델 생성 (모델 + 서비스 주입)
         self.target_position_vm = TargetPositionViewModel(self.positon_model, self._service)
 
-        # TaskManager 뷰모델 생성
-        # TaskManager는 보통 SequenceService가 필요하므로 여기서 생성해서 주입
         self.sequence_service = SequenceService()
+
+        # --- MainViewModel이 뷰모델 소유 --- #
+        self.world_coordinates_vm = WorldCoordinatesViewModel()
+        # TaskManager는 보통 SequenceService가 필요하므로 여기서 생성해서 주입
         self.task_manager_vm = TaskManagerViewModel(self.sequence_service)
 
 

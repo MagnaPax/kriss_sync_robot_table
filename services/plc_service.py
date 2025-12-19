@@ -46,10 +46,10 @@ class PLCService(QObject):
         self._heartbeat_timer.timeout.connect(self._check_heartbeat)
 
 
-        # --- 실시간 데이터 모니터링 타이머 --- #
+        # --- 현재위치 모니터링 타이머(0.1초마다) --- #
         self._monitor_timer = QTimer()
         self._monitor_timer.setInterval(100)  # 0.1초마다 실행 (10Hz)
-        self._monitor_timer.timeout.connect(self._monitoring_loop)
+        self._monitor_timer.timeout.connect(self._on_monitor_tick)
 
 
         # --- 앱 종료 시 연결 끊기 --- #
@@ -61,25 +61,6 @@ class PLCService(QObject):
     # ==========================================================
     # 연결 관련 메서드
     # ==========================================================
-
-    def connect_plc(self):
-        """연결 요청"""
-        try:
-            # Model에게 연결 시킴
-            self.connector.connect()
-            
-            # 성공하면 Heartbeat 타이머 시작
-            self._heartbeat_timer.start()
-
-            # 실시간 모니터링 타이머 시작
-            self._monitor_timer.start()
-            
-            EVENT_BUS.conn.status_changed.emit(True)
-            EVENT_BUS.log.message.emit("PLC 연결 성공 및 모니터링 시작", "INFO")
-            
-        except Exception as e:
-            EVENT_BUS.log.message.emit(f"PLC 연결 실패: {e}", "ERROR")
-
 
     @pyqtSlot()
     def disconnect_plc(self):
@@ -118,7 +99,7 @@ class PLCService(QObject):
                     ui_callback(msg, progress)
                 QApplication.processEvents()    # UI 갱신
 
-                # 연결 시도
+                # Model에게 연결하라고 시킴
                 self.connector.connect()
 
                 # 성공 처리
@@ -126,12 +107,16 @@ class PLCService(QObject):
                 if ui_callback:
                     ui_callback(success_msg, 100)
 
+                # 통신 상태 성공 시그널 방송
                 EVENT_BUS.system.info.emit("TwinCAT 연결 성공")
                 EVENT_BUS.conn.status_changed.emit(True)
                 EVENT_BUS.log.message.emit(success_msg, "INFO")
 
-                # 연결 확인 다시 시작
+                # Heartbeat 타이머 시작
                 self._heartbeat_timer.start()
+
+                # 현재위치 모니터링 타이머 시작
+                self._monitor_timer.start()
                 
                 QApplication.processEvents()
                 time.sleep(0.5)
@@ -286,8 +271,8 @@ class PLCService(QObject):
         if self._thread is not None and self._thread.isRunning():
             return True
 
-        # 물리 장비(Gadgets)들이 움직이고 있는가?
-        return self.commander.read_busy_signal()
+        # Gadgets(로봇&턴테이블)이 움직이고 있는가?
+        return self.commander.are_gagets_busy()
 
 
 
@@ -325,26 +310,30 @@ class PLCService(QObject):
     # ==========================================================
     # 실시간 데이터 수집 루프
     # ==========================================================
-    def _monitoring_loop(self):
+    def _on_monitor_tick(self):
         """
         0.1초마다 실행되어 로봇/턴테이블의 현재 상태를 읽고 UI에 방송
         """
-        # 연결 안 되어 있으면 스킵
-        if not self.connector.is_connected:
-            return
+        if not self.connector.is_connected: return
 
         try:
-            # 1. FANUC World 좌표 읽기 & 방송
+            # --- 1. 위치 방송 --- #
+            # FANUC World 현재 위치 읽기 & 방송
             world_pose = self.commander.robot.read_current_world_pose()
-            EVENT_BUS.control.robot_target.emit(world_pose)
+            EVENT_BUS.control.robot_current_pose.emit(world_pose)
 
-            # 2. FANUC Tool 좌표 읽기 & 방송
-            tool_pose = self.commander.robot.read_current_tool_pose()
-            EVENT_BUS.control.robot_tool_pose.emit(tool_pose)
+            # FANUC 이동해야 될 목표 위치 확인 & 방송 <- 개발용
+            target_pose = self.commander.robot.read_target_world_pose()
+            # EVENT_BUS.control.tool_current_pose.emit(target_pose)
 
-            # 3. 턴테이블 상태 읽기 & 방송
-            table_status = self.commander.turntable.read_current_status()
-            EVENT_BUS.control.turntable_target.emit(table_status)
+            # TODO: 턴테이블 상태 읽기 & 방송
+            # table_status = self.commander.turntable.read_current_status()
+            # EVENT_BUS.control.turntable_current_pose.emit(table_status)
+
+            # --- 2. 바쁨 상태 방송 --- #
+            is_busy = self.is_running
+            EVENT_BUS.data.device_busy_status.emit({'is_busy': is_busy})
+
 
         except Exception:
             # 모니터링 중 에러는 로그를 남기지 않음 (로그 폭주 방지)

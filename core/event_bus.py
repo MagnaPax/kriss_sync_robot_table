@@ -203,7 +203,7 @@ class DataSignals(QObject):
     Args:
         int (current_step): 현재 실행 중인 스텝 번호 (1부터 시작)
         int (total_steps): 전체 스텝 개수 (Progress Bar 계산용)
-        str (status): 현재 스텝의 상태 ('PROCESSING', 'DONE', 'FAILED', 'WAITING')
+        str (status): 현재 스텝의 상태 ('TaskStatus.UNPROCESSED', 'TaskStatus.PROCESSING', 'TaskStatus.PROCESSED')
     """
 
     waypoints_selected = pyqtSignal(dict)
@@ -212,6 +212,9 @@ class DataSignals(QObject):
     Args:
         dict: 선택된 행의 전체 데이터 (예: {'id': 1, 'x': 100.0, ...})
     """
+
+    device_busy_status = pyqtSignal(dict)
+    """장비 바쁨 상태 방송용"""
 
 
 class ControlSignals(QObject):
@@ -234,7 +237,7 @@ class ControlSignals(QObject):
 
     turntable_current_pose = pyqtSignal(object)
     """
-    턴테이블 현재 각도/속도 정보 (TurntablePose)
+    턴테이블 현재 각도/속도 정보 (ServoPose)
     
     Args:
         - .angle (float): 현재 각도

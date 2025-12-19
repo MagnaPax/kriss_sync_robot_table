@@ -242,6 +242,50 @@ QWidget#right_panel {
 }
 
 
+/* WorldCoordinatesWidget 스타일 */
+/* 1. 메인 그룹박스 스타일 (TargetPosition, TaskManager와 통일) */
+#world_coordinates_widget > QGroupBox {
+    border: 1px solid #94a3b8;
+    border-radius: 6px;
+    margin-top: 20px;
+    font-weight: bold;
+    color: #333333;
+}
+
+#world_coordinates_widget > QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 10px;
+    background-color: transparent;
+}
+
+/* 2. QLabel 초기화 (투명 배경, 테두리 없음) */
+#world_coordinates_widget QLabel {
+    background: transparent;
+    border: none;
+}
+
+/* 3. [이름] 라벨 (예: "X :") */
+#world_coordinates_widget QLabel#wc_name {
+    font-weight: normal;
+    color: #333333;
+    font-size: 13px;
+}
+
+/* 4. [값] 라벨 (예: "123.456") */
+#world_coordinates_widget QLabel#wc_value {
+    font-weight: bold;
+    color: #333333;
+    font-family: Consolas, Monospace; /* 숫자 등폭 폰트 */
+    font-size: 14px;
+}
+
+/* 5. [단위] 라벨 (예: "mm") */
+#world_coordinates_widget QLabel#wc_unit {
+    color: gray;
+    font-size: 11px;
+}
+
 
 
 

@@ -71,12 +71,12 @@ class FANUCPoseKey(str, Enum):
 
     # =========================================================
     # PLC 주소 생성 (Adapter에서 f-string 제거용)
+    # 쓰기용 (Input: Robot <- PLC)
     # ---------------------------------------------------------
     # 설명:
     # PLC와 통신할 때 숫자를 통째로 보내는 게 아니라
     # 16개의 전선(비트)으로 쪼개서 보낸다 (이진수 통신)
     # =========================================================
-    
     def tag_check(self) -> str:
         """
         [음수/양수 판별용] 체크 비트의 PLC 주소 반환
@@ -123,6 +123,21 @@ class FANUCPoseKey(str, Enum):
         return f"MAIN.Robot1._UI1.{self.value}h{bit_index}"
 
 
+    # =========================================================
+    #   읽기용 (Output: Robot -> PLC, Feedback)
+    # =========================================================
+    def feedback_tag_check(self) -> str:
+        """[피드백] 부호 비트 주소 (예: MAIN.Robot1._UO1.X_Check)"""
+        return f"MAIN.Robot1._UO1.{self.value}_Check"
+
+    def feedback_tag_low_bit(self, bit_index: int) -> str:
+        """[피드백] 하위 16비트 주소 (l0 ~ l15)"""
+        return f"MAIN.Robot1._UO1.{self.value}l{bit_index}"
+
+    def feedback_tag_high_bit(self, bit_index: int) -> str:
+        """[피드백] 상위 8비트 주소 (h0 ~ h7)"""
+        return f"MAIN.Robot1._UO1.{self.value}h{bit_index}"
+
 
 # =============================================================================
 # 제어 신호 정의
@@ -132,12 +147,16 @@ class FanucSignal(str, Enum):
     FANUC 로봇 제어를 위한 디지털 신호(Bit) 주소 모음
     """
     # [입력] Robot <- PLC (보내는 신호)
-    RSR2_START = "MAIN.Robot1._UI1.UI10_RSR2"       # 작업 시작 요청 (Pulse)
-    LOOP_ON    = "MAIN.Robot1._UI1.DI181"           # 연속 재생 (ON=반복)
-    CYCLE_STOP = "MAIN.Robot1._UI1.UI04_CycleStop"  # 비상 정지 / 정지
+    RSR2_START =    "MAIN.Robot1._UI1.UI10_RSR2"        # 작업 시작 요청 (Pulse)
+    LOOP_ON =       "MAIN.Robot1._UI1.DI43"             # 루프 반복 여부 (ON=반복)
+    CYCLE_STOP =    "MAIN.Robot1._UI1.UI04_CycleStop"   # 비상 정지 / 정지
+    START_RE =      "MAIN.Robot1._UI1.UI06_Start"       # 재시작 신호
     
     # [출력] Robot -> PLC (읽는 신호)
-    BUSY       = "MAIN.Robot1._UO1.DO45"            # 로봇이 움직이는 중 (Busy)
+    COMPLETE =  "MAIN.Robot1._UO1.DO45"             # 받은 명령을 완료했다. (job complete)
+    BUSY =      "MAIN.Robot1._UO1._UO10_Busy"       # 로봇 바쁨 상태 (움직이고 있는 중)
+    PAUSED =    "MAIN.Robot1._UO1.UO04_PrgPaused"   # 일시정지 상태
+
 
     @property
     def path(self) -> str:
