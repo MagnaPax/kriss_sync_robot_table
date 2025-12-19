@@ -15,7 +15,7 @@ from typing import Tuple, Optional, Union, TYPE_CHECKING, Callable, List, Any
 from core.event_bus import EVENT_BUS
 from communication.fanuc_adapter import FanucAdapter
 from communication.twincat_connector import TwinCATConnector
-from communication.turntable_adapter import TurntableAdapter
+from communication.servo_adapter import ServoAdapter
 from models.fanuc_pose_model import FANUCPose
 from models.turntable_pose_model import TurntablePose
 
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 # 1. 추상 실행기 (Base Executor)
 # =========================================================
 class BaseExecutor(ABC):
-    def __init__(self, robot: FanucAdapter, turntable: TurntableAdapter):
+    def __init__(self, robot: FanucAdapter, turntable: ServoAdapter):
         self.robot = robot
         self.table = turntable
 
@@ -294,7 +294,7 @@ class TurntableOnlyExecutor(BaseExecutor):
         # 처리할 전체 시퀀스 데이터 방송
         EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
 
-        adapter = self.table # TurntableAdapter
+        adapter = self.table # ServoAdapter
         num_sequences = len(sequence_data)
 
         try:
@@ -368,7 +368,7 @@ class TwinCATCommander:
         
         # 하위 장치 컨트롤러
         self.robot = FanucAdapter(connector)
-        self.turntable = TurntableAdapter(connector)
+        self.turntable = ServoAdapter(connector)
 
         # 등록된 실행기들 (우선순위 순서대로)
         self.executors: List[BaseExecutor] = [

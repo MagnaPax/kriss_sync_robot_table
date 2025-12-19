@@ -12,9 +12,14 @@ if TYPE_CHECKING:
     from communication.mock_plc import MockConnection
 
 
-class TurntableAdapter:
+class ServoAdapter:
     """
-    턴테이블(Servo Motor) 통신 로직을 담당하는 Model 레이어
+    Panasonic 서보 모터(총 3축) 통신 로직을 담당하는 Model 레이어
+    
+    [관리 대상]
+    - Axis 1: Tool 공전 모터
+    - Axis 2: Tool 자전 모터
+    - Axis 3: 턴테이블 모터
     
     [역할]
     - FanucAdapter와 동일한 위상의 하드웨어 드라이버
