@@ -406,11 +406,15 @@ class TwinCATCommander:
             return False, "지원하지 않는 데이터 형식입니다."
 
 
+    # ================================= #
     # --- 로봇에게 내리는 명령들 --- #
-    def apply_user_feed_rate_when_moving(self, feed_rate: float) -> str | None:
+    # ================================= #
+    def apply_user_feed_rate_when_moving_robot(self, feed_rate: float) -> str | None:
         """TargetPositionWidget 에서 사용자가 입력한 Feed Rate 값을 FANUC에 적용"""
 
+        # 로봇이 움직이고 있는지 확인
         is_moving = self.robot.read_busy_signal()
+
         if is_moving:
             # FANUC의 이동속도 변경
             self.robot.send_instant_feed(feed_rate)
