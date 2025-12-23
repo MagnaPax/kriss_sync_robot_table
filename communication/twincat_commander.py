@@ -221,11 +221,25 @@ class ServoOnlyExecutor(BaseExecutor):
                 pose1 = ServoPoseModel.create_for_axis(row, 'tool_revolution_rpm')
                 if pose1.velocity != 0:
                     adapter.move_velocity(1, pose1.velocity)
+                else:
+                    adapter.stop_axis(1)
+
+                # 추가: 명령 후 즉시 에러 체크
+                err1 = adapter.read_error_status(1)
+                if err1['error']:
+                    EVENT_BUS.log.message.emit(f"Axis 1 에러 발생! ID: {err1['id']}", "ERROR")
 
                 # [Axis 2] Tool 자전 (속도 제어)
                 pose2 = ServoPoseModel.create_for_axis(row, 'tool_rotation_rpm')
                 if pose2.velocity != 0:
                     adapter.move_velocity(2, pose2.velocity)
+                else:
+                    adapter.stop_axis(2)
+
+                # 추가: 명령 후 즉시 에러 체크
+                err2 = adapter.read_error_status(2)
+                if err2['error']:
+                    EVENT_BUS.log.message.emit(f"Axis 2 에러 발생! ID: {err2['id']}", "ERROR")
 
                 # [Axis 3] 턴테이블 (위치 제어)
                 pose3 = ServoPoseModel.create_for_axis(row, 'turntable_deg')
