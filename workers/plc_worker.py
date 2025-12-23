@@ -54,6 +54,13 @@ class PLCWorker(QObject):
     def run(self):
         """스레드가 시작되면 호출되는 진입점"""
 
+        # QThread에서 브레이크포인트가 안 잡히는 문제 해결을 위해 디버거 강제 연결
+        try:
+            import debugpy
+            debugpy.debug_this_thread()
+        except ImportError:
+            pass
+
         is_success = False
         msg = "알 수 없는 명령입니다."
 
