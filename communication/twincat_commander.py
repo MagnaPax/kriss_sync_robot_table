@@ -189,20 +189,27 @@ class ServoOnlyExecutor(BaseExecutor):
         [두뇌] 시퀀스 데이터를 순차적으로 실행
         Returns: (성공여부, 결과메시지)
         """
+        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 서보 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
+        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 에서 처리될 전체 데이터\n{(sequence_data)}\n", "DEBUG")
+
+        # 처리할 전체 시퀀스 데이터 방송
+        EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
+
+        adapter = self.servo
         total_steps = len(sequence_data)
         EVENT_BUS.log.message.emit(f"서보 시퀀스 시작 (총 {total_steps}건)", "INFO")
 
         try:
             # 1. 초기화 (Setup) - 전원 ON
             for axis_idx in [1, 2, 3]:
-                self.servo.set_servo_state(axis_idx, True)
+                adapter.set_servo_state(axis_idx, True)
 
             # 2. 실행 루프 (Loop)
             for step_idx, row in enumerate(sequence_data, start=1):
 
                 # (A) 중단 요청 확인
                 if self._is_interrupted():
-                    self.servo.emergency_stop_all()
+                    adapter.emergency_stop_all()
                     return False, "사용자에 의해 작업이 중단되었습니다."
 
                 # (B) UI 진행률 업데이트
@@ -212,20 +219,20 @@ class ServoOnlyExecutor(BaseExecutor):
                 # [Axis 1] Tool 공전 (속도 제어)
                 pose1 = ServoPoseModel.create_for_axis(row, 'tool_revolution_rpm')
                 if pose1.velocity != 0:
-                    self.servo.move_velocity(1, pose1.velocity)
+                    adapter.move_velocity(1, pose1.velocity)
 
                 # [Axis 2] Tool 자전 (속도 제어)
                 pose2 = ServoPoseModel.create_for_axis(row, 'tool_rotation_rpm')
                 if pose2.velocity != 0:
-                    self.servo.move_velocity(2, pose2.velocity)
+                    adapter.move_velocity(2, pose2.velocity)
 
                 # [Axis 3] 턴테이블 (위치 제어)
                 pose3 = ServoPoseModel.create_for_axis(row, 'turntable_deg')
-                self.servo.move_absolute(3, pose3.angle, pose3.velocity)
+                adapter.move_absolute(3, pose3.angle, pose3.velocity)
 
                 # (D) 대기 (Stop-and-Go)
                 if not self._wait_for_turntable_completion(3):
-                    self.servo.emergency_stop_all()
+                    adapter.emergency_stop_all()
 
                     # 실패 사유 파악 (중단 vs 타임아웃)
                     msg = "작업 중단됨" if self._is_interrupted else f"턴테이블 응답 없음 또는 시간 초과 ({self.MOVE_TIMEOUT}s)"
@@ -238,15 +245,15 @@ class ServoOnlyExecutor(BaseExecutor):
             return True, "모든 서보 시퀀스 작업이 완료되었습니다."
 
         except Exception as e:
-            self.servo.emergency_stop_all()
+            adapter.emergency_stop_all()
             EVENT_BUS.log.message.emit(f"서보 실행 중 오류: {e}", "ERROR")
             return False, f"오류 발생: {str(e)}"
 
         finally:
             # 3. 종료 처리 (Teardown)
-            self.servo.emergency_stop_all() # 모든 축 정지
+            adapter.emergency_stop_all() # 모든 축 정지
             for axis_idx in [1, 2, 3]:
-                self.servo.set_servo_state(axis_idx, False) # 전원끄기
+                adapter.set_servo_state(axis_idx, False) # 전원끄기
 
     def _wait_for_turntable_completion(self, axis_idx: int) -> bool:
         """
