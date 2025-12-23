@@ -7,6 +7,7 @@ from models.servo_pose_key import ServoPoseKey, ServoSignal
 from models.servo_pose_model import ServoPose
 
 
+
 # 타입 힌트용
 if TYPE_CHECKING:
     from communication.mock_plc import MockConnection
@@ -125,27 +126,21 @@ class ServoAdapter:
         [상태 확인] 해당 축이 현재 움직이고 있는가?
         PLC: MAIN.Busy{i}
         """
-        try:
-            # 원본 코드: plc.read_by_name('MAIN.Busy1', ...)
-            path = ServoSignal.BUSY.path(axis_index)
             val = self._plc.read_by_name(path, pyads.PLCTYPE_BOOL)
             result = bool(val)
-            return result
-        except Exception:
             return False
+        return bool(val)
 
 
     def read_current_pose(self, axis_index: int) -> dict:
         """
         [피드백] 현재 위치와 속도를 읽어온다.
         PLC: MAIN.Act_pos{i}, MAIN.Act_vel{i}
+        오류 발생 시 예외 전파.
         """
-        try:
-            curr_pos = self._plc.read_by_name(ServoSignal.ACT_POS.path(axis_index), pyads.PLCTYPE_LREAL)
-            curr_vel = self._plc.read_by_name(ServoSignal.ACT_VEL.path(axis_index), pyads.PLCTYPE_LREAL)
-            return {'position': curr_pos, 'velocity': curr_vel}
-        except Exception:
-            return {'position': 0.0, 'velocity': 0.0}
+        curr_pos = self._plc.read_by_name(ServoSignal.ACT_POS.path(axis_index), pyads.PLCTYPE_LREAL)
+        curr_vel = self._plc.read_by_name(ServoSignal.ACT_VEL.path(axis_index), pyads.PLCTYPE_LREAL)
+        return {'position': curr_pos, 'velocity': curr_vel}
         
 
     # ==========================================================================
