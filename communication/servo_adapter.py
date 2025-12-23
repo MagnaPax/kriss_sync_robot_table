@@ -127,7 +127,10 @@ class ServoAdapter:
         """
         try:
             # 원본 코드: plc.read_by_name('MAIN.Busy1', ...)
-            return bool(self._plc.read_by_name(ServoSignal.BUSY.path(axis_index), pyads.PLCTYPE_BOOL))
+            path = ServoSignal.BUSY.path(axis_index)
+            val = self._plc.read_by_name(path, pyads.PLCTYPE_BOOL)
+            result = bool(val)
+            return result
         except Exception:
             return False
 
