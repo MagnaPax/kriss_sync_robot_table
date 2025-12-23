@@ -79,9 +79,11 @@ class ServoAdapter:
         plc = self._plc
 
         # 1. 이동 신호 해제 (Latch 풀기)
-        #    속도 제어용과 위치 제어용 신호 모두 끔 (안전 제일)
-        plc.write_by_name(ServoSignal.MOVE_VEL.path(axis_index), False, pyads.PLCTYPE_BOOL)
-        plc.write_by_name(ServoSignal.MOVE_ABS.path(axis_index), False, pyads.PLCTYPE_BOOL)
+        #    속도 제어용(Axis 1,2)과 위치 제어용(Axis 3) 신호를 구분하여 해제
+        if axis_index in [1, 2]:
+            plc.write_by_name(ServoSignal.MOVE_VEL.path(axis_index), False, pyads.PLCTYPE_BOOL)
+        elif axis_index == 3:
+            plc.write_by_name(ServoSignal.MOVE_ABS.path(axis_index), False, pyads.PLCTYPE_BOOL)
         
         # 2. 정지 신호 인가 (bStop = True)
         plc.write_by_name(ServoSignal.STOP.path(axis_index), True, pyads.PLCTYPE_BOOL)
@@ -107,8 +109,11 @@ class ServoAdapter:
 
         # (A) 모든 축 이동 해제 & 정지 신호 ON
         for i in axes:
-            plc.write_by_name(ServoSignal.MOVE_VEL.path(i), False, pyads.PLCTYPE_BOOL)
-            plc.write_by_name(ServoSignal.MOVE_ABS.path(i), False, pyads.PLCTYPE_BOOL)
+            if i in [1, 2]:
+                plc.write_by_name(ServoSignal.MOVE_VEL.path(i), False, pyads.PLCTYPE_BOOL)
+            elif i == 3:
+                plc.write_by_name(ServoSignal.MOVE_ABS.path(i), False, pyads.PLCTYPE_BOOL)
+            
             plc.write_by_name(ServoSignal.STOP.path(i), True, pyads.PLCTYPE_BOOL)
         
         # (B) 공통 대기 (0.5초)
