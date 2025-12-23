@@ -256,19 +256,26 @@ class ServoOnlyExecutor(BaseExecutor):
 
         finally:
             # 3. 종료 처리 (Teardown)
+            # 엄격한 MVVM 패턴 적용: 복합 로직 및 예외 처리는 Controller(Executor)에서 담당
+            
+        finally:
+            # 3. 종료 처리 (Teardown)
+            # Controller가 Model(ServoAdapter)의 예외를 처리
             
             # (A) 동작 정지
             try:
                 adapter.emergency_stop_all() # 모든 축 정지
             except Exception as e:
-                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 종료 중 비상 정지 실패: {e}", "ERROR")
+                # 통신 단절, 심볼 없음 등 치명적 상황 로그 남기기
+                # 어댑터는 이제 순수 모델이므로 예외를 던짐 -> 여기서 경고로 처리
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 종료 비상 정지 중 예외 발생: {e}", "WARNING")
 
-            # (B) 전원 끄기 (별도 try-except로 분리하여 위에서 에러 나도 이건 실행되게 함)
+            # (B) 전원 끄기
             try:
                 for axis_idx in [1, 2, 3]:
                     adapter.set_servo_state(axis_idx, False) # 전원끄기
             except Exception as e:
-                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 종료 중 전원 끄기 실패: {e}", "ERROR")
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 전원 차단 중 예외 발생: {e}", "WARNING")
 
     def _wait_for_turntable_completion(self, axis_idx: int) -> bool:
         """

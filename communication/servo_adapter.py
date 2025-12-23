@@ -116,7 +116,7 @@ class ServoAdapter:
 
         # (C) 모든 축 정지 신호 OFF
         for i in axes:
-            plc.write_by_name(ServoSignal.STOP.path(i), False, pyads.PLCTYPE_BOOL)        
+            plc.write_by_name(ServoSignal.STOP.path(i), False, pyads.PLCTYPE_BOOL)
 
     # ==========================================================================
     # 2. 상태 모니터링 (Read Feedback)
@@ -125,10 +125,10 @@ class ServoAdapter:
         """
         [상태 확인] 해당 축이 현재 움직이고 있는가?
         PLC: MAIN.Busy{i}
+        오류 발생 시 예외 전파.
         """
-            val = self._plc.read_by_name(path, pyads.PLCTYPE_BOOL)
-            result = bool(val)
-            return False
+        path = ServoSignal.BUSY.path(axis_index)
+        val = self._plc.read_by_name(path, pyads.PLCTYPE_BOOL)
         return bool(val)
 
 
