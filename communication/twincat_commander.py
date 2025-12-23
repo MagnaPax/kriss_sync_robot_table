@@ -15,8 +15,9 @@ from core.event_bus import EVENT_BUS
 from communication.fanuc_adapter import FanucAdapter
 from communication.servo_adapter import ServoAdapter
 from communication.twincat_connector import TwinCATConnector
-from models.fanuc_pose_model import FANUCPose
-from models.servo_pose_model import ServoPose, ServoPoseModel
+from core.settings import SETTINGS
+from models.fanuc_pose_model import FANUCPoseModel
+from models.servo_pose_model import ServoPoseModel
 from config.data_formats import TaskStatus, SERVO_KEYS, ROBOT_KEYS
 
 
@@ -285,8 +286,7 @@ class ServoOnlyExecutor(BaseExecutor):
             
             # (A) Busy 여부 체크 (움직이기 시작했는가?)
             is_busy = self.servo.is_busy(axis_idx)
-            EVENT_BUS.log.message.emit(f"Wait Loop: Axis={axis_idx}, Busy={is_busy}", "DEBUG")
-
+            
             if is_busy:
                 busy_detected = True
                 EVENT_BUS.data.device_busy_status.emit({'turntable': True})
@@ -298,7 +298,6 @@ class ServoOnlyExecutor(BaseExecutor):
 
             # (C) 시퀀스 완전 종료 체크 (PLC 쪽에서 강제 종료 시)
             if self._is_interrupted(): # Assuming _is_interrupted() is the intended check for sequence termination
-                EVENT_BUS.log.message.emit("PLC 시퀀스 종료 플래그 감지됨", "DEBUG")
                 return False # Return False as it's an interruption, not a normal completion
 
             time.sleep(0.1)
