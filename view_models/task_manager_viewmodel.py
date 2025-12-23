@@ -21,7 +21,7 @@ class TaskManagerViewModel(QObject):
     runtime_updated = pyqtSignal(str)                   # 런타임 시간 업데이트
 
 
-    def __init__(self, sequence_service: SequenceService):
+    def __init__(self, sequence_service: SequenceService, plc_service: PLCService):
         super().__init__()
 
         # 로그 메세지의 말머리(로그 발생 위치 표시)
@@ -29,7 +29,7 @@ class TaskManagerViewModel(QObject):
 
         # 서비스 객체 생성
         self._sequence_service = sequence_service
-        self._plc_service = PLCService()
+        self._plc_service = plc_service
 
         # 시퀀스 데이터 캐싱 변수
         self._cached_sequence_data = None

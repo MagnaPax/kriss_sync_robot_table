@@ -38,7 +38,7 @@ class MainViewModel(QObject):
         # --- MainViewModel이 뷰모델 소유 --- #
         self.world_coordinates_vm = WorldCoordinatesViewModel()
         # TaskManager는 보통 SequenceService가 필요하므로 여기서 생성해서 주입
-        self.task_manager_vm = TaskManagerViewModel(self.sequence_service)
+        self.task_manager_vm = TaskManagerViewModel(self.sequence_service, self._service)
 
 
 
