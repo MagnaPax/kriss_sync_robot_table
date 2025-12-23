@@ -255,12 +255,19 @@ class ServoOnlyExecutor(BaseExecutor):
 
         finally:
             # 3. 종료 처리 (Teardown)
+            
+            # (A) 동작 정지
             try:
                 adapter.emergency_stop_all() # 모든 축 정지
+            except Exception as e:
+                EVENT_BUS.log.message.emit(f"종료 중 비상 정지 실패: {e}", "ERROR")
+
+            # (B) 전원 끄기 (별도 try-except로 분리하여 위에서 에러 나도 이건 실행되게 함)
+            try:
                 for axis_idx in [1, 2, 3]:
                     adapter.set_servo_state(axis_idx, False) # 전원끄기
-            except Exception:
-                pass # 원래 에러를 보고하도록 종료 중 에러는 무시
+            except Exception as e:
+                EVENT_BUS.log.message.emit(f"종료 중 전원 끄기 실패: {e}", "ERROR")
 
     def _wait_for_turntable_completion(self, axis_idx: int) -> bool:
         """
@@ -275,18 +282,28 @@ class ServoOnlyExecutor(BaseExecutor):
         busy_detected = False
 
         while time.time() - start_wait < self.BUSY_WAIT_TIMEOUT:
-            # 중단 요청 체크
-            if self._is_interrupted(): return False
+            
+            # (A) Busy 여부 체크 (움직이기 시작했는가?)
+            is_busy = self.servo.is_busy(axis_idx)
+            EVENT_BUS.log.message.emit(f"Wait Loop: Axis={axis_idx}, Busy={is_busy}", "DEBUG")
 
-            if self.servo.is_busy(axis_idx):
-                # Glitch(노이즈)로 인한 판단 착오 방지. Busy가 떴어도 0.1초 더 지켜보고 진짜인지 확인
-                time.sleep(0.1)
-                if self.servo.is_busy(axis_idx):
-                    busy_detected = True
-                    break
-            # CPU 과점유 방지 - 루프마다 대기
-            time.sleep(0.05)
+            if is_busy:
+                busy_detected = True
+                EVENT_BUS.data.device_busy_status.emit({'turntable': True})
+            
+            # (B) Busy가 감지된 이후 -> Busy가 꺼질 때까지 대기
+            if busy_detected and not is_busy:
+                # 움직이다가 멈췄으면 -> 완료 확인
+                return True
 
+            # (C) 시퀀스 완전 종료 체크 (PLC 쪽에서 강제 종료 시)
+            if self._is_interrupted(): # Assuming _is_interrupted() is the intended check for sequence termination
+                EVENT_BUS.log.message.emit("PLC 시퀀스 종료 플래그 감지됨", "DEBUG")
+                return False # Return False as it's an interruption, not a normal completion
+
+            time.sleep(0.1)
+        
+        # If loop finishes and busy_detected is still False, it means busy signal was never detected
         if not busy_detected:
             EVENT_BUS.log.message.emit(f"축 {axis_idx} 반응 없음 (Busy Timeout)", "ERROR")
             return False
