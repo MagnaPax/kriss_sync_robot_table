@@ -246,10 +246,12 @@ class TaskManagerWidget(BaseWidget):
             EVENT_BUS.log.message.emit(f"{self.log_prefix} 뷰모델이 연결되지 않았습니다.", "WARNING")
             return
 
+        """
         # QFileDialog를 사용하여 문자열 경로 획득
         file_path_result = QFileDialog.getOpenFileName(
             self,
             "시퀀스 파일 선택",
+            # "C:/Users/dxt/Desktop/KRISS/kriss_robot_sync/data",
             "/",
             "시퀀스 파일 (*.csv)"
         )
@@ -259,6 +261,8 @@ class TaskManagerWidget(BaseWidget):
             return
 
         file_path_str = file_path_result[0]
+        """
+        file_path_str = 'C:/Users/dxt/Desktop/KRISS/kriss_robot_sync/_for_test/servoOnlyExecutor_test.csv'
         file_path_obj = Path(file_path_str)
 
         if self.lbl_filename:
