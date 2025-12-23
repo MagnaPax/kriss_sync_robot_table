@@ -198,7 +198,7 @@ class ServoOnlyExecutor(BaseExecutor):
         adapter = self.servo
         total_steps = len(sequence_data)
         EVENT_BUS.log.message.emit(f"서보 시퀀스 시작 (총 {total_steps}건)", "INFO")
-
+        
         try:
             # 1. 초기화 (Setup) - 전원 ON
             for axis_idx in [1, 2, 3]:
@@ -245,15 +245,22 @@ class ServoOnlyExecutor(BaseExecutor):
             return True, "모든 서보 시퀀스 작업이 완료되었습니다."
 
         except Exception as e:
-            adapter.emergency_stop_all()
+            try:
+                adapter.emergency_stop_all()
+            except Exception:
+                pass # 에러 처리 중 발생한 에러는 무시(원래 에러가 중요함)
+                
             EVENT_BUS.log.message.emit(f"서보 실행 중 오류: {e}", "ERROR")
             return False, f"오류 발생: {str(e)}"
 
         finally:
             # 3. 종료 처리 (Teardown)
-            adapter.emergency_stop_all() # 모든 축 정지
-            for axis_idx in [1, 2, 3]:
-                adapter.set_servo_state(axis_idx, False) # 전원끄기
+            try:
+                adapter.emergency_stop_all() # 모든 축 정지
+                for axis_idx in [1, 2, 3]:
+                    adapter.set_servo_state(axis_idx, False) # 전원끄기
+            except Exception:
+                pass # 원래 에러를 보고하도록 종료 중 에러는 무시
 
     def _wait_for_turntable_completion(self, axis_idx: int) -> bool:
         """
