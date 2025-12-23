@@ -27,11 +27,9 @@ from .base_parser import BaseParser
 from config.data_formats import CSV_SCHEMA, DEFAULT_VALUES
 
 
-
 # 타입 힌트를 위한 별칭 정의
 CoordinateDict = Dict[str, Union[float, str]]
 SequenceDict = Dict[str, CoordinateDict]
-
 
 
 class SequenceTxtParser(BaseParser):
@@ -91,7 +89,6 @@ class SequenceTxtParser(BaseParser):
             parsed_data[str(i)] = coords
                 
         return parsed_data
-
 
 
 class SequenceCsvParser(BaseParser):
@@ -159,6 +156,68 @@ class SequenceCsvParser(BaseParser):
         return parsed_data
 
 
+class StandardHeaderCsvParser(BaseParser):
+    """
+    일반적인 헤더 기반 CSV 파서
+        csv 파일의 첫 줄에 헤더가 있는 경우
+    """
+
+    def can_parse(self, path: Path) -> bool:
+        # 이 클래스는 직접 SequenceParserManager에서 명시적으로 호출됨
+        return path.suffix.lower() == ".csv"
+
+    def parse(self, data: List[List[str]]) -> SequenceDict:
+        """
+        헤더 기반 리스트를 딕셔너리로 파싱
+        """
+        if not data:
+            return {}
+
+        headers = [h.strip() for h in data[0]]
+        parsed_data: SequenceDict = {}
+
+        # 2번째 줄(인덱스 1)부터 데이터 처리
+        for row_index, row_list in enumerate(data[1:], start=1):
+            if not row_list:
+                continue
+
+            temp_dict: CoordinateDict = {}
+            sequence_id: str = ""
+
+            for i, header in enumerate(headers):
+                if i >= len(row_list):
+                    break
+                
+                value_str = row_list[i].strip()
+                
+                # 'id' 컬럼 처리
+                if header.lower() == 'id':
+                    sequence_id = value_str
+                    temp_dict['id'] = int(value_str)
+                else:
+                    # 나머지 숫자 데이터 처리
+                    try:
+                        # 숫자인 경우 float으로 변환, 아니면 문자열 그대로 유지
+                        try:
+                            temp_dict[header] = float(value_str)
+                        except ValueError:
+                            temp_dict[header] = value_str
+                    except Exception:
+                        continue
+
+            # 기본값 주입
+            temp_dict.update(DEFAULT_VALUES)
+
+            # ID가 없으면 인덱스를 ID로 사용
+            if not sequence_id:
+                sequence_id = str(row_index)
+                temp_dict['id'] = row_index
+
+            parsed_data[sequence_id] = temp_dict
+
+        return parsed_data
+
+
 class SequenceParserManager:
 
     def __init__(self):
@@ -168,7 +227,30 @@ class SequenceParserManager:
         ]
 
     def find_parser(self, path: Path) -> BaseParser:
-        for parser in self.parsers:
-            if parser.can_parse(path):
-                return parser
-        raise ValueError(f"지원하지 않는 파일 형식: {path.suffix}")
+        suffix = path.suffix.lower()
+        
+        if suffix == ".txt":
+            return SequenceTxtParser()
+            
+        if suffix == ".csv":
+            # CSV인 경우 파일의 첫 줄을 확인하여 형식을 결정
+            try:
+                from utils.file_handler import load_csv
+                raw_data = load_csv(path)
+                
+                if not raw_data:
+                    return SequenceCsvParser() # 빈 파일이면 기본 파서 반환
+
+                first_row = raw_data[0]
+                # 첫 줄의 첫 칸이 'PRLINE'이면 기존 "키-값" 형식
+                if first_row and first_row[0].strip().upper() == "PRLINE":
+                    return SequenceCsvParser()
+                else:
+                    # 그렇지 않으면 일반 헤더 기반 형식
+                    return StandardHeaderCsvParser()
+                    
+            except Exception:
+                # 확인 실패 시 기본 파서 반환
+                return SequenceCsvParser()
+
+        raise ValueError(f"지원하지 않는 파일 형식: {suffix}")
