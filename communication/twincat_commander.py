@@ -198,7 +198,7 @@ class ServoOnlyExecutor(BaseExecutor):
 
         adapter = self.servo
         total_steps = len(sequence_data)
-        EVENT_BUS.log.message.emit(f"서보 시퀀스 시작 (총 {total_steps}건)", "INFO")
+        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 서보 시퀀스 시작 (총 {total_steps}건)", "INFO")
         
         try:
             # 1. 초기화 (Setup) - 전원 ON
@@ -251,7 +251,7 @@ class ServoOnlyExecutor(BaseExecutor):
             except Exception:
                 pass # 에러 처리 중 발생한 에러는 무시(원래 에러가 중요함)
                 
-            EVENT_BUS.log.message.emit(f"서보 실행 중 오류: {e}", "ERROR")
+            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 서보 실행 중 오류: {e}", "ERROR")
             return False, f"오류 발생: {str(e)}"
 
         finally:
@@ -261,14 +261,14 @@ class ServoOnlyExecutor(BaseExecutor):
             try:
                 adapter.emergency_stop_all() # 모든 축 정지
             except Exception as e:
-                EVENT_BUS.log.message.emit(f"종료 중 비상 정지 실패: {e}", "ERROR")
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 종료 중 비상 정지 실패: {e}", "ERROR")
 
             # (B) 전원 끄기 (별도 try-except로 분리하여 위에서 에러 나도 이건 실행되게 함)
             try:
                 for axis_idx in [1, 2, 3]:
                     adapter.set_servo_state(axis_idx, False) # 전원끄기
             except Exception as e:
-                EVENT_BUS.log.message.emit(f"종료 중 전원 끄기 실패: {e}", "ERROR")
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 종료 중 전원 끄기 실패: {e}", "ERROR")
 
     def _wait_for_turntable_completion(self, axis_idx: int) -> bool:
         """
@@ -287,6 +287,13 @@ class ServoOnlyExecutor(BaseExecutor):
             # (A) Busy 여부 체크 (움직이기 시작했는가?)
             is_busy = self.servo.is_busy(axis_idx)
             
+            # 실시간 피드백 로그 (동작 확인용)
+            feedback = self.servo.read_current_pose(axis_idx)
+            EVENT_BUS.log.message.emit(
+                f"[{self.__class__.__name__}] Axis {axis_idx}: Pos={feedback['position']:.3f}, Vel={feedback['velocity']:.3f}, Busy={is_busy}", 
+                "DEBUG"
+            )
+            
             if is_busy:
                 busy_detected = True
                 EVENT_BUS.data.device_busy_status.emit({'turntable': True})
@@ -304,7 +311,7 @@ class ServoOnlyExecutor(BaseExecutor):
         
         # If loop finishes and busy_detected is still False, it means busy signal was never detected
         if not busy_detected:
-            EVENT_BUS.log.message.emit(f"축 {axis_idx} 반응 없음 (Busy Timeout)", "ERROR")
+            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 축 {axis_idx} 반응 없음 (Busy Timeout)", "ERROR")
             return False
 
         # -------------------------------------------------------------
@@ -320,7 +327,7 @@ class ServoOnlyExecutor(BaseExecutor):
 
             # 타임아웃 체크 (무한 대기 방지)
             if time.time() - move_start_time > self.MOVE_TIMEOUT:
-                EVENT_BUS.log.message.emit(f"축 {axis_idx} 이동 시간 초과 ({self.MOVE_TIMEOUT}초)", "ERROR")
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 축 {axis_idx} 이동 시간 초과 ({self.MOVE_TIMEOUT}초)", "ERROR")
                 return False
 
             # CPU 과점유 방지 - 루프마다 대기
