@@ -37,6 +37,25 @@ class ServoAdapter:
         return self.connector.handle
 
 
+
+    # ==========================================================================
+    # 추가: 에러 상태 확인
+    # ==========================================================================
+    def read_error_status(self, axis_index: int) -> dict:
+        """
+        [상태 확인] 해당 축에 에러가 발생했는지 확인합니다.
+        PLC 변수명은 환경에 따라 다를 수 있으니 확인이 필요합니다 (예: MAIN.bError1, MAIN.nErrorID1)
+        """
+        try:
+            # 보통 TwinCAT MC 블록은 bError(BOOL)와 nErrorID(UDINT/UINT)를 가집니다.
+            # 경로가 설정되어 있지 않다면 ServoSignal 모델에 추가가 필요합니다.
+            has_error = self._plc.read_by_name(f"MAIN.bError{axis_index}", pyads.PLCTYPE_BOOL)
+            error_id = self._plc.read_by_name(f"MAIN.nErrorID{axis_index}", pyads.PLCTYPE_UINT)
+            return {'error': has_error, 'id': error_id}
+        except:
+            return {'error': False, 'id': 0}
+
+
     # ==========================================================================
     # 1. 기본 설정 및 안전 (Setup & Safety)
     # ==========================================================================
