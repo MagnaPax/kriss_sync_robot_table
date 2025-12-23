@@ -232,14 +232,23 @@ class ServoOnlyExecutor(BaseExecutor):
                 adapter.move_absolute(3, pose3.angle, pose3.velocity)
 
                 # (D) 대기 (Stop-and-Go)
-                if not self._wait_for_turntable_completion(3):
+                if not self._wait_for_turntable_completion(3, target_pos=pose3.angle):
                     adapter.emergency_stop_all()
 
                     # 실패 사유 파악 (중단 vs 타임아웃)
                     msg = "작업 중단됨" if self._is_interrupted else f"턴테이블 응답 없음 또는 시간 초과 ({self.MOVE_TIMEOUT}s)"
                     return False, msg
 
-                # (E) 스텝 완료
+                # (E) 스텝 완료 로그
+                feedback1 = adapter.read_current_pose(1)
+                feedback2 = adapter.read_current_pose(2)
+                EVENT_BUS.log.message.emit(
+                    f"[{self.__class__.__name__}] Axis 1 (RPM) 완료: 목표={pose1.velocity:.1f}, 현재={feedback1['velocity']:.1f}", "DEBUG"
+                )
+                EVENT_BUS.log.message.emit(
+                    f"[{self.__class__.__name__}] Axis 2 (RPM) 완료: 목표={pose2.velocity:.1f}, 현재={feedback2['velocity']:.1f}", "DEBUG"
+                )
+
                 EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSED)
                 time.sleep(0.05) 
 
@@ -273,7 +282,7 @@ class ServoOnlyExecutor(BaseExecutor):
             except Exception as e:
                 EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 전원 차단 중 예외 발생: {e}", "WARNING")
 
-    def _wait_for_turntable_completion(self, axis_idx: int) -> bool:
+    def _wait_for_turntable_completion(self, axis_idx: int, target_pos: float = None) -> bool:
         """
         턴테이블 이동 완료 대기 (Busy Check + Timeout)
         Returns: True(완료), False(실패/중단)
@@ -290,13 +299,6 @@ class ServoOnlyExecutor(BaseExecutor):
             # (A) Busy 여부 체크 (움직이기 시작했는가?)
             is_busy = self.servo.is_busy(axis_idx)
             
-            # 실시간 피드백 로그 (동작 확인용)
-            feedback = self.servo.read_current_pose(axis_idx)
-            EVENT_BUS.log.message.emit(
-                f"[{self.__class__.__name__}] Axis {axis_idx}: Pos={feedback['position']:.3f}, Vel={feedback['velocity']:.3f}, Busy={is_busy}", 
-                "DEBUG"
-            )
-            
             if is_busy:
                 busy_detected = True
                 EVENT_BUS.data.device_busy_status.emit({'turntable': True})
@@ -304,6 +306,12 @@ class ServoOnlyExecutor(BaseExecutor):
             # (B) Busy가 감지된 이후 -> Busy가 꺼질 때까지 대기
             if busy_detected and not is_busy:
                 # 움직이다가 멈췄으면 -> 완료 확인
+                feedback = self.servo.read_current_pose(axis_idx)
+                actual_pos = feedback['position']
+                EVENT_BUS.log.message.emit(
+                    f"[{self.__class__.__name__}] Axis {axis_idx} 이동 완료: CSV목표={target_pos:.3f}, 현재위치={actual_pos:.3f}", 
+                    "DEBUG"
+                )
                 return True
 
             # (C) 시퀀스 완전 종료 체크 (PLC 쪽에서 강제 종료 시)
@@ -336,6 +344,12 @@ class ServoOnlyExecutor(BaseExecutor):
             # CPU 과점유 방지 - 루프마다 대기
             time.sleep(0.05)
             
+        feedback = self.servo.read_current_pose(axis_idx)
+        actual_pos = feedback['position']
+        EVENT_BUS.log.message.emit(
+            f"[{self.__class__.__name__}] Axis {axis_idx} 이동 완료: CSV목표={target_pos:.3f}, 현재위치={actual_pos:.3f}", 
+            "DEBUG"
+        )
         return True
 
     def _is_interrupted(self) -> bool:
