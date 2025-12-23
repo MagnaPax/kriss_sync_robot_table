@@ -17,7 +17,7 @@ from communication.servo_adapter import ServoAdapter
 from communication.twincat_connector import TwinCATConnector
 from models.fanuc_pose_model import FANUCPose
 from models.servo_pose_model import ServoPose, ServoPoseModel
-from config.data_formats import TaskStatus, SERVO_SCHEMA
+from config.data_formats import TaskStatus, SERVO_KEYS, ROBOT_KEYS
 
 
 
@@ -54,9 +54,11 @@ class FanucOnlyExecutor(BaseExecutor):
     """로봇 단독 제어"""
 
     def can_execute(self, sample_data: dict) -> bool:
-        # FANUCPose 객체의 키들이 포함되어 있는지 확인
-        required_keys = {'w', 'p', 'r'} 
-        return required_keys.issubset(sample_data.keys())
+        data_keys = set(sample_data.keys())
+        has_robot = not ROBOT_KEYS.isdisjoint(data_keys)
+        has_servo = not SERVO_KEYS.isdisjoint(data_keys)
+        # 로봇 키가 있고, 서보 키는 없을 때
+        return has_robot and not has_servo
 
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] FANUC 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
@@ -176,16 +178,11 @@ class ServoOnlyExecutor(BaseExecutor):
     MOVE_TIMEOUT = 60.0       # 턴테이블 이동 최대 허용 시간
 
     def can_execute(self, sample_data: dict) -> bool:
-        # 서보 제어와 관련된 키들이 하나라도 있는지 확인
-        # (툴 공전, 툴 자전, 턴테이블 중 하나만 있어도 서보 제어임)
-        servo_keys = {
-            'turntable_deg', 
-            'tool_revolution_rpm', 
-            'tool_rotation_rpm'
-        }
-        
-        # 키가 하나라도 겹치면 True
-        return not servo_keys.isdisjoint(sample_data.keys())
+        data_keys = set(sample_data.keys())
+        has_robot = not ROBOT_KEYS.isdisjoint(data_keys)
+        has_servo = not SERVO_KEYS.isdisjoint(data_keys)
+        # 서보 키가 있고, 로봇 키는 없을 때
+        return has_servo and not has_robot
 
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
         """
@@ -318,9 +315,12 @@ class IntegratedExecutor(BaseExecutor):
     CSV 파일 형식 (로봇 + 턴테이블 통합 제어)
     """
     def can_execute(self, sample_data: dict) -> bool:
-        # CSV_SCHEMA의 키들이 포함되어 있는지 확인
-        required_keys = {'polar_coord_theta', 'polar_coord_radius'}
-        return required_keys.issubset(sample_data.keys())
+        data_keys = set(sample_data.keys())
+        # CSV 통합 키 (polar_coord_...) 가 포함되어 있는지 확인
+        # (통합 제어는 보통 로봇과 서보 키가 공존함)
+        has_robot = not ROBOT_KEYS.isdisjoint(data_keys)
+        has_servo = not SERVO_KEYS.isdisjoint(data_keys)
+        return has_robot and has_servo and ('polar_coord_theta' in data_keys or 'polar_coord_radius' in data_keys)
 
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] CSV 파일 통합 제어 모드로 실행 (데이터 {len(sequence_data)}건)", "INFO")
@@ -405,9 +405,11 @@ class LegacyIntegratedExecutor(BaseExecutor):
     """
 
     def can_execute(self, sample_data: dict) -> bool:
-        # TXT_SCHEMA의 키들이 포함되어 있는지 확인
-        required_keys = {'turntable_deg', 'tool_rotation_rpm', 'tool_revolution_rpm'}
-        return required_keys.issubset(sample_data.keys())
+        data_keys = set(sample_data.keys())
+        # TXT 레거시 키 (axis_x, Y...) 와 서보 키가 공존할 때
+        has_legacy_robot = any(k in data_keys for k in ['axis_x', 'axis_y', 'axis_z', 'feed_rate'])
+        has_servo = not SERVO_KEYS.isdisjoint(data_keys)
+        return has_legacy_robot and has_servo
 
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 레거시 파일 모드로 실행 (데이터 {len(sequence_data)}건)", "INFO")
@@ -519,12 +521,13 @@ class TwinCATCommander:
         self.turntable = ServoAdapter(connector)
 
         # 등록된 실행기들 (우선순위 순서대로)
+        # INTEGRATED(가장 구체적) -> ONLY(일반적) 순으로 배치
         self.executors: List[BaseExecutor] = [
-            LegacyIntegratedExecutor(self.robot, self.turntable),   # 특정 키값이 더 많은 것을 먼저 검사
-            ServoOnlyExecutor(self.robot, self.turntable),
-            IntegratedExecutor(self.robot, self.turntable),
-            FanucOnlyExecutor(self.robot, self.turntable),  # x,y,z 중복된 키값이 많은 조건을 마지막에
-            TurntableOnlyExecutor(self.robot, self.turntable)
+            IntegratedExecutor(self.robot, self.turntable),         # CSV 통합
+            LegacyIntegratedExecutor(self.robot, self.turntable),   # TXT 레거시 통합
+            FanucOnlyExecutor(self.robot, self.turntable),          # 로봇 단독
+            ServoOnlyExecutor(self.robot, self.turntable),          # 서보 단독
+            TurntableOnlyExecutor(self.robot, self.turntable)       # 턴테이블 테스트용
         ]
 
     def execute_sequence_with_executor(self, sequence_data: list[dict[str, Any]]) -> tuple[bool, str]:
