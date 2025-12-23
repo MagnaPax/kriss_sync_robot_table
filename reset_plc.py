@@ -44,14 +44,14 @@ def reset_plc():
         print("\n[Step 1] Stopping all movements...")
         for i in axes:
             try:
-                # 이동 신호 해제
-                plc.write_by_name(f"MAIN.bMoveVel{i}", False, pyads.PLCTYPE_BOOL)
-                plc.write_by_name(f"MAIN.bMoveAbs{i}", False, pyads.PLCTYPE_BOOL)
-                # 정지 신호 인가 (Symbol이 없을 수 있으므로 try-except)
-                try:
-                    plc.write_by_name(f"MAIN.bStop{i}", True, pyads.PLCTYPE_BOOL)
-                except:
-                    pass
+                # 이동 신호 해제 (축별로 분류)
+                if i in [1, 2]:
+                    plc.write_by_name(f"MAIN.bMoveVel{i}", False, pyads.PLCTYPE_BOOL)
+                elif i == 3:
+                    plc.write_by_name(f"MAIN.bMoveAbs{i}", False, pyads.PLCTYPE_BOOL)
+                
+                # 정지 신호 인가
+                plc.write_by_name(f"MAIN.bStop{i}", True, pyads.PLCTYPE_BOOL)
                 print(f"Axis {i} Stop command sent.")
             except Exception as e:
                 print(f"Axis {i} Stop failed: {e}")

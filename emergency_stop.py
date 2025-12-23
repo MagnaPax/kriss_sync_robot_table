@@ -27,9 +27,12 @@ def emergency_stop():
         # 1. 모든 동작 정지
         for i in axes:
             try:
-                # 이동 신호 끄기
-                plc.write_by_name(f"MAIN.bMoveVel{i}", False, pyads.PLCTYPE_BOOL)
-                plc.write_by_name(f"MAIN.bMoveAbs{i}", False, pyads.PLCTYPE_BOOL)
+                # 이동 신호 끄기 (축별로 분류)
+                if i in [1, 2]:
+                    plc.write_by_name(f"MAIN.bMoveVel{i}", False, pyads.PLCTYPE_BOOL)
+                elif i == 3:
+                    plc.write_by_name(f"MAIN.bMoveAbs{i}", False, pyads.PLCTYPE_BOOL)
+                
                 # 정지 신호 켜기
                 plc.write_by_name(f"MAIN.bStop{i}", True, pyads.PLCTYPE_BOOL)
                 print(f"Axis {i} Stop Signal Sent.")
