@@ -256,10 +256,6 @@ class ServoOnlyExecutor(BaseExecutor):
 
         finally:
             # 3. 종료 처리 (Teardown)
-            # 엄격한 MVVM 패턴 적용: 복합 로직 및 예외 처리는 Controller(Executor)에서 담당
-            
-        finally:
-            # 3. 종료 처리 (Teardown)
             # Controller가 Model(ServoAdapter)의 예외를 처리
             
             # (A) 동작 정지
