@@ -309,7 +309,6 @@ class ServoOnlyExecutor(BaseExecutor):
         return bool((thread := QThread.currentThread()) and thread.isInterruptionRequested())
 
 
-
 class IntegratedExecutor(BaseExecutor):
     """
     CSV 파일 형식 (로봇 + 턴테이블 통합 제어)
@@ -317,7 +316,7 @@ class IntegratedExecutor(BaseExecutor):
     def can_execute(self, sample_data: dict) -> bool:
         data_keys = set(sample_data.keys())
         # CSV 통합 키 (polar_coord_...) 가 포함되어 있는지 확인
-        # (통합 제어는 보통 로봇과 서보 키가 공존함)
+        #   통합 제어는 로봇과 서보 키가 같이 있다
         has_robot = not ROBOT_KEYS.isdisjoint(data_keys)
         has_servo = not SERVO_KEYS.isdisjoint(data_keys)
         return has_robot and has_servo and ('polar_coord_theta' in data_keys or 'polar_coord_radius' in data_keys)
@@ -420,92 +419,6 @@ class LegacyIntegratedExecutor(BaseExecutor):
         return True, "레거시 파일 모드 실행 완료 -> TODO: 로직 만들어야 된다"
 
 
-class TurntableOnlyExecutor(BaseExecutor):
-    """
-    턴테이블 단독 제어
-    용도: 턴테이블 테스트, 수동 이동 등
-    """
-    
-    def can_execute(self, sample_data: dict) -> bool:
-        # TurntablePose의 필수 키만 있고 로봇 데이터가 없는 경우
-        # (로봇 데이터와 섞이면 IntegratedExecutor나 Legacy가 처리해야 함)
-        
-        # 필수 키: angle(또는 T), velocity
-        has_turntable = 'angle' in sample_data or 'T' in sample_data
-        
-        # 로봇 키가 없어야 함 (있으면 복합 제어)
-        has_robot = 'x' in sample_data or 'X' in sample_data
-        
-        return has_turntable and not has_robot
-
-    def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
-        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 턴테이블 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
-
-        # 처리할 전체 시퀀스 데이터 방송
-        EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
-
-        adapter = self.servo # ServoAdapter
-        num_sequences = len(sequence_data)
-
-        try:
-            # 1. 초기 신호 (Servo On, 초기화)
-            adapter.set_initial_signals()
-            
-            init_done = False
-
-            # 2. 시퀀스 루프
-            for idx, row in enumerate(sequence_data, 1):
-                
-                current_id = row.get('id') or idx
-
-                # 현재 시퀀스 진행상태 방송: 진행중
-                EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, "processing")
-                
-                # 데이터 추출 (키 매핑)
-                angle_val = float(row.get('angle') or row.get('T', 0.0))
-                velocity_val = float(row.get('velocity') or row.get('turntable_feed_rate', 10.0))
-
-                # 현재 턴테이블 위치 방송
-                target_pose = ServoPose(angle=angle_val, velocity=velocity_val)
-                EVENT_BUS.control.turntable_current_pose.emit(target_pose)
-
-
-                # --- 핸드셰이킹 (Busy Check) ---
-                while True:
-                    # 턴테이블 Busy 확인
-                    is_busy = adapter.read_busy_signal()
-                    
-                    # 턴테이블은 로봇과 달리 '멈추면 다음 명령(Stop-and-Go)' 방식이 더 안전할 수 있음
-                    if not is_busy:
-                        # 1. 이동 명령 전송 (Rising Edge 발생)
-                        adapter.move_to(angle_val, velocity_val)
-                        
-                        init_done = True
-                        
-                        # 2. 이동이 시작될 때까지(Busy=True) 잠시 대기
-                        # (Adapter 내부에서 sleep을 주긴 했지만 안전장치)
-                        time.sleep(0.2) 
-                        
-                        # 3. 이동이 끝날 때까지 대기 (Blocking)
-                        # 단독 테스트이므로 확실하게 이동 완료 후 다음 명령 수행
-                        while adapter.read_busy_signal():
-                            time.sleep(0.1)
-                        
-                        break # 이동 완료 -> 다음 시퀀스
-                    
-                    else:
-                        time.sleep(0.1)
-
-                # 현재 시퀀스 진행상태 방송: 완료
-                EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, "processed")
-
-            # 3. 종료 신호 (서보 오프 등)
-            adapter.set_finish_signals()
-            return True, "턴테이블 작업 완료"
-
-        except Exception as e:
-            adapter.set_emergency_stop()
-            return False, f"턴테이블 실행 중 에러: {e}"
 
 
 # =========================================================
@@ -526,8 +439,7 @@ class TwinCATCommander:
             IntegratedExecutor(self.robot, self.turntable),         # CSV 통합
             LegacyIntegratedExecutor(self.robot, self.turntable),   # TXT 레거시 통합
             FanucOnlyExecutor(self.robot, self.turntable),          # 로봇 단독
-            ServoOnlyExecutor(self.robot, self.turntable),          # 서보 단독
-            TurntableOnlyExecutor(self.robot, self.turntable)       # 턴테이블 테스트용
+            ServoOnlyExecutor(self.robot, self.turntable)           # 서보 단독
         ]
 
     def execute_sequence_with_executor(self, sequence_data: list[dict[str, Any]]) -> tuple[bool, str]:
