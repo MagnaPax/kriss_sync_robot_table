@@ -171,6 +171,10 @@ class ServoOnlyExecutor(BaseExecutor):
     로봇 없이 Panasonic 서보 모터 3축(툴 2개 + 턴테이블 1개)만 단독 제어
     """
 
+    # 타임아웃 상수
+    BUSY_WAIT_TIMEOUT = 5.0   # 명령 후 Busy가 뜰 때까지 기다리는 시간
+    MOVE_TIMEOUT = 60.0       # 턴테이블 이동 최대 허용 시간
+
     def can_execute(self, sample_data: dict) -> bool:
         # 서보 제어와 관련된 키들이 하나라도 있는지 확인
         # (툴 공전, 툴 자전, 턴테이블 중 하나만 있어도 서보 제어임)
@@ -199,9 +203,8 @@ class ServoOnlyExecutor(BaseExecutor):
             # 2. 실행 루프 (Loop)
             for step_idx, row in enumerate(sequence_data, start=1):
 
-                # (A) [수정] Qt 스레드 중단 요청 확인
-                # self._stop_requested 대신 Qt 네이티브 기능 사용
-                if (thread := QThread.currentThread()) and thread.isInterruptionRequested():
+                # (A) 중단 요청 확인
+                if self._is_interrupted():
                     self.servo.emergency_stop_all()
                     return False, "사용자에 의해 작업이 중단되었습니다."
 
@@ -209,24 +212,27 @@ class ServoOnlyExecutor(BaseExecutor):
                 EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSING)
 
                 # (C) 명령 생성 및 전송
-                # [Axis 1] Tool 공전
+                # [Axis 1] Tool 공전 (속도 제어)
                 pose1 = ServoPoseModel.create_for_axis(row, 'tool_revolution_rpm')
-                if pose1.velocity != 0: 
+                if pose1.velocity != 0:
                     self.servo.move_velocity(1, pose1.velocity)
 
-                # [Axis 2] Tool 자전
+                # [Axis 2] Tool 자전 (속도 제어)
                 pose2 = ServoPoseModel.create_for_axis(row, 'tool_rotation_rpm')
                 if pose2.velocity != 0:
                     self.servo.move_velocity(2, pose2.velocity)
 
-                # [Axis 3] 턴테이블
+                # [Axis 3] 턴테이블 (위치 제어)
                 pose3 = ServoPoseModel.create_for_axis(row, 'turntable_deg')
                 self.servo.move_absolute(3, pose3.angle, pose3.velocity)
 
                 # (D) 대기 (Stop-and-Go)
                 if not self._wait_for_turntable_completion(3):
                     self.servo.emergency_stop_all()
-                    return False, "작업 중 중단 요청됨"
+
+                    # 실패 사유 파악 (중단 vs 타임아웃)
+                    msg = "작업 중단됨" if self._is_interrupted else f"턴테이블 응답 없음 또는 시간 초과 ({self.MOVE_TIMEOUT}s)"
+                    return False, msg
 
                 # (E) 스텝 완료
                 EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSED)
@@ -241,29 +247,71 @@ class ServoOnlyExecutor(BaseExecutor):
 
         finally:
             # 3. 종료 처리 (Teardown)
-            self.servo.emergency_stop_all()
+            self.servo.emergency_stop_all() # 모든 축 정지
             for axis_idx in [1, 2, 3]:
-                self.servo.set_servo_state(axis_idx, False)
-
+                self.servo.set_servo_state(axis_idx, False) # 전원끄기
 
     def _wait_for_turntable_completion(self, axis_idx: int) -> bool:
-        """턴테이블 이동 완료 대기 (Busy Check)"""
-        timeout = time.time() + 2.0
-        
-        # 1. Busy 뜰 때까지 대기
-        while not self.servo.is_busy(axis_idx):
-            # [수정] 중단 요청 확인
-            if (thread := QThread.currentThread()) and thread.isInterruptionRequested(): return False
-            if time.time() > timeout: break 
+        """
+        턴테이블 이동 완료 대기 (Busy Check + Timeout)
+        Returns: True(완료), False(실패/중단)
+        """
+        # -------------------------------------------------------------
+        # Phase 1: Busy 신호가 뜰 때까지 대기 (최대 BUSY_WAIT_TIMEOUT 초)
+        # -------------------------------------------------------------
+        # 명령을 보내자마자 바로 읽으면 아직 Busy가 False일 수 있음
+        start_wait = time.time()
+        busy_detected = False
+
+        while time.time() - start_wait < self.BUSY_WAIT_TIMEOUT:
+            # 중단 요청 체크
+            if self._is_interrupted(): return False
+
+            if self.servo.is_busy(axis_idx):
+                # Glitch(노이즈)로 인한 판단 착오 방지. Busy가 떴어도 0.1초 더 지켜보고 진짜인지 확인
+                time.sleep(0.1)
+                if self.servo.is_busy(axis_idx):
+                    busy_detected = True
+                    break
+            # CPU 과점유 방지 - 루프마다 대기
             time.sleep(0.05)
 
-        # 2. Busy 꺼질 때까지 대기
+        if not busy_detected:
+            EVENT_BUS.log.message.emit(f"축 {axis_idx} 반응 없음 (Busy Timeout)", "ERROR")
+            return False
+
+        # -------------------------------------------------------------
+        # Phase 2: Busy 신호가 꺼질 때까지 대기 (최대 MOVE_TIMEOUT 초)
+        # -------------------------------------------------------------
+        move_start_time = time.time()
+
+        # 이동중 - Busy 꺼질 때까지 대기
+        #   타임아웃을 길게 잡거나 없애야 함 (이동이 10초 걸릴 수도 있으니까)
         while self.servo.is_busy(axis_idx):
-            # [수정] 중단 요청 확인
-            if (thread := QThread.currentThread()) and thread.isInterruptionRequested(): return False
+            # 중단 요청 체크
+            if self._is_interrupted(): return False
+
+            # 타임아웃 체크 (무한 대기 방지)
+            if time.time() - move_start_time > self.MOVE_TIMEOUT:
+                EVENT_BUS.log.message.emit(f"축 {axis_idx} 이동 시간 초과 ({self.MOVE_TIMEOUT}초)", "ERROR")
+                return False
+
+            # CPU 과점유 방지 - 루프마다 대기
             time.sleep(0.05)
             
         return True
+
+    def _is_interrupted(self) -> bool:
+        """
+        [안전장치] 현재 스레드 중단 요청 확인
+        Walrus operator(:=)를 사용하여 None 체크와 메서드 호출을 한 번에 처리
+        """
+        # 1. thread 변수에 현재 스레드 할당
+        # 2. thread가 None이 아니면(True), 뒤의 isInterruptionRequested() 호출
+        # 3. thread가 None이면(False), 바로 False 반환
+        return bool((thread := QThread.currentThread()) and thread.isInterruptionRequested())
+
+
 
 class IntegratedExecutor(BaseExecutor):
     """
