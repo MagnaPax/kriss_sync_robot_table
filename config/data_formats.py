@@ -158,3 +158,25 @@ DEFAULT_VALUES: dict[str, str] = {
     'status': TaskStatus.UNPROCESSED,
     'result': TaskResult.PENDING
 }
+
+# =============================================================================
+# [SELECTOR] 실행기(Executor) 판별용 키 집합
+# =============================================================================
+# 용도: 파일 파싱 후 어떤 실행기(Executor)를 사용할지 결정할 때 사용
+# 위치: twincat_commander.py 의 can_execute() 메서드들
+
+# 1. 로봇(FANUC) 제어와 관련된 키
+ROBOT_KEYS = {
+    'x', 'y', 'z', 'w', 'p', 'r',             # 내부 변수명 (FanucOnly)
+    'axis_x', 'axis_y', 'axis_z',             # TXT 스키마 변수명 (Legacy)
+    'polar_coord_radius', 'paraboloid_height' # CSV 통합 스키마 변수명 (Integrated)
+}
+
+# 2. 서보(Panasonic) 제어와 관련된 키
+SERVO_KEYS = {
+    'turntable_deg',        # 턴테이블 각도
+    'tool_revolution_rpm',  # 툴 공전
+    'tool_rotation_rpm',    # 툴 자전
+    'polar_coord_theta',    # 통합 제어에서의 턴테이블 각도
+    'turntable_feed_rate'   # 턴테이블 속도
+}
