@@ -270,20 +270,63 @@ class ServoAdapter:
         time.sleep(0.01)
         plc.write_by_name(ServoSignal.MOVE_ABS.path(axis_index), True, pyads.PLCTYPE_BOOL)
 
-    def homing(self, axis_index: int):
+    def home_all_safely(self, timeout: float = 30.0) -> bool:
         """
-        [원점 복구] 특정 축의 원점 복귀 작업
+        [원점 복귀] 모든 서보 축을 안전하게 초기화한다.
+        
         절차:
-            1. bHome 신호 False로 초기화 (안전장치)
-            2. bHome 신호 True 인가 (원점 복귀 실행)
+            1. 안전을 위해 먼저 모든 축을 강제 정지한다.
+            2. ServoAxis에 정의된 모든 축에 대해 원점 복귀(Homing) 신호를 전송한다.
+            3. 턴테이블(Axis 3)과 같은 물리적 축이 이동을 마칠 때까지 대기한다.
+        
+        Args:
+            timeout (float): 원점 복귀 최대 대기 시간 (기본 30초)
+            
+        Returns:
+            bool: 모든 과정이 에러 없이 완료되면 True
         """
-        plc = self._plc
-        
-        # 1. 처음 False로 초기화 하는 작업
-        plc.write_by_name(ServoSignal.HOME.path(axis_index), False, pyads.PLCTYPE_BOOL)
-        time.sleep(0.05)    # 신호 안정화 대기
-        
-        # 2. bHome = True 부여하여 원점 복귀 실행
-        #   PLC에서 완료 시 자동으로 False가 되므로 여기서는 True만 전송
-        plc.write_by_name(ServoSignal.HOME.path(axis_index), True, pyads.PLCTYPE_BOOL)
-        time.sleep(0.1)   # 안정성을 위해 약간의 대기
+        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 전체 원점 복귀 시작...", "INFO")
+
+        try:
+            # 1. 선행 안전 조치: 일단 멈춤
+            self.request_immediate_stop()
+            time.sleep(0.5) # 정지 후 안정화 대기
+
+            # 2. 모든 축에 원점 복귀 명령 전송
+            #    ServoAxis Enum을 사용하여 1, 2, 3 숫자가 무엇을 의미하는지 명확히 함
+            for axis in ServoAxis:
+                # 턴테이블(3번)은 물리적으로 돌아서 원점을 잡고,
+                # 툴(1,2번)은 보통 현재 위치를 0으로 셋팅하거나 제자리 보정을 함
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] {axis.name}(Axis {axis.value}) 원점 신호 전송", "DEBUG")
+                self.homing(axis)
+            
+            # 신호가 PLC에 도달하고 로직이 시작될 시간 확보
+            time.sleep(0.5)
+
+            # 3. 완료 대기 (Busy 신호가 꺼질 때까지)
+            start_time = time.time()
+            
+            while time.time() - start_time < timeout:
+                # 모든 축이 Busy 상태가 아니면 완료로 간주
+                is_any_busy = False
+                
+                for axis in ServoAxis:
+                    if self.is_busy(axis):
+                        is_any_busy = True
+                        break
+                
+                if not is_any_busy:
+                    EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 모든 축 원점 복귀 완료", "INFO")
+                    return True
+                
+                # 아직 움직이는 중...
+                time.sleep(0.2)
+
+            # 4. 타임아웃 발생 시
+            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 원점 복귀 시간 초과 ({timeout}s)", "WARNING")
+            self.request_immediate_stop() # 안전을 위해 다시 정지
+            return False
+
+        except Exception as e:
+            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 원점 복귀 중 에러 발생: {e}", "ERROR")
+            return False
