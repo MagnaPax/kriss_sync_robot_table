@@ -239,7 +239,7 @@ class ServoOnlyExecutor(BaseExecutor):
                     adapter.stop_axis(1)
 
                 # 추가: 명령 후 즉시 에러 체크
-                err1 = adapter.read_error_status(1)
+                err1 = adapter.is_error_active(1)
                 if err1['error']:
                     EVENT_BUS.log.message.emit(f"Axis 1 에러 발생! ID: {err1['id']}", "ERROR")
 
@@ -252,7 +252,7 @@ class ServoOnlyExecutor(BaseExecutor):
                     adapter.stop_axis(2)
 
                 # 추가: 명령 후 즉시 에러 체크
-                err2 = adapter.read_error_status(2)
+                err2 = adapter.is_error_active(2)
                 if err2['error']:
                     EVENT_BUS.log.message.emit(f"Axis 2 에러 발생! ID: {err2['id']}", "ERROR")
 
