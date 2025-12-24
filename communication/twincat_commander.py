@@ -7,10 +7,7 @@ TwinCAT Commander (Model Layer)
         TwinCAT 에 연결된 기기(FANUC 로봇, 턴테이블) 제어
 
 
-
         TODO: F8 버튼 누르는 초기화 추가되어야 됨!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!(Error State 초기화)
-        TODO: 시퀀스 맨 마지막에 모터가 감속하는 시간을 기다려준 뒤 전원을 꺼야됨
-        TODO: 맨 처음에 같은 좌표가 들어와도 에러 나지 않게 (축 3 반응 없음 (Busy Timeout))
 """
 import time
 from PyQt6.QtCore import QThread, QObject
@@ -216,7 +213,7 @@ class ServoOnlyExecutor(BaseExecutor):
 
                 # (A) 중단 요청 확인
                 if self._is_interrupted():
-                    adapter.emergency_stop_all()
+                    adapter.request_immediate_stop()
                     return False, "사용자에 의해 작업이 중단되었습니다."
 
                 # (B) UI 진행률 업데이트
@@ -268,7 +265,7 @@ class ServoOnlyExecutor(BaseExecutor):
                 # 마지막 시퀀스가 아닐 때만 완료를 기다림 (마지막은 finally 블록에서 처리)
                 if step_idx < total_steps:
                     if not self._wait_for_turntable_completion(3, target_pos=pose3.angle):
-                        adapter.emergency_stop_all()
+                        adapter.request_immediate_stop()
 
                         # 실패 사유 파악 (중단 vs 타임아웃)
                         msg = "작업 중단됨" if self._is_interrupted else f"턴테이블 응답 없음 또는 시간 초과 ({self.MOVE_TIMEOUT}s)"
@@ -291,7 +288,7 @@ class ServoOnlyExecutor(BaseExecutor):
 
         except Exception as e:
             try:
-                adapter.emergency_stop_all()
+                adapter.request_immediate_stop()
             except Exception:
                 pass # 에러 처리 중 발생한 에러는 무시(원래 에러가 중요함)
                 
@@ -300,8 +297,8 @@ class ServoOnlyExecutor(BaseExecutor):
 
         finally:
             # 3. 종료 처리 (Teardown)
-            # 모든 서보모터가 정지(Busy=False)할 때까지 대기 (감속 시간 확보)
-            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 완료 대기: 모든 서보가 정지할 때까지 기다립니다...", "DEBUG")
+            # 모든 서보모터가 물리적으로 정지할 때까지 대기 (감속 시간 확보)
+            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 완료 대기: 모든 서보가 물리적으로 정지할 때까지 기다립니다...", "DEBUG")
             
             stop_wait_start = time.time()
             while time.time() - stop_wait_start < self.MOVE_TIMEOUT:
@@ -318,7 +315,7 @@ class ServoOnlyExecutor(BaseExecutor):
             
             # (A) 동작 정지
             try:
-                adapter.emergency_stop_all() # 모든 축 정지
+                adapter.request_immediate_stop() # 모든 축 정지
             except Exception as e:
                 # 통신 단절, 심볼 없음 등 치명적 상황 로그 남기기
                 # 어댑터는 이제 순수 모델이므로 예외를 던짐 -> 여기서 경고로 처리
