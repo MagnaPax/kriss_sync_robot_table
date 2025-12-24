@@ -29,6 +29,10 @@ class LeftPanel(QFrame):
         self.logo_widget = LogoWidget()
         servo_control = ServoControlWidget()
 
+        # --- 뷰모델 주입 --- #
+        # MainViewModel에서 뷰모델을 꺼내서 주입
+        servo_control.set_view_model(self.vm.servo_control_vm)
+
         
         # --- TurntableWidget을 QGroupBox 안에 넣기 ---
         turntable_group = QGroupBox("1️⃣ Turntable Angle")  # QGroupBox 생성
