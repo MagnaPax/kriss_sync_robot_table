@@ -265,12 +265,14 @@ class ServoOnlyExecutor(BaseExecutor):
                 adapter.move_absolute(3, pose3.angle, pose3.velocity)
 
                 # (D) 대기 (Stop-and-Go)
-                if not self._wait_for_turntable_completion(3, target_pos=pose3.angle):
-                    adapter.emergency_stop_all()
+                # 마지막 시퀀스가 아닐 때만 완료를 기다림 (마지막은 finally 블록에서 처리)
+                if step_idx < total_steps:
+                    if not self._wait_for_turntable_completion(3, target_pos=pose3.angle):
+                        adapter.emergency_stop_all()
 
-                    # 실패 사유 파악 (중단 vs 타임아웃)
-                    msg = "작업 중단됨" if self._is_interrupted else f"턴테이블 응답 없음 또는 시간 초과 ({self.MOVE_TIMEOUT}s)"
-                    return False, msg
+                        # 실패 사유 파악 (중단 vs 타임아웃)
+                        msg = "작업 중단됨" if self._is_interrupted else f"턴테이블 응답 없음 또는 시간 초과 ({self.MOVE_TIMEOUT}s)"
+                        return False, msg
 
                 # (E) 스텝 완료 로그
                 feedback1 = adapter.read_current_pose(1)
@@ -336,6 +338,16 @@ class ServoOnlyExecutor(BaseExecutor):
             if is_busy:
                 busy_detected = True
                 EVENT_BUS.data.device_busy_status.emit({'turntable': True})
+            else:
+                # [보완] Busy가 아니고 이미 목표 위치 부근이라면, 이동 명령이 무시된(No-op) 것으로 간주하고 성공 반환
+                if target_pos is not None:
+                    current_pos = self.servo.read_current_pose(axis_idx)['position']
+                    if abs(current_pos - target_pos) < 0.05: # 0.05도 오차 허용
+                        EVENT_BUS.log.message.emit(
+                            f"[{self.__class__.__name__}] 축 {axis_idx}가 이미 목표 위치({target_pos:.3f})에 있으므로 대기를 종료합니다.", 
+                            "DEBUG"
+                        )
+                        return True
             
             # (B) Busy가 감지된 이후 -> Busy가 꺼질 때까지 대기
             if busy_detected and not is_busy:
