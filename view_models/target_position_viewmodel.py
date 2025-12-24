@@ -1,11 +1,13 @@
 # view_models/target_position_viewmodel.py
 from PyQt6.QtCore import Qt, QObject, pyqtSignal, pyqtSlot
 from models.fanuc_pose_model import FANUCPoseModel, FANUCPose
-from services.plc_service import PLCService
 from services.macro_service import MacroService
 from config.paths import CONFIG_MACRO_PATH
 from core.event_bus import EVENT_BUS
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from services.plc_service import PLCService
 
 
 class TargetPositionViewModel(QObject):
@@ -15,7 +17,7 @@ class TargetPositionViewModel(QObject):
     macros_loaded = pyqtSignal(dict)    # 매크로 데이터 가져오기 완료
 
 
-    def __init__(self, model: FANUCPoseModel, plc_service: PLCService):
+    def __init__(self, model: FANUCPoseModel, plc_service: "PLCService"):
         """
         인자들:
             model: 데이터 모델 인스턴스
@@ -43,15 +45,15 @@ class TargetPositionViewModel(QObject):
 
             if macro_data:
                 self.macros_loaded.emit(macro_data)
-                EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 데이터 로드 성공", "INFO")
+                EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 데이터 로드 성공(매크로 버튼 제목을 뽑아오기 위함)", "INFO")
                 
             else:
                 self.state_changed.emit("매크로 데이터 로드 실패")
-                EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 데이터 로드 실패", "ERROR")
+                EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 데이터 로드 실패", "WARNING")
 
         except Exception as e:
             self.state_changed.emit(f"매크로 데이터 로드 실패: {e}")
-            EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 데이터 로드 실패: {e}", "ERROR")
+            EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 데이터 로드 실패: {e}", "WARNING")
 
 
 
@@ -66,10 +68,16 @@ class TargetPositionViewModel(QObject):
         # View에게 전화 걸어서 알림
         self.state_changed.emit(f"이동 명령 전송 중... (좌표: {fanuc_pose_obj})")
 
-        # PLCService 호출
-        # PLCService.move_robot()은 내부적으로 QThread와 Worker를 생성, 
-        # UI 멈춤 없이 비동기로 통신을 수행
-        self._plc_service.move_robot_by_pose(fanuc_pose_obj)
+        # PLC 통신을 시작하는 트리거이므로 try-except로 처리
+        try:
+            # PLCService 호출
+            # PLCService.move_robot()은 내부적으로 QThread와 Worker를 생성, 
+            # UI 멈춤 없이 비동기로 통신을 수행
+            self._plc_service.move_robot_by_pose(fanuc_pose_obj)
+        except Exception as e:
+            error_msg = f"이동 명령 전송 실패: {e}"
+            self.state_changed.emit(error_msg)
+            EVENT_BUS.log.message.emit(f"{self.log_prefix} {error_msg}", "ERROR")
 
 
     def update_feed_rate(self, feed_rate: float):

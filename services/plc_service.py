@@ -9,28 +9,29 @@ from workers.plc_worker import PLCWorker
 from models.fanuc_pose_model import FANUCPose
 from communication.twincat_connector import TwinCATConnector
 from communication.twincat_commander import TwinCATCommander
+from communication.fanuc_adapter import FanucAdapter
+from communication.servo_adapter import ServoAdapter
 
 
 
 class PLCService(QObject):
     """
-    PLC 통신 총괄 관리자 (Service Layer)
-    
-    역할:
-    1. Model(Connector, Commander) 소유 및 관리
-    2. Heartbeat(연결 상태) 주기적 체크
-    3. 앱 종료 시 안전하게 연결 해제
+    하드웨어 관리소
+        애플리케이션의 하드웨어 제어 계층에서 'Composition Root' 역할 수행
     """
-    
     def __init__(self):
         super().__init__()
-
-        # 로그 메세지의 말머리(로그 발생 위치 표시)
         self._log_prefix = f"[{self.__class__.__name__}]"
         
-        # 서비스가 Model을 소유 - 연결과 명령 담당 객체 생성
+        # 1. 연결 담당 (지갑)
         self.connector = TwinCATConnector()
-        self.commander = TwinCATCommander(self.connector)
+
+        # 2. 어댑터(손과 발) 생성 및 소유
+        self.fanuc = FanucAdapter(self.connector)
+        self.servo = ServoAdapter(self.connector)
+
+        # 3. 커맨더(두뇌) 생성 후 어댑터 주입(Dependency Injection)
+        self.commander = TwinCATCommander(self.connector, self.fanuc, self.servo)
 
 
         # --- 비동기 작업용 스레드/워커 변수 --- #
@@ -259,6 +260,10 @@ class PLCService(QObject):
         self._start_worker('SET_SPEED', data=feed_rate, log_msg=f"로봇 속도 설정 변경 요청: {feed_rate} mm/sec")
 
 
+
+    # ==========================================================
+    # 상태 확인
+    # ==========================================================
     @property
     def is_running(self) -> bool:
         """로봇이나 턴테이블이 현재 작업 중인지 확인"""
@@ -338,3 +343,40 @@ class PLCService(QObject):
         except Exception:
             # 모니터링 중 에러는 로그를 남기지 않음 (로그 폭주 방지)
             pass
+
+
+
+    # ==========================================================
+    # [비동기] 서보 모터 제어 (Worker 사용)
+    # ==========================================================
+    
+    def move_servo_by_manual(self, data: dict):
+        """
+        서보 수동 조작
+        
+        Args:
+            data (dict): {'axis': 1, 'velocity': 10.0, 'target': ...} 등의 제어 정보
+        """
+        EVENT_BUS.log.message.emit(f"서보 구동 요청: {data}", "DEBUG")
+        # Commander는 list[dict] 형태를 기대하므로 리스트로 포장
+        sequence_data = [data]
+        # 이동하는건 'MOVE' 명령으로 통일 (Commander가 알아서 Executor를 찾음)
+        self._start_worker('MOVE', data=sequence_data, log_msg=f"서보 구동 요청: {data}")
+
+
+    def stop_servo_all(self):
+        """서보 모터 비상 정지"""
+        
+        # 만약 이미 무언가(예: 로봇 이동) 실행 중이라면 강제 중단 요청
+        if self._thread and self._thread.isRunning():
+            self._thread.requestInterruption()
+            EVENT_BUS.log.message.emit("진행 중인 작업을 중단하고 서보 정지를 시도합니다.", "WARNING")
+
+        # 정지 명령 Worker 실행
+        self._start_worker('SERVO_STOP', log_msg="서보 전체 정지 요청")
+
+
+    def home_servo_all(self):
+        """서보 원점 복귀"""
+        # 원점 복귀는 시간이 걸리는 작업이므로 Worker로 실행
+        self._start_worker('SERVO_HOME', log_msg="서보 원점 복귀 요청 (Axis 1,2,3)")

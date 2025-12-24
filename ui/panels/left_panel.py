@@ -4,9 +4,12 @@ from typing import TYPE_CHECKING
 from ..widgets import LogoWidget
 from ..widgets import TurntableWidget
 from ..widgets import CurrentStateWidget
+from ui.widgets.servo_control_widget import ServoControlWidget
 
 if TYPE_CHECKING:
     from view_models.main_window_viewmodel import MainViewModel
+
+
 
 class LeftPanel(QFrame):
     def __init__(self, view_model: "MainViewModel", parent=None):    # 부모가 없을 수도 있다(독립적 테스트 가능)
@@ -24,7 +27,11 @@ class LeftPanel(QFrame):
 
         # 위젯들
         self.logo_widget = LogoWidget()
-        connection_status = QGroupBox("Connection Status")
+        servo_control = ServoControlWidget()
+
+        # --- 뷰모델 주입 --- #
+        # MainViewModel에서 뷰모델을 꺼내서 주입
+        servo_control.set_view_model(self.vm.servo_control_vm)
 
         
         # --- TurntableWidget을 QGroupBox 안에 넣기 ---
@@ -48,11 +55,10 @@ class LeftPanel(QFrame):
 
         turntable_group.setStyleSheet("color: black; border: 1px solid red;")
         current_state_group.setStyleSheet("color: black; border: 1px solid black;")
-        connection_status.setStyleSheet("color: black; border: 1px solid green;")
 
 
         # 바탕 레이아웃에 위젯 추가
         main_layout.addWidget(self.logo_widget,  stretch=1)     # 1/5 -> 20%
         main_layout.addWidget(turntable_group,   stretch=2)     # 2/5 -> 40%
         main_layout.addWidget(current_state_group, stretch=1)   # 1/5 -> 20%
-        main_layout.addWidget(connection_status,    stretch=1)  # 1/5 -> 20%
+        main_layout.addWidget(servo_control,    stretch=1)      # 1/5 -> 20%

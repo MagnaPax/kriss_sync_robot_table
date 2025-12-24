@@ -7,6 +7,7 @@ from services.sequence_service import SequenceService
 from view_models.task_manager_viewmodel import TaskManagerViewModel
 from view_models.target_position_viewmodel import TargetPositionViewModel
 from view_models.world_coordinates_viewmodel import WorldCoordinatesViewModel
+from view_models.servo_control_viewmodel import ServoControlViewModel
 
 
 
@@ -22,23 +23,28 @@ class MainViewModel(QObject):
 
 
     def __init__(self, plc_service: PLCService):
+        """
+        PLCService를 외부에서 주입받는 이유
+            PLCService는 하드웨어 연결을 담당
+            앱 시작할 때 StartupManager에서 PLCService.connect_with_retry 사용해서 TwinCAT 연결
+            이미 연결된 plc_service 인스턴스를 유지한 채로 MainViewModel에게 넘겨(Injection)줬기 때문. 그러지 않았다면 여기 MainViewModel에서 새 PLCService를 만들고 다시 연결해야 했다
+        """
         super().__init__()
 
-        # Service 인스턴스를 소유 (직접 호출 위해)
-        self._service = plc_service
+        # 1. 공용 서비스 및 데이터 모델 보관
+        self._service = plc_service                 # PLC 통신 서비스 (하드웨어 제어권 - 직접 호출)
+        self.positon_model = FANUCPoseModel()       # 로봇 위치 데이터 모델
+        self.sequence_service = SequenceService()   # 파일 입출력 서비스
 
-        # 하위 뷰모델 생성 및 관리
-        self.positon_model = FANUCPoseModel()
-
-        # TargetPosition 뷰모델 생성 (모델 + 서비스 주입)
-        self.target_position_vm = TargetPositionViewModel(self.positon_model, self._service)
-
-        self.sequence_service = SequenceService()
-
-        # --- MainViewModel이 뷰모델 소유 --- #
+        # 2. 하위 뷰모델 생성 및 자원 배분 (Dependency Injection)
+        # 서보 제어: 전체 PLC 서비스 전달(비동기 처리 권한)
+        self.servo_control_vm = ServoControlViewModel(self._service)
+        # 좌표 표시: 읽기 전용 UI TODO: 추후 필요시 자원 주입
         self.world_coordinates_vm = WorldCoordinatesViewModel()
-        # TaskManager는 보통 SequenceService가 필요하므로 여기서 생성해서 주입
-        self.task_manager_vm = TaskManagerViewModel(self.sequence_service)
+        # 목표 위치 설정: 위치 모델 & 전체 PLC 서비스 전달(비동기 처리 권한)
+        self.target_position_vm = TargetPositionViewModel(self.positon_model, self._service)
+        # 작업 관리: 시퀀스 파일 서비스 & 전체 PLC 서비스 전달(비동기 처리 권한)
+        self.task_manager_vm = TaskManagerViewModel(self.sequence_service, self._service)
 
 
 

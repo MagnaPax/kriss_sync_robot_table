@@ -245,30 +245,29 @@ class TaskManagerWidget(BaseWidget):
         if not self.vm:
             EVENT_BUS.log.message.emit(f"{self.log_prefix} 뷰모델이 연결되지 않았습니다.", "WARNING")
             return
-        """
+
         # QFileDialog를 사용하여 문자열 경로 획득
-        file_path_str, _ = QFileDialog.getOpenFileName(
-            self,                   # 부모 위젯
-            "시퀀스 파일 선택",     # 다이얼로그 제목
-            "/",                    # 다이얼로그 창에서 처음 열어볼 디렉토리
-            "시퀀스 파일 (*.csv)"   # 파일 필터
+        file_path_result = QFileDialog.getOpenFileName(
+            self,
+            "시퀀스 파일 선택",
+            "/",
+            "시퀀스 파일 (*.csv)"
         )
-        """
-        file_path_str = "./sequence_sample.csv"
-        if file_path_str:
-            # 문자열 경로를 pathlib.Path 객체로 변환
-            file_path_obj = Path(file_path_str)
 
-            if self.lbl_filename:
-                self.lbl_filename.setText(file_path_obj.name)
-
-            EVENT_BUS.log.message.emit(f"파일 선택됨: {file_path_obj}", "INFO")
-            
-            # Path 객체를 VM의 슬롯으로 전달
-            self.vm.load_sequence_data(file_path_obj)
-
-        else:
+        if not file_path_result or not file_path_result[0]:
             EVENT_BUS.log.message.emit("파일 선택이 취소되었습니다.", "INFO")
+            return
+
+        file_path_str = file_path_result[0]
+        file_path_obj = Path(file_path_str)
+
+        if self.lbl_filename:
+            self.lbl_filename.setText(file_path_obj.name)
+
+        EVENT_BUS.log.message.emit(f"파일 선택됨: {file_path_obj}", "INFO")
+        
+        # Path 객체를 VM의 슬롯으로 전달
+        self.vm.load_sequence_data(file_path_obj)
 
     def _handle_start_button_clicked(self):
         """

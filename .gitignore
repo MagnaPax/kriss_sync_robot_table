@@ -839,3 +839,5 @@ models/README.md
 tests/unit/test_turntable.py
 TODO.md
 /_client_demo/
+# Beckhoff 장비 명세서 폴더
+EtherNetIP/

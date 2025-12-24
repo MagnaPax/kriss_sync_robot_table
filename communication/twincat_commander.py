@@ -5,19 +5,23 @@ TwinCAT Commander (Model Layer)
 
     역할:
         TwinCAT 에 연결된 기기(FANUC 로봇, 턴테이블) 제어
+
+
+        TODO: F8 버튼 누르는 초기화 추가되어야 됨!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!(Error State 초기화)
 """
 import time
-import pyads
-from PyQt6.QtCore import QThread
+from PyQt6.QtCore import QThread, QObject
 from abc import ABC, abstractmethod
-from typing import Tuple, Optional, Union, TYPE_CHECKING, Callable, List, Any
+from typing import TYPE_CHECKING, List, Any
 
 from core.event_bus import EVENT_BUS
 from communication.fanuc_adapter import FanucAdapter
-from communication.twincat_connector import TwinCATConnector
 from communication.servo_adapter import ServoAdapter
-from models.fanuc_pose_model import FANUCPose
-from models.servo_pose_model import ServoPose
+from communication.twincat_connector import TwinCATConnector
+from core.settings import SETTINGS
+from models.fanuc_pose_model import FANUCPoseModel
+from models.servo_pose_model import ServoPoseModel
+from config.data_formats import TaskStatus, SERVO_KEYS, ROBOT_KEYS
 
 
 
@@ -31,9 +35,9 @@ if TYPE_CHECKING:
 # 1. 추상 실행기 (Base Executor)
 # =========================================================
 class BaseExecutor(ABC):
-    def __init__(self, robot: FanucAdapter, turntable: ServoAdapter):
+    def __init__(self, robot: FanucAdapter, servo: ServoAdapter):
         self.robot = robot
-        self.table = turntable
+        self.servo = servo
 
     @abstractmethod
     def can_execute(self, sample_data: dict) -> bool:
@@ -54,9 +58,11 @@ class FanucOnlyExecutor(BaseExecutor):
     """로봇 단독 제어"""
 
     def can_execute(self, sample_data: dict) -> bool:
-        # FANUCPose 객체의 키들이 포함되어 있는지 확인
-        required_keys = {'w', 'p', 'r'} 
-        return required_keys.issubset(sample_data.keys())
+        data_keys = set(sample_data.keys())
+        has_robot = not ROBOT_KEYS.isdisjoint(data_keys)
+        has_servo = not SERVO_KEYS.isdisjoint(data_keys)
+        # 로봇 키가 있고, 서보 키는 없을 때
+        return has_robot and not has_servo
 
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] FANUC 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
@@ -112,7 +118,7 @@ class FanucOnlyExecutor(BaseExecutor):
                 )
                 # 현재 로봇 위치 방송
                 EVENT_BUS.control.robot_current_pose.emit(target_pose)
-                EVENT_BUS.log.message(f"\n현재 로봇 위치: {target_pose}\n", "DEBUG")
+                EVENT_BUS.log.message.emit(f"\n현재 로봇 위치: {target_pose}\n", "DEBUG")
 
 
                 # --- 증분 이동(Incremental/Relative Move) 제어 --- #
@@ -165,14 +171,246 @@ class FanucOnlyExecutor(BaseExecutor):
             return False, f"실행 중 에러 발생: {e}"
 
 
+class ServoOnlyExecutor(BaseExecutor):
+    """
+    [서보 모터 전용 실행기]
+    로봇 없이 Panasonic 서보 모터 3축(툴 2개 + 턴테이블 1개)만 단독 제어
+    """
+
+    # 타임아웃 상수
+    BUSY_WAIT_TIMEOUT = 5.0   # 명령 후 Busy가 뜰 때까지 기다리는 시간
+    MOVE_TIMEOUT = 60.0       # 턴테이블 이동 최대 허용 시간
+
+    def can_execute(self, sample_data: dict) -> bool:
+        data_keys = set(sample_data.keys())
+        has_robot = not ROBOT_KEYS.isdisjoint(data_keys)
+        has_servo = not SERVO_KEYS.isdisjoint(data_keys)
+        # 서보 키가 있고, 로봇 키는 없을 때
+        return has_servo and not has_robot
+
+    def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
+        """
+        [두뇌] 시퀀스 데이터를 순차적으로 실행
+        Returns: (성공여부, 결과메시지)
+        """
+        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 서보 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
+        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 에서 처리될 전체 데이터\n{(sequence_data)}\n", "DEBUG")
+
+        # 처리할 전체 시퀀스 데이터 방송
+        EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
+
+        adapter = self.servo
+        total_steps = len(sequence_data)
+        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 서보 시퀀스 시작 (총 {total_steps}건)", "INFO")
+        
+        try:
+            # 1. 초기화 (Setup) - 전원 ON
+            for axis_idx in [1, 2, 3]:
+                adapter.set_servo_state(axis_idx, True)
+
+            # 2. 실행 루프 (Loop)
+            for step_idx, row in enumerate(sequence_data, start=1):
+
+                # (A) 중단 요청 확인
+                if self._is_interrupted():
+                    adapter.request_immediate_stop()
+                    return False, "사용자에 의해 작업이 중단되었습니다."
+
+                # (B) UI 진행률 업데이트
+                EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSING)
+
+                # (C) 명령 생성 및 전송
+                seq_id = row.get('id', step_idx)
+                # 보기 좋게 주요 파라미터만 추출하여 로그 출력
+                log_msg = (
+                    f"[{self.__class__.__name__}] 시퀀스 #{seq_id} 실행 시작 ({step_idx}/{total_steps}) | "
+                    f"공전={row.get('tool_revolution_rpm', 0):.1f}RPM, "
+                    f"자전={row.get('tool_rotation_rpm', 0):.1f}RPM, "
+                    f"턴테이블={row.get('turntable_deg', 0):.1f}deg"
+                )
+                EVENT_BUS.log.message.emit(log_msg, "INFO")
+
+                # [Axis 1] Tool 공전 (속도 제어)
+                pose1 = ServoPoseModel.create_for_axis(row, 'tool_revolution_rpm')
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] Pose1 생성: {pose1}", "DEBUG")
+                if pose1.velocity != 0:
+                    adapter.move_velocity(1, pose1.velocity)
+                else:
+                    adapter.stop_axis(1)
+
+                # 추가: 명령 후 즉시 에러 체크
+                err1 = adapter.is_error_active(1)
+                if err1['error']:
+                    EVENT_BUS.log.message.emit(f"Axis 1 에러 발생! ID: {err1['id']}", "ERROR")
+
+                # [Axis 2] Tool 자전 (속도 제어)
+                pose2 = ServoPoseModel.create_for_axis(row, 'tool_rotation_rpm')
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] Pose2 생성: {pose2}", "DEBUG")
+                if pose2.velocity != 0:
+                    adapter.move_velocity(2, pose2.velocity)
+                else:
+                    adapter.stop_axis(2)
+
+                # 추가: 명령 후 즉시 에러 체크
+                err2 = adapter.is_error_active(2)
+                if err2['error']:
+                    EVENT_BUS.log.message.emit(f"Axis 2 에러 발생! ID: {err2['id']}", "ERROR")
+
+                # [Axis 3] 턴테이블 (위치 제어)
+                pose3 = ServoPoseModel.create_for_axis(row, 'turntable_deg')
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] Pose3 생성: {pose3}", "DEBUG")
+                adapter.move_absolute(3, pose3.angle, pose3.velocity)
+
+                # (D) 대기 (Stop-and-Go)
+                # 마지막 시퀀스가 아닐 때만 완료를 기다림 (마지막은 finally 블록에서 처리)
+                if step_idx < total_steps:
+                    if not self._wait_for_turntable_completion(3, target_pos=pose3.angle):
+                        adapter.request_immediate_stop()
+
+                        # 실패 사유 파악 (중단 vs 타임아웃)
+                        msg = "작업 중단됨" if self._is_interrupted else f"턴테이블 응답 없음 또는 시간 초과 ({self.MOVE_TIMEOUT}s)"
+                        return False, msg
+
+                # (E) 스텝 완료 로그
+                feedback1 = adapter.read_current_pose(1)
+                feedback2 = adapter.read_current_pose(2)
+                EVENT_BUS.log.message.emit(
+                    f"[{self.__class__.__name__}] Axis 1 (RPM) 완료: 목표={pose1.velocity:.1f}, 현재={feedback1['velocity']:.1f}", "DEBUG"
+                )
+                EVENT_BUS.log.message.emit(
+                    f"[{self.__class__.__name__}] Axis 2 (RPM) 완료: 목표={pose2.velocity:.1f}, 현재={feedback2['velocity']:.1f}", "DEBUG"
+                )
+
+                EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSED)
+                time.sleep(0.05) 
+
+            return True, "모든 서보 시퀀스 작업이 완료되었습니다."
+
+        except Exception as e:
+            try:
+                adapter.request_immediate_stop()
+            except Exception:
+                pass # 에러 처리 중 발생한 에러는 무시(원래 에러가 중요함)
+                
+            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 서보 실행 중 오류: {e}", "ERROR")
+            return False, f"오류 발생: {str(e)}"
+
+        finally:
+            # 3. 종료 처리 (Teardown)
+            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 종료 절차: 서보모터 정지 및 전원 차단을 시도합니다...", "DEBUG")
+
+            # MOVE_TIMEOUT(60초)을 넘겨줘서 충분한 감속시간 확보
+            is_safely_shutdown = adapter.shutdown_all_with_power_off(timeout=self.MOVE_TIMEOUT)
+
+            if is_safely_shutdown:
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 모든 서보모터가 안전하게 종료되었습니다. ", "INFO")
+            else:
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 경고: 정지 대기 시간 초과({self.MOVE_TIMEOUT}s). 되었거나 종료 절차 중 오류가 발생하였습니다.", "WARNING")
+
+
+    def _wait_for_turntable_completion(self, axis_idx: int, target_pos: float = None) -> bool:
+        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] {axis_idx}축 이동 완료 대기 중...", "DEBUG")
+        """
+        턴테이블 이동 완료 대기 (Busy Check + Timeout)
+        Returns: True(완료), False(실패/중단)
+        """
+        # -------------------------------------------------------------
+        # Phase 1: Busy 신호가 뜰 때까지 대기 (최대 BUSY_WAIT_TIMEOUT 초)
+        # -------------------------------------------------------------
+        # 명령을 보내자마자 바로 읽으면 아직 Busy가 False일 수 있음
+        start_wait = time.time()
+        busy_detected = False
+
+        while time.time() - start_wait < self.BUSY_WAIT_TIMEOUT:
+            
+            # (A) 움직임 여부 체크 (속도 기준)
+            moving = self.servo.is_moving(axis_idx)
+            
+            if moving:
+                busy_detected = True
+                EVENT_BUS.data.device_busy_status.emit({'turntable': True})
+            else:
+                # [보완] 이미 목표 위치 부근이라면, 이동 명령이 무시된(No-op) 것으로 간주하고 성공 반환
+                if target_pos is not None:
+                    current_pos = self.servo.read_current_pose(axis_idx)['position']
+                    if abs(current_pos - target_pos) < 0.05: # 0.05도 오차 허용
+                        EVENT_BUS.log.message.emit(
+                            f"[{self.__class__.__name__}] 축 {axis_idx}가 이미 목표 위치({target_pos:.3f})에 있으므로 대기를 종료합니다.", 
+                            "DEBUG"
+                        )
+                        return True
+            
+            # (B) 움직임이 감지된 이후 -> 멈출 때까지 대기
+            if busy_detected and not moving:
+                # 움직이다가 멈췄으면 -> 완료 확인
+                feedback = self.servo.read_current_pose(axis_idx)
+                actual_pos = feedback['position']
+                EVENT_BUS.log.message.emit(
+                    f"[{self.__class__.__name__}] Axis {axis_idx} 이동 완료: CSV목표={target_pos:.3f}, 현재위치={actual_pos:.3f}", 
+                    "DEBUG"
+                )
+                return True
+
+            # (C) 시퀀스 완전 종료 체크 (PLC 쪽에서 강제 종료 시)
+            if self._is_interrupted(): # Assuming _is_interrupted() is the intended check for sequence termination
+                return False # Return False as it's an interruption, not a normal completion
+
+            time.sleep(0.1)
+        
+        # If loop finishes and busy_detected is still False, it means busy signal was never detected
+        if not busy_detected:
+            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 축 {axis_idx} 반응 없음 (Busy Timeout)", "ERROR")
+            return False
+
+        # -------------------------------------------------------------
+        # Phase 2: 멈출 때까지 대기 (최대 MOVE_TIMEOUT 초)
+        # -------------------------------------------------------------
+        move_start_time = time.time()
+
+        # 이동중 - 멈출 때까지 대기
+        #   타임아웃을 길게 잡거나 없애야 함 (이동이 10초 걸릴 수도 있으니까)
+        while self.servo.is_moving(axis_idx):
+            # 중단 요청 체크
+            if self._is_interrupted(): return False
+
+            # 타임아웃 체크 (무한 대기 방지)
+            if time.time() - move_start_time > self.MOVE_TIMEOUT:
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 축 {axis_idx} 이동 시간 초과 ({self.MOVE_TIMEOUT}초)", "ERROR")
+                return False
+
+            # CPU 과점유 방지 - 루프마다 대기
+            time.sleep(0.05)
+            
+        feedback = self.servo.read_current_pose(axis_idx)
+        actual_pos = feedback['position']
+        EVENT_BUS.log.message.emit(
+            f"[{self.__class__.__name__}] Axis {axis_idx} 이동 완료: CSV목표={target_pos:.3f}, 현재위치={actual_pos:.3f}", 
+            "DEBUG"
+        )
+        return True
+
+    def _is_interrupted(self) -> bool:
+        """
+        [안전장치] 현재 스레드 중단 요청 확인
+        Walrus operator(:=)를 사용하여 None 체크와 메서드 호출을 한 번에 처리
+        """
+        # 1. thread 변수에 현재 스레드 할당
+        # 2. thread가 None이 아니면(True), 뒤의 isInterruptionRequested() 호출
+        # 3. thread가 None이면(False), 바로 False 반환
+        return bool((thread := QThread.currentThread()) and thread.isInterruptionRequested())
+
+
 class IntegratedExecutor(BaseExecutor):
     """
     CSV 파일 형식 (로봇 + 턴테이블 통합 제어)
     """
     def can_execute(self, sample_data: dict) -> bool:
-        # CSV_SCHEMA의 키들이 포함되어 있는지 확인
-        required_keys = {'polar_coord_theta', 'polar_coord_radius'}
-        return required_keys.issubset(sample_data.keys())
+        data_keys = set(sample_data.keys())
+        # CSV 통합 키 (polar_coord_...) 가 포함되어 있는지 확인
+        #   통합 제어는 로봇과 서보 키가 같이 있다
+        has_robot = not ROBOT_KEYS.isdisjoint(data_keys)
+        has_servo = not SERVO_KEYS.isdisjoint(data_keys)
+        return has_robot and has_servo and ('polar_coord_theta' in data_keys or 'polar_coord_radius' in data_keys)
 
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] CSV 파일 통합 제어 모드로 실행 (데이터 {len(sequence_data)}건)", "INFO")
@@ -216,7 +454,7 @@ class IntegratedExecutor(BaseExecutor):
         # TODO: 이 안의 코드 실제 코드에서도 살려야 된다
         # 실제 운영 코드 예시 (IntegratedExecutor)
 
-                if QThread.currentThread().isInterruptionRequested():
+                if (thread := QThread.currentThread()) and thread.isInterruptionRequested():
                     EVENT_BUS.log.message.emit("사용자 요청에 의해 작업 중단", "WARNING")
                     
                     try:
@@ -234,7 +472,7 @@ class IntegratedExecutor(BaseExecutor):
         """
         # 1. 시작 신호
         self.robot.start_sequence_plc_signals()
-        # self.table.start_signal()
+        # self.servo.start_signal()
 
         # 2. 통합 루프
         for row in sequence_data:
@@ -257,9 +495,11 @@ class LegacyIntegratedExecutor(BaseExecutor):
     """
 
     def can_execute(self, sample_data: dict) -> bool:
-        # TXT_SCHEMA의 키들이 포함되어 있는지 확인
-        required_keys = {'turntable_deg', 'tool_rotation_rpm', 'tool_revolution_rpm'}
-        return required_keys.issubset(sample_data.keys())
+        data_keys = set(sample_data.keys())
+        # TXT 레거시 키 (axis_x, Y...) 와 서보 키가 공존할 때
+        has_legacy_robot = any(k in data_keys for k in ['axis_x', 'axis_y', 'axis_z', 'feed_rate'])
+        has_servo = not SERVO_KEYS.isdisjoint(data_keys)
+        return has_legacy_robot and has_servo
 
     def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 레거시 파일 모드로 실행 (데이터 {len(sequence_data)}건)", "INFO")
@@ -270,112 +510,28 @@ class LegacyIntegratedExecutor(BaseExecutor):
         return True, "레거시 파일 모드 실행 완료 -> TODO: 로직 만들어야 된다"
 
 
-class TurntableOnlyExecutor(BaseExecutor):
-    """
-    턴테이블 단독 제어
-    용도: 턴테이블 테스트, 수동 이동 등
-    """
-    
-    def can_execute(self, sample_data: dict) -> bool:
-        # TurntablePose의 필수 키만 있고 로봇 데이터가 없는 경우
-        # (로봇 데이터와 섞이면 IntegratedExecutor나 Legacy가 처리해야 함)
+
+
+class TwinCATCommander(QObject):
+    # =========================================================
+    # 3. 게이트웨이 (The Commander)
+    # =========================================================
+    def __init__(self, connector: TwinCATConnector, fanuc: FanucAdapter, servo: ServoAdapter):
+        super().__init__()                                  # QObject 초기화
+        self._log_prefix = f"[{self.__class__.__name__}]"   # 로그 머릿말(발생 위치)
+        self.connector = connector                          # 주입받은 TwinCAT 연결 저장
         
-        # 필수 키: angle(또는 T), velocity
-        has_turntable = 'angle' in sample_data or 'T' in sample_data
-        
-        # 로봇 키가 없어야 함 (있으면 복합 제어)
-        has_robot = 'x' in sample_data or 'X' in sample_data
-        
-        return has_turntable and not has_robot
-
-    def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
-        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 턴테이블 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
-
-        # 처리할 전체 시퀀스 데이터 방송
-        EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
-
-        adapter = self.table # ServoAdapter
-        num_sequences = len(sequence_data)
-
-        try:
-            # 1. 초기 신호 (Servo On, 초기화)
-            adapter.set_initial_signals()
-            
-            init_done = False
-
-            # 2. 시퀀스 루프
-            for idx, row in enumerate(sequence_data, 1):
-                
-                current_id = row.get('id') or idx
-
-                # 현재 시퀀스 진행상태 방송: 진행중
-                EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, "processing")
-                
-                # 데이터 추출 (키 매핑)
-                angle_val = float(row.get('angle') or row.get('T', 0.0))
-                velocity_val = float(row.get('velocity') or row.get('turntable_feed_rate', 10.0))
-
-                # 현재 턴테이블 위치 방송
-                target_pose = ServoPose(angle=angle_val, velocity=velocity_val)
-                EVENT_BUS.control.turntable_current_pose.emit(target_pose)
-
-
-                # --- 핸드셰이킹 (Busy Check) ---
-                while True:
-                    # 턴테이블 Busy 확인
-                    is_busy = adapter.read_busy_signal()
-                    
-                    # 턴테이블은 로봇과 달리 '멈추면 다음 명령(Stop-and-Go)' 방식이 더 안전할 수 있음
-                    if not is_busy:
-                        # 1. 이동 명령 전송 (Rising Edge 발생)
-                        adapter.move_to(angle_val, velocity_val)
-                        
-                        init_done = True
-                        
-                        # 2. 이동이 시작될 때까지(Busy=True) 잠시 대기
-                        # (Adapter 내부에서 sleep을 주긴 했지만 안전장치)
-                        time.sleep(0.2) 
-                        
-                        # 3. 이동이 끝날 때까지 대기 (Blocking)
-                        # 단독 테스트이므로 확실하게 이동 완료 후 다음 명령 수행
-                        while adapter.read_busy_signal():
-                            time.sleep(0.1)
-                        
-                        break # 이동 완료 -> 다음 시퀀스
-                    
-                    else:
-                        time.sleep(0.1)
-
-                # 현재 시퀀스 진행상태 방송: 완료
-                EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, "processed")
-
-            # 3. 종료 신호 (서보 오프 등)
-            adapter.set_finish_signals()
-            return True, "턴테이블 작업 완료"
-
-        except Exception as e:
-            adapter.set_emergency_stop()
-            return False, f"턴테이블 실행 중 에러: {e}"
-
-
-# =========================================================
-# 3. 게이트웨이 (The Commander)
-# =========================================================
-class TwinCATCommander:
-
-    def __init__(self, connector: TwinCATConnector):
-        self.connector = connector
-        
-        # 하위 장치 컨트롤러
-        self.robot = FanucAdapter(connector)
-        self.turntable = ServoAdapter(connector)
+        # 하위 장치 컨트롤러 - 주입받은 것을 저장해서 사용
+        self.robot = fanuc
+        self.turntable = servo
 
         # 등록된 실행기들 (우선순위 순서대로)
+        # INTEGRATED(가장 구체적) -> ONLY(일반적) 순으로 배치
         self.executors: List[BaseExecutor] = [
-            LegacyIntegratedExecutor(self.robot, self.turntable),   # 특정 키값이 더 많은 것을 먼저 검사
-            IntegratedExecutor(self.robot, self.turntable),
-            FanucOnlyExecutor(self.robot, self.turntable),  # x,y,z 중복된 키값이 많은 조건을 마지막에
-            TurntableOnlyExecutor(self.robot, self.turntable)
+            IntegratedExecutor(self.robot, self.turntable),         # CSV 통합
+            LegacyIntegratedExecutor(self.robot, self.turntable),   # TXT 레거시 통합
+            FanucOnlyExecutor(self.robot, self.turntable),          # 로봇 단독
+            ServoOnlyExecutor(self.robot, self.turntable)           # 서보 단독
         ]
 
     def execute_sequence_with_executor(self, sequence_data: list[dict[str, Any]]) -> tuple[bool, str]:
@@ -403,6 +559,7 @@ class TwinCATCommander:
             return target_executor.execute(sequence_data)
         else:
             return False, "지원하지 않는 데이터 형식입니다."
+
 
 
     # ================================= #
@@ -435,10 +592,13 @@ class TwinCATCommander:
         if self.robot:
             robot_busy = self.robot.read_busy_signal()
 
-        # 턴테이블 상태 확인
+        # 턴테이블 상태 확인 (모든 3축 확인)
         table_busy = False
         if self.turntable:
-            table_busy = self.turntable.read_busy_signal()
+            try:
+                table_busy = any(self.turntable.is_moving(i) for i in [1, 2, 3])
+            except Exception:
+                table_busy = False
 
         # 둘 중 하나라도 바쁘면 시스템은 바쁜 것
         return robot_busy or table_busy
@@ -462,3 +622,36 @@ class TwinCATCommander:
             except Exception as e:
                 return False, f"종료 신호 전송 실패: {e}"
         return False, "로봇이 연결되지 않았습니다."
+
+
+
+    # ================================= #
+    # --- 서보(Panasonic) 제어 명령 --- #
+    # ================================= #
+    def shutdown_servos_safely(self) -> tuple[bool, str]:
+        """
+        [브릿지] 서보를 안전하게 정지시키고 전원을 차단하도록 시킴
+        Worker -> Commander -> Adapter 순으로 명령 전달
+        """
+        if self.turntable:
+            # Adapter의 '명확한 이름'의 메서드를 호출
+            success = self.turntable.shutdown_all_with_power_off()
+            
+            msg = "모든 서보가 안전하게 정지 및 해제되었습니다." if success else "서보 종료 처리 중 오류 발생"
+            return success, msg
+        
+        return False, "서보 어댑터가 연결되지 않았습니다."
+
+
+    def home_servos_safely(self) -> tuple[bool, str]:
+        """
+        [브릿지] 서보의 안전 원점 복귀 절차를 실행하도록 시킴
+        """
+        if self.turntable:
+            # Adapter에게 원점 복귀 절차 위임
+            success = self.turntable.home_all_safely()
+            
+            msg = "서보 원점 복귀 명령 전송 완료" if success else "원점 복귀 중 오류 발생"
+            return success, msg
+
+        return False, "서보 어댑터가 연결되지 않았습니다."

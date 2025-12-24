@@ -5,10 +5,13 @@
 - 명령 및 로직 요청
 """
 from pathlib import Path
+from typing import TYPE_CHECKING
 from core.event_bus import EVENT_BUS
-from services.plc_service import PLCService
-from services.sequence_service import SequenceService
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, QTimer
+
+if TYPE_CHECKING:
+    from services.sequence_service import SequenceService
+    from services.plc_service import PLCService
 
 
 
@@ -21,7 +24,7 @@ class TaskManagerViewModel(QObject):
     runtime_updated = pyqtSignal(str)                   # 런타임 시간 업데이트
 
 
-    def __init__(self, sequence_service: SequenceService):
+    def __init__(self, sequence_service: "SequenceService", plc_service: "PLCService"):
         super().__init__()
 
         # 로그 메세지의 말머리(로그 발생 위치 표시)
@@ -29,7 +32,7 @@ class TaskManagerViewModel(QObject):
 
         # 서비스 객체 생성
         self._sequence_service = sequence_service
-        self._plc_service = PLCService()
+        self._plc_service = plc_service
 
         # 시퀀스 데이터 캐싱 변수
         self._cached_sequence_data = None
@@ -59,8 +62,13 @@ class TaskManagerViewModel(QObject):
         # 새 파일을 열면 런타임 초기화
         self._reset_runtime_timer()
 
-        # Service에게 파일 읽기 시킨다
-        self._sequence_service.load_sequence_file(file_path)
+        # 파일 경로가 잘못되었거나 형식이 깨졌을 때 에러가 올라올 수 있으므로 try-except로 처리
+        try:
+            # Service에게 파일 읽기 시킨다 (파일 읽기 실패 시 에러가 올라올 수 있음)
+            self._sequence_service.load_sequence_file(file_path)
+        except Exception as e:
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 파일 로드 실패: {e}", "ERROR")
+            self.sequence_data_loaded_failed.emit(str(e))
 
 
     def start_sequence(self):
@@ -75,10 +83,15 @@ class TaskManagerViewModel(QObject):
         # 런타임 시작
         self._runtime_timer.start()
 
-        EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 시작 (데이터 {len(self._cached_sequence_data)}건)", "INFO")
-        
-        # 전체 데이터 전송 (시퀀스 처음부터 실행)
-        self._plc_service.process_sequence_data(self._cached_sequence_data)
+        # PLC 서비스가 준비되지 않았는데 시작 명령을 내리면 에러가 날 수 있으므로 try-except로 처리
+        try:
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 시작 (데이터 {len(self._cached_sequence_data)}건)", "INFO")
+            
+            # 전체 데이터 전송 (시퀀스 처음부터 실행) - PLC 서비스 호출
+            self._plc_service.process_sequence_data(self._cached_sequence_data)
+        except Exception as e:
+            self._runtime_timer.stop() # 에러 나면 타이머도 멈춤
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 시작 실패: {e}", "ERROR")
 
     def stop_sequence(self):
         """STOP 버튼 클릭 시"""

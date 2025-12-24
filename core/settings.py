@@ -139,7 +139,7 @@ class Settings:
         """[TwinCAT] 섹션의 정보"""
         section = self._config['TwinCAT'] if 'TwinCAT' in self._config else {}
         return TwinCATConfig(
-            ams_net_id=section.get('AMS_NET_ID', '127.0.0.1.1.1'),
+            ams_net_id=section.get('AMS_NET_ID', '127.0.0.1.1.1').strip("'\""),
             port=int(section.get('PORT', '851')),
             demo_mode=section.get('DEMO_MODE', 'False').lower() == 'true'
         )
