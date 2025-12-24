@@ -76,23 +76,13 @@ class PLCWorker(QObject):
 
                 # --- 이동 명령 (Commander 사용) --- #
                 case 'MOVE':
-
-                    # 데이터 유효성 검사 (None 체크)
-                    if self.data is None:
-                        raise ValueError("MOVE 명령에 필요한 데이터가 없습니다.")
-
-                    # Commander 호출 (데이터 형식에 맞는 Executor를 찾아 실행)
-                    # find_executor는 (bool, str) 튜플을 반환
-                    is_success, msg = self.commander.execute_sequence_with_executor(self.data)
-
+                    if self.data is None: raise ValueError("MOVE 명령에 필요한 데이터가 없습니다.")
+                    is_success, msg = self.commander.execute_sequence_with_executor(self.data)  # 넘겨주는 데이터 형식에 맞는 Executor를 찾아서 실행
 
                 case 'SET_SPEED':
                     EVENT_BUS.log.message.emit(f"{self._log_prefix} 이동속도:{self.data}\n데이터 타입: {type(self.data)}", "DEBUG")
-
                     result_msg = self.commander.apply_user_feed_rate_when_moving_robot(float(self.data))
-
-                    if result_msg:
-                        self.result.emit(True, result_msg)
+                    if result_msg: self.result.emit(True, result_msg)
 
 
                 # --- 제어 명령 (Commander 사용) --- #
@@ -100,20 +90,15 @@ class PLCWorker(QObject):
                     is_success, msg = self.commander.start_sequence_plc_signals()
                 case 'STOP':
                     is_success, msg = self.commander.end_sequence_plc_signals()
-                case _:
-                    msg = "알 수 없는 명령입니다."
-                    pass
 
-                # --- 서보 전용 제어 명령 (Commander에게 위임) --- #
+
+                # --- 서보 전용 제어 명령 (Commander 사용) --- #
                 case 'SERVO_STOP':
-                    # 서보 안전 정지 및 전원 차단 명령
-                    is_success, msg = self.commander.shutdown_servos_safely()
+                    is_success, msg = self.commander.shutdown_servos_safely()   # 안전 정지 및 전원 차단
                 case 'SERVO_HOME':
-                    # 서보 안전 원점 복귀 명령
-                    is_success, msg = self.commander.home_servos_safely()
+                    is_success, msg = self.commander.home_servos_safely()        # 안전 원점 복귀
                 case _:
                     msg = "알 수 없는 명령입니다."
-                    pass
 
         # -----------------------------------------------------------
         # 예외 처리 (로그는 Service가 남기므로 여기선 실패 사유만 전달)
@@ -125,7 +110,6 @@ class PLCWorker(QObject):
         except Exception as e:
             is_success = False
             msg = f"작업중 오류 발생: {e}"
-
 
         # 결과 보고 및 종료
         self.result.emit(is_success, msg)
