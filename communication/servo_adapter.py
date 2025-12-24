@@ -166,6 +166,17 @@ class ServoAdapter:
         curr_vel = self._plc.read_by_name(ServoSignal.ACT_VEL.path(axis_index), pyads.PLCTYPE_LREAL)
         return {'position': curr_pos, 'velocity': curr_vel}
         
+    def is_moving(self, axis_index: int, threshold: float = 0.1) -> bool:
+        """
+        [상태 확인] 해당 축이 물리적으로 움직이고 있는가? (속도 기준)
+        
+        Args:
+            axis_index: 축 번호
+            threshold: 움직임으로 판단할 속도 임계값 (deg/s)
+        """
+        feedback = self.read_current_pose(axis_index)
+        return abs(feedback['velocity']) > threshold
+        
 
     # ==========================================================================
     # 3. 이동 명령 (Write Command)
