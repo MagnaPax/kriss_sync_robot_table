@@ -10,6 +10,12 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox, 
     QPushButton
 )
+from config.data_formats import (
+    KEY_TT_DEG,
+    KEY_TT_FEED,
+    KEY_TOOL_REV_RPM,
+    KEY_TOOL_ROT_RPM
+)
 from ui.widgets.base_widget import BaseWidget
 from typing import TYPE_CHECKING, Any, Optional
 from core.event_bus import EVENT_BUS
@@ -167,8 +173,16 @@ class ServoControlWidget(BaseWidget):
         super().clear_widget()
 
     def _get_input_data(self) -> dict[str, float]:
-        """입력 필드에서 데이터를 추출"""
-        return {key: spin.value() for key, spin in self.input_widgets.items()}
+        """
+        입력 필드(QDoubleSpinBox)에서 데이터를 추출하여
+        '시스템 표준 키 상수'로 매핑된 딕셔너리를 반환
+        """
+        return {
+            KEY_TOOL_REV_RPM: self.input_widgets["rev_rpm"].value(),
+            KEY_TOOL_ROT_RPM: self.input_widgets["rot_rpm"].value(),
+            KEY_TT_DEG: self.input_widgets["tt_angle"].value(),
+            KEY_TT_FEED: self.input_widgets["tt_rpm"].value()
+        }
 
 
 
