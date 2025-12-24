@@ -37,7 +37,6 @@ class ServoAdapter:
         return self.connector.handle
 
 
-
     # ==========================================================================
     # 에러 상태 확인
     # ==========================================================================
@@ -113,7 +112,6 @@ class ServoAdapter:
         # 4. 정지 신호 해제 (다시 움직일 수 있게 준비)
         plc.write_by_name(ServoSignal.STOP.path(axis_index), False, pyads.PLCTYPE_BOOL)
 
-
     def emergency_stop_all(self):
         """
         [긴급 정지] 모든 서보 축(1, 2, 3)을 즉시 정지시킨다.
@@ -154,7 +152,6 @@ class ServoAdapter:
         path = ServoSignal.BUSY.path(axis_index)
         val = self._plc.read_by_name(path, pyads.PLCTYPE_BOOL)
         return bool(val)
-
 
     def read_current_pose(self, axis_index: int) -> dict:
         """
@@ -201,7 +198,6 @@ class ServoAdapter:
         time.sleep(0.1)
         plc.write_by_name(ServoSignal.MOVE_VEL.path(axis_index), True, pyads.PLCTYPE_BOOL)
 
-
     def move_absolute(self, axis_index: int, target_pos: float, target_velocity: float):
         """
         [위치 제어 이동] 턴테이블용 (Axis 3)
@@ -225,7 +221,6 @@ class ServoAdapter:
         plc.write_by_name(ServoSignal.MOVE_ABS.path(axis_index), False, pyads.PLCTYPE_BOOL)
         time.sleep(0.01)
         plc.write_by_name(ServoSignal.MOVE_ABS.path(axis_index), True, pyads.PLCTYPE_BOOL)
-
 
     def homing(self, axis_index: int):
         """

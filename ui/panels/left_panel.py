@@ -4,9 +4,12 @@ from typing import TYPE_CHECKING
 from ..widgets import LogoWidget
 from ..widgets import TurntableWidget
 from ..widgets import CurrentStateWidget
+from ui.widgets.servo_control_widget import ServoControlWidget
 
 if TYPE_CHECKING:
     from view_models.main_window_viewmodel import MainViewModel
+
+
 
 class LeftPanel(QFrame):
     def __init__(self, view_model: "MainViewModel", parent=None):    # 부모가 없을 수도 있다(독립적 테스트 가능)
