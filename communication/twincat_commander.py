@@ -297,7 +297,7 @@ class ServoOnlyExecutor(BaseExecutor):
 
         finally:
             # 3. 종료 처리 (Teardown)
-            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 종료 절차: 서보모터 정지 및 전원 차단을 시도합니다.", "DEBUG")
+            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 종료 절차: 서보모터 정지 및 전원 차단을 시도합니다...", "DEBUG")
 
             # MOVE_TIMEOUT(60초)을 넘겨줘서 충분한 감속시간 확보
             is_safely_shutdown = adapter.shutdown_all_with_power_off(timeout=self.MOVE_TIMEOUT)
