@@ -492,14 +492,16 @@ class LegacyIntegratedExecutor(BaseExecutor):
 # =========================================================
 # 3. 게이트웨이 (The Commander)
 # =========================================================
-class TwinCATCommander:
+class TwinCATCommander(QObject):
 
-    def __init__(self, connector: TwinCATConnector):
-        self.connector = connector
+    def __init__(self, connector: TwinCATConnector, fanuc: FanucAdapter, servo: ServoAdapter):
+        super().__init__()                                  # QObject 초기화
+        self._log_prefix = f"[{self.__class__.__name__}]"   # 로그 머릿말(발생 위치)
+        self.connector = connector                          # 주입받은 TwinCAT 연결 저장
         
-        # 하위 장치 컨트롤러
-        self.robot = FanucAdapter(connector)
-        self.turntable = ServoAdapter(connector)
+        # 하위 장치 컨트롤러 - 주입받은 것을 저장해서 사용
+        self.robot = fanuc
+        self.turntable = servo
 
         # 등록된 실행기들 (우선순위 순서대로)
         # INTEGRATED(가장 구체적) -> ONLY(일반적) 순으로 배치
