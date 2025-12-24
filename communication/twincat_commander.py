@@ -5,6 +5,12 @@ TwinCAT Commander (Model Layer)
 
     역할:
         TwinCAT 에 연결된 기기(FANUC 로봇, 턴테이블) 제어
+
+
+
+        TODO: F8 버튼 누르는 초기화 추가되어야 됨!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!(Error State 초기화)
+        TODO: 시퀀스 맨 마지막에 모터가 감속하는 시간을 기다려준 뒤 전원을 꺼야됨
+        TODO: 맨 처음에 같은 좌표가 들어와도 에러 나지 않게 (축 3 반응 없음 (Busy Timeout))
 """
 import time
 from PyQt6.QtCore import QThread, QObject
@@ -217,8 +223,19 @@ class ServoOnlyExecutor(BaseExecutor):
                 EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSING)
 
                 # (C) 명령 생성 및 전송
+                seq_id = row.get('id', step_idx)
+                # 보기 좋게 주요 파라미터만 추출하여 로그 출력
+                log_msg = (
+                    f"[{self.__class__.__name__}] 시퀀스 #{seq_id} 실행 시작 ({step_idx}/{total_steps}) | "
+                    f"공전={row.get('tool_revolution_rpm', 0):.1f}RPM, "
+                    f"자전={row.get('tool_rotation_rpm', 0):.1f}RPM, "
+                    f"턴테이블={row.get('turntable_deg', 0):.1f}deg"
+                )
+                EVENT_BUS.log.message.emit(log_msg, "INFO")
+
                 # [Axis 1] Tool 공전 (속도 제어)
                 pose1 = ServoPoseModel.create_for_axis(row, 'tool_revolution_rpm')
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] Pose1 생성: {pose1}", "DEBUG")
                 if pose1.velocity != 0:
                     adapter.move_velocity(1, pose1.velocity)
                 else:
@@ -231,6 +248,7 @@ class ServoOnlyExecutor(BaseExecutor):
 
                 # [Axis 2] Tool 자전 (속도 제어)
                 pose2 = ServoPoseModel.create_for_axis(row, 'tool_rotation_rpm')
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] Pose2 생성: {pose2}", "DEBUG")
                 if pose2.velocity != 0:
                     adapter.move_velocity(2, pose2.velocity)
                 else:
@@ -243,6 +261,7 @@ class ServoOnlyExecutor(BaseExecutor):
 
                 # [Axis 3] 턴테이블 (위치 제어)
                 pose3 = ServoPoseModel.create_for_axis(row, 'turntable_deg')
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] Pose3 생성: {pose3}", "DEBUG")
                 adapter.move_absolute(3, pose3.angle, pose3.velocity)
 
                 # (D) 대기 (Stop-and-Go)
@@ -297,6 +316,7 @@ class ServoOnlyExecutor(BaseExecutor):
                 EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 전원 차단 중 예외 발생: {e}", "WARNING")
 
     def _wait_for_turntable_completion(self, axis_idx: int, target_pos: float = None) -> bool:
+        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] {axis_idx}축 이동 완료 대기 중...", "DEBUG")
         """
         턴테이블 이동 완료 대기 (Busy Check + Timeout)
         Returns: True(완료), False(실패/중단)
