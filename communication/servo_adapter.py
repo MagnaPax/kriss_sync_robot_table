@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Union, Tuple
 from communication.twincat_connector import TwinCATConnector
 from models.servo_pose_key import ServoPoseKey, ServoSignal
 from models.servo_pose_model import ServoPose
+from models.servo_pose_key import ServoAxis
 
 
 
@@ -15,12 +16,21 @@ if TYPE_CHECKING:
 
 class ServoAdapter:
     """
-    Panasonic 서보 모터(총 3축) 통신 로직을 담당하는 Model 레이어
+    Panasonic 서보 모터(3축) 통신 로직을 담당하는 하위 장치 어댑터(Model Layer).
     
-    [관리 대상]
-        - Axis 1: Tool 공전 모터 (Velocity Mode)
-        - Axis 2: Tool 자전 모터 (Velocity Mode)
-        - Axis 3: 턴테이블 모터 (Position Mode)
+    이 클래스는 ServoAxis Enum에 정의된 물리적 축 정보를 바탕으로 TwinCAT PLC와 직접 통신하며
+    각 축의 특성(Velocity/Position Mode)에 따른 이동 제어 및 상태 피드백을 제공한다
+
+    [축 구성 및 제어 모드]
+        - TOOL_REVOLUTION (Axis 1): 툴 공전 모터 (Velocity Mode - RPM 제어)
+        - TOOL_ROTATION   (Axis 2): 툴 자전 모터 (Velocity Mode - RPM 제어)
+        - TURNTABLE       (Axis 3): 턴테이블 모터 (Position Mode - 각도 + 속도 제어)
+
+    [주요 역할]
+        - 전원 및 읽기 신호 활성화 (Servo ON / Feedback Read)
+        - 이동 명령 (Velocity Move / Absolute Position Move)
+        - 안전 제어 (Stop, Error Clear, 원점 복귀)
+        - 상태 모니터링 (Busy 확인, 속도 기반 움직임 감지, 에러 체크)
     """
 
     def __init__(self, connector: TwinCATConnector):
@@ -123,13 +133,12 @@ class ServoAdapter:
     def request_immediate_stop(self):
         """모든 축에 정지 명령 내림"""
         plc = self._plc
-        axes = [1, 2, 3]
 
         # (A) 모든 축 이동 해제 & 정지 신호 ON
-        for i in axes:
-            if i in [1, 2]:
+        for i in ServoAxis:
+            if i in [ServoAxis.TOOL_REVOLUTION, ServoAxis.TOOL_ROTATION]:
                 plc.write_by_name(ServoSignal.MOVE_VEL.path(i), False, pyads.PLCTYPE_BOOL)
-            elif i == 3:
+            elif i == ServoAxis.TURNTABLE:
                 plc.write_by_name(ServoSignal.MOVE_ABS.path(i), False, pyads.PLCTYPE_BOOL)
             
             plc.write_by_name(ServoSignal.STOP.path(i), True, pyads.PLCTYPE_BOOL)
@@ -138,7 +147,7 @@ class ServoAdapter:
         time.sleep(0.5)
 
         # (C) 정지 신호 해제 (다음 동작이 가능하도록 Reset)
-        for i in axes:
+        for i in ServoAxis:
             plc.write_by_name(ServoSignal.STOP.path(i), False, pyads.PLCTYPE_BOOL)
 
     def shutdown_all_with_power_off(self, timeout: float = 3.0):
@@ -151,12 +160,12 @@ class ServoAdapter:
             start_time = time.time()
             while time.time() - start_time < timeout:
                 # 모든 축이 속도 임계값(is_moving) 이하인지 체크
-                if not any(self.is_moving(i) for i in [1, 2, 3]):
+                if not any(self.is_moving(i) for i in ServoAxis):
                     break
                 time.sleep(0.1)
 
             # 3. 모든 축 서보 전원 차단
-            for i in [1, 2, 3]:
+            for i in ServoAxis:
                 self.set_servo_state(i, False)
             return True
 
