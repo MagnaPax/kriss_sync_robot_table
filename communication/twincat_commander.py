@@ -272,8 +272,8 @@ class ServoOnlyExecutor(BaseExecutor):
                         return False, msg
 
                 # (E) 스텝 완료 로그
-                feedback1 = adapter.read_current_pose(1)
-                feedback2 = adapter.read_current_pose(2)
+                feedback1 = adapter.read_current_servo_motion(1)
+                feedback2 = adapter.read_current_servo_motion(2)
                 EVENT_BUS.log.message.emit(
                     f"[{self.__class__.__name__}] Axis 1 (RPM) 완료: 목표={pose1.velocity:.1f}, 현재={feedback1['velocity']:.1f}", "DEBUG"
                 )
@@ -332,7 +332,7 @@ class ServoOnlyExecutor(BaseExecutor):
             else:
                 # [보완] 이미 목표 위치 부근이라면, 이동 명령이 무시된(No-op) 것으로 간주하고 성공 반환
                 if target_pos is not None:
-                    current_pos = self.servo.read_current_pose(axis_idx)['position']
+                    current_pos = self.servo.read_current_servo_motion(axis_idx)['position']
                     if abs(current_pos - target_pos) < 0.05: # 0.05도 오차 허용
                         EVENT_BUS.log.message.emit(
                             f"[{self.__class__.__name__}] 축 {axis_idx}가 이미 목표 위치({target_pos:.3f})에 있으므로 대기를 종료합니다.", 
@@ -343,7 +343,7 @@ class ServoOnlyExecutor(BaseExecutor):
             # (B) 움직임이 감지된 이후 -> 멈출 때까지 대기
             if busy_detected and not moving:
                 # 움직이다가 멈췄으면 -> 완료 확인
-                feedback = self.servo.read_current_pose(axis_idx)
+                feedback = self.servo.read_current_servo_motion(axis_idx)
                 actual_pos = feedback['position']
                 EVENT_BUS.log.message.emit(
                     f"[{self.__class__.__name__}] Axis {axis_idx} 이동 완료: CSV목표={target_pos:.3f}, 현재위치={actual_pos:.3f}", 
@@ -381,7 +381,7 @@ class ServoOnlyExecutor(BaseExecutor):
             # CPU 과점유 방지 - 루프마다 대기
             time.sleep(0.05)
             
-        feedback = self.servo.read_current_pose(axis_idx)
+        feedback = self.servo.read_current_servo_motion(axis_idx)
         actual_pos = feedback['position']
         EVENT_BUS.log.message.emit(
             f"[{self.__class__.__name__}] Axis {axis_idx} 이동 완료: CSV목표={target_pos:.3f}, 현재위치={actual_pos:.3f}", 

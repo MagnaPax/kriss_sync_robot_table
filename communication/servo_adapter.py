@@ -178,7 +178,7 @@ class ServoAdapter:
         val = self._plc.read_by_name(path, pyads.PLCTYPE_BOOL)
         return bool(val)
 
-    def read_current_pose(self, axis_index: int) -> dict:
+    def read_current_servo_motion(self, axis_index: int) -> dict:
         """
         [피드백] 현재 위치와 속도를 읽어온다.
         PLC: MAIN.Act_pos{i}, MAIN.Act_vel{i}
@@ -196,7 +196,7 @@ class ServoAdapter:
             axis_index: 축 번호
             threshold: 움직임으로 판단할 속도 임계값 (deg/s)
         """
-        feedback = self.read_current_pose(axis_index)
+        feedback = self.read_current_servo_motion(axis_index)
         return abs(feedback['velocity']) > threshold
 
     def is_error_active(self, axis_index: int) -> dict:
