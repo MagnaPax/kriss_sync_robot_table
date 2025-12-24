@@ -126,9 +126,9 @@ class ServoControlWidget(BaseWidget):
 
     def _bind_events(self):
         """UI 이벤트 바인딩"""
-        if self.btn_start: self.btn_start.clicked.connect(self._on_start_clicked)
-        if self.btn_stop: self.btn_stop.clicked.connect(self._on_stop_clicked)
-        if self.btn_home: self.btn_home.clicked.connect(self._on_home_clicked)
+        if btn := self.btn_start: btn.clicked.connect(self._on_start_clicked)
+        if btn := self.btn_stop:  btn.clicked.connect(self._on_stop_clicked)
+        if btn := self.btn_home:  btn.clicked.connect(self._on_home_clicked)
 
     @pyqtSlot()
     def _on_start_clicked(self):
@@ -160,13 +160,27 @@ class ServoControlWidget(BaseWidget):
         return {key: spin.value() for key, spin in self.input_widgets.items()}
 
     def update_data(self, data: Any):
-        """데이터 업데이트 (BaseWidget 필수 구현)"""
+        """
+        데이터(dict)를 받아 UI 업데이트
+            BaseWidget의 safe_update_data()를 통해 호출됨
+        """
+        # 상태에 따른 활성화/비활성화
+        # TODO: 서보 모터가 물리적으로 움직이는 중이면 모든 버튼 비활성화
         pass
 
     def clear_widget(self):
         """위젯 상태 초기화"""
+        # 입력창 값을 0으로 초기화
         for spin in self.input_widgets.values():
             spin.setValue(0.0)
+
+        # 버튼 활성화 복구
+        # 존재 여부를 확인(Safety Check)함과 동시에 setEnabled를 호출
+        if btn := self.btn_start: btn.setEnabled(True)
+        if btn := self.btn_stop:  btn.setEnabled(False)
+        if btn := self.btn_home:  btn.setEnabled(True)
+
+        # 부모 클래스의 초기화(데이터 비우기) 호출
         super().clear_widget()
 
 
