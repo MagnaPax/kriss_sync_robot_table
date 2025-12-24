@@ -112,15 +112,8 @@ class ServoAdapter:
         # 4. 정지 신호 해제 (다시 움직일 수 있게 준비)
         plc.write_by_name(ServoSignal.STOP.path(axis_index), False, pyads.PLCTYPE_BOOL)
 
-    def emergency_stop_all(self):
-        """
-        [긴급 정지] 모든 서보 축(1, 2, 3)을 즉시 정지시킨다.
-        's' 키를 눌렀을 때 1, 2번 축이 동시에 멈추던 기능을 확장함.
-        """
-        # 1. 모든 축에 대해 정지 시퀀스 수행
-        #    순차적으로 호출하면 0.5초씩 딜레이가 생기므로, 
-        #    여기서는 "신호 쏘기 -> 대기 -> 신호 끄기"를 한 번에 처리하여 반응 속도를 높임
-        
+    def request_immediate_stop(self):
+        """모든 축에 정지 명령 내림"""
         plc = self._plc
         axes = [1, 2, 3]
 
@@ -133,12 +126,36 @@ class ServoAdapter:
             
             plc.write_by_name(ServoSignal.STOP.path(i), True, pyads.PLCTYPE_BOOL)
         
-        # (B) 공통 대기 (0.5초)
+        # (B) 물리적 감속을 위한 공통 대기 (원본 코드 0.5초 준수)
         time.sleep(0.5)
 
-        # (C) 모든 축 정지 신호 OFF
+        # (C) 정지 신호 해제 (다음 동작이 가능하도록 Reset)
         for i in axes:
             plc.write_by_name(ServoSignal.STOP.path(i), False, pyads.PLCTYPE_BOOL)
+
+    def shutdown_all_with_power_off(self, timeout: float = 3.0):
+        """정지 확인 후 전원까지 차단"""
+        try:
+            # 1. 정지 명령 내림
+            self.request_immediate_stop()
+
+            # 2. 모든 축의 속도가 임계값 이하로 떨어질 때까지 대기
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                # 모든 축이 속도 임계값(is_moving) 이하인지 체크
+                if not any(self.is_moving(i) for i in [1, 2, 3]):
+                    break
+                time.sleep(0.1)
+
+            # 3. 모든 축 서보 전원 차단
+            for i in [1, 2, 3]:
+                self.set_servo_state(i, False)
+            return True
+
+        except Exception as e:
+            return False
+
+
 
     # ==========================================================================
     # 2. 상태 모니터링 (Read Feedback)
