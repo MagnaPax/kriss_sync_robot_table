@@ -300,7 +300,21 @@ class ServoOnlyExecutor(BaseExecutor):
 
         finally:
             # 3. 종료 처리 (Teardown)
-            # Controller가 Model(ServoAdapter)의 예외를 처리
+            # 모든 서보모터가 정지(Busy=False)할 때까지 대기 (감속 시간 확보)
+            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 완료 대기: 모든 서보가 정지할 때까지 기다립니다...", "DEBUG")
+            
+            stop_wait_start = time.time()
+            while time.time() - stop_wait_start < self.MOVE_TIMEOUT:
+                # 모든 축이 더 이상 움직이지 않을 때까지 체크 (속도 기준)
+                try:
+                    is_any_moving = any(adapter.is_moving(i) for i in [1, 2, 3])
+                    if not is_any_moving:
+                        break
+                except Exception:
+                    break
+                time.sleep(0.5)
+            else:
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 경고: 정지 대기 시간 초과({self.MOVE_TIMEOUT}s). 강제 종료 절차를 진행합니다.", "WARNING")
             
             # (A) 동작 정지
             try:
@@ -332,14 +346,14 @@ class ServoOnlyExecutor(BaseExecutor):
 
         while time.time() - start_wait < self.BUSY_WAIT_TIMEOUT:
             
-            # (A) Busy 여부 체크 (움직이기 시작했는가?)
-            is_busy = self.servo.is_busy(axis_idx)
+            # (A) 움직임 여부 체크 (속도 기준)
+            moving = self.servo.is_moving(axis_idx)
             
-            if is_busy:
+            if moving:
                 busy_detected = True
                 EVENT_BUS.data.device_busy_status.emit({'turntable': True})
             else:
-                # [보완] Busy가 아니고 이미 목표 위치 부근이라면, 이동 명령이 무시된(No-op) 것으로 간주하고 성공 반환
+                # [보완] 이미 목표 위치 부근이라면, 이동 명령이 무시된(No-op) 것으로 간주하고 성공 반환
                 if target_pos is not None:
                     current_pos = self.servo.read_current_pose(axis_idx)['position']
                     if abs(current_pos - target_pos) < 0.05: # 0.05도 오차 허용
@@ -349,8 +363,8 @@ class ServoOnlyExecutor(BaseExecutor):
                         )
                         return True
             
-            # (B) Busy가 감지된 이후 -> Busy가 꺼질 때까지 대기
-            if busy_detected and not is_busy:
+            # (B) 움직임이 감지된 이후 -> 멈출 때까지 대기
+            if busy_detected and not moving:
                 # 움직이다가 멈췄으면 -> 완료 확인
                 feedback = self.servo.read_current_pose(axis_idx)
                 actual_pos = feedback['position']
@@ -372,13 +386,13 @@ class ServoOnlyExecutor(BaseExecutor):
             return False
 
         # -------------------------------------------------------------
-        # Phase 2: Busy 신호가 꺼질 때까지 대기 (최대 MOVE_TIMEOUT 초)
+        # Phase 2: 멈출 때까지 대기 (최대 MOVE_TIMEOUT 초)
         # -------------------------------------------------------------
         move_start_time = time.time()
 
-        # 이동중 - Busy 꺼질 때까지 대기
+        # 이동중 - 멈출 때까지 대기
         #   타임아웃을 길게 잡거나 없애야 함 (이동이 10초 걸릴 수도 있으니까)
-        while self.servo.is_busy(axis_idx):
+        while self.servo.is_moving(axis_idx):
             # 중단 요청 체크
             if self._is_interrupted(): return False
 
@@ -601,10 +615,13 @@ class TwinCATCommander(QObject):
         if self.robot:
             robot_busy = self.robot.read_busy_signal()
 
-        # 턴테이블 상태 확인
+        # 턴테이블 상태 확인 (모든 3축 확인)
         table_busy = False
         if self.turntable:
-            table_busy = self.turntable.read_busy_signal()
+            try:
+                table_busy = any(self.turntable.is_moving(i) for i in [1, 2, 3])
+            except Exception:
+                table_busy = False
 
         # 둘 중 하나라도 바쁘면 시스템은 바쁜 것
         return robot_busy or table_busy
