@@ -37,13 +37,13 @@ class MainViewModel(QObject):
         self.sequence_service = SequenceService()   # 파일 입출력 서비스
 
         # 2. 하위 뷰모델 생성 및 자원 배분 (Dependency Injection)
-        # 서보 제어: PLC 서비스 전체를 전달하여 비동기 처리 권한 부여
+        # 서보 제어: 전체 PLC 서비스 전달(비동기 처리 권한)
         self.servo_control_vm = ServoControlViewModel(self._service)
         # 좌표 표시: 읽기 전용 UI TODO: 추후 필요시 자원 주입
         self.world_coordinates_vm = WorldCoordinatesViewModel()
-        # 목표 위치 설정: 위치 모델과 전체 PLC 서비스 전달
+        # 목표 위치 설정: 위치 모델 & 전체 PLC 서비스 전달(비동기 처리 권한)
         self.target_position_vm = TargetPositionViewModel(self.positon_model, self._service)
-        # 작업 관리: 시퀀스 파일 서비스와 PLC 실행 서비스 전달
+        # 작업 관리: 시퀀스 파일 서비스 & 전체 PLC 서비스 전달(비동기 처리 권한)
         self.task_manager_vm = TaskManagerViewModel(self.sequence_service, self._service)
 
 
