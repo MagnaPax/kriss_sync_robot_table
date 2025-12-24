@@ -227,23 +227,22 @@ class ControlSignals(QObject):
     """
     FANUC 현재 World 좌표 정보
         바닥(베이스 좌표계) 기준 TCP(Tool Center Point) 위치
-    
+
     Args:
         - .x, .y, .z, .w, .p, .r 속성을 가진 FANUCPose 객체
     """
 
-    tool_current_pose = pyqtSignal(object)
-    """FANUC 현재 Tool 좌표 정보"""
-
-    turntable_current_pose = pyqtSignal(object)
+    servo_current_motion = pyqtSignal(object)
     """
-    턴테이블 현재 각도/속도 정보 (ServoPose)
-    
+    서보모터의 현재 각도/속도 정보 (ServoPose)
+
     Args:
         - .angle (float): 현재 각도
         - .velocity (float): 현재 회전 속도
     """
 
+    tool_current_pose = pyqtSignal(object)
+    """FANUC 현재 Tool 좌표 정보"""
 
 # =============================================================================
 # 2. 실제 QObject
