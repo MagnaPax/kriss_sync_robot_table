@@ -59,8 +59,13 @@ class TaskManagerViewModel(QObject):
         # 새 파일을 열면 런타임 초기화
         self._reset_runtime_timer()
 
-        # Service에게 파일 읽기 시킨다
-        self._sequence_service.load_sequence_file(file_path)
+        # 파일 경로가 잘못되었거나 형식이 깨졌을 때 에러가 올라올 수 있으므로 try-except로 처리
+        try:
+            # Service에게 파일 읽기 시킨다 (파일 읽기 실패 시 에러가 올라올 수 있음)
+            self._sequence_service.load_sequence_file(file_path)
+        except Exception as e:
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 파일 로드 실패: {e}", "ERROR")
+            self.sequence_data_loaded_failed.emit(str(e))
 
 
     def start_sequence(self):
@@ -75,10 +80,15 @@ class TaskManagerViewModel(QObject):
         # 런타임 시작
         self._runtime_timer.start()
 
-        EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 시작 (데이터 {len(self._cached_sequence_data)}건)", "INFO")
-        
-        # 전체 데이터 전송 (시퀀스 처음부터 실행)
-        self._plc_service.process_sequence_data(self._cached_sequence_data)
+        # PLC 서비스가 준비되지 않았는데 시작 명령을 내리면 에러가 날 수 있으므로 try-except로 처리
+        try:
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 시작 (데이터 {len(self._cached_sequence_data)}건)", "INFO")
+            
+            # 전체 데이터 전송 (시퀀스 처음부터 실행) - PLC 서비스 호출
+            self._plc_service.process_sequence_data(self._cached_sequence_data)
+        except Exception as e:
+            self._runtime_timer.stop() # 에러 나면 타이머도 멈춤
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 시작 실패: {e}", "ERROR")
 
     def stop_sequence(self):
         """STOP 버튼 클릭 시"""

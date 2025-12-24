@@ -66,10 +66,16 @@ class TargetPositionViewModel(QObject):
         # View에게 전화 걸어서 알림
         self.state_changed.emit(f"이동 명령 전송 중... (좌표: {fanuc_pose_obj})")
 
-        # PLCService 호출
-        # PLCService.move_robot()은 내부적으로 QThread와 Worker를 생성, 
-        # UI 멈춤 없이 비동기로 통신을 수행
-        self._plc_service.move_robot_by_pose(fanuc_pose_obj)
+        # PLC 통신을 시작하는 트리거이므로 try-except로 처리
+        try:
+            # PLCService 호출
+            # PLCService.move_robot()은 내부적으로 QThread와 Worker를 생성, 
+            # UI 멈춤 없이 비동기로 통신을 수행
+            self._plc_service.move_robot_by_pose(fanuc_pose_obj)
+        except Exception as e:
+            error_msg = f"이동 명령 전송 실패: {e}"
+            self.state_changed.emit(error_msg)
+            EVENT_BUS.log.message.emit(f"{self.log_prefix} {error_msg}", "ERROR")
 
 
     def update_feed_rate(self, feed_rate: float):

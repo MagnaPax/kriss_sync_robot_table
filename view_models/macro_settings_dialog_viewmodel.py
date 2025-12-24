@@ -49,20 +49,27 @@ class MacroSettingsDialogViewModel(QObject):
 
         macro_id = new_macro_data.get('macro_id', 'Unknown')
 
-        # Service 에게 작업 위임 (결과는 bool)
-        #   작업 결과에 대한 로깅은 뷰모델이 아닌 Service 내부에서 이미 수행됨
-        is_success = self.service.save_or_update_macro(path, new_macro_data)
+        # 디스크 용량 부족, 권한 문제 등으로 언제든 실패할 수 있는 작업이므로 try-except로 처리
+        try:
+            # Service 에게 작업 위임 (결과는 bool)
+            #   작업 결과에 대한 로깅은 뷰모델이 아닌 Service 내부에서 이미 수행됨
+            is_success = self.service.save_or_update_macro(path, new_macro_data)
 
+            if is_success:
+                # 성공 시: 뷰에게 "성공했다"고 알려줌 (버튼 깜빡임 등을 위해)
+                self.save_macro_complete.emit(macro_id)
 
-        if is_success:
-            # 성공 시: 뷰에게 "성공했다"고 알려줌 (버튼 깜빡임 등을 위해)
-            self.save_macro_complete.emit(macro_id)
+            else:
+                # 사용자 입력 저장 실패
+                # 뷰는 MacroService 가 '방송'한 log.message와 아래의 save_macro_failed 중에서 적절한 것을 골라서 사용자에게 보여줄 수 있다
+                msg = "매크로 저장 실패. 다시 시도해 주세요."
+                self.save_macro_failed.emit(msg)  # View에 알림 전송
 
-        else:
-            # 사용자 입력 저장 실패
-            # 뷰는 MacroService 가 '방송'한 log.message와 아래의 save_macro_failed 중에서 적절한 것을 골라서 사용자에게 보여줄 수 있다
-            error_message = "매크로 저장 실패. 다시 시도해 주세요. 계속 실패한다면 관리자에게 문의하세요."
-            self.save_macro_failed.emit(error_message)  # View에 알림 전송
+        except Exception as e:
+            # 서비스 내부에서 예상치 못한 에러(Crash)가 발생했을 때 잡아냄
+            msg = f"매크로 저장 중 오류 발생: {e}"
+            EVENT_BUS.log.message.emit(msg, "ERROR")
+            self.save_macro_failed.emit(msg)
 
 
     def load_initial_data(self, path: Path):
