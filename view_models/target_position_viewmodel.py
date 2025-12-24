@@ -43,7 +43,7 @@ class TargetPositionViewModel(QObject):
 
             if macro_data:
                 self.macros_loaded.emit(macro_data)
-                EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 데이터 로드 성공", "INFO")
+                EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 데이터 로드 성공(매크로 버튼 제목을 뽑아오기 위함)", "INFO")
                 
             else:
                 self.state_changed.emit("매크로 데이터 로드 실패")

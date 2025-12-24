@@ -73,7 +73,7 @@ class TargetPositionWidget(BaseWidget):
         # [중요] VM이 생겼을 때 시그널 연결
         self.vm.macros_loaded.connect(self._on_macro_data_loaded)
         
-        # 매크로가 저장된 파일에서 값 가져오기
+        # 매크로 데이터에서 버튼 제목을 읽어 와야 되기 때문에 UI가 생성된 후에 바로 호출
         self.vm.load_macro_data()
 
     def _init_ui(self):
