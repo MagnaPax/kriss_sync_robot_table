@@ -241,16 +241,18 @@ class ServoAdapter:
 
     def homing(self, axis_index: int):
         """
-        [원점 복구] 특정 축의 원점 복귀(Homing) 작업을 시작합니다.
-        로봇팀 제어 표준에 따라 bHome 신호를 보냅니다.
+        [원점 복구] 특정 축의 원점 복귀 작업
+        절차:
+            1. bHome 신호 False로 초기화 (안전장치)
+            2. bHome 신호 True 인가 (원점 복귀 실행)
         """
         plc = self._plc
         
-        # 펄스 신호로 인가하여 확실하게 인식되도록 처리 (False -> True)
+        # 1. 처음 False로 초기화 하는 작업
         plc.write_by_name(ServoSignal.HOME.path(axis_index), False, pyads.PLCTYPE_BOOL)
-        time.sleep(0.05)
-        plc.write_by_name(ServoSignal.HOME.path(axis_index), True, pyads.PLCTYPE_BOOL)
+        time.sleep(0.05)    # 신호 안정화 대기
         
-        # Rising edge 이므로 바로 꺼주어도 PLC 내부에서 래치됨 (혹은 유지형일 경우 체크 필요)
-        # 로봇팀 코드 기준으로는 단순히 True 만 써주었으므로 안정성을 위해 약간의 대기 후 유지
-        time.sleep(0.1)
+        # 2. bHome = True 부여하여 원점 복귀 실행
+        #   PLC에서 완료 시 자동으로 False가 되므로 여기서는 True만 전송
+        plc.write_by_name(ServoSignal.HOME.path(axis_index), True, pyads.PLCTYPE_BOOL)
+        time.sleep(0.1)   # 안정성을 위해 약간의 대기
