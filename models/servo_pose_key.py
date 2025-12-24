@@ -41,6 +41,9 @@ class ServoSignal(str, Enum):
     # [이동 - 속도 제어 (툴 모터용)]
     MOVE_VEL     = 'MAIN.bMoveVel{}'    # 속도 제어 이동 시작 (BOOL)
     
+    # [원점 복구]
+    HOME         = 'MAIN.bHome{}'       # 원점 복귀 시작 (Rising Edge) (BOOL)
+    
     # [공통 입력]
     TARGET_VEL   = 'MAIN.vel{}'         # 목표 속도 입력 (LREAL) - 위치/속도 모드 공용
 
