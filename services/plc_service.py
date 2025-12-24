@@ -9,28 +9,29 @@ from workers.plc_worker import PLCWorker
 from models.fanuc_pose_model import FANUCPose
 from communication.twincat_connector import TwinCATConnector
 from communication.twincat_commander import TwinCATCommander
+from communication.fanuc_adapter import FanucAdapter
+from communication.servo_adapter import ServoAdapter
 
 
 
 class PLCService(QObject):
     """
-    PLC 통신 총괄 관리자 (Service Layer)
-    
-    역할:
-    1. Model(Connector, Commander) 소유 및 관리
-    2. Heartbeat(연결 상태) 주기적 체크
-    3. 앱 종료 시 안전하게 연결 해제
+    하드웨어 관리소
+        애플리케이션의 하드웨어 제어 계층에서 'Composition Root' 역할 수행
     """
-    
     def __init__(self):
         super().__init__()
-
-        # 로그 메세지의 말머리(로그 발생 위치 표시)
         self._log_prefix = f"[{self.__class__.__name__}]"
         
-        # 서비스가 Model을 소유 - 연결과 명령 담당 객체 생성
+        # 1. 연결 담당 (지갑)
         self.connector = TwinCATConnector()
-        self.commander = TwinCATCommander(self.connector)
+
+        # 2. 어댑터(손과 발) 생성 및 소유
+        self.fanuc = FanucAdapter(self.connector)
+        self.servo = ServoAdapter(self.connector)
+
+        # 3. 커맨더(두뇌) 생성 후 어댑터 주입(Dependency Injection)
+        self.commander = TwinCATCommander(self.connector, self.fanuc, self.servo)
 
 
         # --- 비동기 작업용 스레드/워커 변수 --- #
