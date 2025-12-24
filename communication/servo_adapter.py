@@ -187,6 +187,8 @@ class ServoAdapter:
         
         # 2. 속도 제어 트리거 ON (MAIN.bMoveVel{i})
         #    Latch 방식이므로 True로 유지
+        plc.write_by_name(ServoSignal.MOVE_VEL.path(axis_index), False, pyads.PLCTYPE_BOOL)
+        time.sleep(0.1)
         plc.write_by_name(ServoSignal.MOVE_VEL.path(axis_index), True, pyads.PLCTYPE_BOOL)
 
 
