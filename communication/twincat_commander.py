@@ -532,11 +532,10 @@ class LegacyIntegratedExecutor(BaseExecutor):
 
 
 
-# =========================================================
-# 3. 게이트웨이 (The Commander)
-# =========================================================
 class TwinCATCommander(QObject):
-
+    # =========================================================
+    # 3. 게이트웨이 (The Commander)
+    # =========================================================
     def __init__(self, connector: TwinCATConnector, fanuc: FanucAdapter, servo: ServoAdapter):
         super().__init__()                                  # QObject 초기화
         self._log_prefix = f"[{self.__class__.__name__}]"   # 로그 머릿말(발생 위치)
@@ -580,6 +579,7 @@ class TwinCATCommander(QObject):
             return target_executor.execute(sequence_data)
         else:
             return False, "지원하지 않는 데이터 형식입니다."
+
 
 
     # ================================= #
@@ -642,3 +642,36 @@ class TwinCATCommander(QObject):
             except Exception as e:
                 return False, f"종료 신호 전송 실패: {e}"
         return False, "로봇이 연결되지 않았습니다."
+
+
+
+    # ================================= #
+    # --- 서보(Panasonic) 제어 명령 --- #
+    # ================================= #
+    def shutdown_servos_safely(self) -> tuple[bool, str]:
+        """
+        [브릿지] 서보를 안전하게 정지시키고 전원을 차단하도록 시킴
+        Worker -> Commander -> Adapter 순으로 명령 전달
+        """
+        if self.turntable:
+            # Adapter의 '명확한 이름'의 메서드를 호출
+            success = self.turntable.shutdown_all_with_power_off()
+            
+            msg = "모든 서보가 안전하게 정지 및 해제되었습니다." if success else "서보 종료 처리 중 오류 발생"
+            return success, msg
+        
+        return False, "서보 어댑터가 연결되지 않았습니다."
+
+
+    def home_servos_safely(self) -> tuple[bool, str]:
+        """
+        [브릿지] 서보의 안전 원점 복귀 절차를 실행하도록 시킴
+        """
+        if self.turntable:
+            # Adapter에게 원점 복귀 절차 위임
+            success = self.turntable.home_all_safely()
+            
+            msg = "서보 원점 복귀 명령 전송 완료" if success else "원점 복귀 중 오류 발생"
+            return success, msg
+
+        return False, "서보 어댑터가 연결되지 않았습니다."
