@@ -297,36 +297,16 @@ class ServoOnlyExecutor(BaseExecutor):
 
         finally:
             # 3. 종료 처리 (Teardown)
-            # 모든 서보모터가 물리적으로 정지할 때까지 대기 (감속 시간 확보)
-            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 완료 대기: 모든 서보가 물리적으로 정지할 때까지 기다립니다...", "DEBUG")
-            
-            stop_wait_start = time.time()
-            while time.time() - stop_wait_start < self.MOVE_TIMEOUT:
-                # 모든 축이 더 이상 움직이지 않을 때까지 체크 (속도 기준)
-                try:
-                    is_any_moving = any(adapter.is_moving(i) for i in [1, 2, 3])
-                    if not is_any_moving:
-                        break
-                except Exception:
-                    break
-                time.sleep(0.5)
-            else:
-                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 경고: 정지 대기 시간 초과({self.MOVE_TIMEOUT}s). 강제 종료 절차를 진행합니다.", "WARNING")
-            
-            # (A) 동작 정지
-            try:
-                adapter.request_immediate_stop() # 모든 축 정지
-            except Exception as e:
-                # 통신 단절, 심볼 없음 등 치명적 상황 로그 남기기
-                # 어댑터는 이제 순수 모델이므로 예외를 던짐 -> 여기서 경고로 처리
-                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 종료 비상 정지 중 예외 발생: {e}", "WARNING")
+            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 종료 절차: 서보모터 정지 및 전원 차단을 시도합니다.", "DEBUG")
 
-            # (B) 전원 끄기
-            try:
-                for axis_idx in [1, 2, 3]:
-                    adapter.set_servo_state(axis_idx, False) # 전원끄기
-            except Exception as e:
-                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 전원 차단 중 예외 발생: {e}", "WARNING")
+            # MOVE_TIMEOUT(60초)을 넘겨줘서 충분한 감속시간 확보
+            is_safely_shutdown = adapter.shutdown_all_with_power_off(timeout=self.MOVE_TIMEOUT)
+
+            if is_safely_shutdown:
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 모든 서보모터가 안전하게 종료되었습니다. ", "INFO")
+            else:
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 경고: 정지 대기 시간 초과({self.MOVE_TIMEOUT}s). 되었거나 종료 절차 중 오류가 발생하였습니다.", "WARNING")
+
 
     def _wait_for_turntable_completion(self, axis_idx: int, target_pos: float = None) -> bool:
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] {axis_idx}축 이동 완료 대기 중...", "DEBUG")
