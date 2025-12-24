@@ -7,6 +7,7 @@ from typing import Any, Dict, List
 from core.event_bus import EVENT_BUS
 from workers.plc_worker import PLCWorker
 from models.fanuc_pose_model import FANUCPose
+from models.servo_pose_model import ServoPose
 from communication.twincat_connector import TwinCATConnector
 from communication.twincat_commander import TwinCATCommander
 from communication.fanuc_adapter import FanucAdapter
@@ -322,25 +323,36 @@ class PLCService(QObject):
         if not self.connector.is_connected: return
 
         try:
-            # --- 1. 위치 방송 --- #
+            # --- 1. 위치 방송 (FANUC World 좌표)--- #
             # FANUC World 현재 위치 읽기 & 방송
             world_pose = self.commander.robot.read_current_world_pose()
             EVENT_BUS.control.robot_current_pose.emit(world_pose)
 
             # FANUC 이동해야 될 목표 위치 확인 & 방송 <- 개발용
-            target_pose = self.commander.robot.read_target_world_pose()
+            # target_pose = self.commander.robot.read_target_world_pose()
             # EVENT_BUS.control.tool_current_pose.emit(target_pose)
 
-            # TODO: 턴테이블 상태 읽기 & 방송
-            # table_status = self.commander.turntable.read_current_status()
-            # EVENT_BUS.control.turntable_current_pose.emit(table_status)
+            # --- 2. 서보모터 상태 방송 --- #
+            # 3개 축의 데이터를 담을 딕셔너리 생성
+            servo_states = {}
+            for axis_idx in [1,2,3]:
+                # 어댑터에서 데이터(딕셔너리) 읽기
+                raw_data = self.commander.servo.read_current_servo_motion(axis_idx)
 
-            # --- 2. 바쁨 상태 방송 --- #
+                # ServoPose 모델로 Mapping
+                servo_states[axis_idx] = ServoPose(
+                    angle=raw_data['position'],
+                    velocity=raw_data['velocity']
+                )
+            
+            # 방송 -> Dict[int, ServoPose] 형태
+            EVENT_BUS.control.servo_current_motion.emit(servo_states)
+
+            # --- 3. 바쁨 상태 방송 --- #
             is_busy = self.is_running
             EVENT_BUS.data.device_busy_status.emit({'is_busy': is_busy})
 
-
-        except Exception:
+        except Exception as e:
             # 모니터링 중 에러는 로그를 남기지 않음 (로그 폭주 방지)
             pass
 
