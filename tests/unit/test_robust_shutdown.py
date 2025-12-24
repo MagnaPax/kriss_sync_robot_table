@@ -21,10 +21,10 @@ class TestRestoredLogic(unittest.TestCase):
         self.mock_connector.handle = self.mock_plc
         self.adapter = ServoAdapter(self.mock_connector)
 
-    def test_emergency_stop_all_propagates_exception(self):
+    def test_request_immediate_stop_propagates_exception(self):
         """
         [시나리오]
-        ServoAdapter.emergency_stop_all() 실행 중 특정 축에서 에러가 발생하면
+        ServoAdapter.request_immediate_stop() 실행 중 특정 축에서 에러가 발생하면
         내부에서 먹고 들어가는게 아니라, 밖으로(Caller에게) 예외를 던지는지 확인.
         이것이 '순수 모델'의 조건임.
         """
@@ -40,9 +40,9 @@ class TestRestoredLogic(unittest.TestCase):
         print("\n--- [Test] Emergency Stop Exception Propagation Start ---")
         
         # 2. 실행 및 검증
-        # emergency_stop_all()을 호출했을 때 ADSError가 밖으로 튀어나와야 함
+        # request_immediate_stop()을 호출했을 때 ADSError가 밖으로 튀어나와야 함
         with self.assertRaises(pyads.ADSError):
-            self.adapter.emergency_stop_all()
+            self.adapter.request_immediate_stop()
 
         print("--- [Test] Exception correctly propagated to caller ---")
 
