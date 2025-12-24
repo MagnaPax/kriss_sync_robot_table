@@ -1,5 +1,17 @@
 # models/servo_pose_key.py
-from enum import Enum
+from enum import Enum, IntEnum
+
+
+
+class ServoAxis(IntEnum):
+    """
+    서보 모터 축 번호 매핑
+    1, 2, 3 숫자 대신 의미가 담긴 이름을 사용한다
+    """
+    TOOL_REVOLUTION = 1  # 툴 공전 (RPM 제어)
+    TOOL_ROTATION   = 2  # 툴 자전 (RPM 제어)
+    TURNTABLE       = 3  # 턴테이블 (Angle + RPM 제어)
+
 
 class ServoPoseKey(str, Enum):
     """서보모터 데이터 키 정의 (UI 표시 및 내부 로직용)"""
@@ -13,6 +25,7 @@ class ServoPoseKey(str, Enum):
         if self == ServoPoseKey.ANGLE:
             return "deg"
         return "deg/s"
+
 
 # =============================================================================
 # 제어 신호 정의 (Control Signals) - 동적 주소 생성
@@ -67,4 +80,3 @@ class ServoSignal(str, Enum):
             'ServoSignal.SERVO_ON.path(1)'로 호출하면 'MAIN.bServoOn1'와 같은 완성된 주소를 반환
         """
         return self.value.format(axis_index)
-
