@@ -12,6 +12,8 @@ from communication.twincat_connector import TwinCATConnector
 from communication.twincat_commander import TwinCATCommander
 from communication.fanuc_adapter import FanucAdapter
 from communication.servo_adapter import ServoAdapter
+from models.servo_pose_key import ServoAxis
+
 
 
 
@@ -335,12 +337,12 @@ class PLCService(QObject):
             # --- 2. 서보모터 상태 방송 --- #
             # 3개 축의 데이터를 담을 딕셔너리 생성
             servo_states = {}
-            for axis_idx in [1,2,3]:
+            for axis in ServoAxis:
                 # 어댑터에서 데이터(딕셔너리) 읽기
-                raw_data = self.commander.servo.read_current_servo_motion(axis_idx)
+                raw_data = self.commander.servo.read_current_servo_motion(axis)
 
                 # ServoPose 모델로 Mapping
-                servo_states[axis_idx] = ServoPose(
+                servo_states[axis] = ServoPose(
                     angle=raw_data['position'],
                     velocity=raw_data['velocity']
                 )
