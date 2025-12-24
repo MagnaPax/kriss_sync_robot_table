@@ -358,8 +358,10 @@ class PLCService(QObject):
             data (dict): {'axis': 1, 'velocity': 10.0, 'target': ...} 등의 제어 정보
         """
         EVENT_BUS.log.message.emit(f"서보 구동 요청: {data}", "DEBUG")
-        # Worker에게 'SERVO_MOVE' 라는 명령표와 데이터를 전달
-        # self._start_worker('SERVO_MOVE', data=data, log_msg=f"서보 구동 요청: {data}")
+        # Commander는 list[dict] 형태를 기대하므로 리스트로 포장
+        sequence_data = [data]
+        # 이동하는건 'MOVE' 명령으로 통일 (Commander가 알아서 Executor를 찾음)
+        self._start_worker('MOVE', data=sequence_data, log_msg=f"서보 구동 요청: {data}")
 
 
     def stop_servo_all(self):
