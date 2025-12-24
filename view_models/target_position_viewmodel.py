@@ -1,11 +1,13 @@
 # view_models/target_position_viewmodel.py
 from PyQt6.QtCore import Qt, QObject, pyqtSignal, pyqtSlot
 from models.fanuc_pose_model import FANUCPoseModel, FANUCPose
-from services.plc_service import PLCService
 from services.macro_service import MacroService
 from config.paths import CONFIG_MACRO_PATH
 from core.event_bus import EVENT_BUS
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from services.plc_service import PLCService
 
 
 class TargetPositionViewModel(QObject):
@@ -15,7 +17,7 @@ class TargetPositionViewModel(QObject):
     macros_loaded = pyqtSignal(dict)    # 매크로 데이터 가져오기 완료
 
 
-    def __init__(self, model: FANUCPoseModel, plc_service: PLCService):
+    def __init__(self, model: FANUCPoseModel, plc_service: "PLCService"):
         """
         인자들:
             model: 데이터 모델 인스턴스

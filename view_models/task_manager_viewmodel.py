@@ -5,10 +5,13 @@
 - 명령 및 로직 요청
 """
 from pathlib import Path
+from typing import TYPE_CHECKING
 from core.event_bus import EVENT_BUS
-from services.plc_service import PLCService
-from services.sequence_service import SequenceService
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, QTimer
+
+if TYPE_CHECKING:
+    from services.sequence_service import SequenceService
+    from services.plc_service import PLCService
 
 
 
@@ -21,7 +24,7 @@ class TaskManagerViewModel(QObject):
     runtime_updated = pyqtSignal(str)                   # 런타임 시간 업데이트
 
 
-    def __init__(self, sequence_service: SequenceService, plc_service: PLCService):
+    def __init__(self, sequence_service: "SequenceService", plc_service: "PLCService"):
         super().__init__()
 
         # 로그 메세지의 말머리(로그 발생 위치 표시)
