@@ -21,7 +21,9 @@ if TYPE_CHECKING:
 
 class ServoControlWidget(BaseWidget):
     """서보모터 제어용 위젯"""
-
+    # ========================================
+    # 초기화 및 설정 (Initialization)
+    # ========================================
     def __init__(self, parent=None):
         """위젯 초기화"""
         # ViewModel 인스턴스를 클래스 속성으로 저장
@@ -47,6 +49,17 @@ class ServoControlWidget(BaseWidget):
         """
         self.vm = view_model
 
+    def _bind_events(self):
+        """UI 이벤트 바인딩"""
+        if btn := self.btn_start: btn.clicked.connect(self._on_start_clicked)
+        if btn := self.btn_stop:  btn.clicked.connect(self._on_stop_clicked)
+        if btn := self.btn_home:  btn.clicked.connect(self._on_home_clicked)
+
+
+
+    # ========================================
+    # UI 구성 (Initialization)
+    # ========================================
     def _init_ui(self):
         """UI 구성 (BaseWidget._init_ui 오버라이드)"""
         # 메인 레이아웃 및 그룹박스 설정
@@ -124,41 +137,11 @@ class ServoControlWidget(BaseWidget):
         btn.setProperty("type", btn_type)
         return btn
 
-    def _bind_events(self):
-        """UI 이벤트 바인딩"""
-        if btn := self.btn_start: btn.clicked.connect(self._on_start_clicked)
-        if btn := self.btn_stop:  btn.clicked.connect(self._on_stop_clicked)
-        if btn := self.btn_home:  btn.clicked.connect(self._on_home_clicked)
 
-    @pyqtSlot()
-    def _on_start_clicked(self):
-        """START 버튼 클릭 핸들러"""
-        data = self._get_input_data()
-        EVENT_BUS.log.message.emit(f"{self.log_prefix} START 클릭: {data}", "INFO")
-        if self.vm:
-            # TODO: VM의 동작 시작 메서드 호출
-            pass
 
-    @pyqtSlot()
-    def _on_stop_clicked(self):
-        """STOP 버튼 클릭 핸들러"""
-        EVENT_BUS.log.message.emit(f"{self.log_prefix} STOP 클릭", "INFO")
-        if self.vm:
-            # TODO: VM의 정지 메서드 호출
-            pass
-
-    @pyqtSlot()
-    def _on_home_clicked(self):
-        """HOME 버튼 클릭 핸들러"""
-        EVENT_BUS.log.message.emit(f"{self.log_prefix} HOME 클릭", "INFO")
-        if self.vm:
-            # TODO: VM의 홈 복귀 메서드 호출
-            pass
-
-    def _get_input_data(self) -> dict[str, float]:
-        """입력 필드에서 데이터를 추출"""
-        return {key: spin.value() for key, spin in self.input_widgets.items()}
-
+    # ===============================================
+    # 데이터 처리
+    # ===============================================
     def update_data(self, data: Any):
         """
         데이터(dict)를 받아 UI 업데이트
@@ -182,6 +165,57 @@ class ServoControlWidget(BaseWidget):
 
         # 부모 클래스의 초기화(데이터 비우기) 호출
         super().clear_widget()
+
+    def _get_input_data(self) -> dict[str, float]:
+        """입력 필드에서 데이터를 추출"""
+        return {key: spin.value() for key, spin in self.input_widgets.items()}
+
+
+
+    # ===============================================
+    # 이벤트 슬롯 [물리적 신호 처리]
+    #   - 사용자 입력(클릭, 선택)에 대한 신호 처리
+    # =============================================== 
+    @pyqtSlot()
+    def _on_start_clicked(self):
+        """START 버튼 클릭 핸들러"""
+        self._handle_manual_start()
+
+    @pyqtSlot()
+    def _on_stop_clicked(self):
+        """STOP 버튼 클릭 핸들러"""
+        self._handle_manual_stop()
+
+    @pyqtSlot()
+    def _on_home_clicked(self):
+        """HOME 버튼 클릭 핸들러"""
+        self._handle_manual_home()
+
+
+
+    # ===============================================
+    # 핸들러 [논리적 흐름 담당]
+    #   - 입력 데이터 가공 및 뷰모델 통신
+    # ===============================================
+    def _handle_manual_start(self):
+        """MANUAL START 핸들러"""
+        if not (vm := self.vm): return
+        data = self._get_input_data()
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} MANUAL START: {data}", "DEBUG")
+        vm.start_manual(data)
+
+    def _handle_manual_stop(self):
+        """MANUAL STOP 핸들러"""
+        if not (vm := self.vm): return
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} MANUAL STOP", "DEBUG")
+        vm.stop_manual()
+
+    def _handle_manual_home(self):
+        """MANUAL HOME 핸들러"""
+        if not (vm := self.vm): return
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} MANUAL HOME", "DEBUG")
+        vm.home_manual()
+
 
 
 # ==========================================================
