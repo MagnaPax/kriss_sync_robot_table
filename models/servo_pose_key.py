@@ -52,6 +52,10 @@ class ServoSignal(str, Enum):
     ACT_POS      = 'MAIN.Act_pos{}'     # 현재 위치 (LREAL)
     ACT_VEL      = 'MAIN.Act_vel{}'     # 현재 속도 (LREAL)
 
+    # [에러]
+    ERROR_RESET  = 'MAIN.bReset{}'      # 에러 리셋 신호 (BOOL)
+    ERROR_STATE  = 'MAIN.bError{}'      # 에러 발생 상태 (BOOL)
+
     def path(self, axis_index: int) -> str:
         """
         축 번호를 받아 실제 PLC 주소를 반환
