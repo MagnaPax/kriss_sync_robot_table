@@ -104,6 +104,17 @@ class PLCWorker(QObject):
                     msg = "알 수 없는 명령입니다."
                     pass
 
+                # --- 서보 전용 제어 명령 (Commander에게 위임) --- #
+                case 'SERVO_STOP':
+                    # 서보 안전 정지 및 전원 차단 명령
+                    is_success, msg = self.commander.shutdown_servos_safely()
+                case 'SERVO_HOME':
+                    # 서보 안전 원점 복귀 명령
+                    is_success, msg = self.commander.home_servos_safely()
+                case _:
+                    msg = "알 수 없는 명령입니다."
+                    pass
+
         # -----------------------------------------------------------
         # 예외 처리 (로그는 Service가 남기므로 여기선 실패 사유만 전달)
         # -----------------------------------------------------------
