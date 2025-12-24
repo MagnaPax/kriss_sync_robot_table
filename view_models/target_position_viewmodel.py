@@ -49,11 +49,11 @@ class TargetPositionViewModel(QObject):
                 
             else:
                 self.state_changed.emit("매크로 데이터 로드 실패")
-                EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 데이터 로드 실패", "ERROR")
+                EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 데이터 로드 실패", "WARNING")
 
         except Exception as e:
             self.state_changed.emit(f"매크로 데이터 로드 실패: {e}")
-            EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 데이터 로드 실패: {e}", "ERROR")
+            EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 데이터 로드 실패: {e}", "WARNING")
 
 
 
