@@ -68,17 +68,17 @@ class ServoControlWidget(BaseWidget):
 
         # 왼쪽: 공전/자전 (RPM)
         tool_layout = QFormLayout()
-        self.input_widgets["rev_rpm"] = self._create_spinbox(0, 3000, 10, " rpm")
-        self.input_widgets["rot_rpm"] = self._create_spinbox(0, 3000, 10, " rpm")
-        tool_layout.addRow("공전 (RPM):", self.input_widgets["rev_rpm"])
-        tool_layout.addRow("자전 (RPM):", self.input_widgets["rot_rpm"])
+        self.input_widgets["rev_rpm"] = self._create_spinbox(0, 3000, 10)
+        self.input_widgets["rot_rpm"] = self._create_spinbox(0, 3000, 10)
+        tool_layout.addRow("공전 (rpm):", self.input_widgets["rev_rpm"])
+        tool_layout.addRow("자전 (rpm):", self.input_widgets["rot_rpm"])
 
         # 오른쪽: 턴테이블 (각도/RPM)
         tt_layout = QFormLayout()
-        self.input_widgets["tt_angle"] = self._create_spinbox(-360, 360, 0, " deg")
-        self.input_widgets["tt_rpm"] = self._create_spinbox(0, 100, 5, " rpm")
-        tt_layout.addRow("턴테이블 각도:", self.input_widgets["tt_angle"])
-        tt_layout.addRow("턴테이블 속도:", self.input_widgets["tt_rpm"])
+        self.input_widgets["tt_angle"] = self._create_spinbox(-360, 360, 0)
+        self.input_widgets["tt_rpm"] = self._create_spinbox(0, 100, 5)
+        tt_layout.addRow("턴테이블 각도 (deg):", self.input_widgets["tt_angle"])
+        tt_layout.addRow("턴테이블 속도 (rpm):", self.input_widgets["tt_rpm"])
 
         input_layout.addLayout(tool_layout)
         input_layout.addLayout(tt_layout)
@@ -104,7 +104,7 @@ class ServoControlWidget(BaseWidget):
         
         main_layout.addWidget(self.servo_group)
 
-    def _create_spinbox(self, min_val, max_val, default_val, suffix) -> QDoubleSpinBox:
+    def _create_spinbox(self, min_val, max_val, default_val, suffix="") -> QDoubleSpinBox:
         """스핀박스 생성 헬퍼"""
         spin = QDoubleSpinBox()
         spin.setRange(float(min_val), float(max_val))
