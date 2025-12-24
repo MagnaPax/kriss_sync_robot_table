@@ -195,7 +195,6 @@ QWidget#right_panel {
     height: 7px;
     border-left: 2px solid #666;
     border-top: 2px solid #666;
-    transform: rotate(45deg);
     margin-top: 2px;
 }
 
@@ -205,7 +204,6 @@ QWidget#right_panel {
     height: 7px;
     border-left: 2px solid #666;
     border-bottom: 2px solid #666;
-    transform: rotate(-45deg);
     margin-bottom: 2px;
 }
 
