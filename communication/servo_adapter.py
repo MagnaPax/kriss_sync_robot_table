@@ -1,7 +1,7 @@
 # communication/turntable_adapter.py
 import time
 import pyads
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Union, Tuple
 from communication.twincat_connector import TwinCATConnector
 from models.servo_pose_key import ServoPoseKey, ServoSignal
 from models.servo_pose_model import ServoPose
@@ -38,25 +38,7 @@ class ServoAdapter:
 
 
     # ==========================================================================
-    # 에러 상태 확인
-    # ==========================================================================
-    def read_error_status(self, axis_index: int) -> dict:
-        """
-        [상태 확인] 해당 축에 에러가 발생했는지 확인합니다.
-        PLC 변수명은 환경에 따라 다를 수 있으니 확인이 필요합니다 (예: MAIN.bError1, MAIN.nErrorID1)
-        """
-        try:
-            # 보통 TwinCAT MC 블록은 bError(BOOL)와 nErrorID(UDINT/UINT)를 가집니다.
-            # 경로가 설정되어 있지 않다면 ServoSignal 모델에 추가가 필요합니다.
-            has_error = self._plc.read_by_name(f"MAIN.bError{axis_index}", pyads.PLCTYPE_BOOL)
-            error_id = self._plc.read_by_name(f"MAIN.nErrorID{axis_index}", pyads.PLCTYPE_UINT)
-            return {'error': has_error, 'id': error_id}
-        except:
-            return {'error': False, 'id': 0}
-
-
-    # ==========================================================================
-    # 1. 기본 설정 및 안전 (Setup & Safety)
+    # 기본 설정 및 안전 (Setup & Safety)
     # ==========================================================================
     def set_servo_state(self, axis_index: int, enable: bool):
         """
@@ -79,9 +61,35 @@ class ServoAdapter:
         # 신호 안정화 대기 (하드웨어 특성 고려)
         time.sleep(0.05)
 
+    def clear_error_pulse(self, axis_index: int) -> bool:
+        """
+        [에러 초기화] bReset 신호를 발생시켜 축의 에러 상태를 해제한다
+            bReset=True 후 다시 False로 초기화 필수
+        """
+        plc = self._plc
+        try:
+            # 1. 에러 상태가 아니면 리셋 절차 생략
+            if not plc.read_by_name(ServoSignal.ERROR_STATE.path(axis_index), pyads.PLCTYPE_BOOL):
+                return True # 에러가 없으면 즉시 성공 반환
+
+            # 2. Reset Pulse 전송 (True -> Wait -> False)
+            plc.write_by_name(ServoSignal.ERROR_RESET.path(axis_index), True, pyads.PLCTYPE_BOOL)
+            time.sleep(0.2) # PLC가 리셋을 인식할 시간 확보
+            plc.write_by_name(ServoSignal.ERROR_RESET.path(axis_index), False, pyads.PLCTYPE_BOOL)
+            
+            # 3. 에러가 정말 사라졌는지 최종 확인
+            time.sleep(0.1)
+            is_cleared = not plc.read_by_name(ServoSignal.ERROR_STATE.path(axis_index), pyads.PLCTYPE_BOOL)
+            if is_cleared:
+                EVENT_BUS.log.message.emit(f"서보 {axis_index}축 리셋 성공", "INFO")
+            return is_cleared
+
+        except Exception as e:
+            EVENT_BUS.log.message.emit(f"서보 {axis_index}축 리셋 실패: {e}", "ERROR")
+            return False
 
     # ==========================================================================
-    # 2. 안전 정지 (Stop & Safety)
+    # 안전 정지 (Stop & Safety)
     # ==========================================================================
     def stop_axis(self, axis_index: int):
         """
@@ -158,7 +166,7 @@ class ServoAdapter:
 
 
     # ==========================================================================
-    # 2. 상태 모니터링 (Read Feedback)
+    # 상태 모니터링 (Read Feedback)
     # ==========================================================================
     def is_busy(self, axis_index: int) -> bool:
         """
@@ -179,7 +187,7 @@ class ServoAdapter:
         curr_pos = self._plc.read_by_name(ServoSignal.ACT_POS.path(axis_index), pyads.PLCTYPE_LREAL)
         curr_vel = self._plc.read_by_name(ServoSignal.ACT_VEL.path(axis_index), pyads.PLCTYPE_LREAL)
         return {'position': curr_pos, 'velocity': curr_vel}
-        
+
     def is_moving(self, axis_index: int, threshold: float = 0.1) -> bool:
         """
         [상태 확인] 해당 축이 물리적으로 움직이고 있는가? (속도 기준)
@@ -190,10 +198,24 @@ class ServoAdapter:
         """
         feedback = self.read_current_pose(axis_index)
         return abs(feedback['velocity']) > threshold
-        
+
+    def is_error_active(self, axis_index: int) -> dict:
+        """
+        [상태 확인] 해당 축에 에러가 발생했는지 확인합니다.
+        PLC 변수명은 환경에 따라 다를 수 있으니 확인이 필요합니다 (예: MAIN.bError1, MAIN.nErrorID1)
+        """
+        try:
+            # 보통 TwinCAT MC 블록은 bError(BOOL)와 nErrorID(UDINT/UINT)를 가집니다.
+            # 경로가 설정되어 있지 않다면 ServoSignal 모델에 추가가 필요합니다.
+            has_error = self._plc.read_by_name(f"MAIN.bError{axis_index}", pyads.PLCTYPE_BOOL)
+            error_id = self._plc.read_by_name(f"MAIN.nErrorID{axis_index}", pyads.PLCTYPE_UINT)
+            return {'error': has_error, 'id': error_id}
+        except:
+            return {'error': False, 'id': 0}
+
 
     # ==========================================================================
-    # 3. 이동 명령 (Write Command)
+    # 이동 명령 (Write Command)
     # ==========================================================================
     def move_velocity(self, axis_index: int, target_velocity: float):
         """
