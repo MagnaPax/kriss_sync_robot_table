@@ -260,6 +260,10 @@ class PLCService(QObject):
         self._start_worker('SET_SPEED', data=feed_rate, log_msg=f"로봇 속도 설정 변경 요청: {feed_rate} mm/sec")
 
 
+
+    # ==========================================================
+    # 상태 확인
+    # ==========================================================
     @property
     def is_running(self) -> bool:
         """로봇이나 턴테이블이 현재 작업 중인지 확인"""
@@ -339,3 +343,38 @@ class PLCService(QObject):
         except Exception:
             # 모니터링 중 에러는 로그를 남기지 않음 (로그 폭주 방지)
             pass
+
+
+
+    # ==========================================================
+    # [비동기] 서보 모터 제어 (Worker 사용)
+    # ==========================================================
+    
+    def move_servo_by_manual(self, data: dict):
+        """
+        서보 수동 조작
+        
+        Args:
+            data (dict): {'axis': 1, 'velocity': 10.0, 'target': ...} 등의 제어 정보
+        """
+        EVENT_BUS.log.message.emit(f"서보 구동 요청: {data}", "DEBUG")
+        # Worker에게 'SERVO_MOVE' 라는 명령표와 데이터를 전달
+        # self._start_worker('SERVO_MOVE', data=data, log_msg=f"서보 구동 요청: {data}")
+
+
+    def stop_servo_all(self):
+        """서보 모터 비상 정지"""
+        
+        # 만약 이미 무언가(예: 로봇 이동) 실행 중이라면 강제 중단 요청
+        if self._thread and self._thread.isRunning():
+            self._thread.requestInterruption()
+            EVENT_BUS.log.message.emit("진행 중인 작업을 중단하고 서보 정지를 시도합니다.", "WARNING")
+
+        # 정지 명령 Worker 실행
+        self._start_worker('SERVO_STOP', log_msg="서보 전체 정지 요청")
+
+
+    def home_servo_all(self):
+        """서보 원점 복귀"""
+        # 원점 복귀는 시간이 걸리는 작업이므로 Worker로 실행
+        self._start_worker('SERVO_HOME', log_msg="서보 원점 복귀 요청 (Axis 1,2,3)")
