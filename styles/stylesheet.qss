@@ -334,6 +334,8 @@ QWidget#right_panel {
     font-weight: normal;
     color: #555555;
     font-size: 12px;
+    min-width: 30px;   /* 최소 너비 */
+    min-height: 20px;  /* 최소 높이 */
 }
 
 /* 4. [값] 라벨 (숫자 데이터) */
@@ -345,6 +347,8 @@ QWidget#right_panel {
     background-color: #f1f3f5; /* 값 영역 살짝 강조 */
     padding: 2px 5px;
     border-radius: 3px;
+    min-width: 30px;   /* 최소 너비 */
+    min-height: 20px;  /* 최소 높이 */
 }
 
 /* 5. [단위] 라벨 (mm, deg, RPM 등) */
@@ -352,6 +356,8 @@ QWidget#right_panel {
     color: #777777;
     font-size: 11px;
     font-style: italic;
+    min-width: 30px;   /* 최소 너비 */
+    min-height: 20px;  /* 최소 높이 */
 }
 
 
