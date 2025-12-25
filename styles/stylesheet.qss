@@ -306,44 +306,43 @@ QWidget#right_panel {
 
 
 /* WorldCoordinatesWidget 스타일 */
-
 /* 1. 메인 그룹박스 스타일 (통합된 System Coordinates) */
 #world_coordinates_widget > QGroupBox {
     border: 1px solid #94a3b8;
     border-radius: 6px;
     margin-top: 20px;
     font-weight: bold;
-    color: #333333; /* [cite: 54] */
+    color: #333333;
 }
 
 #world_coordinates_widget > QGroupBox::title {
     subcontrol-origin: margin;
     subcontrol-position: top left;
     padding: 0 10px;
-    background-color: transparent; /* [cite: 55] */
+    background-color: transparent;
 }
 
 /* 2. 섹션 구분용 수평선 (QFrame) */
 #world_coordinates_widget QFrame {
     border: 1px solid #ced4da;
     max-height: 1px;
-    margin: 5px 2px; /* [cite: 18, 87] */
+    margin: 5px 2px;
 }
 
 /* 3. [이름] 라벨 (예: "Robot X :", "Tool Rev :") */
 #world_coordinates_widget QLabel#wc_name {
     font-weight: normal;
     color: #555555;
-    font-size: 12px; /* [cite: 57] */
+    font-size: 12px;
 }
 
 /* 4. [값] 라벨 (숫자 데이터) */
 #world_coordinates_widget QLabel#wc_value {
     font-weight: bold;
     color: #2D2D2D;
-    font-family: 'Consolas', 'Monospace', 'Courier New'; /* 고정폭 폰트 적용 [cite: 58, 59] */
+    font-family: 'Consolas', 'Monospace', 'Courier New'; /* 고정폭 폰트 적용 */
     font-size: 14px;
-    background-color: #f1f3f5; /* 값 영역 살짝 강조 [cite: 53] */
+    background-color: #f1f3f5; /* 값 영역 살짝 강조 */
     padding: 2px 5px;
     border-radius: 3px;
 }
@@ -352,7 +351,7 @@ QWidget#right_panel {
 #world_coordinates_widget QLabel#wc_unit {
     color: #777777;
     font-size: 11px;
-    font-style: italic; /* [cite: 60] */
+    font-style: italic;
 }
 
 
