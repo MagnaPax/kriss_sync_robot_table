@@ -214,6 +214,8 @@ if __name__ == "__main__":
     from view_models.world_coordinates_viewmodel import WorldCoordinatesViewModel
     from models.servo_pose_key import ServoAxis
     from utils.dll_loader import load_pyads_dll
+    from config.paths import STYLESHEET_PATH
+    from styles.style_manager import load_and_apply_stylesheet
 
     try: load_pyads_dll()
     except: pass
@@ -222,6 +224,8 @@ if __name__ == "__main__":
     
     service = PLCService()
     vm = WorldCoordinatesViewModel()
+    load_and_apply_stylesheet(app, STYLESHEET_PATH)
+
     window = WorldCoordinatesWidget()
     window.set_view_model(vm)
     window.resize(300, 450)
