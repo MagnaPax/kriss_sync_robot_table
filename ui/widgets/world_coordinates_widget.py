@@ -69,7 +69,7 @@ class WorldCoordinatesWidget(BaseWidget):
     def _init_ui(self):
         """UI 구성"""
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setContentsMargins(10, 10, 10, 10)
         self.setObjectName("world_coordinates_widget")  # 전체 위젯 ID
 
         # 그룹박스
@@ -77,12 +77,12 @@ class WorldCoordinatesWidget(BaseWidget):
 
         # 수직 레이아웃
         grid_layout = QVBoxLayout()
-        grid_layout.setSpacing(5)    # 섹션간 간격
+        grid_layout.setContentsMargins(15, 25, 15, 15)
+        grid_layout.setSpacing(10)    # 섹션간 간격
 
         # --- 로봇 섹션 --- #
         grid_robot = QGridLayout()
-        grid_robot.setHorizontalSpacing(10) # 열 사이 간격
-        grid_robot.setVerticalSpacing(5)    # 행 사이 간격
+        grid_robot.setSpacing(10)
         
         # 레이블 생성 및 초기화
         self.lbl_x = self._create_label()
@@ -114,8 +114,7 @@ class WorldCoordinatesWidget(BaseWidget):
 
         # --- 서보 섹션 --- #
         grid_servo = QGridLayout()
-        grid_servo.setHorizontalSpacing(10) # 열 사이 간격
-        grid_servo.setVerticalSpacing(5)    # 행 사이 간격
+        grid_servo.setSpacing(10)
 
         # 레이블 생성 및 초기화
         self.lbl_tool_revolution_rpm = self._create_label()
