@@ -77,12 +77,12 @@ class WorldCoordinatesWidget(BaseWidget):
 
         # 수직 레이아웃
         grid_layout = QVBoxLayout()
-        grid_layout.setContentsMargins(15, 25, 15, 15)
         grid_layout.setSpacing(10)    # 섹션간 간격
 
         # --- 로봇 섹션 --- #
         grid_robot = QGridLayout()
-        grid_robot.setSpacing(10)
+        grid_robot.setHorizontalSpacing(10) # 열 사이 간격
+        grid_robot.setVerticalSpacing(0)    # 행 사이 간격
         
         # 레이블 생성 및 초기화
         self.lbl_x = self._create_label()
@@ -94,12 +94,12 @@ class WorldCoordinatesWidget(BaseWidget):
 
         # 그리드 배치
         robot_rows = [
-            (0, "Robot X", self.lbl_x, "mm"),
-            (1, "Robot Y", self.lbl_y, "mm"),
-            (2, "Robot Z", self.lbl_z, "mm"),
-            (3, "Robot W", self.lbl_w, "deg"),
-            (4, "Robot P", self.lbl_p, "deg"),
-            (5, "Robot R", self.lbl_r, "deg"),
+            (0, "X", self.lbl_x, "mm"),
+            (1, "Y", self.lbl_y, "mm"),
+            (2, "Z", self.lbl_z, "mm"),
+            (3, "W", self.lbl_w, "deg"),
+            (4, "P", self.lbl_p, "deg"),
+            (5, "R", self.lbl_r, "deg"),
         ]
         self._populate_grid(grid_robot, robot_rows)
 
@@ -114,7 +114,8 @@ class WorldCoordinatesWidget(BaseWidget):
 
         # --- 서보 섹션 --- #
         grid_servo = QGridLayout()
-        grid_servo.setSpacing(10)
+        grid_servo.setHorizontalSpacing(10) # 열 사이 간격
+        grid_servo.setVerticalSpacing(0)    # 행 사이 간격
 
         # 레이블 생성 및 초기화
         self.lbl_tool_revolution_rpm = self._create_label()
@@ -124,10 +125,10 @@ class WorldCoordinatesWidget(BaseWidget):
 
         # 그리드 배치
         servo_rows = [
-            (0, "Tool Rev (Axis 1)", self.lbl_tool_revolution_rpm, "RPM"),
-            (1, "Tool Rot (Axis 2)", self.lbl_tool_rotation_rpm, "RPM"),
-            (2, "Turntable Pos (Axis 3)", self.lbl_turntable_degree, "deg"),
-            (3, "Turntable Vel (Axis 3)", self.lbl_turntable_rpm, "RPM"),
+            (0, "Tool Rev", self.lbl_tool_revolution_rpm, "rpm"),
+            (1, "Tool Rot", self.lbl_tool_rotation_rpm, "rpm"),
+            (2, "Turntable Pos", self.lbl_turntable_degree, "deg"),
+            (3, "Turntable Vel", self.lbl_turntable_rpm, "rpm"),
         ]
         self._populate_grid(grid_servo, servo_rows)
 
@@ -151,7 +152,7 @@ class WorldCoordinatesWidget(BaseWidget):
         """그리드 배치"""
         for row_idx, name, val_lbl, unit_text in rows:
             # 1열: 축 이름
-            name_lbl = QLabel(f"{name} :")
+            name_lbl = QLabel(f"{name}")
             name_lbl.setObjectName("wc_name") # QSS ID
             grid_layout.addWidget(name_lbl, row_idx, 0)
             
@@ -224,6 +225,7 @@ if __name__ == "__main__":
     
     service = PLCService()
     vm = WorldCoordinatesViewModel()
+
     load_and_apply_stylesheet(app, STYLESHEET_PATH)
 
     window = WorldCoordinatesWidget()
