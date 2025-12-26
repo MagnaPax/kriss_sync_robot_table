@@ -313,6 +313,7 @@ QWidget#right_panel {
     margin-top: 20px;
     font-weight: bold;
     color: #333333;
+    padding-bottom: 10px; /* 그룹박스 내부 하단에 여백 추가 */
 }
 
 #world_coordinates_widget > QGroupBox::title {

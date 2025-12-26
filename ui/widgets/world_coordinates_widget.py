@@ -69,7 +69,7 @@ class WorldCoordinatesWidget(BaseWidget):
     def _init_ui(self):
         """UI 구성"""
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setContentsMargins(10, 10, 10, 10)  # 좌, 상, 우, 하
         self.setObjectName("world_coordinates_widget")  # 전체 위젯 ID
 
         # 그룹박스
