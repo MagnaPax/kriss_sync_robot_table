@@ -28,6 +28,7 @@ from types import TracebackType
 from typing import Type, Optional
 
 from utils.logger import get_logger
+from core.exceptions import AppError    # 커스텀 예외 식별용
 
 
 # =============================================================================
@@ -147,6 +148,51 @@ def is_installed() -> bool:
         bool: 설치되어 있으면 True
     """
     return _installed
+
+
+def _global_exception_hook(
+    exc_type: Type[BaseException],
+    exc_value: BaseException,
+    exc_traceback: Optional[TracebackType]
+):
+    # KeyboardInterrupt 처리 (기존 유지)
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    
+    assert _logger is not None
+
+    # 1. 미리 정의한 커스텀 에러 (AppError)인 경우
+    #    -> 이것은 버그라기보다 '처리되지 않은 예외 상황'이다
+    if issubclass(exc_type, AppError):
+        _logger.warning(f"⚠️ 처리되지 않은 비즈니스 예외: {exc_value}")
+        error_title = "작업 실패"
+        log_level = "WARNING"
+
+    # 2. 파이썬 시스템 에러 (IndexError, AttributeError 등)
+    #    -> 이건 명백한 '버그(Bug)'임 -> Critical 로깅 필요
+    else:
+        _logger.critical(
+            "🚨 처리되지 않은 시스템 예외 발생 (Crash Prevention)",
+            exc_info=(exc_type, exc_value, exc_traceback)
+        )
+        error_title = "시스템 오류"
+        log_level = "CRITICAL"
+
+    # 3. UI 알림 (EventBus)
+    try:
+        from core.event_bus import EVENT_BUS
+        # 에러 메시지를 UI가 보기 좋게 가공해서 보낼 수도 있음
+        error_message = f"[{error_title}] {exc_value}"
+        
+        # 시스템 에러 채널로 전송
+        EVENT_BUS.system.error.emit(error_message)
+        
+    except Exception:
+        pass
+
+    # (선택 사항) 개발 중에는 콘솔에도 빨간 줄 뜨게 하려면 아래 주석 해제
+    # sys.__excepthook__(exc_type, exc_value, exc_traceback)
 
 
 
