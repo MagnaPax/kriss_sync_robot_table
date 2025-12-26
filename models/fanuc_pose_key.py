@@ -154,7 +154,7 @@ class FanucSignal(str, Enum):
     
     # [출력] Robot -> PLC (읽는 신호)
     COMPLETE =  "MAIN.Robot1._UO1.DO45"             # 받은 명령을 완료했다. (job complete)
-    BUSY =      "MAIN.Robot1._UO1._UO10_Busy"       # 로봇 바쁨 상태 (움직이고 있는 중)
+    BUSY =      "MAIN.Robot1._UO1.UO10_Busy"       # 로봇 바쁨 상태 (움직이고 있는 중)
     PAUSED =    "MAIN.Robot1._UO1.UO04_PrgPaused"   # 일시정지 상태
 
 
