@@ -153,30 +153,28 @@ class ServoAdapter:
             EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 원점 복귀 중 에러 발생: {e}", "ERROR")
             return False
 
-    def validate_axis_ready(self, axis_index: int) -> bool:
+    def validate_axis_ready(self, axis_index: int):
         """
-        [이동 전 검증] 해당 축의 이름을 조회하고 
-        명령을 받을 수 있는 물리적/논리적 상태인지 확인
-            PLC Function Block(FB)이 새로운 명령을 받아들일 준비가 되었는지(Busy/Error 체크) 확인
+        [이동 전 검증]
+        문제가 있으면 예외(Exception)를 던진다.
+        문제가 없으면 아무것도 반환하지 않는다 (None).
         """
-        # 1. 캐싱된 딕셔너리에서 안전하게 이름 추출 
         axis_name = self._axis_names.get(axis_index, f"Axis{axis_index}")
-        
-        # 2. 로그 출력 (1년 뒤에도 어느 축인지 명확히 알 수 있음)
-        EVENT_BUS.log.message.emit(f"[{axis_name}] 제어 상태 검증 중...", "DEBUG")
 
-        # 3. Busy 상태 확인 (앞서 논의한 Beckhoff PLC Function Block 보호 로직)
+        # 1. Busy 체크
         if self.is_servo_logic_busy(axis_index):
-            EVENT_BUS.log.message.emit(f"{axis_name} 축이 현재 Busy 상태입니다.", "WARNING")
-            return False
+            # 로그 대신 에러를 던져서 호출자가 알게 함
+            raise ServoBusyError(f"[{axis_name}] 축이 현재 명령 처리 중(Busy)입니다.")
 
-        # 4. Error 상태 확인
-        if self.has_servo_error(axis_index):
-            EVENT_BUS.log.message.emit(f"{axis_name} 축에 에러가 감지되었습니다.", "ERROR")
-            return False
-
-        return True
-
+        # 2. Error 체크
+        error_info = self.get_servo_error_info(axis_index)
+        if error_info['active']:
+            # 상세 정보를 담아서 에러를 던짐
+            raise ServoFaultError(
+                axis_name, 
+                error_info['id'], 
+                error_info['message']
+            )
 
 
     # ==========================================================================
@@ -316,28 +314,29 @@ class ServoAdapter:
             return True
 
     def get_servo_error_info(self, axis_index: int) -> dict:
-        """
-        [상세 에러 진단] 에러 발생 여부와 구체적인 에러 코드를 반환
-        """
-        is_error = self.has_servo_error(axis_index) # bError 읽기 
-        error_id = 0
-        
-        if is_error:
-            error_id = self._plc.read_by_name(ServoSignal.ERROR_ID.path(axis_index), pyads.PLCTYPE_UDINT)
-            
-        # 문서에 명시된 타임아웃 에러 코드(1861) 처리 
-        error_msg = "None"
-        if is_error:
-            if error_id == 1861:
-                error_msg = "Timeout Error (PLC Function Block)"
-            else:
-                error_msg = f"ADS/FB Error (Code: {error_id})"
+        """에러 상태와 ID를 읽어서 반환 (순수 데이터 조회)"""
+        try:
+            is_error = self.has_servo_error(axis_index)
+            error_id = 0
+            error_msg = "None"
+
+            if is_error:
+                error_id = self._plc.read_by_name(ServoSignal.ERROR_ID.path(axis_index), pyads.PLCTYPE_UDINT)
                 
-        return {
-            'active': is_error,
-            'id': error_id,
-            'message': error_msg
-        }
+                # 에러 메시지 해석 (Adapter의 역할)
+                if error_id == 1861:
+                    error_msg = "Timeout Error (PLC FB)"
+                else:
+                    error_msg = f"ADS/FB General Error"
+            
+            return {
+                'active': is_error,
+                'id': error_id,
+                'message': error_msg
+            }
+        except Exception:
+            # 통신 에러 시 기본값 반환 (로그는 호출자가 찍음)
+            return {'active': True, 'id': -1, 'message': "Communication Failed"}
 
 
 
@@ -353,7 +352,8 @@ class ServoAdapter:
             axis_index: 축 번호
             target_velocity: 목표 속도 (deg/s) - 이미 스케일링 된 값
         """
-        if not self.validate_axis_ready(axis_index): return     # 이동 전 상태 검증
+        # 명령 받을 준비 됐는지 검증 - 검증 실패 시 상위 레이어로 전파됨
+        self.validate_axis_ready(axis_index)
 
         plc = self._plc
         
@@ -376,7 +376,8 @@ class ServoAdapter:
             target_pos: 목표 각도 (deg)
             target_velocity: 이동 속도 (deg/s)
         """
-        if not self.validate_axis_ready(axis_index): return     # 이동 전 상태 검증
+        # 명령 받을 준비 됐는지 검증 - 검증 실패 시 상위 레이어로 전파됨
+        self.validate_axis_ready(axis_index)
 
         plc = self._plc
 
@@ -401,7 +402,8 @@ class ServoAdapter:
             2. bHome 신호를 True로 인가하여 작업 시작
             (완료 시 PLC가 자동으로 False로 복구함) [cite: 9]
         """
-        if not self.validate_axis_ready(axis_index): return     # 이동 전 상태 검증
+        # 명령 받을 준비 됐는지 검증 - 검증 실패 시 상위 레이어로 전파됨
+        self.validate_axis_ready(axis_index)
 
         plc = self._plc
         
