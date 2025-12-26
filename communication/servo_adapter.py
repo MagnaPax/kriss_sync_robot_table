@@ -49,6 +49,28 @@ class ServoAdapter:
         """
         return self.connector.handle
 
+    def validate_axis_ready(self, axis_index: int) -> bool:
+        """
+        [이동 전 검증] 해당 축의 이름을 조회하고, 
+        명령을 받을 수 있는 물리적/논리적 상태인지 확인합니다.
+        """
+        # 1. 캐싱된 딕셔너리에서 안전하게 이름 추출 
+        axis_name = self._axis_names.get(axis_index, f"Axis{axis_index}")
+        
+        # 2. 로그 출력 (1년 뒤에도 어느 축인지 명확히 알 수 있음)
+        EVENT_BUS.log.message.emit(f"[{axis_name}] 제어 상태 검증 중...", "DEBUG")
+
+        # 3. Busy 상태 확인 (앞서 논의한 Beckhoff FB 보호 로직)
+        if self.is_servo_logic_busy(axis_index):
+            EVENT_BUS.log.message.emit(f"{axis_name} 축이 현재 Busy 상태입니다.", "WARNING")
+            return False
+
+        # 4. Error 상태 확인
+        if self.has_servo_error(axis_index):
+            EVENT_BUS.log.message.emit(f"{axis_name} 축에 에러가 감지되었습니다.", "ERROR")
+            return False
+
+        return True
 
     # ==========================================================================
     # 기본 설정 및 안전 (Setup & Safety)
