@@ -125,6 +125,9 @@ QWidget#right_panel {
 #target_position_widget QLabel {
     font-weight: bold;
     color: #333333; /* 어두운 회색 (가독성) */
+    padding-bottom: 10px; /* 그룹박스 내부 하단에 여백 추가 */
+    min-width: 30px; /* 최소 너비 */
+    min-height: 20px; /* 최소 높이 */
 }
 
 /* 입력창 (QLineEdit, QDoubleSpinBox) 스타일 */
@@ -136,6 +139,8 @@ QWidget#right_panel {
     color: #333333; /* 짙은 글자색 */
     font-size: 14px;
     selection-background-color: #5D9CEC;
+    min-width: 30px; /* 최소 너비 */
+    min-height: 20px; /* 최소 높이 */
 }
 
 #target_position_widget QDoubleSpinBox {
@@ -147,6 +152,8 @@ QWidget#right_panel {
     color: #333333; /* 짙은 글자색 */
     font-size: 14px;
     selection-background-color: #5D9CEC;
+    min-width: 30px; /* 최소 너비 */
+    min-height: 20px; /* 최소 높이 */
 }
 
 #target_position_widget QDoubleSpinBox:focus {
