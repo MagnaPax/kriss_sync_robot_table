@@ -1,4 +1,14 @@
 /* styles/stylesheet.qss: 상태바 및 기타 UI 스타일 정의 */
+/* 
+----------------------------------------
+        메인 윈도우 스타일
+---------------------------------------- 
+*/
+/* 상태바 아이템 테두리 제거 (구분선 없애기) */
+QStatusBar::item {
+    border: none;
+}
+
 
 /* 연결 끊김 상태 */
 QLabel#status_label[status="disconnected"] { 
@@ -30,10 +40,61 @@ QLabel#status_label[status="connected"] {
 
 
 
+
+
+/* --------------------------------------------------
+        스플래시 스크린 (Splash Screen) 스타일
+------------------------------------------------------ 
+*/
+
+/* 메인 배경 (테두리 둥글게, 외곽선) */
+QWidget#splash_background {
+    background-color: #2D2D2D;
+    border: 2px solid #4CAF50;
+    border-radius: 10px;
+}
+
+/* 타이틀 라벨 */
+QLabel#splash_title {
+    color: white;
+    font-size: 22px;
+    font-weight: bold;
+    margin-bottom: 15px;
+    background-color: transparent;
+}
+
+/* 상태 메시지 라벨 */
+QLabel#splash_status {
+    color: #CCCCCC;
+    font-size: 13px;
+    margin-bottom: 5px;
+    background-color: transparent;
+}
+
+/* 프로그레스 바 */
+QProgressBar#splash_progress {
+    border: 2px solid grey;
+    border-radius: 5px;
+    text-align: center;
+    background-color: #3D3D3D;
+    color: white;
+    font-weight: bold;
+}
+
+QProgressBar#splash_progress::chunk {
+    background-color: #4CAF50;
+    width: 10px;
+}
+
+
+
+
+
+
 /* 
-   ----------------------------------------
-   패널 스타일
-   ---------------------------------------- 
+----------------------------------------
+            패널 스타일
+---------------------------------------- 
 */
 
 /* 왼쪽 패널 (left_panel) */
@@ -70,45 +131,89 @@ QWidget#right_panel {
 
 
 /* 
-   ----------------------------------------
-   위젯 스타일
-   ---------------------------------------- 
+----------------------------------------
+            위젯 공통 스타일
+---------------------------------------- 
 */
-
-
-/* CurrentStateWidget 스타일 */
-#current_state_widget {
-    background-color: #2E2E2E;
-    border-radius: 5px;
+/* QDoubleSpinBox 버튼 초기화 */
+QDoubleSpinBox::up-button {
+    subcontrol-origin: border;
+    subcontrol-position: top right;
+    width: 20px;
+    border-left: 1px solid #ced4da;
+    border-top-right-radius: 4px;
+    background-color: #f8f9fa;
+    min-width: 1em; /* 최소 너비 */
+    min-height: 1em; /* 최소 높이 */
+}
+QDoubleSpinBox::down-button {
+    subcontrol-origin: border;
+    subcontrol-position: bottom right;
+    width: 20px;
+    border-left: 1px solid #ced4da;
+    border-bottom-right-radius: 4px;
+    background-color: #f8f9fa;
+    min-width: 1em; /* 최소 너비 */
+    min-height: 1em; /* 최소 높이 */
+}
+/* 호버 및 프레스 상태 */
+QDoubleSpinBox::up-button:hover,
+QDoubleSpinBox::down-button:hover {
+    background-color: #e9ecef;
+}
+QDoubleSpinBox::up-button:pressed,
+QDoubleSpinBox::down-button:pressed {
+    background-color: #dee2e6;
+}
+/* 화살표(아이콘) */
+QDoubleSpinBox::up-arrow {
+    image: url(none);
+    width: 7px;
+    height: 7px;
+    border-left: 2px solid #666;
+    border-top: 2px solid #666;
+    margin-top: 2px;
+}
+QDoubleSpinBox::down-arrow {
+    image: url(none);
+    width: 7px;
+    height: 7px;
+    border-left: 2px solid #666;
+    border-bottom: 2px solid #666;
+    margin-bottom: 2px;
 }
 
-/* CurrentStateWidget 내부의 RPM/Speed 라벨 */
-#rpm_speed_label {
-    font-size: 16px;
-    font-weight: bold;
-    color: #E0E0E0;
-    background-color: #3A3A3A;
-    padding: 5px;
-    border-radius: 3px;
-}
 
-/* TargetPositionWidget 전용 스타일 */
-/* 메인 그룹박스 (Target Position) 테두리는 보이게 하기 */
-#target_position_widget > QGroupBox {
+/* 메인 그룹박스 초기화 */
+QGroupBox {
     border: 1px solid #94a3b8; /* 차분한 회색 테두리 */
     border-radius: 6px;
     margin-top: 20px; /* 제목 공간 확보 */
     font-weight: bold;
     color: #333333; /* 제목 글자색 (어두운 색) */
 }
-
-#target_position_widget > QGroupBox::title {
+QGroupBox::title {
     subcontrol-origin: margin;
     subcontrol-position: top left; /* 제목 왼쪽 정렬 */
     padding: 0 10px;
     background-color: transparent; /* 배경 투명 */
 }
 
+
+/* QLabel 초기화 (투명 배경, 테두리 없음) */
+QLabel {
+    background: transparent;
+    border: none;
+}
+
+
+/* 
+----------------------------------------
+        개발 위젯 스타일
+---------------------------------------- 
+*/
+
+/* TargetPositionWidget */
 /* 내부 섹션 테두리 제거 */
 #target_position_widget QFrame#section_edit_macro, 
 #target_position_widget QFrame#section_coordinate, 
@@ -160,87 +265,17 @@ QWidget#right_panel {
     border: 2px solid #5D9CEC; /* 포커스 시 파란 테두리 */
 }
 
-/* SpinBox 버튼 스타일 (공통 적용 가능하도록 추가) */
-#target_position_widget QDoubleSpinBox::up-button,
-#servo_control_widget QDoubleSpinBox::up-button {
-    subcontrol-origin: border;
-    subcontrol-position: top right;
-    width: 20px;
-    border-left: 1px solid #ced4da;
-    border-top-right-radius: 4px;
-    background-color: #f8f9fa;
-}
-
-#target_position_widget QDoubleSpinBox::down-button,
-#servo_control_widget QDoubleSpinBox::down-button {
-    subcontrol-origin: border;
-    subcontrol-position: bottom right;
-    width: 20px;
-    border-left: 1px solid #ced4da;
-    border-bottom-right-radius: 4px;
-    background-color: #f8f9fa;
-}
-
-#target_position_widget QDoubleSpinBox::up-button:hover,
-#servo_control_widget QDoubleSpinBox::up-button:hover,
-#target_position_widget QDoubleSpinBox::down-button:hover,
-#servo_control_widget QDoubleSpinBox::down-button:hover {
-    background-color: #e9ecef;
-}
-
-#target_position_widget QDoubleSpinBox::up-button:pressed,
-#servo_control_widget QDoubleSpinBox::up-button:pressed,
-#target_position_widget QDoubleSpinBox::down-button:pressed,
-#servo_control_widget QDoubleSpinBox::down-button:pressed {
-    background-color: #dee2e6;
-}
-
-#target_position_widget QDoubleSpinBox::up-arrow,
-#servo_control_widget QDoubleSpinBox::up-arrow {
-    image: url(none); /* 기본 화살표 대신 텍스트나 간단한 기호 사용 가능하지만, 여기선 기본 보정 */
-    width: 7px;
-    height: 7px;
-    border-left: 2px solid #666;
-    border-top: 2px solid #666;
-    margin-top: 2px;
-}
-
-#target_position_widget QDoubleSpinBox::down-arrow,
-#servo_control_widget QDoubleSpinBox::down-arrow {
-    width: 7px;
-    height: 7px;
-    border-left: 2px solid #666;
-    border-bottom: 2px solid #666;
-    margin-bottom: 2px;
-}
-
 
 /* TaskManagerWidget 전용 스타일 */
 /* 버튼은 py 코드 setProperty("type", "general")에 의해 기존의 보라색 버튼 스타일이 자동으로 적용 */
-/* 1. 메인 그룹박스 스타일 (TargetPosition과 통일) */
-#task_manager_widget > QGroupBox {
-    border: 1px solid #94a3b8;
-    border-radius: 6px;
-    margin-top: 20px;
-    font-weight: bold;
-    color: #333333;
-}
-
-#task_manager_widget > QGroupBox::title {
-    subcontrol-origin: margin;
-    subcontrol-position: top left;
-    padding: 0 10px;
-    background-color: transparent;
-}
-
-/* 2. 정보 타이틀 라벨 (Feed, Runtime) - 하늘색 강조 */
+/* 정보 타이틀 라벨 (Feed, Runtime) - 하늘색 강조 */
 #task_manager_widget QLabel#info_title {
     color: #4FC1E9;  /* 기존 인라인 스타일 색상 */
     font-weight: bold;
     font-size: 13px;
 }
 
-/* 3. 정보 값 라벨 (숫자) - 굵게 */
+/* 정보 값 라벨 (숫자) - 굵게 */
 #task_manager_widget QLabel#info_value {
     color: #333333;
     font-weight: bold;
@@ -248,7 +283,7 @@ QWidget#right_panel {
     margin-right: 5px;
 }
 
-/* 4. 파일명 라벨 - 일반 텍스트 */
+/* 파일명 라벨 - 일반 텍스트 */
 #task_manager_widget QLabel#filename_label {
     color: #333333;
     font-weight: normal;
@@ -313,24 +348,10 @@ QWidget#right_panel {
 
 
 /* WorldCoordinatesWidget 스타일 */
-/* 1. 메인 그룹박스 스타일 (TargetPosition, TaskManager와 통일) */
-#world_coordinates_widget > QGroupBox {
-    border: 1px solid #94a3b8;
-    border-radius: 6px;
-    margin-top: 20px;
-    font-weight: bold;
-    color: #333333;
-    padding-bottom: 10px; /* 그룹박스 내부 하단에 여백 추가 */
+#world_coordinates_widget QGroupBox {
+    padding-bottom: 13px; /* 그룹박스 내부 하단에 여백 추가 */
 }
-
-#world_coordinates_widget > QGroupBox::title {
-    subcontrol-origin: margin;
-    subcontrol-position: top left;
-    padding: 0 10px;
-    background-color: transparent;
-}
-
-/* 2. 섹션 구분용 수평선 (QFrame) */
+/* 섹션 구분용 수평선 (QFrame) */
 #world_coordinates_widget QFrame {
     border: 1px solid #ced4da;
     max-height: 1px;
@@ -343,7 +364,8 @@ QWidget#right_panel {
     border: none;
 }
 
-/* 4. [이름] 라벨 (예: "Robot X :", "Tool Rev :") */
+
+/* [이름] 라벨 (예: "Robot X :", "Tool Rev :") */
 #world_coordinates_widget QLabel#wc_name {
     font-weight: normal;
     color: #555555;
@@ -352,7 +374,7 @@ QWidget#right_panel {
     min-height: 20px;  /* 최소 높이 */
 }
 
-/* 5. [값] 라벨 (숫자 데이터) */
+/* [값] 라벨 (숫자 데이터) */
 #world_coordinates_widget QLabel#wc_value {
     font-weight: bold;
     color: #2D2D2D;
@@ -365,7 +387,7 @@ QWidget#right_panel {
     min-height: 20px;  /* 최소 높이 */
 }
 
-/* 6. [단위] 라벨 (mm, deg, RPM 등) */
+/* [단위] 라벨 (mm, deg, RPM 등) */
 #world_coordinates_widget QLabel#wc_unit {
     color: #777777;
     font-size: 11px;
@@ -379,21 +401,6 @@ QWidget#right_panel {
 
 
 /* ServoControlWidget 전용 스타일 */
-#servo_control_widget > QGroupBox {
-    border: 1px solid #94a3b8;
-    border-radius: 6px;
-    margin-top: 20px;
-    font-weight: bold;
-    color: #333333;
-}
-
-#servo_control_widget > QGroupBox::title {
-    subcontrol-origin: margin;
-    subcontrol-position: top left;
-    padding: 0 10px;
-    background-color: transparent;
-}
-
 #servo_control_widget QLabel {
     font-weight: bold;
     color: #333333;
@@ -489,60 +496,3 @@ QPushButton#emergency_button:pressed {
 
 
 
-
-/* ----------------------------------------
-   스플래시 스크린 (Splash Screen) 스타일
-   ---------------------------------------- 
-*/
-
-/* 메인 배경 (테두리 둥글게, 외곽선) */
-QWidget#splash_background {
-    background-color: #2D2D2D;
-    border: 2px solid #4CAF50;
-    border-radius: 10px;
-}
-
-/* 타이틀 라벨 */
-QLabel#splash_title {
-    color: white;
-    font-size: 22px;
-    font-weight: bold;
-    margin-bottom: 15px;
-    background-color: transparent;
-}
-
-/* 상태 메시지 라벨 */
-QLabel#splash_status {
-    color: #CCCCCC;
-    font-size: 13px;
-    margin-bottom: 5px;
-    background-color: transparent;
-}
-
-/* 프로그레스 바 */
-QProgressBar#splash_progress {
-    border: 2px solid grey;
-    border-radius: 5px;
-    text-align: center;
-    background-color: #3D3D3D;
-    color: white;
-    font-weight: bold;
-}
-
-QProgressBar#splash_progress::chunk {
-    background-color: #4CAF50;
-    width: 10px;
-}
-
-
-
-
-/* 
-   ----------------------------------------
-   메인 윈도우 스타일
-   ---------------------------------------- 
-*/
-/* 상태바 아이템 테두리 제거 (구분선 없애기) */
-QStatusBar::item {
-    border: none;
-}
