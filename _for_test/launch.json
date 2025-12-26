@@ -1,0 +1,53 @@
+{
+  // VSCode 실행 구성 파일
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "① 현재 파일 실행 (일반 실행)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "python": "C:\\Users\\dxt-006\\miniconda3\\envs\\kriss_sync_py311\\python.exe"
+    },
+    {
+      "name": "② KRISS Robot Sync (Main)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/main.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "python": "C:\\Users\\dxt-006\\miniconda3\\envs\\kriss_sync_py311\\python.exe"
+    },
+    // {
+    //     "name": "③ 현재 파일을 모듈처럼 작동",
+    //     "type": "python",
+    //     "request": "launch",
+    //     "program": "${file}", 
+    //     "justMyCode": true,
+    //     "cwd": "${workspaceFolder}",
+    //     "python": "C:\\Users\\dxt-006\\miniconda3\\envs\\kriss_sync_py311\\python.exe",
+    //     "env": {
+    //         // 프로젝트 루트 폴더를 PYTHONPATH에 추가하여, 
+    //         // 하위 모듈들이 상대 경로 임포트를 인식할 수 있도록 돕습니다.
+    //         "PYTHONPATH": "${workspaceFolder}"
+    //     }
+    // }
+    {
+        "name": "③ 현재 파일을 모듈처럼 작동",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${file}", 
+        "justMyCode": false,
+        "cwd": "${workspaceFolder}",
+        "python": "C:\\Users\\dxt-006\\miniconda3\\envs\\kriss_sync_py311\\python.exe",
+        "env": {
+            // 프로젝트 루트 폴더를 PYTHONPATH에 추가하여, 
+            // 하위 모듈들이 상대 경로 임포트를 인식할 수 있도록 돕습니다.
+            "PYTHONPATH": "${workspaceFolder}"
+        }
+    }
+
+  ]
+}
