@@ -159,8 +159,8 @@ class ServoAdapter:
             # 2. 모든 축의 속도가 임계값 이하로 떨어질 때까지 대기
             start_time = time.time()
             while time.time() - start_time < timeout:
-                # 모든 축이 속도 임계값(is_moving) 이하인지 체크
-                if not any(self.is_moving(i) for i in ServoAxis):
+                # 모든 축이 속도 임계값(is_servo_moving) 이하인지 체크
+                if not any(self.is_servo_moving(i) for i in ServoAxis):
                     break
                 time.sleep(0.1)
 
@@ -197,7 +197,7 @@ class ServoAdapter:
         curr_vel = self._plc.read_by_name(ServoSignal.ACT_VEL.path(axis_index), pyads.PLCTYPE_LREAL)
         return {'position': curr_pos, 'velocity': curr_vel}
 
-    def is_moving(self, axis_index: int, threshold: float = 0.1) -> bool:
+    def is_servo_moving(self, axis_index: int, threshold: float = 0.1) -> bool:
         """
         [상태 확인] 해당 축이 물리적으로 움직이고 있는가? (속도 기준)
         

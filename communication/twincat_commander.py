@@ -331,7 +331,7 @@ class ServoOnlyExecutor(BaseExecutor):
         while time.time() - start_wait < self.BUSY_WAIT_TIMEOUT:
             
             # (A) 움직임 여부 체크 (속도 기준)
-            moving = self.servo.is_moving(axis_idx)
+            moving = self.servo.is_servo_moving(axis_idx)
             
             if moving:
                 busy_detected = True
@@ -376,7 +376,7 @@ class ServoOnlyExecutor(BaseExecutor):
 
         # 이동중 - 멈출 때까지 대기
         #   타임아웃을 길게 잡거나 없애야 함 (이동이 10초 걸릴 수도 있으니까)
-        while self.servo.is_moving(axis_idx):
+        while self.servo.is_servo_moving(axis_idx):
             # 중단 요청 체크
             if self._is_interrupted(): return False
 
@@ -576,9 +576,9 @@ class TwinCATCommander(QObject):
         """TargetPositionWidget 에서 사용자가 입력한 Feed Rate 값을 FANUC에 적용"""
 
         # 로봇이 움직이고 있는지 확인
-        is_moving = self.robot.read_busy_signal()
+        is_robot_moving = self.robot.read_busy_signal()
 
-        if is_moving:
+        if is_robot_moving:
             # FANUC의 이동속도 변경
             self.robot.send_instant_feed(feed_rate)
 
@@ -603,7 +603,7 @@ class TwinCATCommander(QObject):
         servo_busy = False
         if self.servo:
             try:
-                servo_busy = any(self.servo.is_moving(axis) for axis in ServoAxis)
+                servo_busy = any(self.servo.is_servo_moving(axis) for axis in ServoAxis)
             except Exception as e:
                 EVENT_BUS.log.error.emit(f"서보모터 상태 확인 중 오류: {e}", "WARNING")
                 servo_busy = False
