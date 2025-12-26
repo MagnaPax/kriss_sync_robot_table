@@ -36,6 +36,9 @@ class ServoAdapter:
     def __init__(self, connector: TwinCATConnector):
         self.connector = connector
 
+        # 모든 축 이름을 미리 매핑해 둠 (캐싱)
+        self._axis_names = {axis.value: axis.name for axis in ServoAxis}
+
     @property
     def _plc(self) -> Union[pyads.Connection, 'MockConnection']:
         """
