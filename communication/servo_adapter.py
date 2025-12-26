@@ -49,28 +49,7 @@ class ServoAdapter:
         """
         return self.connector.handle
 
-    def validate_axis_ready(self, axis_index: int) -> bool:
-        """
-        [이동 전 검증] 해당 축의 이름을 조회하고, 
-        명령을 받을 수 있는 물리적/논리적 상태인지 확인합니다.
-        """
-        # 1. 캐싱된 딕셔너리에서 안전하게 이름 추출 
-        axis_name = self._axis_names.get(axis_index, f"Axis{axis_index}")
-        
-        # 2. 로그 출력 (1년 뒤에도 어느 축인지 명확히 알 수 있음)
-        EVENT_BUS.log.message.emit(f"[{axis_name}] 제어 상태 검증 중...", "DEBUG")
 
-        # 3. Busy 상태 확인 (앞서 논의한 Beckhoff FB 보호 로직)
-        if self.is_servo_logic_busy(axis_index):
-            EVENT_BUS.log.message.emit(f"{axis_name} 축이 현재 Busy 상태입니다.", "WARNING")
-            return False
-
-        # 4. Error 상태 확인
-        if self.has_servo_error(axis_index):
-            EVENT_BUS.log.message.emit(f"{axis_name} 축에 에러가 감지되었습니다.", "ERROR")
-            return False
-
-        return True
 
     # ==========================================================================
     # 기본 설정 및 안전 (Setup & Safety)
@@ -173,6 +152,30 @@ class ServoAdapter:
         except Exception as e:
             EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 원점 복귀 중 에러 발생: {e}", "ERROR")
             return False
+
+    def validate_axis_ready(self, axis_index: int) -> bool:
+        """
+        [이동 전 검증] 해당 축의 이름을 조회하고 
+        명령을 받을 수 있는 물리적/논리적 상태인지 확인
+            PLC Function Block(FB)이 새로운 명령을 받아들일 준비가 되었는지(Busy/Error 체크) 확인
+        """
+        # 1. 캐싱된 딕셔너리에서 안전하게 이름 추출 
+        axis_name = self._axis_names.get(axis_index, f"Axis{axis_index}")
+        
+        # 2. 로그 출력 (1년 뒤에도 어느 축인지 명확히 알 수 있음)
+        EVENT_BUS.log.message.emit(f"[{axis_name}] 제어 상태 검증 중...", "DEBUG")
+
+        # 3. Busy 상태 확인 (앞서 논의한 Beckhoff PLC Function Block 보호 로직)
+        if self.is_servo_logic_busy(axis_index):
+            EVENT_BUS.log.message.emit(f"{axis_name} 축이 현재 Busy 상태입니다.", "WARNING")
+            return False
+
+        # 4. Error 상태 확인
+        if self.has_servo_error(axis_index):
+            EVENT_BUS.log.message.emit(f"{axis_name} 축에 에러가 감지되었습니다.", "ERROR")
+            return False
+
+        return True
 
 
 
@@ -312,7 +315,6 @@ class ServoAdapter:
             EVENT_BUS.log.message.emit(f"서보 {axis_index}축 에러 상태 읽기 실패: {e}", "WARNING")
             return True
 
-
     def get_servo_error_info(self, axis_index: int) -> dict:
         """
         [상세 에러 진단] 에러 발생 여부와 구체적인 에러 코드를 반환
@@ -327,7 +329,7 @@ class ServoAdapter:
         error_msg = "None"
         if is_error:
             if error_id == 1861:
-                error_msg = "Timeout Error (PLC FB)"
+                error_msg = "Timeout Error (PLC Function Block)"
             else:
                 error_msg = f"ADS/FB Error (Code: {error_id})"
                 
@@ -336,6 +338,8 @@ class ServoAdapter:
             'id': error_id,
             'message': error_msg
         }
+
+
 
     # ==========================================================================
     # 이동 명령 (Write Command)
@@ -349,6 +353,8 @@ class ServoAdapter:
             axis_index: 축 번호
             target_velocity: 목표 속도 (deg/s) - 이미 스케일링 된 값
         """
+        if not self.validate_axis_ready(axis_index): return     # 이동 전 상태 검증
+
         plc = self._plc
         
         # 1. 속도 입력 (MAIN.vel{i})
@@ -370,6 +376,8 @@ class ServoAdapter:
             target_pos: 목표 각도 (deg)
             target_velocity: 이동 속도 (deg/s)
         """
+        if not self.validate_axis_ready(axis_index): return     # 이동 전 상태 검증
+
         plc = self._plc
 
         # 1. 목표 위치 입력 (MAIN.pos{i})
@@ -393,6 +401,8 @@ class ServoAdapter:
             2. bHome 신호를 True로 인가하여 작업 시작
             (완료 시 PLC가 자동으로 False로 복구함) [cite: 9]
         """
+        if not self.validate_axis_ready(axis_index): return     # 이동 전 상태 검증
+
         plc = self._plc
         
         # Enum 객체가 들어올 경우를 대비해 int로 변환하여 주소 생성
