@@ -5,9 +5,6 @@ TwinCAT Commander (Model Layer)
 
     역할:
         TwinCAT 에 연결된 기기(FANUC 로봇, 턴테이블) 제어
-
-
-        TODO: F8 버튼 누르는 초기화 추가되어야 됨!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!(Error State 초기화)
 """
 import time
 from PyQt6.QtCore import QThread, QObject
