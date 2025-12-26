@@ -97,6 +97,60 @@ class ServoAdapter:
             EVENT_BUS.log.message.emit(f"서보 {axis_index}축 리셋 실패: {e}", "ERROR")
             return False
 
+    def home_all_safely(self, timeout: float = 30.0) -> bool:
+        """
+        [원점 복귀] 모든 서보 축을 안전하게 초기화한다.
+        
+        절차:
+            1. 안전을 위해 먼저 모든 축을 강제 정지한다.
+            2. ServoAxis에 정의된 모든 축에 대해 원점 복귀(Homing) 신호를 전송한다.
+            3. '물리적' 축이 이동을 마칠 때까지 대기한다.
+        
+        Args:
+            timeout (float): 원점 복귀 최대 대기 시간 (기본 30초)
+            
+        Returns:
+            bool: 모든 과정이 에러 없이 완료되면 True
+        """
+        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 전체 원점 복귀 시작...", "INFO")
+
+        try:
+            # 1. 선행 조치: 현재 동작 중단
+            self.request_immediate_stop()
+            time.sleep(0.5) # 정지 후 안정화 대기
+
+            # 2. 모든 축에 원점 복귀 명령 전송 (bHome False -> True)
+            for axis in ServoAxis:
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] {axis.name}(Axis {axis.value}) 원점 신호 전송", "DEBUG")
+                self._homing(axis)
+            
+            # 명령이 반영되어 물리적 이동이 시작될 때까지 잠시 대기
+            time.sleep(0.5)
+
+            # 3. 정지 완료 대기
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                # 모든 축 중 하나라도 움직이고 있는지 '물리적'으로 체크
+                is_any_moving = any(self.is_servo_moving_physically(axis) for axis in ServoAxis)
+                
+                if not is_any_moving:
+                    EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 모든 축 원점 복귀 완료", "INFO")
+                    return True
+                
+                # 아직 움직이는 중...
+                time.sleep(0.2)
+
+            # 4. 타임아웃 발생 시
+            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 원점 복귀 시간 초과 ({timeout}s)", "WARNING")
+            self.request_immediate_stop() # 안전을 위해 다시 정지 시도
+            return False
+
+        except Exception as e:
+            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 원점 복귀 중 에러 발생: {e}", "ERROR")
+            return False
+
+
+
     # ==========================================================================
     # 안전 정지 (Stop & Safety)
     # ==========================================================================
@@ -279,58 +333,6 @@ class ServoAdapter:
         plc.write_by_name(ServoSignal.MOVE_ABS.path(axis_index), False, pyads.PLCTYPE_BOOL)
         time.sleep(0.01)
         plc.write_by_name(ServoSignal.MOVE_ABS.path(axis_index), True, pyads.PLCTYPE_BOOL)
-
-    def home_all_safely(self, timeout: float = 30.0) -> bool:
-        """
-        [원점 복귀] 모든 서보 축을 안전하게 초기화한다.
-        
-        절차:
-            1. 안전을 위해 먼저 모든 축을 강제 정지한다.
-            2. ServoAxis에 정의된 모든 축에 대해 원점 복귀(Homing) 신호를 전송한다.
-            3. '물리적' 축이 이동을 마칠 때까지 대기한다.
-        
-        Args:
-            timeout (float): 원점 복귀 최대 대기 시간 (기본 30초)
-            
-        Returns:
-            bool: 모든 과정이 에러 없이 완료되면 True
-        """
-        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 전체 원점 복귀 시작...", "INFO")
-
-        try:
-            # 1. 선행 조치: 현재 동작 중단
-            self.request_immediate_stop()
-            time.sleep(0.5) # 정지 후 안정화 대기
-
-            # 2. 모든 축에 원점 복귀 명령 전송 (bHome False -> True)
-            for axis in ServoAxis:
-                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] {axis.name}(Axis {axis.value}) 원점 신호 전송", "DEBUG")
-                self._homing(axis)
-            
-            # 명령이 반영되어 물리적 이동이 시작될 때까지 잠시 대기
-            time.sleep(0.5)
-
-            # 3. 정지 완료 대기
-            start_time = time.time()
-            while time.time() - start_time < timeout:
-                # 모든 축 중 하나라도 움직이고 있는지 '물리적'으로 체크
-                is_any_moving = any(self.is_servo_moving_physically(axis) for axis in ServoAxis)
-                
-                if not is_any_moving:
-                    EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 모든 축 원점 복귀 완료", "INFO")
-                    return True
-                
-                # 아직 움직이는 중...
-                time.sleep(0.2)
-
-            # 4. 타임아웃 발생 시
-            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 원점 복귀 시간 초과 ({timeout}s)", "WARNING")
-            self.request_immediate_stop() # 안전을 위해 다시 정지 시도
-            return False
-
-        except Exception as e:
-            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 원점 복귀 중 에러 발생: {e}", "ERROR")
-            return False
 
     def _homing(self, axis_index: int):
         """
