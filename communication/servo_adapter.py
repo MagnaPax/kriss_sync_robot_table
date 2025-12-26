@@ -88,7 +88,7 @@ class ServoAdapter:
             
             # 3. 실제로 에러가 해제되었는지 확인
             time.sleep(0.1)
-            is_cleared = not plc.read_by_name(ServoSignal.ERROR_STATE.path(axis_index), pyads.PLCTYPE_BOOL)
+            is_cleared = not self.has_servo_error(axis_index)
             if is_cleared:
                 EVENT_BUS.log.message.emit(f"서보 {axis_index}축 리셋 성공", "INFO")
             return is_cleared
@@ -230,7 +230,7 @@ class ServoAdapter:
     # ==========================================================================
     # 상태 모니터링 (Read Feedback)
     # ==========================================================================
-    def is_busy(self, axis_index: int) -> bool:
+    def is_servo_logic_busy(self, axis_index: int) -> bool:
         """
         [상태 확인] PLC 기능 블록이 명령을 처리 중인가? (Busy 비트 확인)
         """
