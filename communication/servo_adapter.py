@@ -277,7 +277,7 @@ class ServoAdapter:
         절차:
             1. 안전을 위해 먼저 모든 축을 강제 정지한다.
             2. ServoAxis에 정의된 모든 축에 대해 원점 복귀(Homing) 신호를 전송한다.
-            3. 턴테이블(Axis 3)과 같은 물리적 축이 이동을 마칠 때까지 대기한다.
+            3. '물리적' 축이 이동을 마칠 때까지 대기한다.
         
         Args:
             timeout (float): 원점 복귀 최대 대기 시간 (기본 30초)
@@ -288,34 +288,25 @@ class ServoAdapter:
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 전체 원점 복귀 시작...", "INFO")
 
         try:
-            # 1. 선행 안전 조치: 일단 멈춤
+            # 1. 선행 조치: 현재 동작 중단
             self.request_immediate_stop()
             time.sleep(0.5) # 정지 후 안정화 대기
 
-            # 2. 모든 축에 원점 복귀 명령 전송
-            #    ServoAxis Enum을 사용하여 1, 2, 3 숫자가 무엇을 의미하는지 명확히 함
+            # 2. 모든 축에 원점 복귀 명령 전송 (bHome False -> True)
             for axis in ServoAxis:
-                # 턴테이블(3번)은 물리적으로 돌아서 원점을 잡고,
-                # 툴(1,2번)은 보통 현재 위치를 0으로 셋팅하거나 제자리 보정을 함
                 EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] {axis.name}(Axis {axis.value}) 원점 신호 전송", "DEBUG")
-                self.homing(axis)
+                self._homing(axis)
             
-            # 신호가 PLC에 도달하고 로직이 시작될 시간 확보
+            # 명령이 반영되어 물리적 이동이 시작될 때까지 잠시 대기
             time.sleep(0.5)
 
-            # 3. 완료 대기 (Busy 신호가 꺼질 때까지)
+            # 3. 정지 완료 대기
             start_time = time.time()
-            
             while time.time() - start_time < timeout:
-                # 모든 축이 Busy 상태가 아니면 완료로 간주
-                is_any_busy = False
+                # 모든 축 중 하나라도 움직이고 있는지 '물리적'으로 체크
+                is_any_moving = any(self.is_servo_moving(axis) for axis in ServoAxis)
                 
-                for axis in ServoAxis:
-                    if self.is_busy(axis):
-                        is_any_busy = True
-                        break
-                
-                if not is_any_busy:
+                if not is_any_moving:
                     EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 모든 축 원점 복귀 완료", "INFO")
                     return True
                 
@@ -324,9 +315,39 @@ class ServoAdapter:
 
             # 4. 타임아웃 발생 시
             EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 원점 복귀 시간 초과 ({timeout}s)", "WARNING")
-            self.request_immediate_stop() # 안전을 위해 다시 정지
+            self.request_immediate_stop() # 안전을 위해 다시 정지 시도
             return False
 
         except Exception as e:
             EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 원점 복귀 중 에러 발생: {e}", "ERROR")
             return False
+
+
+    def _homing(self, axis_index: int):
+        """
+        [원점 복구] 특정 축의 원점 복귀(Homing) 작업을 시작합니다.
+        
+        로봇팀 요구사항 반영:
+            1. bHome 신호를 먼저 False로 초기화 (확실한 펄스 생성 위함)
+            2. bHome 신호를 True로 인가하여 작업 시작
+            (완료 시 PLC가 자동으로 False로 복구함) [cite: 9]
+        """
+        plc = self._plc
+        
+        # Enum 객체가 들어올 경우를 대비해 int로 변환하여 주소 생성
+        # 예: ServoAxis.TURNTABLE -> 3 -> "MAIN.bHome3"
+        signal_path = ServoSignal.HOME.path(int(axis_index))
+
+        try:
+            # 1. 선행 초기화: 먼저 False를 써줌 (로봇팀 가이드)
+            plc.write_by_name(signal_path, False, pyads.PLCTYPE_BOOL)
+            time.sleep(0.1) # 신호 안정화 대기
+            
+            # 2. 작업 시작: True 인가
+            plc.write_by_name(signal_path, True, pyads.PLCTYPE_BOOL) [cite: 9]
+            
+            EVENT_BUS.log.message.emit(f"서보 {axis_index}축 원점 복귀 명령 전송 완료", "DEBUG")
+            
+        except Exception as e:
+            EVENT_BUS.log.message.emit(f"서보 {axis_index}축 원점 복귀 명령 실패: {e}", "ERROR")
+            raise
