@@ -1,4 +1,4 @@
-# models/fanuc_pose_key,py.py
+# models/fanuc_pose_key.py
 """
 목적:
     오타 방지 / 축 이름 관리
