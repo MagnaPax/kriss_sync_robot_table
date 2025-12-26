@@ -21,6 +21,7 @@ from communication.twincat_commander import TwinCATCommander
 from config.data_formats import *
 from typing import Dict, List, Any, Optional
 from core.event_bus import EVENT_BUS
+from core.exceptions import AppError
 
 
 
@@ -108,6 +109,11 @@ class PLCWorker(QObject):
         except InterruptedError:
             is_success = False
             msg = "작업이 사용자에 의해 중단됨"
+
+        # 커스텀 비즈니스 로직 예외 (ServoBusyError, ServoFaultError 등)
+        except AppError as e:
+            is_success = False
+            msg = str(e)  # "작업중 오류 발생" 접두어 없이 원본 메시지 그대로 전달
 
         except Exception as e:
             is_success = False
