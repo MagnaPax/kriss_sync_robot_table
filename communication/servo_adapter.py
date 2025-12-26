@@ -312,6 +312,31 @@ class ServoAdapter:
             EVENT_BUS.log.message.emit(f"서보 {axis_index}축 에러 상태 읽기 실패: {e}", "WARNING")
             return True
 
+
+    def get_servo_error_info(self, axis_index: int) -> dict:
+        """
+        [상세 에러 진단] 에러 발생 여부와 구체적인 에러 코드를 반환
+        """
+        is_error = self.has_servo_error(axis_index) # bError 읽기 
+        error_id = 0
+        
+        if is_error:
+            error_id = self._plc.read_by_name(ServoSignal.ERROR_ID.path(axis_index), pyads.PLCTYPE_UDINT)
+            
+        # 문서에 명시된 타임아웃 에러 코드(1861) 처리 
+        error_msg = "None"
+        if is_error:
+            if error_id == 1861:
+                error_msg = "Timeout Error (PLC FB)"
+            else:
+                error_msg = f"ADS/FB Error (Code: {error_id})"
+                
+        return {
+            'active': is_error,
+            'id': error_id,
+            'message': error_msg
+        }
+
     # ==========================================================================
     # 이동 명령 (Write Command)
     # ==========================================================================
