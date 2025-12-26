@@ -6,6 +6,7 @@ from communication.twincat_connector import TwinCATConnector
 from models.servo_pose_key import ServoPoseKey, ServoSignal
 from models.servo_pose_model import ServoPose
 from models.servo_pose_key import ServoAxis
+from core.exceptions import ServoBusyError, ServoFaultError
 
 
 
@@ -81,25 +82,18 @@ class ServoAdapter:
             bReset=True 후 다시 False로 초기화 필수
         """
         plc = self._plc
-        try:
-            # 1. 에러 상태가 아니면 리셋 절차를 수행할 필요가 없음
-            if not self.has_servo_error(axis_index): return True
+        # 1. 에러 상태가 아니면 리셋 절차를 수행할 필요가 없음
+        if not self.has_servo_error(axis_index): return True
 
-            # 2. 리셋 명령 - bReset: True -> Wait -> False
-            plc.write_by_name(ServoSignal.ERROR_RESET.path(axis_index), True, pyads.PLCTYPE_BOOL)   # True
-            time.sleep(0.2) # Wait: PLC가 리셋을 인식할 시간 확보
-            plc.write_by_name(ServoSignal.ERROR_RESET.path(axis_index), False, pyads.PLCTYPE_BOOL)  # False
-            
-            # 3. 실제로 에러가 해제되었는지 확인
-            time.sleep(0.1)
-            is_cleared = not self.has_servo_error(axis_index)
-            if is_cleared:
-                EVENT_BUS.log.message.emit(f"서보 {axis_index}축 리셋 성공", "INFO")
-            return is_cleared
-
-        except Exception as e:
-            EVENT_BUS.log.message.emit(f"서보 {axis_index}축 리셋 실패: {e}", "ERROR")
-            return False
+        # 2. 리셋 명령 - bReset: True -> Wait -> False
+        plc.write_by_name(ServoSignal.ERROR_RESET.path(axis_index), True, pyads.PLCTYPE_BOOL)   # True
+        time.sleep(0.2) # Wait: PLC가 리셋을 인식할 시간 확보
+        plc.write_by_name(ServoSignal.ERROR_RESET.path(axis_index), False, pyads.PLCTYPE_BOOL)  # False
+        
+        # 3. 실제로 에러가 해제되었는지 확인
+        time.sleep(0.1)
+        is_cleared = not self.has_servo_error(axis_index)
+        return is_cleared
 
     def home_all_safely(self, timeout: float = 30.0) -> bool:
         """
@@ -116,42 +110,32 @@ class ServoAdapter:
         Returns:
             bool: 모든 과정이 에러 없이 완료되면 True
         """
-        EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 전체 원점 복귀 시작...", "INFO")
+        # 1. 선행 조치: 현재 동작 중단
+        self.request_immediate_stop()
+        time.sleep(0.5) # 정지 후 안정화 대기
 
-        try:
-            # 1. 선행 조치: 현재 동작 중단
-            self.request_immediate_stop()
-            time.sleep(0.5) # 정지 후 안정화 대기
+        # 2. 모든 축에 원점 복귀 명령 전송 (bHome False -> True)
+        for axis in ServoAxis:
+            self._homing(axis)
+        
+        # 명령이 반영되어 물리적 이동이 시작될 때까지 잠시 대기
+        time.sleep(0.5)
 
-            # 2. 모든 축에 원점 복귀 명령 전송 (bHome False -> True)
-            for axis in ServoAxis:
-                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] {axis.name}(Axis {axis.value}) 원점 신호 전송", "DEBUG")
-                self._homing(axis)
+        # 3. 정지 완료 대기
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            # 모든 축 중 하나라도 움직이고 있는지 '물리적'으로 체크
+            is_any_moving = any(self.is_servo_moving_physically(axis) for axis in ServoAxis)
             
-            # 명령이 반영되어 물리적 이동이 시작될 때까지 잠시 대기
-            time.sleep(0.5)
+            if not is_any_moving:
+                return True
+            
+            # 아직 움직이는 중...
+            time.sleep(0.2)
 
-            # 3. 정지 완료 대기
-            start_time = time.time()
-            while time.time() - start_time < timeout:
-                # 모든 축 중 하나라도 움직이고 있는지 '물리적'으로 체크
-                is_any_moving = any(self.is_servo_moving_physically(axis) for axis in ServoAxis)
-                
-                if not is_any_moving:
-                    EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 모든 축 원점 복귀 완료", "INFO")
-                    return True
-                
-                # 아직 움직이는 중...
-                time.sleep(0.2)
-
-            # 4. 타임아웃 발생 시
-            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 원점 복귀 시간 초과 ({timeout}s)", "WARNING")
-            self.request_immediate_stop() # 안전을 위해 다시 정지 시도
-            return False
-
-        except Exception as e:
-            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 원점 복귀 중 에러 발생: {e}", "ERROR")
-            return False
+        # 4. 타임아웃 발생 시
+        self.request_immediate_stop() # 안전을 위해 다시 정지 시도
+        raise TimeoutError(f"원점 복귀 시간 초과 ({timeout}s)")
 
     def validate_axis_ready(self, axis_index: int):
         """
@@ -159,7 +143,7 @@ class ServoAdapter:
         문제가 있으면 예외(Exception)를 던진다.
         문제가 없으면 아무것도 반환하지 않는다 (None).
         """
-        axis_name = self._axis_names.get(axis_index, f"Axis{axis_index}")
+        axis_name = self._axis_names.get(int(axis_index), f"Axis{axis_index}")
 
         # 1. Busy 체크
         if self.is_servo_logic_busy(axis_index):
@@ -167,7 +151,7 @@ class ServoAdapter:
             raise ServoBusyError(f"[{axis_name}] 축이 현재 명령 처리 중(Busy)입니다.")
 
         # 2. Error 체크
-        error_info = self.get_servo_error_info(axis_index)
+        error_info = self._get_servo_error_info(axis_index)
         if error_info['active']:
             # 상세 정보를 담아서 에러를 던짐
             raise ServoFaultError(
@@ -212,22 +196,30 @@ class ServoAdapter:
     def request_immediate_stop(self):
         """모든 축에 정지 명령 내림"""
         plc = self._plc
+        errors = []
 
         # (A) 모든 축 이동 해제 & 정지 신호 ON
         for i in ServoAxis:
-            if i in [ServoAxis.TOOL_REVOLUTION, ServoAxis.TOOL_ROTATION]:
+            try:
+                # 멈춤 신호 전송
                 plc.write_by_name(ServoSignal.MOVE_VEL.path(i), False, pyads.PLCTYPE_BOOL)
-            elif i == ServoAxis.TURNTABLE:
-                plc.write_by_name(ServoSignal.MOVE_ABS.path(i), False, pyads.PLCTYPE_BOOL)
+            except Exception as e:
+                # 실패하면 로그 모아두고 다음 축 정지 명령 시도
+                errors.append(f"Axis {i.name} 정지 명령 실패: {e}")
             
-            plc.write_by_name(ServoSignal.STOP.path(i), True, pyads.PLCTYPE_BOOL)
-        
         # (B) 물리적 감속을 위한 공통 대기 (원본 코드 0.5초 준수)
         time.sleep(0.5)
 
         # (C) 정지 신호 해제 (다음 동작이 가능하도록 Reset)
         for i in ServoAxis:
-            plc.write_by_name(ServoSignal.STOP.path(i), False, pyads.PLCTYPE_BOOL)
+            try:
+                plc.write_by_name(ServoSignal.STOP.path(i), False, pyads.PLCTYPE_BOOL)
+            except Exception as e:
+                errors.append(f"Axis {i.name} 정지 해제 실패: {e}")
+
+        # 멈추지 않은 축이 있다면 예외를 던짐
+        if errors:
+            raise Exception(f"정지하지 않은 축이 있습니다: {', '.join(errors)}")
 
     def shutdown_all_with_power_off(self, timeout: float = 3.0):
         """정지 확인 후 전원까지 차단"""
@@ -303,40 +295,31 @@ class ServoAdapter:
         [상태 확인] 해당 축에 에러가 발생했는지 여부를 반환한다.
         PLC: MAIN.bError{i} (True: 에러 발생, False: 정상)
         """
-        try:
-            return self._plc.read_by_name(
-                ServoSignal.ERROR_STATE.path(axis_index), 
-                pyads.PLCTYPE_BOOL
-            )
-        except Exception as e:
-            # 통신 오류 발생 시 안전을 위해 에러 상태인 것으로 간주하거나 로그를 남김
-            EVENT_BUS.log.message.emit(f"서보 {axis_index}축 에러 상태 읽기 실패: {e}", "WARNING")
-            return True
+        return bool(self._plc.read_by_name(
+            ServoSignal.ERROR_STATE.path(int(axis_index)), 
+            pyads.PLCTYPE_BOOL
+        ))
 
-    def get_servo_error_info(self, axis_index: int) -> dict:
+    def _get_servo_error_info(self, axis_index: int) -> dict:
         """에러 상태와 ID를 읽어서 반환 (순수 데이터 조회)"""
-        try:
-            is_error = self.has_servo_error(axis_index)
-            error_id = 0
-            error_msg = "None"
+        is_error = self.has_servo_error(axis_index)
+        error_id = 0
+        error_msg = "None"
 
-            if is_error:
-                error_id = self._plc.read_by_name(ServoSignal.ERROR_ID.path(axis_index), pyads.PLCTYPE_UDINT)
-                
-                # 에러 메시지 해석 (Adapter의 역할)
-                if error_id == 1861:
-                    error_msg = "Timeout Error (PLC FB)"
-                else:
-                    error_msg = f"ADS/FB General Error"
+        if is_error:
+            error_id = self._plc.read_by_name(ServoSignal.ERROR_ID.path(int(axis_index)), pyads.PLCTYPE_UDINT)
             
-            return {
-                'active': is_error,
-                'id': error_id,
-                'message': error_msg
-            }
-        except Exception:
-            # 통신 에러 시 기본값 반환 (로그는 호출자가 찍음)
-            return {'active': True, 'id': -1, 'message': "Communication Failed"}
+            # 에러 메시지 해석 (Adapter의 역할)
+            if error_id == 1861:
+                error_msg = "Timeout Error (PLC FB)"
+            else:
+                error_msg = f"ADS/FB General Error"
+        
+        return {
+            'active': is_error,
+            'id': error_id,
+            'message': error_msg
+        }
 
 
 
@@ -411,16 +394,9 @@ class ServoAdapter:
         # 예: ServoAxis.TURNTABLE -> 3 -> "MAIN.bHome3"
         signal_path = ServoSignal.HOME.path(int(axis_index))
 
-        try:
-            # 1. 선행 초기화: 먼저 False를 써줌 (로봇팀 가이드)
-            plc.write_by_name(signal_path, False, pyads.PLCTYPE_BOOL)
-            time.sleep(0.1) # 신호 안정화 대기
-            
-            # 2. 작업 시작: True 인가
-            plc.write_by_name(signal_path, True, pyads.PLCTYPE_BOOL) [cite: 9]
-            
-            EVENT_BUS.log.message.emit(f"서보 {axis_index}축 원점 복귀 명령 전송 완료", "DEBUG")
-            
-        except Exception as e:
-            EVENT_BUS.log.message.emit(f"서보 {axis_index}축 원점 복귀 명령 실패: {e}", "ERROR")
-            raise
+        # 1. 선행 초기화: 먼저 False를 써줌 (로봇팀 가이드)
+        plc.write_by_name(signal_path, False, pyads.PLCTYPE_BOOL)
+        time.sleep(0.1) # 신호 안정화 대기
+        
+        # 2. 작업 시작: True 인가
+        plc.write_by_name(signal_path, True, pyads.PLCTYPE_BOOL)
