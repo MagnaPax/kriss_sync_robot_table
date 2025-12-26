@@ -42,3 +42,10 @@ class ServoControlViewModel(QObject):
             self._plc_service.home_servo_all()
         except Exception as e:
             EVENT_BUS.log.message.emit(f"{self._log_prefix} 서보모터 수동 원점 복귀 실패: {e}", "ERROR")
+
+    def reset_manual(self):
+        """모든 축 에러 리셋"""
+        try:
+            self._plc_service.reset_servo_all()
+        except Exception as e:
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 서보모터 에러 리셋 실패: {e}", "ERROR")

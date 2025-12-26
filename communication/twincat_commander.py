@@ -661,3 +661,23 @@ class TwinCATCommander(QObject):
 
         return False, "서보 어댑터가 연결되지 않았습니다."
 
+
+    def reset_servos_safely(self) -> tuple[bool, str]:
+        """서보 축의 에러 상태 해제"""
+        if not self.servo: 
+            return False, "서보 어댑터가 연결되지 않았습니다."
+
+        try:
+            results = []
+            # 모든 축에 대해 에러 리셋 시도
+            for axis in ServoAxis:
+                # clear_error_pulse는 내부적으로 에러가 있을 때만 리셋 동작을 수행함
+                is_cleared = self.servo.clear_error_pulse(axis.value)
+                results.append(is_cleared)
+            
+            if all(results):
+                return True, "모든 서보 축의 에러가 리셋되었습니다."
+            else:
+                return False, "일부 축의 에러 리셋에 실패했습니다."
+        except Exception as e:
+            return False, f"서보 리셋 중 오류 발생: {e}"

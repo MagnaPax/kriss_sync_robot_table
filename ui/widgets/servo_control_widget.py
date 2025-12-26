@@ -42,6 +42,7 @@ class ServoControlWidget(BaseWidget):
         self.btn_start = None
         self.btn_stop = None
         self.btn_home = None
+        self.btn_reset = None
 
         # BaseWidget의 __init__()은 내부적으로 _init_ui()를 호출함
         super().__init__(parent)
@@ -60,6 +61,7 @@ class ServoControlWidget(BaseWidget):
         if btn := self.btn_start: btn.clicked.connect(self._on_start_clicked)
         if btn := self.btn_stop:  btn.clicked.connect(self._on_stop_clicked)
         if btn := self.btn_home:  btn.clicked.connect(self._on_home_clicked)
+        if btn := self.btn_reset: btn.clicked.connect(self._on_reset_clicked)
 
 
 
@@ -111,11 +113,13 @@ class ServoControlWidget(BaseWidget):
         self.btn_start = self._create_control_button("START", "special")
         self.btn_stop = self._create_control_button("STOP", "general")
         self.btn_home = self._create_control_button("HOME", "special")
+        self.btn_reset = self._create_control_button("RESET", "general")
 
         button_layout.addStretch(1)
         button_layout.addWidget(self.btn_start)
         button_layout.addWidget(self.btn_stop)
         button_layout.addWidget(self.btn_home)
+        button_layout.addWidget(self.btn_reset)
 
         # 그룹 레이아웃에 섹션 추가
         group_layout.addWidget(input_section)
@@ -168,6 +172,7 @@ class ServoControlWidget(BaseWidget):
         if btn := self.btn_start: btn.setEnabled(True)
         if btn := self.btn_stop:  btn.setEnabled(False)
         if btn := self.btn_home:  btn.setEnabled(True)
+        if btn := self.btn_reset: btn.setEnabled(True)
 
         # 부모 클래스의 초기화(데이터 비우기) 호출
         super().clear_widget()
@@ -205,6 +210,11 @@ class ServoControlWidget(BaseWidget):
         """HOME 버튼 클릭 핸들러"""
         self._handle_manual_home()
 
+    @pyqtSlot()
+    def _on_reset_clicked(self):
+        """RESET 버튼 클릭 핸들러"""
+        self._handle_manual_reset()
+
 
 
     # ===============================================
@@ -229,6 +239,12 @@ class ServoControlWidget(BaseWidget):
         if not (vm := self.vm): return
         EVENT_BUS.log.message.emit(f"{self.log_prefix} MANUAL HOME", "DEBUG")
         vm.home_manual()
+
+    def _handle_manual_reset(self):
+        """MANUAL RESET 핸들러"""
+        if not (vm := self.vm): return
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} MANUAL RESET", "DEBUG")
+        vm.reset_manual()
 
 
 
@@ -276,5 +292,3 @@ if __name__ == "__main__":
     window.show()
 
     sys.exit(app.exec())
-
-

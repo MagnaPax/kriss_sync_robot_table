@@ -394,3 +394,9 @@ class PLCService(QObject):
         """서보 원점 복귀"""
         # 원점 복귀는 시간이 걸리는 작업이므로 Worker로 실행
         self._start_worker('SERVO_HOME', log_msg="서보 원점 복귀 요청 (Axis 1,2,3)")
+
+
+    def reset_servo_all(self):
+        """서보 에러 리셋"""
+        # 에러 리셋은 비교적 빠르지만, PLC 통신이 포함되므로 Worker로 실행
+        self._start_worker('SERVO_RESET', log_msg="서보 에러 리셋 요청")

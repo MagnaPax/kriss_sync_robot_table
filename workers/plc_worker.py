@@ -97,6 +97,8 @@ class PLCWorker(QObject):
                     is_success, msg = self.commander.shutdown_servos_safely()   # 안전 정지 및 전원 차단
                 case 'SERVO_HOME':
                     is_success, msg = self.commander.home_servos_safely()        # 안전 원점 복귀
+                case 'SERVO_RESET':
+                    is_success, msg = self.commander.reset_servos_safely()      # 서보모터 축의 에러 해제
                 case _:
                     msg = "알 수 없는 명령입니다."
 
