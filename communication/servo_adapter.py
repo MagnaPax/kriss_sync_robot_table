@@ -78,16 +78,15 @@ class ServoAdapter:
         """
         plc = self._plc
         try:
-            # 1. 에러 상태가 아니면 리셋 절차 생략
-            if not plc.read_by_name(ServoSignal.ERROR_STATE.path(axis_index), pyads.PLCTYPE_BOOL):
-                return True # 에러가 없으면 즉시 성공 반환
+            # 1. 에러 상태가 아니면 리셋 절차를 수행할 필요가 없음
+            if not self.has_servo_error(axis_index): return True
 
-            # 2. Reset Pulse 전송 (True -> Wait -> False)
-            plc.write_by_name(ServoSignal.ERROR_RESET.path(axis_index), True, pyads.PLCTYPE_BOOL)
-            time.sleep(0.2) # PLC가 리셋을 인식할 시간 확보
-            plc.write_by_name(ServoSignal.ERROR_RESET.path(axis_index), False, pyads.PLCTYPE_BOOL)
+            # 2. 리셋 명령 - bReset: True -> Wait -> False
+            plc.write_by_name(ServoSignal.ERROR_RESET.path(axis_index), True, pyads.PLCTYPE_BOOL)   # True
+            time.sleep(0.2) # Wait: PLC가 리셋을 인식할 시간 확보
+            plc.write_by_name(ServoSignal.ERROR_RESET.path(axis_index), False, pyads.PLCTYPE_BOOL)  # False
             
-            # 3. 에러가 정말 사라졌는지 최종 확인
+            # 3. 실제로 에러가 해제되었는지 확인
             time.sleep(0.1)
             is_cleared = not plc.read_by_name(ServoSignal.ERROR_STATE.path(axis_index), pyads.PLCTYPE_BOOL)
             if is_cleared:
@@ -208,10 +207,9 @@ class ServoAdapter:
         feedback = self.read_current_servo_motion(axis_index)
         return abs(feedback['velocity']) > threshold
 
-    def is_error_active(self, axis_index: int) -> dict:
+    def is_servo_error_active(self, axis_index: int) -> dict:
         """
-        [상태 확인] 해당 축에 에러가 발생했는지 확인합니다.
-        PLC 변수명은 환경에 따라 다를 수 있으니 확인이 필요합니다 (예: MAIN.bError1, MAIN.nErrorID1)
+        [상태 확인] 해당 축에 에러가 발생했나 확인
         """
         try:
             # 보통 TwinCAT MC 블록은 bError(BOOL)와 nErrorID(UDINT/UINT)를 가집니다.
@@ -222,6 +220,20 @@ class ServoAdapter:
         except:
             return {'error': False, 'id': 0}
 
+    def has_servo_error(self, axis_index: int) -> bool:
+        """
+        [상태 확인] 해당 축에 에러가 발생했는지 여부를 반환한다.
+        PLC: MAIN.bError{i} (True: 에러 발생, False: 정상)
+        """
+        try:
+            return self._plc.read_by_name(
+                ServoSignal.ERROR_STATE.path(axis_index), 
+                pyads.PLCTYPE_BOOL
+            )
+        except Exception as e:
+            # 통신 오류 발생 시 안전을 위해 에러 상태인 것으로 간주하거나 로그를 남김
+            EVENT_BUS.log.message.emit(f"서보 {axis_index}축 에러 상태 읽기 실패: {e}", "WARNING")
+            return True
 
     # ==========================================================================
     # 이동 명령 (Write Command)
@@ -321,7 +333,6 @@ class ServoAdapter:
         except Exception as e:
             EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 원점 복귀 중 에러 발생: {e}", "ERROR")
             return False
-
 
     def _homing(self, axis_index: int):
         """
