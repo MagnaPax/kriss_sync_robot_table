@@ -46,8 +46,8 @@ class MainViewModel(QObject):
         self.target_position_vm = TargetPositionViewModel(self.positon_model, self._service)
         # 작업 관리: 시퀀스 파일 서비스 & 전체 PLC 서비스 전달(비동기 처리 권한)
         self.task_manager_vm = TaskManagerViewModel(self.sequence_service, self._service)
-        # 사용자 좌표계: 읽기 전용 UI
-        self.user_coordinates_vm = UserCoordinatesViewModel()
+        # 사용자 좌표계: 전체 PLC 서비스 전달(비동기 처리 권한)
+        self.user_coordinates_vm = UserCoordinatesViewModel(self._service)
 
 
 
