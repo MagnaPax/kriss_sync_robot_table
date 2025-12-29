@@ -103,15 +103,6 @@ class TaskManagerViewModel(QObject):
         # PLCService 한테도 멈추라고 명령
         self._plc_service.stop_process()
 
-    def is_system_busy(self) -> bool:
-        """
-        시스템(PLC/로봇)이 현재 작업 중인지 체크
-        Return:
-            True: 작업 중
-            False: 대기 중
-        """
-        return self._plc_service.is_running
-
     def _reset_runtime_timer(self):
         self._elapsed_seconds = 0
         self.runtime_updated.emit("00 : 00 : 00")
