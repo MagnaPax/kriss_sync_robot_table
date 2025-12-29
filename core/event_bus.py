@@ -213,7 +213,7 @@ class DataSignals(QObject):
         dict: 선택된 행의 전체 데이터 (예: {'id': 1, 'x': 100.0, ...})
     """
 
-    device_busy_status = pyqtSignal(dict)
+    servo_busy_status = pyqtSignal(dict)
     """장비 바쁨 상태 방송용"""
 
 

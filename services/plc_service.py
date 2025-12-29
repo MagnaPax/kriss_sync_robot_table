@@ -352,7 +352,7 @@ class PLCService(QObject):
 
             # --- 3. 바쁨 상태 방송 --- #
             is_busy = self.is_running
-            EVENT_BUS.data.device_busy_status.emit({'is_busy': is_busy})
+            EVENT_BUS.data.servo_busy_status.emit({'is_busy': is_busy})
 
         except Exception as e:
             # 모니터링 중 에러는 로그를 남기지 않음 (로그 폭주 방지)

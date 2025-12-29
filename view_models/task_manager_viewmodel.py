@@ -52,7 +52,7 @@ class TaskManagerViewModel(QObject):
         EVENT_BUS.data.progress_updated.connect(self._check_sequence_finished)
         # '바쁨 상태' 방송이 오면 -> 내 로컬 시그널(busy_state_changed)로 바로 재방송
         #   TaskManagerWidget.update_data와 연결
-        EVENT_BUS.data.device_busy_status.connect(self.busy_state_changed.emit)
+        EVENT_BUS.data.servo_busy_status.connect(self.busy_state_changed.emit)
 
 
     def load_sequence_data(self, file_path: Path):
