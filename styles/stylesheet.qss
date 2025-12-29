@@ -130,6 +130,81 @@ QWidget#right_panel {
 
 
 
+/* ----------------------------------------
+   버튼 스타일 (QPushButton)
+   ---------------------------------------- 
+*/
+
+/* 1. 일반 버튼 (보라색) */
+/* 사용법: button.setProperty("type", "general") */
+QPushButton[type="general"] {
+    background-color: #6f42c1; /* 보라색 배경 */
+    color: #F0F0F0;
+    font-weight: bold;
+    border: 1px solid #5a359e; /* 살짝 어두운 테두리 */
+    border-radius: 4px; /* 기존 패널과 일치 */
+    padding: 5px 10px; /* 상하 5px, 좌우 10px */
+}
+
+QPushButton[type="general"]:hover {
+    background-color: #8558d6; /* 더 밝은 보라색 */
+    border-color: #6f42c1;
+}
+
+QPushButton[type="general"]:pressed {
+    background-color: #5a359e; /* 더 어두운 보라색 */
+    border-color: #4a2c82;
+}
+
+
+/* 2. 특수/주요 버튼 (파란색) */
+/* 사용법: button.setProperty("type", "special") */
+QPushButton[type="special"] {
+    background-color: #5D9CEC; /* 파스텔 블루 */
+    color: #F0F0F0;
+    font-weight: bold;
+    border: 1px solid #4A89DC;  /* 약간 진한 파스텔 테두리 */
+    border-radius: 4px;
+    padding: 6px 10px;
+}
+
+QPushButton[type="special"]:hover {
+    background-color: #4A89DC;  /* 호버 시 조금 더 진해짐 */
+    border-color: #5D9CEC;
+}
+
+QPushButton[type="special"]:pressed {
+    background-color: #0069d9;
+    border-color: #005cbf;
+}
+
+
+/* 3. Emergency Stop 버튼 (빨간색) */
+/* 사용법: button.setObjectName("emergency_button") */
+QPushButton#emergency_button {
+    background-color: #DC3545; /* 기존 'disconnected'와 동일한 강조색 */
+    color: #F0F0F0;
+    font-weight: bold;
+    font-size: 14px; /* 다른 버튼보다 조금 더 크게 */
+    border: 1px solid #b02a37;
+    border-radius: 4px;
+    padding: 8px 15px; /* 다른 버튼보다 더 크게 */
+}
+
+QPushButton#emergency_button:hover {
+    background-color: #e44d5c;
+    border-color: #DC3545;
+}
+
+QPushButton#emergency_button:pressed {
+    background-color: #b02a37;
+    border-color: #9a2430;
+}
+
+
+
+
+
 /* 
 ----------------------------------------
             위젯 공통 스타일
@@ -347,7 +422,8 @@ QLabel {
 }
 
 
-/* WorldCoordinatesWidget 스타일 */
+
+/* WorldCoordinatesWidget & UserCoordinatesWidget 스타일 */
 #world_coordinates_widget QGroupBox {
     padding-bottom: 13px; /* 그룹박스 내부 하단에 여백 추가 */
 }
@@ -366,7 +442,8 @@ QLabel {
 
 
 /* [이름] 라벨 (예: "Robot X :", "Tool Rev :") */
-#world_coordinates_widget QLabel#wc_name {
+#world_coordinates_widget QLabel#wc_name,
+#user_coordinates_widget QLabel#wc_name {
     font-weight: normal;
     color: #555555;
     font-size: 12px;
@@ -375,7 +452,8 @@ QLabel {
 }
 
 /* [값] 라벨 (숫자 데이터) */
-#world_coordinates_widget QLabel#wc_value {
+#world_coordinates_widget QLabel#wc_value,
+#user_coordinates_widget QLabel#wc_value {
     font-weight: bold;
     color: #2D2D2D;
     font-family: 'Consolas', 'Monospace', 'Courier New'; /* 고정폭 폰트 적용 */
@@ -388,7 +466,8 @@ QLabel {
 }
 
 /* [단위] 라벨 (mm, deg, RPM 등) */
-#world_coordinates_widget QLabel#wc_unit {
+#world_coordinates_widget QLabel#wc_unit,
+#user_coordinates_widget QLabel#wc_unit {
     color: #777777;
     font-size: 11px;
     font-style: italic;
@@ -421,77 +500,6 @@ QLabel {
     border: 2px solid #5D9CEC;
 }
 
-
-/* ----------------------------------------
-   버튼 스타일 (QPushButton)
-   ---------------------------------------- 
-*/
-
-/* 1. 일반 버튼 (보라색) */
-/* 사용법: button.setProperty("type", "general") */
-QPushButton[type="general"] {
-    background-color: #6f42c1; /* 보라색 배경 */
-    color: #F0F0F0;
-    font-weight: bold;
-    border: 1px solid #5a359e; /* 살짝 어두운 테두리 */
-    border-radius: 4px; /* 기존 패널과 일치 */
-    padding: 5px 10px; /* 상하 5px, 좌우 10px */
-}
-
-QPushButton[type="general"]:hover {
-    background-color: #8558d6; /* 더 밝은 보라색 */
-    border-color: #6f42c1;
-}
-
-QPushButton[type="general"]:pressed {
-    background-color: #5a359e; /* 더 어두운 보라색 */
-    border-color: #4a2c82;
-}
-
-
-/* 2. 특수/주요 버튼 (파란색) */
-/* 사용법: button.setProperty("type", "special") */
-QPushButton[type="special"] {
-    background-color: #5D9CEC; /* 파스텔 블루 */
-    color: #F0F0F0;
-    font-weight: bold;
-    border: 1px solid #4A89DC;  /* 약간 진한 파스텔 테두리 */
-    border-radius: 4px;
-    padding: 6px 10px;
-}
-
-QPushButton[type="special"]:hover {
-    background-color: #4A89DC;  /* 호버 시 조금 더 진해짐 */
-    border-color: #5D9CEC;
-}
-
-QPushButton[type="special"]:pressed {
-    background-color: #0069d9;
-    border-color: #005cbf;
-}
-
-
-/* 3. Emergency Stop 버튼 (빨간색) */
-/* 사용법: button.setObjectName("emergency_button") */
-QPushButton#emergency_button {
-    background-color: #DC3545; /* 기존 'disconnected'와 동일한 강조색 */
-    color: #F0F0F0;
-    font-weight: bold;
-    font-size: 14px; /* 다른 버튼보다 조금 더 크게 */
-    border: 1px solid #b02a37;
-    border-radius: 4px;
-    padding: 8px 15px; /* 다른 버튼보다 더 크게 */
-}
-
-QPushButton#emergency_button:hover {
-    background-color: #e44d5c;
-    border-color: #DC3545;
-}
-
-QPushButton#emergency_button:pressed {
-    background-color: #b02a37;
-    border-color: #9a2430;
-}
 
 
 
