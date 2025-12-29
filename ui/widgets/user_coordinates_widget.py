@@ -17,20 +17,20 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
     
     def __init__(self, parent=None):
         # ViewModel 타입 힌트 재정의를 위해 초기화
-        self.vm: Optional["UserCoordinatesViewModel"] = None
+        self.viewmodel: Optional["UserCoordinatesViewModel"] = None
         super().__init__(parent)
 
-    def set_view_model(self, view_model: "UserCoordinatesViewModel"):
+    def set_view_model(self, view_model: "UserCoordinatesViewModel"): # type: ignore[override]
         """ViewModel 주입 및 이벤트 연결 (Override)"""
-        self.vm = view_model
+        self.viewmodel = view_model
         self._bind_events()
 
     def _bind_events(self):
         """UserCoordinatesViewModel의 시그널 연결 (Override)"""
-        if not self.vm: return
+        if not self.viewmodel: return
         
         # TODO: UserCoordinatesViewModel에 시그널이 정의되면 연결
-        # 예: self.vm.pose_changed.connect(self.safe_update_data)
+        # 예: self.viewmodel.pose_changed.connect(self.safe_update_data)
         pass
 
     def _init_ui(self):
@@ -42,7 +42,8 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
 
         # 2. 그룹박스 제목 변경 ("System Coordinates" -> "User Coordinates")
         # WorldCoordinatesWidget의 레이아웃 구조상 첫 번째 아이템이 그룹박스임
-        if self.layout() and self.layout().count() > 0:
-            item = self.layout().itemAt(0)
+        layout = self.layout()
+        if layout and layout.count() > 0:
+            item = layout.itemAt(0)
             if item and (widget := item.widget()) and isinstance(widget, QGroupBox):
                 widget.setTitle("User Coordinates")
