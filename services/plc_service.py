@@ -269,7 +269,7 @@ class PLCService(QObject):
     # ==========================================================
     @property
     def is_running(self) -> bool:
-        """로봇이나 턴테이블이 현재 작업 중인지 확인"""
+        """로봇이나 서보 모터가 현재 작업 중인지 확인"""
 
         # 연결이 끊겼는가? (연결 없으면 상태 확인 불가)
         if not self.connector.is_connected:
@@ -279,7 +279,7 @@ class PLCService(QObject):
         if self._thread is not None and self._thread.isRunning():
             return True
 
-        # Gadgets(로봇&턴테이블)이 움직이고 있는가?
+        # Gadgets(로봇과 서보모터)가 움직이고 있는가?
         return self.commander.are_gagets_busy()
 
 
