@@ -10,6 +10,9 @@ if TYPE_CHECKING:
 
 class ServoControlViewModel(QObject):
     """서보모터 제어용 뷰모델"""
+    # View에게 상태를 알리는 시그널 (TaskManagerViewModel과 일관성 유지)
+    busy_state_changed = pyqtSignal(dict)
+
     def __init__(self, plc_service: "PLCService"):
         """
         인자:
@@ -19,6 +22,13 @@ class ServoControlViewModel(QObject):
         self._log_prefix = f"[{self.__class__.__name__}]"
         self._plc_service = plc_service
 
+        # '바쁨 상태' 방송이 오면 -> 내 로컬 시그널로 재방송
+        EVENT_BUS.data.servo_busy_status.connect(self.busy_state_changed.emit)
+
+
+    # ================================
+    # 서보 모터 제어
+    # ================================
     def start_manual(self, data: dict[str, float]):
         """
         수동 동작 시작

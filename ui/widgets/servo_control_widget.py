@@ -56,6 +56,9 @@ class ServoControlWidget(BaseWidget):
         """
         self.vm = view_model
 
+        # 로봇과 턴테이블의 바쁨 상태 연결
+        self.vm.busy_state_changed.connect(self.update_data)
+
     def _bind_events(self):
         """UI 이벤트 바인딩"""
         if btn := self.btn_start: btn.clicked.connect(self._on_start_clicked)
@@ -158,8 +161,20 @@ class ServoControlWidget(BaseWidget):
             BaseWidget의 safe_update_data()를 통해 호출됨
         """
         # 상태에 따른 활성화/비활성화
-        # TODO: 서보 모터가 물리적으로 움직이는 중이면 모든 버튼 비활성화
-        pass
+        if 'is_busy' in data:
+            is_busy = data['is_busy']
+
+            # BaseWidget 내부 변수 업데이트
+            self._is_enabled = not is_busy
+
+            # 로봇/서보가 바쁘면 START, HOME, RESET 비활성화
+            if self.btn_start: self.btn_start.setEnabled(not is_busy)
+            if self.btn_home:  self.btn_home.setEnabled(not is_busy)
+            if self.btn_reset: self.btn_reset.setEnabled(not is_busy)
+            
+            # 입력창들도 비활성화하여 오작동 방지
+            for spin in self.input_widgets.values():
+                spin.setEnabled(not is_busy)
 
     def clear_widget(self):
         """위젯 상태 초기화"""
