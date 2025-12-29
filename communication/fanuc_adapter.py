@@ -104,9 +104,9 @@ class FanucAdapter:
         로봇이 움직이기 전에 필요한 모든 스위치를 초기화 & 시작 신호를 보낸다
         """
         # [초기화] 1단계 - 체크 비트 False
-        self._init_robot_signals
+        self._init_robot_signals()
         # [초기화] 2단계 - 시작 신호 True
-        self._start_process
+        self._start_process()
 
 
     def set_finish_signals(self):
