@@ -42,7 +42,9 @@ class CenterPanel(QFrame):
         #       styles/stylesheet.qss 보다 아래 코드가 우선순위가 더 높다
         robot_position.setStyleSheet("color: black; border: 1px solid black;")
 
-        layout.addWidget(world_coordinates,    stretch=1)  # 1/5 -> 20%
-        layout.addWidget(robot_position,    stretch=2)  # 2/5 -> 40%
-        layout.addWidget(target_position,   stretch=1)  # 1/5 -> 20%
-        layout.addWidget(user_position,     stretch=1)  # 1/5 -> 20%
+
+        # 바탕 레이아웃에 위젯 추가
+        layout.addWidget(world_coordinates, stretch=50)  
+        layout.addWidget(user_position,     stretch=50)
+        # layout.addWidget(robot_position,    stretch=2)  # 2/5 -> 40%
+        # layout.addWidget(target_position,   stretch=1)  # 1/5 -> 20%
