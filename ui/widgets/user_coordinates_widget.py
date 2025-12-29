@@ -56,7 +56,7 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
                     # 버튼 생성
                     self.btn_robot_origin = QPushButton("Set Robot Origin")
                     self.btn_servo_origin = QPushButton("Set Servo Origin")
-                    self.btn_reset = QPushButton("Reset Origin All")
+                    self.btn_reset = QPushButton("Set Origin All")
 
                     # 스타일 적용
                     self.btn_robot_origin.setProperty("type", "general")
@@ -67,6 +67,24 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
                     gb_layout.addWidget(self.btn_robot_origin)
                     gb_layout.addWidget(self.btn_servo_origin)
                     gb_layout.addWidget(self.btn_reset)
+
+    def clear_widget(self):
+        """위젯 상태 초기화"""
+        # 라벨 텍스트 초기화
+        if self.lbl_x: self.lbl_x.setText("0.000")
+        if self.lbl_y: self.lbl_y.setText("0.000")
+        if self.lbl_z: self.lbl_z.setText("0.000")
+        if self.lbl_w: self.lbl_w.setText("0.000")
+        if self.lbl_p: self.lbl_p.setText("0.000")
+        if self.lbl_r: self.lbl_r.setText("0.000")
+
+        if self.lbl_tool_revolution_rpm: self.lbl_tool_revolution_rpm.setText("0.000")
+        if self.lbl_tool_rotation_rpm: self.lbl_tool_rotation_rpm.setText("0.000")
+        if self.lbl_turntable_degree: self.lbl_turntable_degree.setText("0.000")
+        if self.lbl_turntable_rpm: self.lbl_turntable_rpm.setText("0.000")
+
+        # 부모 클래스의 초기화(데이터 비우기) 호출
+        super().clear_widget()
 
 
 
