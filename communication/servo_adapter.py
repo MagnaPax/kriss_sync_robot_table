@@ -346,7 +346,6 @@ class ServoAdapter:
         # 2. 속도 제어 트리거 ON (MAIN.bMoveVel{i})
         #    Latch 방식이므로 True로 유지
         plc.write_by_name(ServoSignal.MOVE_VEL.path(axis_index), False, pyads.PLCTYPE_BOOL)
-        time.sleep(0.1)
         plc.write_by_name(ServoSignal.MOVE_VEL.path(axis_index), True, pyads.PLCTYPE_BOOL)
 
     def move_absolute(self, axis_index: int, target_pos: float, target_velocity: float):
@@ -373,7 +372,6 @@ class ServoAdapter:
         # 3. 절대 이동 트리거 (Pulse)
         #    Rising Edge(False -> True)를 만들어야 확실하게 동작함
         plc.write_by_name(ServoSignal.MOVE_ABS.path(axis_index), False, pyads.PLCTYPE_BOOL)
-        time.sleep(0.01)
         plc.write_by_name(ServoSignal.MOVE_ABS.path(axis_index), True, pyads.PLCTYPE_BOOL)
 
     def _homing(self, axis_index: int):

@@ -382,9 +382,6 @@ class ServoOnlyExecutor(BaseExecutor):
                 EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 축 {axis_idx} 이동 시간 초과 ({self.MOVE_TIMEOUT}초)", "ERROR")
                 return False
 
-            # CPU 과점유 방지 - 루프마다 대기
-            time.sleep(0.05)
-            
         feedback = self.servo.read_current_servo_motion(axis_idx)
         actual_pos = feedback['position']
         EVENT_BUS.log.message.emit(
