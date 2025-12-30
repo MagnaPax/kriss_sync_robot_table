@@ -43,7 +43,7 @@ def main():
     # 2. LogListener 초기화 (EventBus와 Logger 연결)
     # LogListener가 EventBus 시그널을 구독하도록 main.py에서 생성
     # 인스턴스를 변수에 할당해서 가비지 컬렉터가 수거하는 것을 방지한다.
-    log_listener = LogListener()
+    _log_listener = LogListener()
 
 
     # 3. AppEngine의 초기화 로직 실행 (Bootstrap)
@@ -54,7 +54,7 @@ def main():
     # 4. 부팅 시나리오 실행 (스플래시 -> 접속 -> 메인윈도우)
     #   StartupManager 가 앱의 실행 흐름(Flow)과 UI 제어를 담당
     startup = StartupManager()
-    main_window = startup.run()
+    _main_window = startup.run()
 
 
     # 5. 이벤트 루프를 시작하고, 앱이 종료되면 종료 코드를 반환한다
