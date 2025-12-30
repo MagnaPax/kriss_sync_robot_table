@@ -253,14 +253,13 @@ class ServoOnlyExecutor(BaseExecutor):
                 adapter.move_absolute(ServoAxis.TURNTABLE, pose_turntable.angle, pose_turntable.velocity)
 
                 # (D) 대기 (Stop-and-Go)
-                # 마지막 시퀀스가 아닐 때만 완료를 기다림 (마지막은 finally 블록에서 처리)
-                if step_idx < total_steps:
-                    if not self._wait_for_turntable_completion(ServoAxis.TURNTABLE, target_pos=pose_turntable.angle):
-                        adapter.request_immediate_stop()
+                # 각 스텝의 이동이 완료될 때까지 대기 (Stop-and-Go 방식)
+                if not self._wait_for_turntable_completion(ServoAxis.TURNTABLE, target_pos=pose_turntable.angle):
+                    adapter.request_immediate_stop()
 
-                        # 실패 사유 파악 (중단 vs 타임아웃)
-                        msg = "작업 중단됨" if self._is_interrupted() else f"턴테이블 응답 없음 또는 시간 초과 ({self.MOVE_TIMEOUT}s)"
-                        return False, msg
+                    # 실패 사유 파악 (중단 vs 타임아웃)
+                    msg = "작업 중단됨" if self._is_interrupted() else f"턴테이블 응답 없음 또는 시간 초과 ({self.MOVE_TIMEOUT}s)"
+                    return False, msg
 
                 # 개발용 로그
                 feedback_revolution = adapter.read_current_servo_motion(ServoAxis.TOOL_REVOLUTION)
@@ -274,7 +273,7 @@ class ServoOnlyExecutor(BaseExecutor):
                     f"[{self.__class__.__name__}] 툴 자전 (RPM) 완료: 목표={pose_rotation.velocity:.1f}, 현재={feedback_rotation['velocity']:.1f}", "DEBUG"
                 )
                 EVENT_BUS.log.message.emit(
-                    f"[{self.__class__.__name__}] 턴테이블 (deg & RPM) 완료: 목표={pose_turntable.angle:.1f} & {pose_turntable.velocity:.1f}, 현재={feedback_turntable['angle']:.1f} & {feedback_turntable['velocity']:.1f}", "DEBUG"
+                    f"[{self.__class__.__name__}] 턴테이블 (deg & RPM) 완료: 목표={pose_turntable.angle:.1f} & {pose_turntable.velocity:.1f}, 현재={feedback_turntable['position']:.1f} & {feedback_turntable['velocity']:.1f}", "DEBUG"
                 )
 
                 # (E) 스텝 완료 방송
