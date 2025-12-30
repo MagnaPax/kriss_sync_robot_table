@@ -19,7 +19,7 @@ from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, QThread
 from communication.twincat_connector import TwinCATConnector
 from communication.twincat_commander import TwinCATCommander
 from config.data_formats import *
-from typing import Dict, List, Any, Optional
+from typing import Any
 from core.event_bus import EVENT_BUS
 from core.exceptions import AppError
 

@@ -1,8 +1,9 @@
 # view_models/sequence_worker.py
 from pathlib import Path
+from typing import Any, Dict
 from PyQt6.QtCore import QObject, pyqtSignal
 from models.sequence_model import SequenceModel
-from utils.file_handler import load_text, load_csv
+from utils.file_handler import load_csv
 from parsers.sequence_parser import SequenceParserManager
 from core.event_bus import EVENT_BUS
 
@@ -79,7 +80,7 @@ class SequenceWorker(QObject):
 
 
 
-    def _parse_data(self, file_path: Path, raw_data) -> dict:
+    def _parse_data(self, file_path: Path, raw_data: Any) -> Dict[str, Any]:
         """
         파일 경로에 맞는 파서를 찾아서 Raw 데이터를 파싱하는 헬퍼 메서드
 
@@ -96,4 +97,3 @@ class SequenceWorker(QObject):
         parser = parser_manager.find_parser(file_path)
 
         return parser.parse(raw_data)
-
