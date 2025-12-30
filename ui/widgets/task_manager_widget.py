@@ -1,17 +1,18 @@
 # ui/widgets/task_manager_widget.py
 from pathlib import Path
-from PyQt6.QtCore import Qt, pyqtSlot
+from PyQt6.QtCore import pyqtSlot
 from PyQt6.QtWidgets import (
     QVBoxLayout, 
     QGroupBox, 
     QLabel, 
     QHBoxLayout, 
     QPushButton,
-    QFileDialog
+    QFileDialog,
+    QWidget
 )
 from ui.widgets.base_widget import BaseWidget
 from core.event_bus import EVENT_BUS
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Dict, Any
 
 
 if TYPE_CHECKING:
@@ -25,7 +26,7 @@ class TaskManagerWidget(BaseWidget):
     # ========================================
     # 초기화 및 설정 (Initialization)
     # ========================================
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None):
         """Sequence 파일 로드 및 실행 제어 위젯"""
 
         # UI 요소 참조 변수 초기화
@@ -168,7 +169,7 @@ class TaskManagerWidget(BaseWidget):
     # ===============================================
     # 데이터 처리
     # ===============================================
-    def update_data(self, data):
+    def update_data(self, data: Dict[str, Any]):
         """
         데이터(dict)를 받아 UI 업데이트
             BaseWidget의 safe_update_data()를 통해 호출됨
@@ -319,7 +320,7 @@ if __name__ == "__main__":
     listener = LogListener()
 
     service = SequenceService()
-    vm = TaskManagerViewModel(service)
+    vm = TaskManagerViewModel(service) # type: ignore
 
 
     # 스타일시트 파일 로드 및 적용

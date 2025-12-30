@@ -1,14 +1,14 @@
 # ui/widgets/servo_control_widget.py
-from PyQt6.QtCore import Qt, pyqtSlot, QTimer
+from PyQt6.QtCore import QTimer, pyqtSlot
 from PyQt6.QtWidgets import (
     QVBoxLayout, 
     QGroupBox, 
-    QLabel, 
     QFrame, 
     QHBoxLayout, 
     QFormLayout, 
     QDoubleSpinBox, 
-    QPushButton
+    QPushButton,
+    QWidget
 )
 from config.data_formats import (
     KEY_TT_DEG,
@@ -30,7 +30,7 @@ class ServoControlWidget(BaseWidget):
     # ========================================
     # 초기화 및 설정 (Initialization)
     # ========================================
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None):
         """위젯 초기화"""
         # ViewModel 인스턴스를 클래스 속성으로 저장
         self.vm: Optional["ServoControlViewModel"] = None
@@ -130,7 +130,7 @@ class ServoControlWidget(BaseWidget):
         
         main_layout.addWidget(self.servo_group)
 
-    def _create_spinbox(self, min_val, max_val, default_val, suffix="") -> QDoubleSpinBox:
+    def _create_spinbox(self, min_val: float, max_val: float, default_val: float, suffix: str = "") -> QDoubleSpinBox:
         """스핀박스 생성 헬퍼"""
         spin = QDoubleSpinBox()
         spin.setRange(float(min_val), float(max_val))
@@ -143,7 +143,7 @@ class ServoControlWidget(BaseWidget):
         spin.focusInEvent = lambda e: QTimer.singleShot(0, spin.selectAll)
         return spin
 
-    def _create_control_button(self, text, btn_type) -> QPushButton:
+    def _create_control_button(self, text: str, btn_type: str) -> QPushButton:
         """제어 버튼 생성 헬퍼"""
         btn = QPushButton(text)
         btn.setFixedSize(80, 30)
@@ -289,7 +289,7 @@ if __name__ == "__main__":
     # 데모 모드로 실행될 것이므로 별도의 connect() 호출 없이도 어댑터 초기화 가능
     
     servo_adapter = ServoAdapter(connector)
-    vm = ServoControlViewModel(servo_adapter)
+    vm = ServoControlViewModel(servo_adapter) # type: ignore
 
 
     app = QApplication(sys.argv)

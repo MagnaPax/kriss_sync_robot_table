@@ -1,6 +1,6 @@
 # ui/widgets/waypoints_widget.py
 
-from typing import Any, List, Dict
+from typing import Any, List, Dict, Optional
 from PyQt6.QtCore import Qt, pyqtSlot
 from PyQt6.QtWidgets import (
     QApplication,
@@ -8,7 +8,8 @@ from PyQt6.QtWidgets import (
     QHeaderView, 
     QGroupBox,
     QAbstractItemView,
-    QTableView
+    QTableView,
+    QWidget
 )
 
 from core.event_bus import EVENT_BUS
@@ -25,7 +26,7 @@ class WaypointsWidget(BaseWidget):
     # 초기화 및 설정 (Initialization)
     #   - 위젯 생성, UI 기본 설정, 이벤트 연결
     # ========================================
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
 
         # 이벤트 연결
@@ -180,9 +181,9 @@ if __name__ == '__main__':
         from styles.style_manager import load_and_apply_stylesheet
     except ImportError:
         from pathlib import Path
-        STYLESHEET_PATH = Path("styles/stylesheet.qss")
+        STYLESHEET_PATH = Path("styles/stylesheet.qss") # type: ignore
         # 경로 문제로 임포트 실패 시 더미 함수 정의 (테스트 중단 방지)
-        def load_and_apply_stylesheet(target, path):
+        def load_and_apply_stylesheet(target: Any, path: Any):
             print("⚠️ 스타일 매니저를 찾을 수 없어 스타일이 적용되지 않았습니다.")
 
 

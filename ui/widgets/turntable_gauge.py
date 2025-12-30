@@ -1,19 +1,17 @@
 # ui/widgets/turntable_widget.py
 import sys
-import os
-import math
 
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QLabel, QVBoxLayout, QSizePolicy, QHBoxLayout
 )
 from PyQt6.QtGui import (
-    QPainter, QColor, QPen, QBrush, QPolygonF
+    QPainter, QColor, QPen, QPolygonF
 )
 from PyQt6.QtCore import Qt, QPointF, QRectF, QSize, QTimer
 
 from .base_widget import BaseWidget
-from .led_indicator import LEDIndicator
 from .status_indicator_box import StatusIndicatorBox
+from typing import Optional, Dict, Any
 
 
 
@@ -38,7 +36,7 @@ from .status_indicator_box import StatusIndicatorBox
 class _GaugePainter(QWidget):
     """QPainter를 사용하여 원형 턴테이블 게이지를 그리는 위젯"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.setMinimumSize(200, 200)
         # 위젯의 크기가 변할 때 가로/세로 비율을 유지하며 확장되도록 설정
@@ -162,7 +160,7 @@ class _GaugePainter(QWidget):
         """
 
         # 가로/세로 중 작은 사이즈 저장
-        new_size = min(event.size().width(), event.size().height()) 
+        new_size = int(min(event.size().width(), event.size().height()))
         # 작은 길이에 맞게 위젯 크기 재설정(게이지 찌그러지지 않는 비결)
         self.resize(new_size, new_size)     
         super().resizeEvent(event)
@@ -220,14 +218,14 @@ class TurntableWidget(BaseWidget):
             data (dict): {'angle': float, 'robot_angle': float, 'rounds': int, 'state': str}
         """
         # 데이터 추출
-        angle = data.get('angle', 0.0)
-        robot_angle = data.get('robot_angle', 0.0)
+        angle = float(data.get('angle', 0.0))
+        robot_angle = float(data.get('robot_angle', 0.0))
 
         # 로봇 반지름 위치 추출 (기본값: 0.9 = 90% 테두리)
-        robot_radius_percent = data.get('robot_radius_percent', 0.9)        
+        robot_radius_percent = float(data.get('robot_radius_percent', 0.9))
 
-        rounds = data.get('rounds', 0)
-        state = data.get('state', 'waiting')
+        rounds = int(data.get('rounds', 0))
+        state = str(data.get('state', 'waiting'))
 
         # 게이지 위젯에 값 전달
         # self.gauge_widget.set_data(angle, robot_angle)
@@ -238,8 +236,8 @@ class TurntableWidget(BaseWidget):
 
         # 상태 표시줄 갱신
         state_data = {
-            'state': state,
-            'title': self.state_indicator._title_text # 기존 제목 유지
+            'state': state, # type: ignore
+            'title': self.state_indicator._title_text # type: ignore # 기존 제목 유지
         }
         self.state_indicator.safe_update_data(state_data)
 
@@ -289,12 +287,12 @@ if __name__ == '__main__':
         # 전역 변수인 radius_direction을 수정하겠다고 선언
         global radius_direction
 
-        test_data['angle'] = (test_data['angle'] + 1.5) % 360
-        test_data['robot_angle'] = (test_data['robot_angle'] - 0.5) % 360
+        test_data['angle'] = (float(test_data['angle']) + 1.5) % 360
+        test_data['robot_angle'] = (float(test_data['robot_angle']) - 0.5) % 360
 
 
         # 빨간 점이 안팎으로 움직이는 애니메이션
-        rad_perc = test_data['robot_radius_percent']
+        rad_perc = float(test_data['robot_radius_percent'])
 
         if rad_perc <= 0.1: # 중심(10%)에 가까워지면
             radius_direction = 1 # 밖으로 이동
@@ -310,8 +308,8 @@ if __name__ == '__main__':
         if int(test_data['angle']) % 90 < 2:
              test_data['state'] = 'waiting'
              # 0도 통과 시 라운드 증가
-             if test_data['angle'] < 2:
-                 test_data['rounds'] += 1
+             if float(test_data['angle']) < 2:
+                 test_data['rounds'] = int(test_data['rounds']) + 1
         elif int(test_data['angle']) % 45 < 2: # 45도 근처에서 'running'
              test_data['state'] = 'running'
 

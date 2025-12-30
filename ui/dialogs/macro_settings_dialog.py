@@ -13,9 +13,9 @@ from PyQt6.QtWidgets import (
     QWidget,
     QMessageBox
 )
-from PyQt6.QtCore import Qt, pyqtSlot
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
-from typing import Dict, Any, Tuple, cast
+from typing import Dict, Any, Tuple, cast, Optional, Type
 from functools import partial
 
 from config.paths import CONFIG_MACRO_PATH
@@ -27,7 +27,7 @@ from view_models.macro_settings_dialog_viewmodel import MacroSettingsDialogViewM
 
 class MacroSettingsDialog(QDialog):
 
-    def __init__(self, parent=None, viewmodel = ViewModel):
+    def __init__(self, parent: Optional[QWidget] = None, viewmodel: Type[ViewModel] = ViewModel):
         super().__init__(parent)
 
 
@@ -97,7 +97,7 @@ class MacroSettingsDialog(QDialog):
 
 
     # 뷰모델의 신호를 처리할 슬롯 추가 (클래스 맨 아래나 적당한 곳에 추가)
-    @pyqtSlot(str)
+    @pyqtSlot(str) # type: ignore
     def _on_save_failed(self, error_message: str):
         """ViewModel로부터 저장 실패 알림을 받았을 때 실행"""
         QMessageBox.critical(self, "저장 실패", error_message)
@@ -157,7 +157,7 @@ class MacroSettingsDialog(QDialog):
 
         # 내부 위젯 딕셔너리 구성
         # 이 딕셔너리를 통해 코드 외부에서도 쉽게 접근 가능
-        widgets = {
+        widgets: Dict[str, QWidget] = {
             'name_input': name_input,
             'save_btn': save_btn,
             **coord_inputs # X, Y, Z... SpinBox들을 딕셔너리에 병합
@@ -214,7 +214,7 @@ class MacroSettingsDialog(QDialog):
 
         # ViewModel에게 토스! (Delegation)
         #    에러 처리는 VM의 시그널(_on_save_failed)이 담당
-        self.vm._save_macro(CONFIG_MACRO_PATH, data_macro)
+        self.vm._save_macro(CONFIG_MACRO_PATH, data_macro) # type: ignore
         
 
     def _gather_macro_data(self, macro_id: str, widgets: Dict[str, QWidget]) -> Dict[str, Any]:
@@ -241,7 +241,7 @@ class MacroSettingsDialog(QDialog):
         }
 
 
-    @pyqtSlot(str)
+    @pyqtSlot(str) # type: ignore
     def _on_save_complete(self, macro_id: str):
         """
         저장 성공 시 시각적 피드백 제공 (팝업 X, 버튼 텍스트 변경 O)
@@ -260,7 +260,7 @@ class MacroSettingsDialog(QDialog):
             from PyQt6.QtCore import QTimer
             QTimer.singleShot(1000, lambda: self._reset_button_state(save_btn, original_text))
 
-    def _reset_button_state(self, btn, original_text):
+    def _reset_button_state(self, btn: QPushButton, original_text: str):
         """버튼 상태 복구 헬퍼"""
         try:
             btn.setText(original_text)
@@ -271,7 +271,7 @@ class MacroSettingsDialog(QDialog):
             pass
 
 
-    @pyqtSlot(dict)
+    @pyqtSlot(dict) # type: ignore
     def _on_data_loaded(self, all_data: Dict[str, Any]):
         """
         ViewModel이 보내준 데이터로 UI를 채움 (Data Binding)
@@ -287,7 +287,7 @@ class MacroSettingsDialog(QDialog):
 
             # 2. 이름(Name) 채우기
             if 'name' in macro_data:
-                widgets['name_input'].setText(macro_data['name'])
+                cast(QLineEdit, widgets['name_input']).setText(macro_data['name'])
             
             # 3. 좌표(X, Y, Z, W, P, R) 채우기
             # 데이터는 소문자('x'), 위젯 키는 대문자('X')임에 주의
@@ -296,7 +296,7 @@ class MacroSettingsDialog(QDialog):
                     widget_key = axis_char.upper()  # 'x' -> 'X'
                     if widget_key in widgets:
                         val = float(macro_data[axis_char])
-                        widgets[widget_key].setValue(val)
+                        cast(QDoubleSpinBox, widgets[widget_key]).setValue(val)
 
 
 # ==========================================================

@@ -3,11 +3,12 @@ from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout
 from pathlib import Path
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt
+from typing import Optional
 
 
 class LogoWidget(QWidget):
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
 
         # --- 경로 ---

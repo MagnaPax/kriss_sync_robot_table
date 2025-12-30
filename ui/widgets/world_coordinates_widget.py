@@ -1,7 +1,7 @@
 # ui/widgets/world_coordinates_widget.py
 from PyQt6.QtCore import Qt, pyqtSlot
 from typing import TYPE_CHECKING, Optional
-from PyQt6.QtWidgets import QVBoxLayout, QGroupBox, QGridLayout, QLabel, QFrame
+from PyQt6.QtWidgets import QVBoxLayout, QGroupBox, QGridLayout, QLabel, QFrame, QWidget
 from ui.widgets.base_widget import BaseWidget
 from models.fanuc_pose_model import FANUCPose
 from models.servo_pose_model import ServoPose
@@ -17,7 +17,7 @@ class WorldCoordinatesWidget(BaseWidget):
     실시간으로 모니터링하는 통합 대시보드 위젯
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None):
         # --- UI 요소 변수 선언 --- #
         # FANUC Robot Labels
         self.lbl_x = None
@@ -148,7 +148,7 @@ class WorldCoordinatesWidget(BaseWidget):
         label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         return label
 
-    def _populate_grid(self, grid_layout: QGridLayout, rows: list):
+    def _populate_grid(self, grid_layout: QGridLayout, rows: list[tuple[int, str, QLabel, str]]):
         """그리드 배치"""
         for row_idx, name, val_lbl, unit_text in rows:
             # 1열: 축 이름
@@ -233,7 +233,7 @@ if __name__ == "__main__":
     window.resize(300, 450)
     window.show()
 
-    service.connector._handle = 1
+    service.connector._handle = 1 # type: ignore
 
     def mock_robot():
         return FANUCPose(x=random.uniform(0, 100), y=10.5, z=50.0, w=0, p=0, r=0)
@@ -252,4 +252,3 @@ if __name__ == "__main__":
     sim_timer.start()
 
     sys.exit(app.exec())
-

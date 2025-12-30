@@ -4,6 +4,8 @@ from PyQt6.QtWidgets import (
     QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QGridLayout, QSizePolicy
 )
 from PyQt6.QtCore import Qt, QTimer
+from typing import Any, Dict, Union
+from pathlib import Path
 
 from ui.widgets.base_widget import BaseWidget
 from ui.widgets.status_indicator_box import StatusIndicatorBox
@@ -86,7 +88,7 @@ class CurrentStateWidget(BaseWidget):
         self.clear_widget()
 
 
-    def update_data(self, data: dict):
+    def update_data(self, data: Dict[str, Any]):
         """
         BaseWidget의 추상 메서드(update_data) 구현
         
@@ -115,11 +117,11 @@ class CurrentStateWidget(BaseWidget):
         # StatusIndicatorBox는 {'state': ..., 'title': ...} 형태의 dict를 받음
         self.turntable_status.safe_update_data({
             'state': turntable_state,
-            'title': self.turntable_status._title_text # 기존 제목 유지
+            'title': self.turntable_status._title_text # type: ignore # 기존 제목 유지
         })
         self.robot_status.safe_update_data({
             'state': robot_state,
-            'title': self.robot_status._title_text # 기존 제목 유지
+            'title': self.robot_status._title_text # type: ignore # 기존 제목 유지
         })
 
 
@@ -163,20 +165,20 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
 
     
-    qss_file = "styles/stylesheet.qss"
+    qss_file = Path("styles/stylesheet.qss")
     load_and_apply_stylesheet(app, qss_file)
 
 
     main_window = QWidget()
     main_layout = QVBoxLayout(main_window)
     
-    test_widget = CurrentStateWidget()
+    test_widget = CurrentStateWidget(main_window)
     main_layout.addWidget(test_widget)
     main_window.setWindowTitle("CurrentStateWidget 단독 테스트")
     main_window.show()
 
     # 테스트용 데이터
-    test_data = {
+    test_data: Dict[str, Union[int, str]] = {
         'm1_rpm': 0,
         'm2_rpm': 0,
         'robot_speed': 0,
@@ -194,9 +196,9 @@ if __name__ == '__main__':
         global tt_idx, robot_idx
         
         # RPM/Speed 값 업데이트 (0~99 사이 랜덤)
-        test_data['m1_rpm'] = (test_data['m1_rpm'] + 7) % 100
-        test_data['m2_rpm'] = (test_data['m2_rpm'] + 13) % 100
-        test_data['robot_speed'] = (test_data['robot_speed'] + 3) % 100
+        test_data['m1_rpm'] = (int(test_data['m1_rpm']) + 7) % 100
+        test_data['m2_rpm'] = (int(test_data['m2_rpm']) + 13) % 100
+        test_data['robot_speed'] = (int(test_data['robot_speed']) + 3) % 100
         
         # 상태 업데이트 (리스트 순환)
         test_data['turntable_state'] = tt_states[tt_idx]

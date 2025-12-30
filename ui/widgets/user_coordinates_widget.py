@@ -1,5 +1,5 @@
 # ui/widgets/user_coordinates.py
-from PyQt6.QtWidgets import QGroupBox, QPushButton
+from PyQt6.QtWidgets import QGroupBox, QPushButton, QWidget
 from ui.widgets.world_coordinates_widget import WorldCoordinatesWidget
 from typing import TYPE_CHECKING, Optional
 
@@ -15,7 +15,7 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
     ViewModel과 데이터 바인딩만 별도로 처리한다.
     """
     
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None):
         # ViewModel 타입 힌트 재정의를 위해 초기화
         self.btn_robot_origin = None
         self.btn_servo_origin = None
