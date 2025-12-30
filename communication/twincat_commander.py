@@ -170,7 +170,7 @@ class ServoOnlyExecutor(BaseExecutor):
 
     # 타임아웃 상수
     BUSY_WAIT_TIMEOUT = 5.0   # 명령 후 Busy가 뜰 때까지 기다리는 시간
-    MOVE_TIMEOUT = 60.0       # 턴테이블 이동 최대 허용 시간
+    MOVE_TIMEOUT = 180.0       # 턴테이블 이동 최대 허용 시간
 
     def can_execute(self, sample_data: Dict[str, Any]) -> bool:
         data_keys = set(sample_data.keys())
@@ -210,6 +210,20 @@ class ServoOnlyExecutor(BaseExecutor):
                 # (B) UI 진행률 업데이트
                 EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSING)
 
+                # (Pre-Check) 턴테이블이 이미 목표 위치에 있는지 확인
+                pose_turntable = ServoPoseModel.create_for_axis(row, 'turntable_deg')
+                current_turntable_pos = adapter.read_current_servo_motion(ServoAxis.TURNTABLE)['position']
+
+                # 목표 위치와 현재 위치가 거의 같은지 확인
+                if abs(current_turntable_pos - pose_turntable.angle) < 0.05: # 0.05도 오차 허용
+                    EVENT_BUS.log.message.emit(
+                        f"[{self.__class__.__name__}] 턴테이블이 이미 목표 각도({pose_turntable.angle:.2f}°)에 있습니다. 이 스텝을 건너뜁니다.",
+                        "INFO"
+                    )
+                    # UI 업데이트 한 뒤 바로 다음 스텝으로 넘어간다
+                    EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSED)
+                    continue # 다음 for 루프 아이템으로 넘어감
+
                 # (C) 명령 생성 및 전송
                 seq_id = row.get('id', step_idx)
                 # 보기 좋게 주요 파라미터만 추출하여 로그 출력
@@ -248,7 +262,6 @@ class ServoOnlyExecutor(BaseExecutor):
                     EVENT_BUS.log.message.emit(f"Axis 2 에러 발생! ID: {err_rot['id']}", "ERROR")
 
                 # [Axis 3] 턴테이블 (위치 제어)
-                pose_turntable = ServoPoseModel.create_for_axis(row, 'turntable_deg')
                 EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] pose_turntable 생성: {pose_turntable}", "DEBUG")
                 adapter.move_absolute(ServoAxis.TURNTABLE, pose_turntable.angle, pose_turntable.velocity)
 
