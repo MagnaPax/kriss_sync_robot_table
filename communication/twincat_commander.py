@@ -291,7 +291,6 @@ class ServoOnlyExecutor(BaseExecutor):
 
                 # (E) 스텝 완료 방송
                 EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSED)
-                time.sleep(0.05) 
 
             return True, "모든 서보 시퀀스 작업이 완료되었습니다."
 
@@ -299,7 +298,7 @@ class ServoOnlyExecutor(BaseExecutor):
             try:
                 adapter.request_immediate_stop()
             except Exception:
-                pass # 에러 처리 중 발생한 에러는 무시(원래 에러가 중요함)
+                pass # 에러 처리 중 발생한 에러는 무시(원래 발생한 에러가 더 중요함)
                 
             EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 서보 실행 중 오류: {e}", "ERROR")
             return False, f"오류 발생: {str(e)}"
@@ -308,7 +307,7 @@ class ServoOnlyExecutor(BaseExecutor):
             # 3. 종료 처리 (Teardown)
             EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 종료 절차: 서보모터 정지 및 전원 차단을 시도합니다...", "DEBUG")
 
-            # MOVE_TIMEOUT(60초)을 넘겨줘서 충분한 감속시간 확보
+            # MOVE_TIMEOUT을 통해 충분한 감속시간 확보
             is_safely_shutdown = adapter.shutdown_all_with_power_off(timeout=self.MOVE_TIMEOUT)
 
             if is_safely_shutdown:
