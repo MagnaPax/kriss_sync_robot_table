@@ -1,9 +1,9 @@
 # services/plc_service.py
 import time
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import QObject, QTimer, pyqtSlot, QThread, Qt, QMetaObject
+from PyQt6.QtCore import QObject, QTimer, QThread
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Callable
 from core.event_bus import EVENT_BUS
 from workers.plc_worker import PLCWorker
 from models.fanuc_pose_model import FANUCPose
@@ -66,7 +66,7 @@ class PLCService(QObject):
     # 연결 관련 메서드
     # ==========================================================
 
-    @pyqtSlot()
+    @pyqtSlot() # type: ignore
     def disconnect_plc(self):
         """연결 해제 (앱 종료 시 or 수동 끊기)"""
 
@@ -80,7 +80,7 @@ class PLCService(QObject):
             EVENT_BUS.log.message.emit("PLC 연결이 안전하게 해제되었습니다.", "INFO")
 
 
-    def connect_with_retry(self, ui_callback=None) -> bool:
+    def connect_with_retry(self, ui_callback: Optional[Callable[[str, int], None]] = None) -> bool:
         """
         재시도 로직을 포함한 연결 시도(블록킹 + UI 업데이트)
 
@@ -167,7 +167,7 @@ class PLCService(QObject):
     # ==========================================================
     # [비동기] 로봇 제어 명령 (Worker 사용)
     # ==========================================================
-    def _start_worker(self, command: str, data=None, log_msg: str = ""):
+    def _start_worker(self, command: str, data: Any = None, log_msg: str = ""):
         """비동기 워커 스레드 생성 및 실행 (공통 로직)"""
 
         if self._thread and self._thread.isRunning():
@@ -249,7 +249,7 @@ class PLCService(QObject):
         self._start_worker('MOVE', data=sequence_data, log_msg=f"단일 명령 이동: {fanuc_pose_obj}")
 
 
-    def process_sequence_data(self, csv_data: list):
+    def process_sequence_data(self, csv_data: List[Dict[str, Any]]):
         """
         시퀀스 데이터를 받아 로봇 작업을 시작함
         Args:
@@ -287,13 +287,13 @@ class PLCService(QObject):
     # ==========================================================
     # [슬롯] Worker 시그널에 대한 처리
     # ==========================================================
-    @pyqtSlot(bool, str)
+    @pyqtSlot(bool, str) # type: ignore
     def _handle_worker_result(self, success: bool, msg: str):
         """워커 실행 결과 처리"""
         level = "INFO" if success else "ERROR"
         EVENT_BUS.log.message.emit(msg, level)
 
-    @pyqtSlot()
+    @pyqtSlot() # type: ignore
     def _cleanup(self):
         """
         실행 중인 스레드(사무실)와 워커(비서)를
@@ -354,7 +354,7 @@ class PLCService(QObject):
             is_busy = self.is_running
             EVENT_BUS.data.servo_busy_status.emit({'is_busy': is_busy})
 
-        except Exception as e:
+        except Exception:
             # 모니터링 중 에러는 로그를 남기지 않음 (로그 폭주 방지)
             pass
 
@@ -364,7 +364,7 @@ class PLCService(QObject):
     # [비동기] 서보 모터 제어 (Worker 사용)
     # ==========================================================
     
-    def move_servo_by_manual(self, data: dict):
+    def move_servo_by_manual(self, data: Dict[str, Any]):
         """
         서보 수동 조작
         
