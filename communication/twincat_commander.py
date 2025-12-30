@@ -595,7 +595,11 @@ class TwinCATCommander(QObject):
         # 로봇 상태 확인
         robot_busy = False
         if self.robot:
-            robot_busy = self.robot.read_busy_signal()
+            try:
+                robot_busy = self.robot.read_busy_signal()
+            except Exception:
+                # 로봇 연결이 없거나 변수가 없을 때 에러 무시 (False 반환)
+                robot_busy = False
 
         # 서보모터 상태 확인 (모든 3축 확인)
         servo_busy = False
@@ -603,7 +607,8 @@ class TwinCATCommander(QObject):
             try:
                 servo_busy = any(self.servo.is_servo_moving_physically(axis) for axis in ServoAxis)
             except Exception as e:
-                EVENT_BUS.log.message.emit(f"서보모터 상태 확인 중 오류: {e}", "WARNING")
+                # 반복 호출되므로 로그 레벨을 DEBUG로 낮춤
+                EVENT_BUS.log.message.emit(f"서보모터 상태 확인 중 오류: {e}", "DEBUG")
                 servo_busy = False
 
         # 둘 중 하나라도 바쁘면 시스템은 바쁜 것
