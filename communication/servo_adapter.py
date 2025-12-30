@@ -163,58 +163,46 @@ class ServoAdapter:
     # ==========================================================================
     # 안전 정지 (Stop & Safety)
     # ==========================================================================
-    def stop_axis(self, axis_index: int):
-        """
-        [개별 정지] 특정 축을 안전하게 정지시킨다.
-        원본 1219_Test.py의 's' 키 입력 시 동작 로직을 그대로 구현함.
-        
-        시퀀스:
-            1. 이동 신호(MoveVel/MoveAbs) 끄기 (Latch 해제)
-            2. 정지 신호(bStop) 켜기
-            3. 0.5초 대기 (감속 및 정지 시간 확보)
-            4. 정지 신호(bStop) 끄기 (Reset)
-        """
+    def _set_axis_stop_signals(self, axis: ServoAxis, active: bool):
+        """내부용: 특정 축의 정지 관련 신호(Move 해제 및 Stop 신호)를 일괄 설정"""
         plc = self._plc
+        if active:
+            # 이동 신호 해제 (Latch 풀기)
+            if axis in [ServoAxis.TOOL_REVOLUTION, ServoAxis.TOOL_ROTATION]:
+                plc.write_by_name(ServoSignal.MOVE_VEL.path(axis), False, pyads.PLCTYPE_BOOL)
+            elif axis == ServoAxis.TURNTABLE:
+                plc.write_by_name(ServoSignal.MOVE_ABS.path(axis), False, pyads.PLCTYPE_BOOL)
+        
+        # 정지 신호 설정 (True: 정지 신호 인가 / False: 정지 신호 해제)
+        plc.write_by_name(ServoSignal.STOP.path(axis), active, pyads.PLCTYPE_BOOL)
 
-        # 1. 이동 신호 해제 (Latch 풀기)
-        #    속도 제어용(Axis 1,2)과 위치 제어용(Axis 3) 신호를 구분하여 해제
-        if axis_index in [1, 2]:
-            plc.write_by_name(ServoSignal.MOVE_VEL.path(axis_index), False, pyads.PLCTYPE_BOOL)
-        elif axis_index == 3:
-            plc.write_by_name(ServoSignal.MOVE_ABS.path(axis_index), False, pyads.PLCTYPE_BOOL)
-        
-        # 2. 정지 신호 인가 (bStop = True)
-        plc.write_by_name(ServoSignal.STOP.path(axis_index), True, pyads.PLCTYPE_BOOL)
-        
-        # 3. 물리적 감속 대기 (원본 코드의 time.sleep(0.5) 반영)
-        time.sleep(0.5)
-        
-        # 4. 정지 신호 해제 (다시 움직일 수 있게 준비)
-        plc.write_by_name(ServoSignal.STOP.path(axis_index), False, pyads.PLCTYPE_BOOL)
+    def stop_axis(self, axis: ServoAxis):
+        """[개별 정지] 특정 축을 안전하게 정지시킨다."""
+        self._set_axis_stop_signals(axis, True)     # 정지 신호 인가
+        time.sleep(0.5)                             # 원본 코드 0.5초 준수
+        self._set_axis_stop_signals(axis, False)    # 정지 신호 해제
 
     def request_immediate_stop(self):
         """모든 축에 정지 명령 내림"""
-        plc = self._plc
         errors = []
 
         # (A) 모든 축 이동 해제 & 정지 신호 ON
-        for i in ServoAxis:
+        for axis in ServoAxis:
             try:
-                # 멈춤 신호 전송
-                plc.write_by_name(ServoSignal.MOVE_VEL.path(i), False, pyads.PLCTYPE_BOOL)
+                self._set_axis_stop_signals(axis, True)
             except Exception as e:
                 # 실패하면 로그 모아두고 다음 축 정지 명령 시도
-                errors.append(f"Axis {i.name} 정지 명령 실패: {e}")
-            
+                errors.append(f"Axis {axis.name} 정지 명령 실패: {e}")
+
         # (B) 물리적 감속을 위한 공통 대기 (원본 코드 0.5초 준수)
         time.sleep(0.5)
 
         # (C) 정지 신호 해제 (다음 동작이 가능하도록 Reset)
-        for i in ServoAxis:
+        for axis in ServoAxis:
             try:
-                plc.write_by_name(ServoSignal.STOP.path(i), False, pyads.PLCTYPE_BOOL)
+                self._set_axis_stop_signals(axis, False)
             except Exception as e:
-                errors.append(f"Axis {i.name} 정지 해제 실패: {e}")
+                errors.append(f"Axis {axis.name} 정지 해제 실패: {e}")
 
         # 멈추지 않은 축이 있다면 예외를 던짐
         if errors:
@@ -230,13 +218,13 @@ class ServoAdapter:
             start_time = time.time()
             while time.time() - start_time < timeout:
                 # 모든 축이 속도 임계값(is_servo_moving_physically) 이하인지 체크
-                if not any(self.is_servo_moving_physically(i) for i in ServoAxis):
+                if not any(self.is_servo_moving_physically(axis) for axis in ServoAxis):
                     break
                 time.sleep(0.1)
 
             # 3. 모든 축 서보 전원 차단
-            for i in ServoAxis:
-                self.set_servo_state(i, False)
+            for axis in ServoAxis:
+                self.set_servo_state(axis, False)
             return True
 
         except Exception:
