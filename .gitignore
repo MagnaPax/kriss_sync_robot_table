@@ -812,6 +812,7 @@ modules.xml
 
 # 설정값 저장 파일 
 config/*.json
+config/settings.ini
 tests/테스트_종류.md
 
 
