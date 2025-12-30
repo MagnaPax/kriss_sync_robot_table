@@ -1,5 +1,7 @@
 # utils/file_exceptions.py
 
+from pathlib import Path
+
 class FileOperationError(Exception):
     """
     파일 입출력 과정에서 발생하는 예외를 도메인 특화 예외로 캡슐화(Wrapping)
@@ -40,7 +42,7 @@ class FileOperationError(Exception):
                 return None        
     """
 
-    def __init__(self, message, original_exc, path):
+    def __init__(self, message: str, original_exc: Exception, path: Path):
         super().__init__(message)
         self.original = original_exc
         self.path = path

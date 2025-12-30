@@ -1,6 +1,5 @@
 # utils/env.py
 import sys, os
-import logging
 
 from enum import Enum
 from pathlib import Path
