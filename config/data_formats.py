@@ -13,7 +13,7 @@
     from config.data_formats import TXT_SCHEMA, CSV_SCHEMA
 """
 
-from typing import List, Dict
+from typing import Dict, Any
 
 # =============================================================================
 # [CONSTANTS] 데이터 키 상수 정의 (최상단 배치로 NameError 방지 및 Magic String 제거)
@@ -59,7 +59,7 @@ KEY_LEGACY_Z        = 'axis_z'
 # 용도: 로봇 팔과 턴테이블을 동시에 제어하는 시퀀스 파일 (*.csv)
 # 특징: 'TwinCATCommander'의 'IntegratedExecutor'에서 사용됨
 # 매핑: 파일 헤더(Key) -> 내부 변수명(Name) & 데이터 타입(Type)
-CSV_SCHEMA: dict[str, dict] = {
+CSV_SCHEMA: Dict[str, Dict[str, Any]] = {
     'PRLINE': {'name': KEY_ID,           'type': int},      # 시퀀스 고유 번호 (Key로 사용됨)
     'F':      {'name': KEY_TT_FEED,      'type': float},    # 턴테이블 회전 속도
     'U':      {'name': KEY_POLAR_THETA,  'type': float},    # 극좌표계 Theta (각도) -> 턴테이블 회전량
@@ -72,7 +72,7 @@ CSV_SCHEMA: dict[str, dict] = {
 # 용도: 구형 시퀀스 파일 (*.txt)
 # 특징: 로봇 좌표(X~R) 외에도 턴테이블(T) 및 툴 회전(M, N) 제어가 포함됨
 # 주의: 파일에 헤더가 없으므로 '순서'가 매우 중요함 (인덱스 0~9 매핑)
-TXT_SCHEMA: dict[str, dict] = {
+TXT_SCHEMA: Dict[str, Dict[str, Any]] = {
     'F': {'name': 'feed_rate',       'type': float},        # 이동 속도 (deg/sec) 또는 (mm/sec)
     'T': {'name': KEY_TT_DEG,        'type': float},        # 턴테이블 각도 (deg)
     'X': {'name': KEY_LEGACY_X,      'type': float},        # X 좌표 (mm)
@@ -118,7 +118,7 @@ MACRO_UI_LABELS: Dict[str, str] = {
 # 용도: 내부 데이터를 PLC(TwinCAT/FANUC)가 이해할 수 있는 키로 최종 변환
 # 매핑: 내부 변수명(Source) -> PLC 데이터 키(Key)
 # 위치: Worker의 _transform_to_fanuc_format 메서드에서 참조함
-FANUC_SCHEMA: dict[str, dict] = { 
+FANUC_SCHEMA: Dict[str, Dict[str, Any]] = { 
     'F': {'source': 'feed', 'type': float},
     'X': {'source': KEY_X,  'type': float},
     'Y': {'source': KEY_Y,  'type': float},
@@ -134,7 +134,7 @@ FANUC_SCHEMA: dict[str, dict] = {
 # =============================================================================
 # 용도: 3개의 서보 모터에 대한 축 매핑, 제어 모드, 단위 변환 계수 정의
 # 위치: ServoAdapter나 Executor에서 참조하여 명령 생성 시 사용
-SERVO_SCHEMA: dict[str, dict] = {
+SERVO_SCHEMA: Dict[str, Dict[str, Any]] = {
     # -----------------------------------------------------------
     # Axis 1: Tool Revolution (공전)
     # -----------------------------------------------------------
