@@ -1,9 +1,8 @@
 # ui/panels/left_panel.py
-from PyQt6.QtWidgets import QFrame, QVBoxLayout, QGroupBox
-from typing import TYPE_CHECKING
+from PyQt6.QtWidgets import QFrame, QVBoxLayout, QGroupBox, QWidget
+from typing import TYPE_CHECKING, Optional
 from ..widgets import LogoWidget
 from ..widgets import TurntableWidget
-from ..widgets import CurrentStateWidget
 from ui.widgets.servo_control_widget import ServoControlWidget
 from ui.widgets.target_position_widget import TargetPositionWidget
 
@@ -14,7 +13,7 @@ if TYPE_CHECKING:
 
 
 class LeftPanel(QFrame):
-    def __init__(self, view_model: "MainViewModel", parent=None):    # 부모가 없을 수도 있다(독립적 테스트 가능)
+    def __init__(self, view_model: "MainViewModel", parent: Optional[QWidget] = None):    # 부모가 없을 수도 있다(독립적 테스트 가능)
         super().__init__(parent)
 
         # 뷰모델 저장 (나중에 자식 위젯들이 데이터 필요할 때 여기서 꺼내 줌)

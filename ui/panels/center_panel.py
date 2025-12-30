@@ -1,6 +1,6 @@
 # ui/panels/center_panel.py
-from typing import TYPE_CHECKING
-from PyQt6.QtWidgets import QFrame, QVBoxLayout, QGroupBox
+from typing import TYPE_CHECKING, Optional
+from PyQt6.QtWidgets import QFrame, QVBoxLayout, QWidget
 from ui.widgets.robot_position_widget import RobotPositionWidget
 from ui.widgets.target_position_widget import TargetPositionWidget
 from ui.widgets.world_coordinates_widget import WorldCoordinatesWidget
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 class CenterPanel(QFrame):
-    def __init__(self, view_model: "MainViewModel", parent=None):
+    def __init__(self, view_model: "MainViewModel", parent: Optional[QWidget] = None):
         super().__init__(parent)
 
         self.vm = view_model  # 메인 뷰모델 저장 (필요 시 사용)
