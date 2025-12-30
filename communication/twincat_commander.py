@@ -237,7 +237,7 @@ class ServoOnlyExecutor(BaseExecutor):
                     adapter.stop_axis(ServoAxis.TOOL_REVOLUTION)
 
                 # 명령 후 즉시 에러 체크
-                err_rev = adapter.is_error_active(ServoAxis.TOOL_REVOLUTION)
+                err_rev = adapter.is_servo_error_active(ServoAxis.TOOL_REVOLUTION)
                 if err_rev['error']:
                     EVENT_BUS.log.message.emit(f"Axis 1 에러 발생! ID: {err_rev['id']}", "ERROR")
 
@@ -250,7 +250,7 @@ class ServoOnlyExecutor(BaseExecutor):
                     adapter.stop_axis(ServoAxis.TOOL_ROTATION)
 
                 # 명령 후 즉시 에러 체크
-                err_rot = adapter.is_error_active(ServoAxis.TOOL_ROTATION)
+                err_rot = adapter.is_servo_error_active(ServoAxis.TOOL_ROTATION)
                 if err_rot['error']:
                     EVENT_BUS.log.message.emit(f"Axis 2 에러 발생! ID: {err_rot['id']}", "ERROR")
 
