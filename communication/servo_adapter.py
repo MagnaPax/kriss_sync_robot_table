@@ -1,10 +1,9 @@
 # communication/turntable_adapter.py
 import time
 import pyads
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING, Union, Dict, Any
 from communication.twincat_connector import TwinCATConnector
-from models.servo_pose_key import ServoPoseKey, ServoSignal
-from models.servo_pose_model import ServoPose
+from models.servo_pose_key import ServoSignal
 from models.servo_pose_key import ServoAxis
 from core.exceptions import ServoBusyError, ServoFaultError
 
@@ -240,7 +239,7 @@ class ServoAdapter:
                 self.set_servo_state(i, False)
             return True
 
-        except Exception as e:
+        except Exception:
             return False
 
 
@@ -256,7 +255,7 @@ class ServoAdapter:
         val = self._plc.read_by_name(path, pyads.PLCTYPE_BOOL)
         return bool(val)
 
-    def read_current_servo_motion(self, axis_index: int) -> dict:
+    def read_current_servo_motion(self, axis_index: int) -> Dict[str, Any]:
         """
         [피드백] 현재 위치와 속도를 읽어온다.
         PLC: MAIN.Act_pos{i}, MAIN.Act_vel{i}
@@ -277,7 +276,7 @@ class ServoAdapter:
         feedback = self.read_current_servo_motion(axis_index)
         return abs(feedback['velocity']) > threshold
 
-    def is_servo_error_active(self, axis_index: int) -> dict:
+    def is_servo_error_active(self, axis_index: int) -> Dict[str, Any]:
         """
         [상태 확인] 해당 축에 에러가 발생했나 확인
         """
@@ -300,7 +299,7 @@ class ServoAdapter:
             pyads.PLCTYPE_BOOL
         ))
 
-    def _get_servo_error_info(self, axis_index: int) -> dict:
+    def _get_servo_error_info(self, axis_index: int) -> Dict[str, Any]:
         """에러 상태와 ID를 읽어서 반환 (순수 데이터 조회)"""
         is_error = self.has_servo_error(axis_index)
         error_id = 0

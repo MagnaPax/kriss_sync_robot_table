@@ -9,24 +9,17 @@ TwinCAT Commander (Model Layer)
 import time
 from PyQt6.QtCore import QThread, QObject
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, List, Any
+from typing import List, Any, Optional, Dict
 
 from core.event_bus import EVENT_BUS
 from communication.fanuc_adapter import FanucAdapter
 from communication.servo_adapter import ServoAdapter
 from communication.twincat_connector import TwinCATConnector
-from core.settings import SETTINGS
-from models.fanuc_pose_model import FANUCPoseModel
+from models.fanuc_pose_model import FANUCPose
 from models.servo_pose_model import ServoPoseModel
 from config.data_formats import TaskStatus, SERVO_KEYS, ROBOT_KEYS
 from models.servo_pose_key import ServoAxis
 
-
-
-# 타입 검사기(Pylance)에게만 MockConnection의 존재를 알려줌
-# 순환 참조(Circular Import) 오류를 방지하면서 타입 힌트를 제공하기 위해
-if TYPE_CHECKING:
-    from communication.mock_plc import MockConnection
 
 
 # =========================================================
@@ -38,12 +31,12 @@ class BaseExecutor(ABC):
         self.servo = servo
 
     @abstractmethod
-    def can_execute(self, sample_data: dict) -> bool:
+    def can_execute(self, sample_data: Dict[str, Any]) -> bool:
         """이 데이터 형식을 처리할 수 있는지 확인"""
         pass
 
     @abstractmethod
-    def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
+    def execute(self, sequence_data: List[Dict[str, Any]]) -> tuple[bool, str]:
         """실제 실행 로직"""
         pass
 
@@ -55,14 +48,14 @@ class BaseExecutor(ABC):
 class FanucOnlyExecutor(BaseExecutor):
     """로봇 단독 제어"""
 
-    def can_execute(self, sample_data: dict) -> bool:
+    def can_execute(self, sample_data: Dict[str, Any]) -> bool:
         data_keys = set(sample_data.keys())
         has_robot = not ROBOT_KEYS.isdisjoint(data_keys)
         has_servo = not SERVO_KEYS.isdisjoint(data_keys)
         # 로봇 키가 있고, 서보 키는 없을 때
         return has_robot and not has_servo
 
-    def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
+    def execute(self, sequence_data: List[Dict[str, Any]]) -> tuple[bool, str]:
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] FANUC 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 에서 처리될 전체 데이터\n{(sequence_data)}\n", "DEBUG")
 
@@ -179,14 +172,14 @@ class ServoOnlyExecutor(BaseExecutor):
     BUSY_WAIT_TIMEOUT = 5.0   # 명령 후 Busy가 뜰 때까지 기다리는 시간
     MOVE_TIMEOUT = 60.0       # 턴테이블 이동 최대 허용 시간
 
-    def can_execute(self, sample_data: dict) -> bool:
+    def can_execute(self, sample_data: Dict[str, Any]) -> bool:
         data_keys = set(sample_data.keys())
         has_robot = not ROBOT_KEYS.isdisjoint(data_keys)
         has_servo = not SERVO_KEYS.isdisjoint(data_keys)
         # 서보 키가 있고, 로봇 키는 없을 때
         return has_servo and not has_robot
 
-    def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
+    def execute(self, sequence_data: List[Dict[str, Any]]) -> tuple[bool, str]:
         """
         [두뇌] 시퀀스 데이터를 순차적으로 실행
         Returns: (성공여부, 결과메시지)
@@ -266,7 +259,7 @@ class ServoOnlyExecutor(BaseExecutor):
                         adapter.request_immediate_stop()
 
                         # 실패 사유 파악 (중단 vs 타임아웃)
-                        msg = "작업 중단됨" if self._is_interrupted else f"턴테이블 응답 없음 또는 시간 초과 ({self.MOVE_TIMEOUT}s)"
+                        msg = "작업 중단됨" if self._is_interrupted() else f"턴테이블 응답 없음 또는 시간 초과 ({self.MOVE_TIMEOUT}s)"
                         return False, msg
 
                 # 개발용 로그
@@ -312,7 +305,7 @@ class ServoOnlyExecutor(BaseExecutor):
                 EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 경고: 정지 대기 시간 초과({self.MOVE_TIMEOUT}s). 되었거나 종료 절차 중 오류가 발생하였습니다.", "WARNING")
 
 
-    def _wait_for_turntable_completion(self, axis_idx: int, target_pos: float = None) -> bool:
+    def _wait_for_turntable_completion(self, axis_idx: int, target_pos: Optional[float] = None) -> bool:
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] {axis_idx}축 이동 완료 대기 중...", "DEBUG")
         """
         턴테이블 이동 완료 대기 (Busy Check + Timeout)
@@ -405,7 +398,7 @@ class IntegratedExecutor(BaseExecutor):
     """
     CSV 파일 형식 (로봇 + 턴테이블 통합 제어)
     """
-    def can_execute(self, sample_data: dict) -> bool:
+    def can_execute(self, sample_data: Dict[str, Any]) -> bool:
         data_keys = set(sample_data.keys())
         # CSV 통합 키 (polar_coord_...) 가 포함되어 있는지 확인
         #   통합 제어는 로봇과 서보 키가 같이 있다
@@ -413,7 +406,7 @@ class IntegratedExecutor(BaseExecutor):
         has_servo = not SERVO_KEYS.isdisjoint(data_keys)
         return has_robot and has_servo and ('polar_coord_theta' in data_keys or 'polar_coord_radius' in data_keys)
 
-    def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
+    def execute(self, sequence_data: List[Dict[str, Any]]) -> tuple[bool, str]:
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] CSV 파일 통합 제어 모드로 실행 (데이터 {len(sequence_data)}건)", "INFO")
 
         # 처리할 전체 시퀀스 데이터 방송
@@ -495,14 +488,14 @@ class LegacyIntegratedExecutor(BaseExecutor):
     레거시 TXT 파일 형식
     """
 
-    def can_execute(self, sample_data: dict) -> bool:
+    def can_execute(self, sample_data: Dict[str, Any]) -> bool:
         data_keys = set(sample_data.keys())
         # TXT 레거시 키 (axis_x, Y...) 와 서보 키가 공존할 때
         has_legacy_robot = any(k in data_keys for k in ['axis_x', 'axis_y', 'axis_z', 'feed_rate'])
         has_servo = not SERVO_KEYS.isdisjoint(data_keys)
         return has_legacy_robot and has_servo
 
-    def execute(self, sequence_data: list[dict]) -> tuple[bool, str]:
+    def execute(self, sequence_data: List[Dict[str, Any]]) -> tuple[bool, str]:
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 레거시 파일 모드로 실행 (데이터 {len(sequence_data)}건)", "INFO")
 
         # 처리할 전체 시퀀스 데이터 방송
@@ -535,7 +528,7 @@ class TwinCATCommander(QObject):
             ServoOnlyExecutor(self.robot, self.servo)           # 서보 단독
         ]
 
-    def execute_sequence_with_executor(self, sequence_data: list[dict[str, Any]]) -> tuple[bool, str]:
+    def execute_sequence_with_executor(self, sequence_data: List[Dict[str, Any]]) -> tuple[bool, str]:
         """
         데이터 형식에 따라 적절한 Executor를 선택하여 실행하는 [게이트웨이]
             1. 데이터의 첫 줄을 샘플로 채취하여 적절한 실행기를 찾는다
@@ -599,7 +592,7 @@ class TwinCATCommander(QObject):
             try:
                 servo_busy = any(self.servo.is_servo_moving_physically(axis) for axis in ServoAxis)
             except Exception as e:
-                EVENT_BUS.log.error.emit(f"서보모터 상태 확인 중 오류: {e}", "WARNING")
+                EVENT_BUS.log.message.emit(f"서보모터 상태 확인 중 오류: {e}", "WARNING")
                 servo_busy = False
 
         # 둘 중 하나라도 바쁘면 시스템은 바쁜 것

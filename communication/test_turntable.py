@@ -6,8 +6,6 @@ TurntableOnlyExecutor 독립 실행 테스트
 
 python -m communication.test_turntable
 """
-import sys
-import time
 from typing import List, Dict, Any
 
 from utils.dll_loader import load_pyads_dll
@@ -17,9 +15,10 @@ try:
 except Exception as e:
     print(f"⚠️ DLL 로드 실패: {e}")
 
-from core.event_bus import EVENT_BUS
 from communication.twincat_connector import TwinCATConnector
 from communication.twincat_commander import TwinCATCommander
+from communication.fanuc_adapter import FanucAdapter
+from communication.servo_adapter import ServoAdapter
 from core.log_listener import LogListener
 
 # =========================================================
@@ -50,7 +49,7 @@ def run_test():
         print(f"⚠️ DLL 로드 실패 (환경에 따라 무시 가능): {e}")
 
     # 2. 로그 리스너 활성화 (EventBus 로그를 콘솔에 출력)
-    listener = LogListener()
+    _ = LogListener()
     print("✅ LogListener 활성화")
 
     # 3. TwinCAT 연결 (Mock/Real)
@@ -65,7 +64,9 @@ def run_test():
         return
 
     # 4. Commander 생성
-    commander = TwinCATCommander(connector)
+    fanuc = FanucAdapter(connector)
+    servo = ServoAdapter(connector)
+    commander = TwinCATCommander(connector, fanuc, servo)
     print("✅ TwinCATCommander 초기화 완료")
 
     # 5. 실행 요청 (Gateway가 TurntableOnlyExecutor를 잘 선택하는지 확인)

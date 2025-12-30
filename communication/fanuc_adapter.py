@@ -1,8 +1,7 @@
 # communication/fanuc_adapter.py
 import time
 import pyads
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Union, Dict
 from communication.twincat_connector import TwinCATConnector
 from models.fanuc_pose_key import FANUCPoseKey, FanucSignal
 from models.fanuc_pose_model import FANUCPose
@@ -140,7 +139,7 @@ class FanucAdapter:
         self._send_feed(feed_rate)
 
 
-    def send_data_packet(self, feed_rate: float, delta: dict):
+    def send_data_packet(self, feed_rate: float, delta: Dict[str, float]):
         """
         [데이터 패킷 전송]
         속도(Feed)와 6개 축의 이동량(Delta)을 한 번에 전송
