@@ -1,4 +1,5 @@
 # view_models/world_coordinates_viewmodel.py
+from typing import Dict
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 from core.event_bus import EVENT_BUS
 from models.fanuc_pose_model import FANUCPose
@@ -27,7 +28,7 @@ class WorldCoordinatesViewModel(QObject):
 
 
     @pyqtSlot(dict)
-    def _on_servo_data_received(self, servo_states: dict):
+    def _on_servo_data_received(self, servo_states: Dict[ServoAxis, ServoPose]):
         """
         분배기 역할
             EventBus에서 통째로 넘어온 dict 꾸러미를 풀어서 
