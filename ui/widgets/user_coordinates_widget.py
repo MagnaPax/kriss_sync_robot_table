@@ -104,17 +104,17 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
     @pyqtSlot()
     def _on_robot_origin_clicked(self):
         """"""
-        print("로봇")
+        self._handle_robot_origin()
 
     @pyqtSlot()
     def _on_servo_origin_clicked(self):
         """"""
-        print("서보")
+        self._handle_servo_origin()
 
     @pyqtSlot()
     def _on_origin_all_clicked(self):
         """"""
-        print("전체")
+        self._handle_origin_all()
 
 
 
@@ -122,7 +122,17 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
     # 핸들러 [논리적 흐름 담당]
     #   - 입력 데이터 가공 및 뷰모델 통신
     # ===============================================
+    def _handle_robot_origin(self):
+        if not (vm := self.viewmodel): return
+        vm.origin_robot_pose()
 
+    def _handle_servo_origin(self):
+        if not (vm := self.viewmodel): return
+        vm.origin_servo_pose()
+
+    def _handle_origin_all(self):
+        if not (vm := self.viewmodel): return
+        vm.origin_all_pose()
 
 
 
