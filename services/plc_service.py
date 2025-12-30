@@ -26,6 +26,10 @@ class PLCService(QObject):
         super().__init__()
         self._log_prefix = f"[{self.__class__.__name__}]"
         
+        # 장치 활성 상태 플래그 (통신 에러 시 자동 비활성화)
+        self._is_robot_active = True
+        self._is_servo_active = True
+        
         # 1. 연결 담당 (지갑)
         self.connector = TwinCATConnector()
 
@@ -318,45 +322,74 @@ class PLCService(QObject):
     # ==========================================================
     # 실시간 데이터 수집 루프
     # ==========================================================
-    def _on_monitor_tick(self):
-        """
-        0.1초마다 실행되어 로봇/턴테이블의 현재 상태를 읽고 UI에 방송
-        """
-        if not self.connector.is_connected: return
+    def _check_current_status_robot(self):
+        """로봇 상태 모니터링"""
+        if not self._is_robot_active: return
 
         try:
-            # --- 1. 위치 방송 (FANUC World 좌표)--- #
             # FANUC World 현재 위치 읽기 & 방송
             world_pose = self.commander.robot.read_current_world_pose()
             EVENT_BUS.control.robot_current_pose.emit(world_pose)
+        except Exception as e:
+            # 변수를 찾을 수 없으면(1808) 모니터링 중단
+            if "1808" in str(e) or "symbol not found" in str(e).lower():
+                self._is_robot_active = False
+                EVENT_BUS.log.message.emit(f"로봇 변수 미발견. 로봇 모니터링을 중지합니다.", "WARNING")
+            else:
+                EVENT_BUS.log.message.emit(f"로봇 모니터링 에러: {e}", "DEBUG")
 
-            # FANUC 이동해야 될 목표 위치 확인 & 방송 <- 개발용
-            # target_pose = self.commander.robot.read_target_world_pose()
-            # EVENT_BUS.control.tool_current_pose.emit(target_pose)
+    def _check_current_status_servo(self):
+        """서보 상태 모니터링"""
+        if not self._is_servo_active: return
 
-            # --- 2. 서보모터 상태 방송 --- #
+        try:
             # 3개 축의 데이터를 담을 딕셔너리 생성
             servo_states = {}
             for axis in ServoAxis:
-                # 어댑터에서 데이터(딕셔너리) 읽기
-                raw_data = self.commander.servo.read_current_servo_motion(axis)
-
-                # ServoPose 모델로 Mapping
-                servo_states[axis] = ServoPose(
-                    angle=raw_data['position'],
-                    velocity=raw_data['velocity']
-                )
+                try:
+                    # 어댑터에서 데이터(딕셔너리) 읽기
+                    raw_data = self.commander.servo.read_current_servo_motion(axis)
+                    
+                    # ServoPose 모델로 Mapping
+                    servo_states[axis] = ServoPose(
+                        angle=raw_data['position'],
+                        velocity=raw_data['velocity']
+                    )
+                except Exception as e:
+                    # 특정 축 에러 시 로그 남기고 다음 축 계속 진행
+                    # 디버깅용 로그만 출력 - 실제 운영 시 로그 폭주(0.1초마다 발생)
+                    if "1808" in str(e) or "symbol not found" in str(e).lower():
+                        # 서보 변수가 없으면 전체 서보 모니터링 중단
+                        self._is_servo_active = False
+                        EVENT_BUS.log.message.emit(f"서보 변수 미발견. 서보 모니터링을 중지합니다.", "WARNING")
+                        return # 더 이상 루프 돌지 않고 종료
+                    else:
+                        EVENT_BUS.log.message.emit(f"서보 모니터링 에러 ({axis.name}): {e}", "DEBUG")
             
-            # 방송 -> Dict[int, ServoPose] 형태
-            EVENT_BUS.control.servo_current_motion.emit(servo_states)
+            # 수집된 데이터가 있으면 방송
+            if servo_states:
+                EVENT_BUS.control.servo_current_motion.emit(servo_states)
 
             # --- 3. 바쁨 상태 방송 --- #
             is_busy = self.is_running
             EVENT_BUS.data.servo_busy_status.emit({'is_busy': is_busy})
 
-        except Exception:
-            # 모니터링 중 에러는 로그를 남기지 않음 (로그 폭주 방지)
-            pass
+        except Exception as e:
+            # 디버깅용 로그만 출력 - 실제 운영 시 로그 폭주(0.1초마다 발생)
+            EVENT_BUS.log.message.emit(f"모니터링 전체 에러: {e}", "DEBUG")
+
+    def _on_monitor_tick(self):
+        """
+        0.1초마다 실행되어 로봇/턴테이블의 현재 상태를 읽고 UI에 방송
+        """
+        try:
+            if not self.connector.is_connected: return
+            self._check_current_status_robot()
+            self._check_current_status_servo()
+        except Exception as e:
+            # 타이머 루프 내의 예상치 못한 에러는 로그만 남기고 앱 종료를 막아야 함
+            EVENT_BUS.log.message.emit(f"모니터링 루프 오류: {e}", "ERROR")
+
 
 
 
