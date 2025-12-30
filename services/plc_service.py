@@ -1,7 +1,7 @@
 # services/plc_service.py
 import time
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import QObject, QTimer, QThread
+from PyQt6.QtCore import QObject, QTimer, QThread, pyqtSlot
 
 from typing import Any, Dict, List, Optional, Callable
 from core.event_bus import EVENT_BUS

@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import List, Dict, Any
 from core.event_bus import EVENT_BUS
 from workers.sequence_worker import SequenceWorker
-from PyQt6.QtCore import QObject, QThread
+from PyQt6.QtCore import QObject, QThread, pyqtSlot
 
 
 
