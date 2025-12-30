@@ -5,7 +5,7 @@
 - 명령 및 로직 요청
 """
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Dict, Any
 from core.event_bus import EVENT_BUS
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, QTimer
 
@@ -110,7 +110,7 @@ class TaskManagerViewModel(QObject):
 
     # --- 슬롯 메서드 --- #
     @pyqtSlot(list)
-    def _on_sequence_data_updated(self, data: list):
+    def _on_sequence_data_updated(self, data: List[Dict[str, Any]]):
         """Event Bus를 통해 온 시퀀스 데이터를 캐싱"""
         self._cached_sequence_data = data
 
@@ -134,7 +134,7 @@ class TaskManagerViewModel(QObject):
 
 
     @pyqtSlot(int, int, str)
-    def _check_sequence_finished(self, current_step, total_steps, status):
+    def _check_sequence_finished(self, current_step: int, total_steps: int, status: str):
         """진행 상황을 감시하다가 끝났으면 타이머 정지"""
 
         # 마지막 스텝이고 + 상태가 '처리완료(processed)'라면

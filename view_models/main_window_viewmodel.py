@@ -1,4 +1,5 @@
 # viewmodels/main_window_viewmodel.py
+from typing import Callable, Any
 from core.event_bus import EVENT_BUS
 from services.plc_service import PLCService
 from PyQt6.QtCore import QObject, pyqtSignal
@@ -96,7 +97,7 @@ class MainViewModel(QObject):
         """연결 해제 요청"""
         self._service.disconnect_plc()
 
-    def retry_connection(self, ui_callback) -> bool:
+    def retry_connection(self, ui_callback: Callable[..., Any]) -> bool:
         """
         재접속 시도 (View의 콜백 함수를 받아 Service에 전달)
         """
