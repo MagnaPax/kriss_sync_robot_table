@@ -1,4 +1,5 @@
 # ui/widgets/user_coordinates.py
+from PyQt6.QtCore import pyqtSlot
 from PyQt6.QtWidgets import QGroupBox, QPushButton, QWidget
 from ui.widgets.world_coordinates_widget import WorldCoordinatesWidget
 from typing import TYPE_CHECKING, Optional
@@ -14,7 +15,9 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
     WorldCoordinatesWidget의 UI 구조를 상속받아 재사용하며,
     ViewModel과 데이터 바인딩만 별도로 처리한다.
     """
-    
+    # ========================================
+    # 초기화 및 설정 (Initialization)
+    # ========================================
     def __init__(self, parent: Optional[QWidget] = None):
         # ViewModel 타입 힌트 재정의를 위해 초기화
         self.btn_robot_origin = None
@@ -32,10 +35,14 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
         """UserCoordinatesViewModel의 시그널 연결 (Override)"""
         if not self.viewmodel: return
         
-        # TODO: UserCoordinatesViewModel에 시그널이 정의되면 연결
-        # 예: self.viewmodel.pose_changed.connect(self.safe_update_data)
-        pass
+        if btn := self.btn_robot_origin: btn.clicked.connect(self._on_robot_origin_clicked)
+        if btn := self.btn_servo_origin: btn.clicked.connect(self._on_servo_origin_clicked)
+        if btn := self.btn_reset: btn.clicked.connect(self._on_origin_all_clicked)
 
+
+    # ========================================
+    # UI 구성 (Initialization)
+    # ========================================
     def _init_ui(self):
         """UI 초기화 (부모 클래스 로직 재사용 + 커스터마이징)"""
         # 1. WorldCoordinatesWidget의 UI 구성 로직 실행
@@ -43,9 +50,8 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
         
         self.setObjectName("user_coordinates_widget")   # QSS ID
 
-        # 2. 그룹박스 제목 변경 ("System Coordinates" -> "User Coordinates")
-        # WorldCoordinatesWidget의 레이아웃 구조상 첫 번째 아이템이 그룹박스임
         layout = self.layout()
+
         if layout and layout.count() > 0:
             item = layout.itemAt(0)
             if item and (widget := item.widget()) and isinstance(widget, QGroupBox):
@@ -68,6 +74,10 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
                     gb_layout.addWidget(self.btn_servo_origin)
                     gb_layout.addWidget(self.btn_reset)
 
+
+    # ===============================================
+    # 데이터 처리
+    # ===============================================
     def clear_widget(self):
         """위젯 상태 초기화"""
         # 라벨 텍스트 초기화
@@ -85,6 +95,42 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
 
         # 부모 클래스의 초기화(데이터 비우기) 호출
         super().clear_widget()
+
+
+    # ===============================================
+    # 이벤트 슬롯 [물리적 신호 처리]
+    #   - 사용자 입력(클릭, 선택)에 대한 신호 처리
+    # ===============================================
+    @pyqtSlot()
+    def _on_robot_origin_clicked(self):
+        """"""
+        print("로봇")
+
+    @pyqtSlot()
+    def _on_servo_origin_clicked(self):
+        """"""
+        print("서보")
+
+    @pyqtSlot()
+    def _on_origin_all_clicked(self):
+        """"""
+        print("전체")
+
+
+
+    # ===============================================
+    # 핸들러 [논리적 흐름 담당]
+    #   - 입력 데이터 가공 및 뷰모델 통신
+    # ===============================================
+
+
+
+
+
+
+
+
+
 
 
 
