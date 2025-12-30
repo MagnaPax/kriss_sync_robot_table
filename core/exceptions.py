@@ -16,7 +16,7 @@ class ServoBusyError(AppError):  # AppError 상속
 
 class ServoFaultError(AppError): # AppError 상속
     """서보에 에러(bError)가 있을 때 발생하는 예외"""
-    def __init__(self, axis_name, error_id, msg):
+    def __init__(self, axis_name: str, error_id: int, msg: str):
         self.axis_name = axis_name
         self.error_id = error_id
         self.message = msg

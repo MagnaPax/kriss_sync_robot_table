@@ -72,7 +72,7 @@ View → ViewModel → Service → Worker
     EVENT_BUS.시그널이름.connect(self.on_log_message)
 """
 
-from PyQt6.QtCore import QObject, pyqtSignal, QMetaObject, QMetaMethod
+from PyQt6.QtCore import QObject, pyqtSignal, QMetaMethod
 from typing import Optional, TYPE_CHECKING
 
 
@@ -336,7 +336,7 @@ class EventBus:
             self._backend = _EventBusBackend()
         return self._backend
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str):
         """
         사용자가 EVENT_BUS.system.info 를 찾으면 이 함수가 호출됩니다.
         내부 백엔드(_EventBusBackend)에게 그 요청을 토스합니다.

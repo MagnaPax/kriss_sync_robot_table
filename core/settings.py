@@ -19,10 +19,9 @@ config/settings.ini 파일을 읽어서 앱 전체에 설정값을 제공
 """
 
 import configparser
-import os
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Any
 from config.paths import ROOT_DIR, CONFIG_INI_PATH
 
 
@@ -124,7 +123,7 @@ class Settings:
     @property
     def app(self) -> AppConfig:
         """[App] 섹션의 정보"""
-        section = self._config['App'] if 'App' in self._config else {}
+        section: Any = self._config['App'] if 'App' in self._config else {}
 
         # ini 파일 데이터를 사용. 만약 파일이 없다면 두 번째 아규먼트의 문자열을 사용
         return AppConfig(
@@ -137,7 +136,7 @@ class Settings:
     @property
     def twincat(self) -> TwinCATConfig:
         """[TwinCAT] 섹션의 정보"""
-        section = self._config['TwinCAT'] if 'TwinCAT' in self._config else {}
+        section: Any = self._config['TwinCAT'] if 'TwinCAT' in self._config else {}
         return TwinCATConfig(
             ams_net_id=section.get('AMS_NET_ID', '127.0.0.1.1.1').strip("'\""),
             port=int(section.get('PORT', '851')),
@@ -147,7 +146,7 @@ class Settings:
     @property
     def robot(self) -> RobotConfig:
         """[Robot] 섹션의 정보"""
-        section = self._config['Robot'] if 'Robot' in self._config else {}
+        section: Any = self._config['Robot'] if 'Robot' in self._config else {}
         return RobotConfig(
             default_speed=int(section.get('DEFAULT_SPEED', '50'))
         )
@@ -162,8 +161,6 @@ Smoke Test
 python -m core.settings
 """
 if __name__ == "__main__":
-
-    from core.settings import SETTINGS
 
     print(f"설정 파일 경로: {SETTINGS.CONFIG_PATH}")
     print(f"Debug Mode: {SETTINGS.app.debug}")

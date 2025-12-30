@@ -41,8 +41,7 @@ View, ViewModel, Service, Worker 들의 상위 계층
 
 import sys
 import logging
-from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 from PyQt6.QtWidgets import QApplication
 
@@ -79,7 +78,7 @@ class AppEngine(QApplication):
         LogListener는 외부에서 생성해야 함 (의존성 주입)
     """
     
-    def __init__(self, argv=None):
+    def __init__(self, argv: Optional[List[str]] = None):
         """
         AppEngine 초기화
 
@@ -89,13 +88,10 @@ class AppEngine(QApplication):
         # 아직 LogListener가 연결되지 않았으므로 직접 로깅
         self.logger = get_logger(__name__)
         
-        # 2. 부모(QApplication) 초기화
-        # sys.argv가 없으면 빈 리스트 전달 (안전장치)
-        args = argv if argv is not None else []
-
         try:
             # QApplication 초기화
-            super().__init__(argv or sys.argv)
+            # argv가 None이면 sys.argv 사용
+            super().__init__(argv if argv is not None else sys.argv)
             self.logger.info("QApplication 초기화 완료")
             
         except Exception as e:
