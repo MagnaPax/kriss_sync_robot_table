@@ -241,6 +241,10 @@ class PLCService(QObject):
     @pyqtSlot(bool, str) # type: ignore
     def _handle_worker_result(self, success: bool, msg: str):
         """워커 실행 결과 처리"""
+        if not success:
+            # 에러 발생 시 사용자에게 팝업으로 알림 (제목, 내용)
+            EVENT_BUS.system.operation_error_alert.emit("작업 실행 실패", msg)
+
         level = "INFO" if success else "ERROR"
         EVENT_BUS.log.message.emit(msg, level)
 
