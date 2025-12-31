@@ -131,6 +131,21 @@ class SystemSignals(QObject):
         - WorkerThreads: 실행 중인 스레드 안전 종료 (quit/wait)
     """
 
+    operation_error_alert = pyqtSignal(str, str)
+    """
+    작업 수행 중 발생한 사용자 알림 (Modal Dialog용)
+    
+    사용자가 'START', 'HOME', 'RESET' 등을 눌렀을 때 하드웨어 결함이나 
+    논리적 오류로 인해 작업을 시작하거나 계속할 수 없는 경우 발생합니다.
+    
+    Args:
+        str (title): 다이얼로그 제목 (예: "작업 실행 실패")
+        str (message): 사용자 조치 방법이 포함된 상세 메시지
+        
+    Subscribers:
+        - MainWindow: QMessageBox.critical 등을 사용하여 팝업 표시
+    """
+
 
 class LogSignals(QObject):
     """
