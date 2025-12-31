@@ -304,11 +304,11 @@ class ServoAdapter:
             
             # 에러 메시지 해석 (Adapter의 역할)
             if error_id == 1861:
-                error_msg = "Timeout Error (PLC FB)"
+                error_msg = "통신 시간 초과 (PLC 응답 없음). 네트워크 연결 상태를 확인해 주세요."
             elif error_id == 16992:
-                error_msg = "Drive Not Ready (Check Power/Alarms)"
+                error_msg = "서보 드라이브가 준비되지 않았습니다. 전원 공급 상태와 비상 정지 버튼을 확인한 후 'RESET'을 눌러주세요."
             else:
-                error_msg = f"ADS/FB General Error"
+                error_msg = f"하드웨어 결함이 감지되었습니다 (에러 코드: {error_id})."
         
         return {
             'active': is_error,
