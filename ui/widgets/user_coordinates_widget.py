@@ -123,16 +123,16 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
     #   - 입력 데이터 가공 및 뷰모델 통신
     # ===============================================
     def _handle_robot_origin(self):
-        if not (vm := self.viewmodel): return
-        vm.origin_robot_pose()
+        if self.viewmodel:
+            self.viewmodel.origin_robot_pose()
 
     def _handle_servo_origin(self):
-        if not (vm := self.viewmodel): return
-        vm.origin_servo_pose()
+        if self.viewmodel:
+            self.viewmodel.origin_servo_pose()
 
     def _handle_origin_all(self):
-        if not (vm := self.viewmodel): return
-        vm.origin_all_pose()
+        if self.viewmodel:
+            self.viewmodel.origin_all_pose()
 
 
 
