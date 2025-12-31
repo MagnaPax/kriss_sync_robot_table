@@ -70,14 +70,18 @@ class FanucOnlyExecutor(BaseExecutor):
         num_sequences = len(sequence_data)  # 전체 시퀀스 갯수
 
         try:
+            # 1. 시작 전 로봇 상태 검증
+            adapter.validate_robot_ready()
+
             init_done = False       # 첫 번째 명령을 보냈는지 확인하는 Flag
             previous_coords = None  # 이전 명령
 
-            # 1. 초기 신호 전송
+            # 2. 초기 신호 전송
             adapter.set_initial_signals()
 
-            # 2. 시퀀스 루프
+            # 3. 시퀀스 루프
             for idx, row in enumerate(sequence_data, 1):
+                adapter.validate_robot_ready() # 매 스텝 시작 전 체크
 
                 # 데이터에 'id'가 있으면 가져오고, 없다면 루프 인덱스(idx)를 id로 사용
                 current_id = row.get('id') or idx
@@ -158,8 +162,19 @@ class FanucOnlyExecutor(BaseExecutor):
             return True, "작업 완료"
         
         except Exception as e:
-            adapter.set_emergency_stop()
-            return False, f"[{self.__class__.__name__}] 실행 중 에러 발생: {e}"
+            try:
+                adapter.set_emergency_stop()
+            except:
+                pass
+            
+            # 사용자 친화적 메시지 변환
+            msg = str(e)
+            if "Robot Fault" in msg:
+                msg = "로봇 하드웨어 결함이 감지되었습니다. 비상 정지 버튼이 눌려있거나 컨트롤러에 알람이 있는지 확인 후 리셋해 주세요."
+            elif "symbol not found" in msg.lower():
+                msg = "로봇 통신 변수를 찾을 수 없습니다. PLC 프로그램이 실행 중인지 확인해 주세요."
+
+            return False, f"[{self.__class__.__name__}] {msg}"
 
 
 class ServoOnlyExecutor(BaseExecutor):

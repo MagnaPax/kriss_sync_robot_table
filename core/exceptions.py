@@ -22,3 +22,9 @@ class ServoFaultError(AppError): # AppError 상속
         self.message = msg
         # 부모 클래스 초기화 (로그 메시지로 쓰임)
         super().__init__(f"[{axis_name}] Hardware Fault (Code {error_id}): {msg}")
+
+
+class RobotFaultError(AppError): # AppError 상속
+    """로봇에 에러(Fault)가 있을 때 발생하는 예외"""
+    def __init__(self, msg: str):
+        super().__init__(f"[FANUC] Robot Fault: {msg}")
