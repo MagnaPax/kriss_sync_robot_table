@@ -84,6 +84,12 @@ class ServoAdapter:
         # 1. 에러 상태가 아니면 리셋 절차를 수행할 필요가 없음
         if not self.has_servo_error(axis_index): return True
 
+        # 에러 초기화 전 서보 전원(Servo ON) 확인 및 활성화
+        is_power_on = bool(plc.read_by_name(ServoSignal.SERVO_ON.path(axis_index), pyads.PLCTYPE_BOOL))
+        if not is_power_on:
+            self.set_servo_state(axis_index, True)
+            time.sleep(0.1) # 전원 투입 후 하드웨어 안정화 대기
+
         # 2. 리셋 명령 - bReset: True -> Wait -> False
         plc.write_by_name(ServoSignal.ERROR_RESET.path(axis_index), True, pyads.PLCTYPE_BOOL)   # True
         time.sleep(0.2) # Wait: PLC가 리셋을 인식할 시간 확보
