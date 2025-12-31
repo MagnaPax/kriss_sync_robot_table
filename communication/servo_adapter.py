@@ -299,6 +299,8 @@ class ServoAdapter:
             # 에러 메시지 해석 (Adapter의 역할)
             if error_id == 1861:
                 error_msg = "Timeout Error (PLC FB)"
+            elif error_id == 16992:
+                error_msg = "Drive Not Ready (Check Power/Alarms)"
             else:
                 error_msg = f"ADS/FB General Error"
         
