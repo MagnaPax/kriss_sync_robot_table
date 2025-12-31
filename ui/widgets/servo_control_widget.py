@@ -56,9 +56,6 @@ class ServoControlWidget(BaseWidget):
         """
         self.vm = view_model
 
-        # 로봇과 턴테이블의 바쁨 상태 연결
-        self.vm.busy_state_changed.connect(self.update_data)
-
     def _bind_events(self):
         """UI 이벤트 바인딩"""
         if btn := self.btn_start: btn.clicked.connect(self._on_start_clicked)
