@@ -159,7 +159,7 @@ class FanucOnlyExecutor(BaseExecutor):
         
         except Exception as e:
             adapter.set_emergency_stop()
-            return False, f"실행 중 에러 발생: {e}"
+            return False, f"[{self.__class__.__name__}] 실행 중 에러 발생: {e}"
 
 
 class ServoOnlyExecutor(BaseExecutor):
@@ -300,8 +300,7 @@ class ServoOnlyExecutor(BaseExecutor):
             except Exception:
                 pass # 에러 처리 중 발생한 에러는 무시(원래 발생한 에러가 더 중요함)
                 
-            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 서보 실행 중 오류: {e}", "ERROR")
-            return False, f"오류 발생: {str(e)}"
+            return False, f"[{self.__class__.__name__}] 오류 발생: {str(e)}"
 
         finally:
             # 3. 종료 처리 (Teardown)
@@ -453,7 +452,7 @@ class IntegratedExecutor(BaseExecutor):
                 EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, "processed")
             return True, "통합 제어 시뮬레이션 완료"
         except Exception as e:
-            return False, f"통합 제어 시뮬레이션 중 에러: {e}"
+            return False, f"[{self.__class__.__name__}] 통합 제어 시뮬레이션 중 에러: {e}"
 
         """
         # TODO: 이 안의 코드 실제 코드에서도 살려야 된다
