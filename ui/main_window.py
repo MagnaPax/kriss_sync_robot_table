@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QLabel, QMessageB
 from PyQt6.QtCore import Qt, pyqtSlot
 from PyQt6.QtGui import QIcon
 
+from core.event_bus import EVENT_BUS
 # 패널 및 위젯
 from ui.splash_screen import SplashScreen
 from ui.widgets.base_widget import BaseWidget
@@ -118,6 +119,9 @@ class MainWindow(QMainWindow):
         # VM에서 전화(show_recovery_dialog 로컬 시그널)가 오면 show_recovery_ui 에 일시킴
         self.vm.show_recovery_dialog.connect(self.show_recovery_ui)
 
+        # [전역 알림] 작업 중 발생한 에러 팝업 연결
+        EVENT_BUS.system.operation_error_alert.connect(self._show_operation_error_dialog)
+
     def _bind_ui_events(self):
         """
         위젯들의 UI 이벤트(에러, 알림 등)를 메인 윈도우와 연결
@@ -178,6 +182,11 @@ class MainWindow(QMainWindow):
                 "재접속 실패", 
                 "연결을 복구할 수 없습니다.\n케이블 연결 상태를 확인 후 다시 시도하십시오."
             )
+
+    @pyqtSlot(str, str)
+    def _show_operation_error_dialog(self, title: str, message: str):
+        """작업 에러 발생 시 모달 다이얼로그 표시"""
+        QMessageBox.critical(self, title, message)
 
     @pyqtSlot(str)
     def show_error_popup(self, error_message: str):
