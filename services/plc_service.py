@@ -11,8 +11,8 @@ from communication.twincat_connector import TwinCATConnector
 from communication.twincat_commander import TwinCATCommander
 from communication.fanuc_adapter import FanucAdapter
 from communication.servo_adapter import ServoAdapter
-from workers.monitor_worker import MonitorWorker
-from workers.connection_worker import ConnectionWorker
+from workers.pose_monitor_worker import PoseMonitorWorker
+from workers.heartbeat_worker import HeartbeatWorker
 
 
 
@@ -47,12 +47,12 @@ class PLCService(QObject):
         self._worker: PLCWorker | None = None
 
         # 기기들의 현재 위치 모니터링 전용 스레드/워커
-        self._monitor_thread: QThread | None = None
-        self._monitor_worker: MonitorWorker | None = None
+        self._pose_monitor_thread: QThread | None = None
+        self._pose_monitor_worker: PoseMonitorWorker | None = None
 
         # TwinCAT 연결 감시용 스레드 변수
-        self._conn_thread: QThread | None = None
-        self._conn_worker: ConnectionWorker | None = None
+        self._heartbeat_thread: QThread | None = None
+        self._heartbeat_worker: HeartbeatWorker | None = None
 
 
         # --- 연결 상태 변경 시 모니터링 시작/중지 --- #
@@ -345,14 +345,14 @@ class PLCService(QObject):
 
     def _start_monitoring(self):
         """모니터링 스레드 시작"""
-        if self._monitor_thread is not None: return     # 이미 실행중
+        if self._pose_monitor_thread is not None: return     # 이미 실행중
 
         # 1. 스레드 및 워커 생성 (지역 변수를 사용하여 Pylance None 체크 통과)
         thread = QThread()
-        worker = MonitorWorker(self.commander)
+        worker = PoseMonitorWorker(self.commander)
 
-        self._monitor_thread = thread
-        self._monitor_worker = worker
+        self._pose_monitor_thread = thread
+        self._pose_monitor_worker = worker
         
         # 2. 워커를 스레드로 이동
         worker.moveToThread(thread)
@@ -371,13 +371,13 @@ class PLCService(QObject):
 
     def _stop_monitoring(self):
         """모니터링 중지"""
-        if self._monitor_worker:
-            self._monitor_worker.stop()     # 루프 탈출 플래그 설정
+        if self._pose_monitor_worker:
+            self._pose_monitor_worker.stop()     # 루프 탈출 플래그 설정
 
     def _clear_monitor_refs(self):
         """스레드 종료 후 레퍼런스 초기화"""
-        self._monitor_thread = None
-        self._monitor_worker = None
+        self._pose_monitor_thread = None
+        self._pose_monitor_worker = None
 
 
     # ==========================================================
@@ -385,13 +385,13 @@ class PLCService(QObject):
     # ==========================================================
     def _start_heartbeat_worker(self):
         """연결 감시 스레드 시작"""
-        if self._conn_thread is not None: return
+        if self._heartbeat_thread is not None: return
 
         thread = QThread()
-        worker = ConnectionWorker(self.connector, interval=2.0)
+        worker = HeartbeatWorker(self.connector, interval=2.0)
 
-        self._conn_thread = thread
-        self._conn_worker = worker
+        self._heartbeat_thread = thread
+        self._heartbeat_worker = worker
         
         worker.moveToThread(thread)
 
@@ -409,16 +409,16 @@ class PLCService(QObject):
 
     def _stop_heartbeat_worker(self):
         """연결 감시 중지"""
-        if self._conn_worker:
-            self._conn_worker.stop()
+        if self._heartbeat_worker:
+            self._heartbeat_worker.stop()
             # 스레드가 종료될 때까지 잠시 대기 (안전한 종료)
-            if self._conn_thread:
-                self._conn_thread.wait(100)
+            if self._heartbeat_thread:
+                self._heartbeat_thread.wait(100)
 
     def _clear_conn_refs(self):
         """참조 초기화"""
-        self._conn_thread = None
-        self._conn_worker = None
+        self._heartbeat_thread = None
+        self._heartbeat_worker = None
 
     @pyqtSlot()
     def _handle_connection_lost(self):

@@ -1,4 +1,4 @@
-# workers/connection_worker.py
+# workers/heartbeat_worker.py
 import time
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 from typing import TYPE_CHECKING
@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from communication.twincat_connector import TwinCATConnector
 
-class ConnectionWorker(QObject):
+class HeartbeatWorker(QObject):
     """
     [백그라운드] 연결 상태 감시자 (Heartbeat)
     주기적으로 TwinCAT 연결이 살아있는지 확인하고, 끊기면 즉시 보고함

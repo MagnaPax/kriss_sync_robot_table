@@ -1,4 +1,4 @@
-# workers/monitor_worker.py
+# workers/pose_monitor_worker.py
 import time
 from typing import Dict, TYPE_CHECKING
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
@@ -10,7 +10,7 @@ from models.fanuc_pose_model import FANUCPose
 if TYPE_CHECKING:
     from communication.twincat_commander import TwinCATCommander
 
-class MonitorWorker(QObject):
+class PoseMonitorWorker(QObject):
     finished = pyqtSignal()
 
     def __init__(self, commander: 'TwinCATCommander'):
