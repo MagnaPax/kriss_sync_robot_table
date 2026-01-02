@@ -144,16 +144,20 @@ class ServoAdapter:
         self.request_immediate_stop() # 안전을 위해 다시 정지 시도
         raise TimeoutError(f"원점 복귀 시간 초과 ({timeout}s)")
 
-    def validate_axis_ready(self, axis_index: int):
+    def validate_axis_ready(self, axis_index: int, allow_busy: bool = False):
         """
         [이동 전 검증]
         문제가 있으면 예외(Exception)를 던진다.
         문제가 없으면 아무것도 반환하지 않는다 (None).
+        
+        Args:
+            axis_index: 검증할 축 번호
+            allow_busy: True면 Busy 상태여도 에러를 내지 않음 (속도 갱신 등)
         """
         axis_name = self._axis_names.get(int(axis_index), f"Axis{axis_index}")
 
         # 1. Busy 체크
-        if self.is_servo_logic_busy(axis_index):
+        if not allow_busy and self.is_servo_logic_busy(axis_index):
             # 로그 대신 에러를 던져서 호출자가 알게 함
             raise ServoBusyError(f"[{axis_name}] 축이 현재 명령 처리 중(Busy)입니다.")
 
@@ -339,7 +343,8 @@ class ServoAdapter:
             target_velocity: 목표 속도 (deg/s) - 이미 스케일링 된 값
         """
         # 명령 받을 준비 됐는지 검증 - 검증 실패 시 상위 레이어로 전파됨
-        self.validate_axis_ready(axis_index)
+        # 속도 모드는 이동 중에도 속도 변경(Override)이 가능해야 하므로 Busy 허용
+        self.validate_axis_ready(axis_index, allow_busy=True)
 
         plc = self._plc
         

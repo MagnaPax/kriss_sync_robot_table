@@ -208,6 +208,10 @@ class ServoOnlyExecutor(BaseExecutor):
         # 처리할 전체 시퀀스 데이터 방송
         EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
 
+        # 설정값 최신화 (실행 시점의 Settings 값 적용)
+        self.BUSY_TIMEOUT = SETTINGS.servo.busy_timeout
+        self.MOVE_TIMEOUT = SETTINGS.servo.move_timeout
+
         adapter = self.servo
         total_steps = len(sequence_data)
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 서보 시퀀스 시작 (총 {total_steps}건)", "INFO")
@@ -228,28 +232,38 @@ class ServoOnlyExecutor(BaseExecutor):
                 # (B) UI 진행률 업데이트
                 EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSING)
 
-                # (Pre-Check) 턴테이블이 이미 목표 위치에 있는지 확인
+                # (Pre-Check) 턴테이블 이동 결정
                 pose_turntable = ServoPoseModel.create_for_axis(row, 'turntable_deg')
                 current_turntable_pos = adapter.read_current_servo_motion(ServoAxis.TURNTABLE)['position']
+                
+                should_move_turntable = True
 
-                # 목표 위치와 현재 위치가 거의 같은지 확인
-                if abs(current_turntable_pos - pose_turntable.angle) < 0.05: # 0.05도 오차 허용
+                # 1. 위치 체크: 이미 목표 위치에 있는가?
+                if abs(current_turntable_pos - pose_turntable.angle) < 0.05:
                     EVENT_BUS.log.message.emit(
-                        f"[{self.__class__.__name__}] 턴테이블이 이미 목표 각도({pose_turntable.angle:.2f}°)에 있습니다. 이 스텝을 건너뜁니다.",
+                        f"[{self.__class__.__name__}] 턴테이블이 이미 목표 각도({pose_turntable.angle:.2f}°)에 있습니다. 이동 스킵.",
                         "INFO"
                     )
-                    # UI 업데이트 한 뒤 바로 다음 스텝으로 넘어간다
-                    EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSED)
-                    continue # 다음 for 루프 아이템으로 넘어감
+                    should_move_turntable = False
+
+                # 2. 속도 체크: 속도가 0인가?
+                elif pose_turntable.velocity <= 0:
+                    EVENT_BUS.log.message.emit(
+                        f"[{self.__class__.__name__}] 턴테이블 속도가 0입니다. 이동 스킵.",
+                        "INFO"
+                    )
+                    should_move_turntable = False
 
                 # (C) 명령 생성 및 전송
                 seq_id = row.get('id', step_idx)
                 # 보기 좋게 주요 파라미터만 추출하여 로그 출력
                 log_msg = (
+                    f"\n"
                     f"[{self.__class__.__name__}] 시퀀스 #{seq_id} 실행 시작 ({step_idx}/{total_steps}) | "
                     f"공전={row.get('tool_revolution_rpm', 0):.1f}RPM, "
                     f"자전={row.get('tool_rotation_rpm', 0):.1f}RPM, "
-                    f"턴테이블={row.get('turntable_deg', 0):.1f}deg"
+                    f"턴테이블={row.get('turntable_deg', 0):.1f}deg, "
+                    f"턴테이블 속도={row.get('turntable_feed_rate', 0):.1f}mm/rev"
                 )
                 EVENT_BUS.log.message.emit(log_msg, "INFO")
 
@@ -281,16 +295,19 @@ class ServoOnlyExecutor(BaseExecutor):
 
                 # [Axis 3] 턴테이블 (위치 제어)
                 EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] pose_turntable 생성: {pose_turntable}", "DEBUG")
-                adapter.move_absolute(ServoAxis.TURNTABLE, pose_turntable.angle, pose_turntable.velocity)
+                if should_move_turntable:
+                    adapter.move_absolute(ServoAxis.TURNTABLE, pose_turntable.angle, pose_turntable.velocity)
 
                 # (D) 대기 (Stop-and-Go)
                 # 각 스텝의 이동이 완료될 때까지 대기 (Stop-and-Go 방식)
-                if not self._wait_for_turntable_completion(ServoAxis.TURNTABLE, target_pos=pose_turntable.angle):
-                    adapter.request_immediate_stop()
+                # 단, 이동 명령을 내린 경우에만 대기함
+                if should_move_turntable:
+                    if not self._wait_for_turntable_completion(ServoAxis.TURNTABLE, target_pos=pose_turntable.angle):
+                        adapter.request_immediate_stop()
 
-                    # 실패 사유 파악 (중단 vs 타임아웃)
-                    msg = "작업 중단됨" if self._is_interrupted() else f"턴테이블 응답 없음 또는 시간 초과 ({self.MOVE_TIMEOUT}s)"
-                    return False, msg
+                        # 실패 사유 파악 (중단 vs 타임아웃)
+                        msg = "작업 중단됨" if self._is_interrupted() else f"턴테이블 응답 없음 또는 시간 초과 ({self.MOVE_TIMEOUT}s)"
+                        return False, msg
 
                 # 개발용 로그
                 feedback_revolution = adapter.read_current_servo_motion(ServoAxis.TOOL_REVOLUTION)
