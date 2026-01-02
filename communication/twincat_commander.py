@@ -691,14 +691,22 @@ class TwinCATCommander(QObject):
         """
         [브릿지] 서보의 안전 원점 복귀 절차를 실행하도록 시킴
         """
-        if self.servo:
+        if not self.servo:
+            return False, "서보 어댑터가 연결되지 않았습니다."
+
+        # 원점 복귀 시작 전 바쁨 상태 방송
+        EVENT_BUS.data.servo_busy_status.emit({'is_servo_moving': True})
+
+        try:
             # Adapter에게 원점 복귀 절차 위임
             success = self.servo.home_all_safely()
-            
             msg = "서보 원점 복귀 명령 전송 완료" if success else "원점 복귀 중 오류 발생"
             return success, msg
-
-        return False, "서보 어댑터가 연결되지 않았습니다."
+        except Exception as e:
+            return False, f"서보 원점 복귀 중 예외 발생: {e}"
+        finally:
+            # 성공/실패 여부에 상관없이 마지막에는 바쁨 상태 해제
+            EVENT_BUS.data.servo_busy_status.emit({'is_servo_moving': False})
 
 
     def reset_servos_safely(self) -> tuple[bool, str]:
