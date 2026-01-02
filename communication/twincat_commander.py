@@ -19,7 +19,7 @@ from models.fanuc_pose_model import FANUCPose
 from models.servo_pose_model import ServoPoseModel
 from config.data_formats import TaskStatus, SERVO_KEYS, ROBOT_KEYS
 from models.servo_pose_key import ServoAxis
-
+from core.settings import SETTINGS
 
 
 # =========================================================
@@ -183,9 +183,12 @@ class ServoOnlyExecutor(BaseExecutor):
     로봇 없이 Panasonic 서보 모터 3축(툴 2개 + 턴테이블 1개)만 단독 제어
     """
 
-    # 타임아웃 상수
-    BUSY_WAIT_TIMEOUT = 5.0   # 명령 후 Busy가 뜰 때까지 기다리는 시간
-    MOVE_TIMEOUT = 180.0       # 턴테이블 이동 최대 허용 시간
+    def __init__(self, robot: FanucAdapter, servo: ServoAdapter):
+        super().__init__(robot, servo)
+        
+        # 서보를 기다려주는 시간 (설정 파일에서 값 로드)
+        self.BUSY_TIMEOUT = SETTINGS.servo.busy_wait_timeout
+        self.MOVE_TIMEOUT = SETTINGS.servo.move_timeout
 
     def can_execute(self, sample_data: Dict[str, Any]) -> bool:
         data_keys = set(sample_data.keys())
@@ -338,13 +341,13 @@ class ServoOnlyExecutor(BaseExecutor):
         """
         try:
             # -------------------------------------------------------------
-            # Phase 1: Busy 신호가 뜰 때까지 대기 (최대 BUSY_WAIT_TIMEOUT 초)
+            # Phase 1: Busy 신호가 뜰 때까지 대기 (최대 BUSY_TIMEOUT 초)
             # -------------------------------------------------------------
             # 명령을 보내자마자 바로 읽으면 아직 Busy가 False일 수 있음
             start_wait = time.time()
             busy_detected = False
 
-            while time.time() - start_wait < self.BUSY_WAIT_TIMEOUT:
+            while time.time() - start_wait < self.BUSY_TIMEOUT:
                 
                 # (A) 움직임 여부 체크 (속도 기준)
                 moving = self.servo.is_servo_moving_physically(axis_idx)
