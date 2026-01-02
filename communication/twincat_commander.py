@@ -187,7 +187,7 @@ class ServoOnlyExecutor(BaseExecutor):
         super().__init__(robot, servo)
         
         # 서보를 기다려주는 시간 (설정 파일에서 값 로드)
-        self.BUSY_TIMEOUT = SETTINGS.servo.busy_wait_timeout
+        self.BUSY_TIMEOUT = SETTINGS.servo.busy_timeout
         self.MOVE_TIMEOUT = SETTINGS.servo.move_timeout
 
     def can_execute(self, sample_data: Dict[str, Any]) -> bool:
