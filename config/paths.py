@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).resolve().parent.parent
 
 
-# 기본 설정값(앱, TwinCAT, Robot, Turtable 등)
+# 기본 설정값(앱, TwinCAT, Robot, Servo 등)
 CONFIG_INI_PATH = ROOT_DIR / "config" / "settings.ini"
 
 # DLL 파일 경로 (libs 폴더)
