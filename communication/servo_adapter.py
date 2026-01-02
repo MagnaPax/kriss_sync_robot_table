@@ -83,8 +83,7 @@ class ServoAdapter:
         plc = self._plc
 
         # 에러 초기화 전 서보 전원(Servo ON) 확인 및 활성화
-        is_power_on = bool(plc.read_by_name(ServoSignal.SERVO_ON.path(axis_index), pyads.PLCTYPE_BOOL))
-        if not is_power_on:
+        if not self.is_servo_on(axis_index):
             self.set_servo_state(axis_index, True)
             time.sleep(0.2) # 전원 투입 후 하드웨어 안정화 대기
 
@@ -244,6 +243,12 @@ class ServoAdapter:
     # ==========================================================================
     # 상태 모니터링 (Read Feedback)
     # ==========================================================================
+    def is_servo_on(self, axis_index: int) -> bool:
+        """
+        [상태 확인] 특정 축의 서보 전원(Servo ON) 상태를 확인한다.
+        """
+        return bool(self._plc.read_by_name(ServoSignal.SERVO_ON.path(axis_index), pyads.PLCTYPE_BOOL))
+
     def is_servo_logic_busy(self, axis_index: int) -> bool:
         """
         [상태 확인] PLC 기능 블록이 명령을 처리 중인가? (Busy 비트 확인)
