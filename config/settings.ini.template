@@ -26,9 +26,12 @@ DEMO_MODE = True
 
 
 [Robot]
-; 로봇 관련 기본 설정
-DEFAULT_SPEED = 10             ; 로봇 초기 속도
+; 로봇 기본 속도
+DEFAULT_FEED_RATE_ROBOT = 10
 
 
-[TurnTable]
-; TODO: 턴테이블 관련 설정
+[Servo]
+; 명령을 내린 뒤 Busy가 뜰 때까지 기다려 주는 최대 시간
+SERVO_BUSY_TIMEOUT_SEC = 5.0
+; 서보 이동 최대 대기 시간 (초)
+SERVO_MOVE_TIMEOUT_SEC = 180.0
