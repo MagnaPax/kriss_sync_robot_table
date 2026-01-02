@@ -169,10 +169,11 @@ class ServoControlWidget(BaseWidget):
             # BaseWidget 내부 변수 업데이트
             self._is_enabled = not is_busy
 
-            # 로봇/서보가 바쁘면 START, HOME, RESET 비활성화
+            # 로봇/서보가 바쁘면 START, HOME, RESET 비활성화, STOP 활성화
             if self.btn_start: self.btn_start.setEnabled(not is_busy)
             if self.btn_home:  self.btn_home.setEnabled(not is_busy)
             if self.btn_reset: self.btn_reset.setEnabled(not is_busy)
+            if self.btn_stop:  self.btn_stop.setEnabled(is_busy)
             
             # 입력창들도 비활성화하여 오작동 방지
             for spin in self.input_widgets.values():
