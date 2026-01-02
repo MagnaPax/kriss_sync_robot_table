@@ -383,8 +383,7 @@ class ServoAdapter:
         
         로봇팀 요구사항 반영:
             1. bHome 신호를 먼저 False로 초기화 (확실한 펄스 생성 위함)
-            2. bHome 신호를 True로 인가하여 작업 시작
-            (완료 시 PLC가 자동으로 False로 복구함) [cite: 9]
+            2. bHome 신호를 True로 인가하여 작업 시작 (완료 시 PLC가 자동으로 False로 복구함)
         """
         # 명령 받을 준비 됐는지 검증 - 검증 실패 시 상위 레이어로 전파됨
         self.validate_axis_ready(axis_index)
@@ -393,11 +392,11 @@ class ServoAdapter:
         
         # Enum 객체가 들어올 경우를 대비해 int로 변환하여 주소 생성
         # 예: ServoAxis.TURNTABLE -> 3 -> "MAIN.bHome3"
-        signal_path = ServoSignal.HOME.path(int(axis_index))
+        home_signal = ServoSignal.HOME.path(int(axis_index))
 
         # 1. 선행 초기화: 먼저 False를 써줌 (로봇팀 가이드)
-        plc.write_by_name(signal_path, False, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(home_signal, False, pyads.PLCTYPE_BOOL)
         time.sleep(0.1) # 신호 안정화 대기
         
         # 2. 작업 시작: True 인가
-        plc.write_by_name(signal_path, True, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(home_signal, True, pyads.PLCTYPE_BOOL)
