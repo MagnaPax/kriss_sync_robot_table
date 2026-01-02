@@ -46,6 +46,12 @@ class PLCService(QObject):
         # 비서(Worker) 직군 '정원 확보'
         self._worker: PLCWorker | None = None
 
+        # 긴급 명령(STOP 등) 전용 임시 스레드/워커
+        # 이유: 원점 복귀 중일 때 STOP 명령을 보내려면, 원점 복귀 스레드(self._thread)와 별개로 
+        #       동시에 실행되어야 하므로 별도의 스레드 변수가 필요함.
+        self._emergency_thread: QThread | None = None
+        self._emergency_worker: PLCWorker | None = None
+
         # 기기들의 현재 위치 모니터링 전용 스레드/워커
         self._pose_monitor_thread: QThread | None = None
         self._pose_monitor_worker: PoseMonitorWorker | None = None
@@ -141,47 +147,121 @@ class PLCService(QObject):
 
         return False
 
-    # ==========================================================
-    # [비동기] 로봇 제어 명령 (Worker 사용)
-    # ==========================================================
-    def _start_worker(self, command: str, data: Any = None, log_msg: str = ""):
-        """비동기 워커 스레드 생성 및 실행 (공통 로직)"""
 
-        if self._thread and self._thread.isRunning():
-            if command == 'STOP':
-                self._thread.requestInterruption()  # 강제 중단 요청
+
+    # ==========================================================
+    # Worker
+    # ==========================================================
+    def _create_worker(self, current_thread: QThread | None, command: str, data: Any = None, log_msg: str = "", force_interrupt: bool = False, cleanup_attrs: list[str] | None = None) -> tuple[QThread, PLCWorker] | None:
+        """
+        워커 스레드 생성 및 실행 공통 로직 (Factory Method)
+        
+        Args:
+            current_thread: 현재 돌고 있는 스레드 (중복 실행 체크용)
+            command: 실행할 명령
+            data: 데이터
+            log_msg: 시작 전 공지할 로그 메시지
+            force_interrupt: True면 진행 중인 스레드를 무조건 중단하고 대기 (긴급)
+            cleanup_attrs: 종료 시 None으로 초기화할 멤버 변수 이름 리스트 (예: ['_thread', '_worker'])
+            
+        Returns:
+            (new_thread, new_worker) 튜플. 실행되지 않았다면 None.
+        """
+
+        # 1. 실행 중인 스레드 점검 및 처리
+        if current_thread and current_thread.isRunning():
+            if force_interrupt:
+                # 긴급 작업은 기존 작업을 덮어쓰고 즉시 실행 (방어코드)
+                current_thread.requestInterruption()
+                current_thread.wait(100)
             else:
-                EVENT_BUS.log.message.emit("이전 작업이 아직 진행중입니다", "WARNING")
-                return # 이전 작업이 있다면 중복 실행 방지
+                # 일반 작업은 STOP 명령일 때만 기존 작업 중단
+                if command == 'STOP':
+                    current_thread.requestInterruption()
+                else:
+                    EVENT_BUS.log.message.emit("이전 작업이 아직 진행중입니다", "WARNING")
+                    return None
 
+        # 2. 로그
         if log_msg:
             EVENT_BUS.log.message.emit(log_msg, "INFO")
 
         # 사무실 계약
-        self._thread = QThread()
+        thread = QThread()
 
         # 비서(Worker) 채용
-        self._worker = PLCWorker(self.connector, self.commander, command, data)
+        worker = PLCWorker(self.connector, self.commander, command, data)
 
         # 비서를 새 사무실로 전근 발령 - moveToThread() : 스레드 소속 변경
-        self._worker.moveToThread(self._thread)
+        worker.moveToThread(thread)
 
 
         # 비서의 전화보고(emit)를 받고 어떻게 처리(Slot)할지 미리 정해놓기(connect)
-        self._worker.result.connect(self._handle_worker_result)
-        self._worker.finished.connect(self._cleanup)
-
+        worker.result.connect(self._handle_worker_result)
+        
+        # _cleanup이 파라미터를 받으므로 lambda나 partial로 인자 구워삶기(Binding)
+        # 스레드와 워커가 종료될 때 이 특정 객체들을 정리하도록 지정함
+        worker.finished.connect(lambda: self._cleanup(thread, worker, cleanup_attrs))
+        
         # --- 사무실(Thread)에서 벌어질 이벤트 예약(connect) ---
         # 사무실 문 열리면 비서에게 “일 시작해라” 지시
-        self._thread.started.connect(self._worker.run)
+        thread.started.connect(worker.run)
         # 사무실이 문 닫히면 → 사무실 정리하고 폐기하도록 예약
-        self._thread.finished.connect(self._thread.deleteLater)
-
-
+        thread.finished.connect(thread.deleteLater)
+        
         # 사무실 오픈(스레드 시작)
         # 사무실 문을 열고 내부 이벤트 루프를 가동하는 것
-        self._thread.start()
+        thread.start()
+        
+        return thread, worker
 
+    def _cleanup(self, thread: QThread | None, worker: PLCWorker | None, cleanup_attrs: list[str] | None = None):
+        """
+        실행 중인 스레드(사무실)와 워커(비서)를
+        우아하게 종료하고 메모리 누수 없이 안전하게 폐기하는 함수
+        """
+        if thread and thread.isRunning():
+            thread.quit()     # Thread의 이벤트 루프 종료 요청 - 남아 있는 이벤트 처리 후 종료
+            thread.wait(2000) # 사무실이 안전하게 문 닫을 때까지 2초동안 기다림
+
+        # 비서(Worker) 정리
+        if worker:
+            worker.deleteLater()  # 비서 정리 → Qt의 메모리 관리 시스템에 맡겨서 안전하게 폐기
+            # 파이썬 레퍼런스 해제는 아래 멤버변수 초기화에서 처리
+
+        # 사무실(Thread) 정리
+        if thread:
+            # deleteLater는 '나중에' 지우라는 예약어이므로 즉시 None이 되지 않음.
+            # 하지만 더 이상 이 변수를 쓰면 안 되므로, 파이썬 쪽 레퍼런스를 끊어야 함.
+            thread.deleteLater()  # Qt에게 삭제 요청
+            
+        # 멤버 변수 초기화 (동적 처리)
+        # cleanup_attrs에 지정된 멤버 변수들이 현재 정리 중인 객체와 같다면 None으로 초기화
+        if cleanup_attrs:
+            for attr_name in cleanup_attrs:
+                if hasattr(self, attr_name):
+                    current_obj = getattr(self, attr_name)
+                    # 정리 대상인 thread나 worker와 동일한 객체를 가리키고 있을 때만 None 처리
+                    # (이미 다른 작업이 시작되어 변수가 바뀌었을 수 있으므로 안전장치)
+                    if current_obj == thread or current_obj == worker:
+                        setattr(self, attr_name, None)
+
+    def _start_worker(self, command: str, data: Any = None, log_msg: str = ""):
+        """일반 작업 시작 (Wrapper)"""
+        # 결과가 있을 때만 멤버 변수 업데이트
+        if result := self._create_worker(self._thread, command, data, log_msg, force_interrupt=False, cleanup_attrs=['_thread', '_worker']):
+            self._thread, self._worker = result
+
+    def _start_emergency_worker(self, command: str, data: Any = None, log_msg: str = ""):
+        """긴급 작업 시작 (Wrapper)"""
+        # 결과가 있을 때만 멤버 변수 업데이트
+        if result := self._create_worker(self._emergency_thread, command, data, log_msg, force_interrupt=True, cleanup_attrs=['_emergency_thread', '_emergency_worker']):
+            self._emergency_thread, self._emergency_worker = result
+
+
+    # ==========================================================
+    # [비동기] 로봇 제어 명령 (Worker 사용)
+    # ==========================================================
     def start_process(self):
         self._start_worker('START', log_msg="프로세스 시작 요청...")
 
@@ -248,29 +328,6 @@ class PLCService(QObject):
         level = "INFO" if success else "ERROR"
         EVENT_BUS.log.message.emit(msg, level)
 
-    @pyqtSlot() # type: ignore
-    def _cleanup(self):
-        """
-        실행 중인 스레드(사무실)와 워커(비서)를
-        우아하게 종료하고 메모리 누수 없이 안전하게 폐기하는 함수
-        """
-        if self._thread and self._thread.isRunning():
-            self._thread.quit()     # Thread의 이벤트 루프 종료 요청 - 남아 있는 이벤트 처리 후 종료
-            self._thread.wait(2000) # 사무실이 안전하게 문 닫을 때까지 2초동안 기다림
-
-        # 비서(Worker) 정리
-        if self._worker:
-            self._worker.deleteLater()  # 비서 정리 → Qt의 메모리 관리 시스템에 맡겨서 안전하게 폐기
-            self._worker = None         # Python 레벨에서도 비서 레퍼런스 해제(메모리 누수 방지)
-
-        # 사무실(Thread) 정리
-        if self._thread:
-            # deleteLater는 '나중에' 지우라는 예약어이므로 즉시 None이 되지 않음.
-            # 하지만 더 이상 이 변수를 쓰면 안 되므로, 파이썬 쪽 레퍼런스를 끊어야 함.
-            self._thread.deleteLater()  # Qt에게 삭제 요청
-            self._thread = None         # [핵심] 파이썬 변수 초기화
-
-
     # ==========================================================
     # [비동기] 서보 모터 제어 (Worker 사용)
     # ==========================================================
@@ -295,8 +352,10 @@ class PLCService(QObject):
             self._thread.requestInterruption()
             EVENT_BUS.log.message.emit("진행 중인 작업을 중단하고 서보 정지를 시도합니다.", "WARNING")
 
-        # 정지 명령 Worker 실행
-        self._start_worker('SERVO_STOP', log_msg="서보 전체 정지 요청")
+        # 정지 명령 Worker 실행 (긴급 스레드 사용)
+        # 만약 여기서 기존 스레드가 끝나길 기다리면(Wait), 원점 복귀 루프가 끝나지 않아서(Move가 안 멈춤) 데드락에 걸림.
+        # 따라서 병렬로 "즉시" 정지 신호를 쏴줘야 함.
+        self._start_emergency_worker('SERVO_STOP', log_msg="서보 전체 정지 요청")
 
     def home_servo_all(self):
         """서보 원점 복귀"""
