@@ -336,77 +336,82 @@ class ServoOnlyExecutor(BaseExecutor):
         턴테이블 이동 완료 대기 (Busy Check + Timeout)
         Returns: True(완료), False(실패/중단)
         """
-        # -------------------------------------------------------------
-        # Phase 1: Busy 신호가 뜰 때까지 대기 (최대 BUSY_WAIT_TIMEOUT 초)
-        # -------------------------------------------------------------
-        # 명령을 보내자마자 바로 읽으면 아직 Busy가 False일 수 있음
-        start_wait = time.time()
-        busy_detected = False
+        try:
+            # -------------------------------------------------------------
+            # Phase 1: Busy 신호가 뜰 때까지 대기 (최대 BUSY_WAIT_TIMEOUT 초)
+            # -------------------------------------------------------------
+            # 명령을 보내자마자 바로 읽으면 아직 Busy가 False일 수 있음
+            start_wait = time.time()
+            busy_detected = False
 
-        while time.time() - start_wait < self.BUSY_WAIT_TIMEOUT:
+            while time.time() - start_wait < self.BUSY_WAIT_TIMEOUT:
+                
+                # (A) 움직임 여부 체크 (속도 기준)
+                moving = self.servo.is_servo_moving_physically(axis_idx)
+                
+                if moving:
+                    busy_detected = True
+                    EVENT_BUS.data.servo_busy_status.emit({'turntable': True})
+                else:
+                    # 이미 목표 위치 부근이라면, 이동 명령이 무시된(No-op) 것으로 간주하고 성공 반환
+                    if target_pos is not None:
+                        current_pos = self.servo.read_current_servo_motion(axis_idx)['position']
+                        if abs(current_pos - target_pos) < 0.05: # 0.05도 오차 허용
+                            EVENT_BUS.log.message.emit(
+                                f"[{self.__class__.__name__}] 축 {axis_idx}가 이미 목표 위치({target_pos:.3f})에 있으므로 대기를 종료합니다.", 
+                                "DEBUG"
+                            )
+                            return True
+                
+                # (B) 움직임이 감지된 이후 -> 멈출 때까지 대기
+                if busy_detected and not moving:
+                    # 움직이다가 멈췄으면 -> 완료 확인
+                    feedback = self.servo.read_current_servo_motion(axis_idx)
+                    actual_pos = feedback['position']
+                    EVENT_BUS.log.message.emit(
+                        f"[{self.__class__.__name__}] Axis {axis_idx} 이동 완료: CSV목표={target_pos:.3f}, 현재위치={actual_pos:.3f}", 
+                        "DEBUG"
+                    )
+                    return True
+
+                # (C) 시퀀스 완전 종료 체크 (PLC 쪽에서 강제 종료 시)
+                if self._is_interrupted():
+                    return False
+
+                time.sleep(0.1)
             
-            # (A) 움직임 여부 체크 (속도 기준)
-            moving = self.servo.is_servo_moving_physically(axis_idx)
-            
-            if moving:
-                busy_detected = True
-                EVENT_BUS.data.servo_busy_status.emit({'turntable': True})
-            else:
-                # [보완] 이미 목표 위치 부근이라면, 이동 명령이 무시된(No-op) 것으로 간주하고 성공 반환
-                if target_pos is not None:
-                    current_pos = self.servo.read_current_servo_motion(axis_idx)['position']
-                    if abs(current_pos - target_pos) < 0.05: # 0.05도 오차 허용
-                        EVENT_BUS.log.message.emit(
-                            f"[{self.__class__.__name__}] 축 {axis_idx}가 이미 목표 위치({target_pos:.3f})에 있으므로 대기를 종료합니다.", 
-                            "DEBUG"
-                        )
-                        return True
-            
-            # (B) 움직임이 감지된 이후 -> 멈출 때까지 대기
-            if busy_detected and not moving:
-                # 움직이다가 멈췄으면 -> 완료 확인
-                feedback = self.servo.read_current_servo_motion(axis_idx)
-                actual_pos = feedback['position']
-                EVENT_BUS.log.message.emit(
-                    f"[{self.__class__.__name__}] Axis {axis_idx} 이동 완료: CSV목표={target_pos:.3f}, 현재위치={actual_pos:.3f}", 
-                    "DEBUG"
-                )
-                return True
-
-            # (C) 시퀀스 완전 종료 체크 (PLC 쪽에서 강제 종료 시)
-            if self._is_interrupted(): # Assuming _is_interrupted() is the intended check for sequence termination
-                return False # Return False as it's an interruption, not a normal completion
-
-            time.sleep(0.1)
-        
-        # If loop finishes and busy_detected is still False, it means busy signal was never detected
-        if not busy_detected:
-            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 축 {axis_idx} 반응 없음 (Busy Timeout)", "ERROR")
-            return False
-
-        # -------------------------------------------------------------
-        # Phase 2: 멈출 때까지 대기 (최대 MOVE_TIMEOUT 초)
-        # -------------------------------------------------------------
-        move_start_time = time.time()
-
-        # 이동중 - 멈출 때까지 대기
-        #   타임아웃을 길게 잡거나 없애야 함 (이동이 10초 걸릴 수도 있으니까)
-        while self.servo.is_servo_moving_physically(axis_idx):
-            # 중단 요청 체크
-            if self._is_interrupted(): return False
-
-            # 타임아웃 체크 (무한 대기 방지)
-            if time.time() - move_start_time > self.MOVE_TIMEOUT:
-                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 축 {axis_idx} 이동 시간 초과 ({self.MOVE_TIMEOUT}초)", "ERROR")
+            # 만약 루프가 종료됐고 바쁨이 여전히 감지되지 않았다면 바쁨 신호가 제대로 전달되지 않았다는 의미
+            if not busy_detected:
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 축 {axis_idx} 반응 없음 (Busy Timeout)", "ERROR")
                 return False
 
-        feedback = self.servo.read_current_servo_motion(axis_idx)
-        actual_pos = feedback['position']
-        EVENT_BUS.log.message.emit(
-            f"[{self.__class__.__name__}] Axis {axis_idx} 이동 완료: CSV목표={target_pos:.3f}, 현재위치={actual_pos:.3f}", 
-            "DEBUG"
-        )
-        return True
+            # -------------------------------------------------------------
+            # Phase 2: 멈출 때까지 대기 (최대 MOVE_TIMEOUT 초)
+            # -------------------------------------------------------------
+            move_start_time = time.time()
+
+            # 이동중 - 멈출 때까지 대기
+            #   타임아웃을 길게 잡거나 없애야 함 (이동이 10초 걸릴 수도 있으니까)
+            while self.servo.is_servo_moving_physically(axis_idx):
+                # 중단 요청 체크
+                if self._is_interrupted(): return False
+
+                # 타임아웃 체크 (무한 대기 방지)
+                if time.time() - move_start_time > self.MOVE_TIMEOUT:
+                    EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 축 {axis_idx} 이동 시간 초과 ({self.MOVE_TIMEOUT}초)", "ERROR")
+                    return False
+
+            feedback = self.servo.read_current_servo_motion(axis_idx)
+            actual_pos = feedback['position']
+            EVENT_BUS.log.message.emit(
+                f"[{self.__class__.__name__}] Axis {axis_idx} 이동 완료: CSV목표={target_pos:.3f}, 현재위치={actual_pos:.3f}", 
+                "DEBUG"
+            )
+            return True
+        
+        finally:
+            # 성공/실패 여부에 상관없이 마지막에는 바쁨 신호를 해제
+            EVENT_BUS.data.servo_busy_status.emit({'turntable': False})
 
     def _is_interrupted(self) -> bool:
         """
