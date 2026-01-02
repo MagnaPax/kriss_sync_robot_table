@@ -653,6 +653,17 @@ class TwinCATCommander(QObject):
     # ================================= #
     # --- 서보(Panasonic) 제어 명령 --- #
     # ================================= #
+    def is_servo_on(self, axis: ServoAxis) -> bool:
+        """서보 전원이 켜져 있는지 확인 (브릿지)"""
+        if self.servo:
+            return self.servo.is_servo_on(axis.value)
+        return False
+
+    def set_servo_state(self, axis: ServoAxis, enable: bool):
+        """서보 전원 상태 설정 (브릿지)"""
+        if self.servo:
+            self.servo.set_servo_state(axis.value, enable)
+
     def shutdown_servos_safely(self) -> tuple[bool, str]:
         """
         [브릿지] 서보를 안전하게 정지시키고 전원을 차단하도록 시킴
