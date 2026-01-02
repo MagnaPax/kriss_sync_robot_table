@@ -163,8 +163,8 @@ class ServoControlWidget(BaseWidget):
         EVENT_BUS.log.message.emit(f"{self.log_prefix} update_data() called: {data}", "DEBUG")
 
         # 상태에 따른 활성화/비활성화
-        if 'turntable' in data:
-            is_busy = data['turntable']
+        if 'is_servo_moving' in data:
+            is_busy = data['is_servo_moving']
 
             # BaseWidget 내부 변수 업데이트
             self._is_enabled = not is_busy

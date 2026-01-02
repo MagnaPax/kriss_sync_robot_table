@@ -354,7 +354,7 @@ class ServoOnlyExecutor(BaseExecutor):
                 
                 if moving:
                     busy_detected = True
-                    EVENT_BUS.data.servo_busy_status.emit({'turntable': True})
+                    EVENT_BUS.data.servo_busy_status.emit({'is_servo_moving': True})
                 else:
                     # 이미 목표 위치 부근이라면, 이동 명령이 무시된(No-op) 것으로 간주하고 성공 반환
                     if target_pos is not None:
@@ -414,7 +414,7 @@ class ServoOnlyExecutor(BaseExecutor):
         
         finally:
             # 성공/실패 여부에 상관없이 마지막에는 바쁨 신호를 해제
-            EVENT_BUS.data.servo_busy_status.emit({'turntable': False})
+            EVENT_BUS.data.servo_busy_status.emit({'is_servo_moving': False})
 
     def _is_interrupted(self) -> bool:
         """
