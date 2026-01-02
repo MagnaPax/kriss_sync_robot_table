@@ -48,9 +48,9 @@ class RobotConfig:
     default_speed: int
 
 @dataclass
-class TurntableConfig:
-    # TODO: 턴테이블 관련 설정 넣기
-    pass
+class ServoConfig:
+    move_timeout: float
+    busy_timeout: float
 
 
 # =============================================================================
@@ -149,6 +149,21 @@ class Settings:
         section: Any = self._config['Robot'] if 'Robot' in self._config else {}
         return RobotConfig(
             default_speed=int(section.get('DEFAULT_SPEED', '50'))
+        )
+
+    @property
+    def servo(self) -> ServoConfig:
+        """
+        [Servo] 섹션의 정보
+            settings.ini 파일에 적힌 텍스트 설정을 실제 파이썬 코드에서 즉시 사용할 수 있는 데이터로 변환해주는 통역사 역할
+                - SETTINGS.servo라고 호출하는 순간 이 메서드가 실행된다
+                - 외부에서 변수처럼 사용할 수 있게 해줌
+        """
+        # 실수로 설정파일에서 [Servo] 섹션을 지워도 앱이 죽지 않고 빈 설정을 반환
+        section: Any = self._config['Servo'] if 'Servo' in self._config else {}
+        return ServoConfig(
+            move_timeout=float(section.get('SERVO_MOVE_TIMEOUT_SEC', '180.0')),
+            busy_timeout=float(section.get('SERVO_BUSY_TIMEOUT_SEC', '5.0'))
         )
 
 # 전역 인스턴스
