@@ -130,9 +130,10 @@ QWidget#right_panel {
 
 
 
-/* ----------------------------------------
-   버튼 스타일 (QPushButton)
-   ---------------------------------------- 
+/* 
+----------------------------------------
+        버튼 스타일 (QPushButton)
+---------------------------------------- 
 */
 
 /* 1. 일반 버튼 (보라색) */
@@ -201,8 +202,12 @@ QPushButton#emergency_button:pressed {
     border-color: #9a2430;
 }
 
-
-
+/* 4. 버튼 비활성화 공통 스타일 */
+QPushButton:disabled {
+    background-color: #E0E0E0; /* 밝은 회색으로 비활성화 표시 */
+    color: #999999;           /* 텍스트 흐리게 */
+    border: 1px solid #CCCCCC;
+}
 
 
 /* 
