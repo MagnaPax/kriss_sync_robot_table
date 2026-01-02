@@ -69,6 +69,11 @@ class PoseMonitorWorker(QObject):
 
     def _check_servo_optimized(self):
         try:
+            # 서보 전원 확인 및 활성화
+            for axis in ServoAxis:
+                if not self.commander.is_servo_on(axis):
+                    self.commander.set_servo_state(axis, True)
+            
             current_states: Dict[ServoAxis, ServoPose] = {}
             for axis in ServoAxis:
                 raw = self.commander.servo.read_current_servo_motion(axis)
