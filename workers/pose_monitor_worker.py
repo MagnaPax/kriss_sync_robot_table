@@ -50,7 +50,11 @@ class PoseMonitorWorker(QObject):
                 # 에러 로그도 너무 자주 찍히지 않게 조절 가능
                 time.sleep(1.0)
 
-        self.finished.emit()
+        try:
+            self.finished.emit()
+        except RuntimeError:
+            # 앱 종료 시 객체가 이미 삭제되었을 수 있음 (RuntimeError: wrapped C/C++ object has been deleted)
+            pass
 
     def _check_robot_optimized(self):
         try:
