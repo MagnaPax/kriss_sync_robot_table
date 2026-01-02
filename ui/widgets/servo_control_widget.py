@@ -100,7 +100,7 @@ class ServoControlWidget(BaseWidget):
         # 오른쪽: 턴테이블 (각도/RPM)
         tt_layout = QFormLayout()
         self.input_widgets["tt_angle"] = self._create_spinbox(-360, 360, 0)
-        self.input_widgets["tt_rpm"] = self._create_spinbox(0, 100, 5)
+        self.input_widgets["tt_rpm"] = self._create_spinbox(0, 2000, 5)
         tt_layout.addRow("턴테이블 각도 (deg):", self.input_widgets["tt_angle"])
         tt_layout.addRow("턴테이블 속도 (rpm):", self.input_widgets["tt_rpm"])
 
