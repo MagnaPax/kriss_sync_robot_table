@@ -54,7 +54,11 @@ class SequenceWorker(QObject):
             self.result.emit(False, error_msg, {})
 
             # 스레드 종료 신호
-            self.finished.emit()
+            try:
+                self.finished.emit()
+            except RuntimeError:
+                pass
+            return  # 읽기 실패시 더 진행하지 않음
 
 
         # --- 읽은 데이터 파싱 --- #
@@ -76,7 +80,10 @@ class SequenceWorker(QObject):
 
         finally:
             # 결과 상관 없이 스레드 종료 신호
-            self.finished.emit()
+            try:
+                self.finished.emit()
+            except RuntimeError:
+                pass
 
 
 

@@ -41,7 +41,10 @@ class HeartbeatWorker(QObject):
                 self.connection_lost.emit()
                 break
 
-        self.finished.emit()
+        try:
+            self.finished.emit()
+        except RuntimeError:
+            pass
 
     def stop(self):
         """감시 중지 요청"""

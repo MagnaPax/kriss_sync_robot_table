@@ -59,9 +59,9 @@ class PLCWorker(QObject):
         try:
             import debugpy
             debugpy.debug_this_thread()
-            EVENT_BUS.log.message.emit(f"{self._log_prefix} 디버거가 백그라운드 스레드에 연결되었습니다.", "DEBUG")
-        except ImportError:
-            EVENT_BUS.log.message.emit(f"{self._log_prefix} debugpy가 설치되지 않아 스레드 디버깅이 제한될 수 있습니다.", "WARNING")
+        except (ImportError, Exception):
+            # 디버거가 없거나 연결 불가 시 조용히 넘어감
+            pass
 
         is_success = False
         msg = "알 수 없는 명령입니다."
@@ -121,8 +121,12 @@ class PLCWorker(QObject):
             msg = f"작업중 오류 발생: {e}"
 
         # 결과 보고 및 종료
-        self.result.emit(is_success, msg)
-        self.finished.emit()
+        # 결과 보고 및 종료
+        try:
+            self.result.emit(is_success, msg)
+            self.finished.emit()
+        except RuntimeError:
+            pass
 
 
     def _is_interrupted(self) -> bool:
