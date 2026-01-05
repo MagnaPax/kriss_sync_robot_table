@@ -87,9 +87,6 @@ class FANUCPoseModel:
             ValueError: 내부 데이터 구조가 잘못되었거나, 데이터가 비어있을 때
         """
 
-        if not isinstance(data, dict):
-            raise TypeError("매크로 데이터는 dict 형식이어야 합니다.")
-
         result: Dict[str, FANUCPose] = {}
 
         for macro_id, macro_data in data.items():

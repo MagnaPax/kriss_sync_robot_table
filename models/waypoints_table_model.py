@@ -13,8 +13,8 @@ A: 데이터가 적을 땐 QTableWidget이 편하지만, 데이터가 1,000개�
     즉, "대용량 데이터를 렉 없이 보여주기 위한 필수 테크닉"입니다.
 """
 
-from typing import List, Dict, Any
-from PyQt6.QtCore import QAbstractTableModel, Qt, QModelIndex
+from typing import List, Dict, Any, Optional
+from PyQt6.QtCore import QAbstractTableModel, Qt, QModelIndex, QObject
 
 
 
@@ -27,7 +27,7 @@ class WaypointsTableModel(QAbstractTableModel):
         - View(QTableView)가 "이 칸에 뭐 그려?" 물어보면 대답해줌 (data 메서드)
         - 데이터가 바뀌면 View에게 "다시 그려"라고 신호 보냄 (layoutChanged 등)
     """
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QObject] = None):
         super().__init__(parent)
         self._data: List[Dict[str, Any]] = [] # 실제 데이터 저장소 (5만개 리스트)
         self._headers: List[str] = []         # 컬럼 제목 리스트
@@ -68,13 +68,13 @@ class WaypointsTableModel(QAbstractTableModel):
 
     # --- 필수 오버라이드 메서드 (Qt가 이 함수들을 호출해서 화면을 그림) ---
 
-    def rowCount(self, parent=QModelIndex()) -> int:
+    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
         """
         [필수] 전체 행(Row) 개수가 몇 개인지 뷰에게 알려줍니다.
         """
         return len(self._data)
 
-    def columnCount(self, parent=QModelIndex()) -> int:
+    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
         """
         [필수] 전체 열(Column) 개수가 몇 개인지 뷰에게 알려줍니다.
         """

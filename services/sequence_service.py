@@ -1,9 +1,9 @@
 # services/sequence_service.py
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Any
 from core.event_bus import EVENT_BUS
 from workers.sequence_worker import SequenceWorker
-from PyQt6.QtCore import QObject, pyqtSlot, QThread
+from PyQt6.QtCore import QObject, QThread, pyqtSlot
 
 
 
@@ -22,7 +22,7 @@ class SequenceService(QObject):
         self._log_prefix = f"[{self.__class__.__name__}]"
 
         # 읽어 온 시퀀스 데이터 보관 
-        self._sequence_data: List[dict] = []
+        self._sequence_data: List[Dict[str, Any]] = []
 
         # 새로운 사무실(QThread) '공간 확보'
         self._thread: QThread | None = None
@@ -75,11 +75,12 @@ class SequenceService(QObject):
         if file_path.suffix.lower() != '.csv':
             msg = f"{self._log_prefix} csv 파일이 아닙니다: {file_path}"
             EVENT_BUS.log.message.emit(f"{msg}", "ERROR")
+            EVENT_BUS.system.operation_error_alert.emit("파일 로드 실패", "선택하신 파일은 CSV 형식이 아닙니다.")
             raise ValueError(msg)
 
 
-    @pyqtSlot(bool, str, dict)
-    def _handle_file_load_result(self, success: bool, msg: str, sequence_data: dict):
+    @pyqtSlot(bool, str, dict) # type: ignore
+    def _handle_file_load_result(self, success: bool, msg: str, sequence_data: Dict[str, Any]):
         """
         워커가 실행한 파일 읽기 결과 처리
             워커의 결과물 결과물(dict)을 앱에서 쓸 수 있는 형태(list)로 가공하여 방송
@@ -88,6 +89,10 @@ class SequenceService(QObject):
         # 상태 로그 방송
         level = "INFO" if success else "ERROR"
         EVENT_BUS.log.message.emit(msg, level)
+        
+        if not success:
+            EVENT_BUS.system.operation_error_alert.emit("시퀀스 로드 실패", msg)
+            return
 
         if success:
             # 딕셔너리 -> 리스트 (값만 추출)
@@ -103,7 +108,7 @@ class SequenceService(QObject):
             EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 파일 -> 데이터 처리 완료: {len(sequence_list)}건", "INFO")
 
 
-    @pyqtSlot()
+    @pyqtSlot() # type: ignore
     def _cleanup(self):
         """
         실행 중인 스레드(사무실)와 워커(비서)를

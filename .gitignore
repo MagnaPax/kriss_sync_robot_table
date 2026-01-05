@@ -812,32 +812,24 @@ modules.xml
 
 # 설정값 저장 파일 
 config/*.json
+config/settings.ini
 tests/테스트_종류.md
 
 
 # 배포할 때 필요 없는 파일과 폴더들
 TcAdsDll.dll
 
-
-_client_demo/새 폴더/
-00Testing/
-hanul_image_handling/
-services/역할설명/
-core/역할설명/
-/docs/저장용pdf파일들
-/docs/플로우차트
-/docs/개발용문서들
-/_client_demo/20.11.24/소현님원본파일
-/_client_demo/25.11.24/소현님원본파일
-/_client_demo/OLD
-/_client_demo/원본파일_소현님
-/_client_demo/원본파일_정환님
-tests/README.md
-/docs/개발용문서들
-models/README.md
-models/README.md
-tests/unit/test_turntable.py
-TODO.md
-/_client_demo/
 # Beckhoff 장비 명세서 폴더
 EtherNetIP/
+
+# 추적 안 할 폴더, 파일들
+_for_tests_on_the_field/TODO.md
+00Testing/
+services/README.md
+docs/저장용pdf파일들
+docs/플로우차트
+docs/개발용문서들
+core/역할설명/
+tests/README.md
+models/README.md
+tests/unit/test_turntable.py

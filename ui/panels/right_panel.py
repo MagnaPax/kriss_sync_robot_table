@@ -1,14 +1,14 @@
-from PyQt6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QGroupBox, QFrame
+from PyQt6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QGroupBox, QWidget
 from ui.widgets.waypoints_widget import WaypointsWidget
 from ui.widgets.task_manager_widget import TaskManagerWidget
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from view_models.main_window_viewmodel import MainViewModel
 
 
 class RightPanel(QFrame):
-    def __init__(self, view_model: "MainViewModel", parent=None):
+    def __init__(self, view_model: "MainViewModel", parent: Optional[QWidget] = None):
         super().__init__(parent)
 
         # 뷰모델 저장 (나중에 자식 위젯들이 데이터 필요할 때 여기서 꺼내 줌)
@@ -48,5 +48,3 @@ class RightPanel(QFrame):
         layout.addWidget(progress_state,    1)
         layout.addWidget(task_manager,      2)
         layout.addLayout(logs_layout,       7)
-
-

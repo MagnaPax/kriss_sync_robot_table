@@ -10,6 +10,7 @@ from PyQt6.QtCore import Qt, QPointF, QRectF, QTimer
 
 from ui.widgets.base_widget import BaseWidget
 from ui.widgets.status_indicator_box import StatusIndicatorBox
+from typing import Optional, Dict, Any
 
 
 
@@ -34,7 +35,7 @@ from ui.widgets.status_indicator_box import StatusIndicatorBox
 class _RobotVisualizer(QWidget):
     """QPainter로 로봇 팔, 작업 영역, 로봇 위치(점)를 그리는 위젯"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.setMinimumSize(250, 200)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -216,7 +217,7 @@ class RobotPositionWidget(BaseWidget):
         self.state_indicator = StatusIndicatorBox("Robot State", led_size=10)
         layout.addWidget(self.state_indicator, stretch=0)
 
-    def update_data(self, data: dict):
+    def update_data(self, data: Dict[str, Any]):
         """
         BaseWidget의 추상 메서드(update_data) 구현
         
@@ -239,7 +240,7 @@ class RobotPositionWidget(BaseWidget):
         # 3. 상태 표시줄 갱신
         state_data = {
             'state': state,
-            'title': self.state_indicator._title_text # 기존 제목 유지
+            'title': self.state_indicator._title_text # type: ignore # 기존 제목 유지
         }
         self.state_indicator.safe_update_data(state_data)
 

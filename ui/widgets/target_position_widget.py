@@ -1,5 +1,5 @@
 # ui/widgets/target_position_widget.py
-from PyQt6.QtCore import Qt, pyqtSlot, QTimer
+from PyQt6.QtCore import pyqtSlot, QTimer
 from PyQt6.QtWidgets import (
     QVBoxLayout, 
     QGroupBox, 
@@ -21,6 +21,7 @@ from ui.widgets.base_widget import BaseWidget
 from models.fanuc_pose_model import FANUCPose
 from utils.validators import NumericValidator
 from ui.dialogs.macro_settings_dialog import MacroSettingsDialog
+from PyQt6.QtWidgets import QWidget
 
 
 # 런타임에는 import 하지 않음
@@ -40,7 +41,7 @@ class TargetPositionWidget(BaseWidget):
         - 'GoTo' 버튼 클릭 시 `goto_requested` 시그널 발생
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None):
         # ViewModel 인스턴스를 클래스 속성으로 저장
         # super().__init__() 전에 저장
         self.vm: Optional["TargetPositionViewModel"] = None
@@ -309,7 +310,7 @@ class TargetPositionWidget(BaseWidget):
                 # 숫자만 입력 가능하도록 유효성 검사기 추가
                 # 에러 발생 시 BaseWidget의 error_occurred 시그널을 통해 알림
                 validator = NumericValidator(
-                    error_callback=lambda msg: self.error_occurred.emit(msg),
+                    error_callback=lambda msg: self.error_occurred.emit(msg), # type: ignore
                     parent=line_edit
                 )
                 validator.setDecimals(3) # 소수점 3자리까지 허용
@@ -428,7 +429,7 @@ class TargetPositionWidget(BaseWidget):
     # 슬롯
     # ==========================================================
     @pyqtSlot(dict)
-    def _on_macro_data_loaded(self, data: dict):
+    def _on_macro_data_loaded(self, data: Dict[str, Any]):
         """"""
         EVENT_BUS.log.message.emit(
             f"매크로 데이터 로드 완료 (총 {len(data)}개 항목)", 
@@ -446,7 +447,7 @@ class TargetPositionWidget(BaseWidget):
             if macro_id in self.macro_btn_map:
                 btn = self.macro_btn_map[macro_id]
 
-                if btn and btn != "":
+                if btn:
                     # 'name'값을 가져옴
                     saved_name = macro_data.get('name', "")
 
@@ -566,7 +567,6 @@ if __name__ == '__main__':
     import sys
     from PyQt6.QtWidgets import QApplication, QMainWindow
     from models.fanuc_pose_model import FANUCPoseModel
-    from pathlib import Path
     
     # [추가 1] 로그 리스너 임포트
     from core.log_listener import LogListener

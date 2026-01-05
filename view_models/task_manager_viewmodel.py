@@ -5,7 +5,7 @@
 - 명령 및 로직 요청
 """
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Dict, Any
 from core.event_bus import EVENT_BUS
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, QTimer
 
@@ -22,6 +22,7 @@ class TaskManagerViewModel(QObject):
     sequence_data_loaded_failed = pyqtSignal(str)       # 파일 읽기 실패
     busy_state_changed = pyqtSignal(dict)               # 로봇과 턴테이블의 busy 상태
     runtime_updated = pyqtSignal(str)                   # 런타임 시간 업데이트
+    sequence_running_changed = pyqtSignal(bool)         # 시퀀스가 실행 중인지 아닌지
 
 
     def __init__(self, sequence_service: "SequenceService", plc_service: "PLCService"):
@@ -52,7 +53,7 @@ class TaskManagerViewModel(QObject):
         EVENT_BUS.data.progress_updated.connect(self._check_sequence_finished)
         # '바쁨 상태' 방송이 오면 -> 내 로컬 시그널(busy_state_changed)로 바로 재방송
         #   TaskManagerWidget.update_data와 연결
-        EVENT_BUS.data.device_busy_status.connect(self.busy_state_changed.emit)
+        EVENT_BUS.data.servo_busy_status.connect(self.busy_state_changed.emit)
 
 
     def load_sequence_data(self, file_path: Path):
@@ -83,6 +84,9 @@ class TaskManagerViewModel(QObject):
         # 런타임 시작
         self._runtime_timer.start()
 
+        # 시퀀스 실행 상태 알림 (True -> START 버튼 비활성화 등)
+        self.sequence_running_changed.emit(True)
+
         # PLC 서비스가 준비되지 않았는데 시작 명령을 내리면 에러가 날 수 있으므로 try-except로 처리
         try:
             EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 시작 (데이터 {len(self._cached_sequence_data)}건)", "INFO")
@@ -91,6 +95,7 @@ class TaskManagerViewModel(QObject):
             self._plc_service.process_sequence_data(self._cached_sequence_data)
         except Exception as e:
             self._runtime_timer.stop() # 에러 나면 타이머도 멈춤
+            self.sequence_running_changed.emit(False) # 실행중 상태 알림
             EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 시작 실패: {e}", "ERROR")
 
     def stop_sequence(self):
@@ -99,18 +104,12 @@ class TaskManagerViewModel(QObject):
 
         # 타이머 일시정지
         self._runtime_timer.stop()
+        
+        # 실행 상태 해제 (False -> START 버튼 활성화)
+        self.sequence_running_changed.emit(False)
 
         # PLCService 한테도 멈추라고 명령
         self._plc_service.stop_process()
-
-    def is_system_busy(self) -> bool:
-        """
-        시스템(PLC/로봇)이 현재 작업 중인지 체크
-        Return:
-            True: 작업 중
-            False: 대기 중
-        """
-        return self._plc_service.is_running
 
     def _reset_runtime_timer(self):
         self._elapsed_seconds = 0
@@ -119,7 +118,7 @@ class TaskManagerViewModel(QObject):
 
     # --- 슬롯 메서드 --- #
     @pyqtSlot(list)
-    def _on_sequence_data_updated(self, data: list):
+    def _on_sequence_data_updated(self, data: List[Dict[str, Any]]):
         """Event Bus를 통해 온 시퀀스 데이터를 캐싱"""
         self._cached_sequence_data = data
 
@@ -143,11 +142,13 @@ class TaskManagerViewModel(QObject):
 
 
     @pyqtSlot(int, int, str)
-    def _check_sequence_finished(self, current_step, total_steps, status):
+    def _check_sequence_finished(self, current_step: int, total_steps: int, status: str):
         """진행 상황을 감시하다가 끝났으면 타이머 정지"""
 
         # 마지막 스텝이고 + 상태가 '처리완료(processed)'라면
         if current_step == total_steps and status == "processed":
             # 타이머 정지
             self._runtime_timer.stop()
+            # 실행중 상태 해제
+            self.sequence_running_changed.emit(False)
             EVENT_BUS.log.message.emit(f"{self._log_prefix} 모든 시퀀스 작업 완료 (총 {total_steps}개의 데이터)", "INFO")

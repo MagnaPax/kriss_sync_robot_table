@@ -15,7 +15,7 @@ Thread-Safety:
     - 속성 읽기도 Lock 획득 (일관성 보장)
 """
 
-from typing import List, Optional, Dict, Union, Tuple
+from typing import List, Optional, Dict, Union, Tuple, Set
 from dataclasses import dataclass, field
 from enum import Enum, auto
 import threading
@@ -75,7 +75,7 @@ class SequenceStep:
     """
     command: str
     # default_factory=list -> 모든 인스턴스가 같은 리스트 객체 공유하지 않도록
-    params: List[float] = field(default_factory=list)
+    params: List[float] = field(default_factory=lambda: [])
     line_number: int = 0
 
     def __post_init__(self):
@@ -474,7 +474,7 @@ class SequenceModel:
     
     def validate(
         self,
-        valid_commands: Optional[set] = None,
+        valid_commands: Optional[Set[str]] = None,
         param_constraints: Optional[Dict[str, Union[int, Tuple[int, int]]]] = None
     ) -> List[str]:
         """

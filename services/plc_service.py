@@ -1,9 +1,9 @@
 # services/plc_service.py
 import time
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import QObject, QTimer, pyqtSlot, QThread, Qt, QMetaObject
+from PyQt6.QtCore import QObject, QThread, pyqtSlot
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Callable
 from core.event_bus import EVENT_BUS
 from workers.plc_worker import PLCWorker
 from models.fanuc_pose_model import FANUCPose
@@ -11,6 +11,8 @@ from communication.twincat_connector import TwinCATConnector
 from communication.twincat_commander import TwinCATCommander
 from communication.fanuc_adapter import FanucAdapter
 from communication.servo_adapter import ServoAdapter
+from workers.pose_monitor_worker import PoseMonitorWorker
+from workers.heartbeat_worker import HeartbeatWorker
 
 
 
@@ -22,6 +24,10 @@ class PLCService(QObject):
     def __init__(self):
         super().__init__()
         self._log_prefix = f"[{self.__class__.__name__}]"
+        
+        # 장치 활성 상태 플래그 (통신 에러 시 자동 비활성화)
+        self._is_robot_active = True
+        self._is_servo_active = True
         
         # 1. 연결 담당 (지갑)
         self.connector = TwinCATConnector()
@@ -40,17 +46,23 @@ class PLCService(QObject):
         # 비서(Worker) 직군 '정원 확보'
         self._worker: PLCWorker | None = None
 
+        # 긴급 명령(STOP 등) 전용 임시 스레드/워커
+        # 이유: 원점 복귀 중일 때 STOP 명령을 보내려면, 원점 복귀 스레드(self._thread)와 별개로 
+        #       동시에 실행되어야 하므로 별도의 스레드 변수가 필요함.
+        self._emergency_thread: QThread | None = None
+        self._emergency_worker: PLCWorker | None = None
 
-        # --- TwinCAT 연결 상태 정기적으로 확인 (Heartbeat) --- #
-        self._heartbeat_timer = QTimer()
-        self._heartbeat_timer.setInterval(2000) # 2초마다
-        self._heartbeat_timer.timeout.connect(self._check_heartbeat)
+        # 기기들의 현재 위치 모니터링 전용 스레드/워커
+        self._pose_monitor_thread: QThread | None = None
+        self._pose_monitor_worker: PoseMonitorWorker | None = None
+
+        # TwinCAT 연결 감시용 스레드 변수
+        self._heartbeat_thread: QThread | None = None
+        self._heartbeat_worker: HeartbeatWorker | None = None
 
 
-        # --- 현재위치 모니터링 타이머(0.1초마다) --- #
-        self._monitor_timer = QTimer()
-        self._monitor_timer.setInterval(100)  # 0.1초마다 실행 (10Hz)
-        self._monitor_timer.timeout.connect(self._on_monitor_tick)
+        # --- 연결 상태 변경 시 모니터링 시작/중지 --- #
+        EVENT_BUS.conn.status_changed.connect(self._on_connectino_changed)
 
 
         # --- 앱 종료 시 연결 끊기 --- #
@@ -58,33 +70,36 @@ class PLCService(QObject):
         EVENT_BUS.system.shutting_down.connect(self.disconnect_plc)
 
 
-
     # ==========================================================
-    # 연결 관련 메서드
+    # 연결 관련
     # ==========================================================
-
-    @pyqtSlot()
+    @pyqtSlot() # type: ignore
     def disconnect_plc(self):
         """연결 해제 (앱 종료 시 or 수동 끊기)"""
 
-        # 타이머 먼저 정지 (죽은 연결을 체크하지 않도록)
-        self._heartbeat_timer.stop()
-        self._monitor_timer.stop()
-        
+        # 1. 모니터링 하는 애들 먼저 퇴근시킴
+        self._stop_heartbeat_worker()
+        self._stop_monitoring()
+
+        # 2. 스레드 정리 및 대기
+        self._cleanup(self._heartbeat_thread, self._heartbeat_worker, ['_heartbeat_thread', '_heartbeat_worker'])
+        self._cleanup(self._pose_monitor_thread, self._pose_monitor_worker, ['_pose_monitor_thread', '_pose_monitor_worker'])
+
+        # 3. 실제 연결 끊기
         if self.connector.is_connected:
             self.connector.disconnect()
             EVENT_BUS.conn.status_changed.emit(False)
             EVENT_BUS.log.message.emit("PLC 연결이 안전하게 해제되었습니다.", "INFO")
 
-
-    def connect_with_retry(self, ui_callback=None) -> bool:
+    def connect_with_retry(self, ui_callback: Optional[Callable[[str, int], None]] = None) -> bool:
         """
         재시도 로직을 포함한 연결 시도(블록킹 + UI 업데이트)
 
         인자:
             ui_callback(함수) : UI 진행률/메세지 업데이트용 함수
         """
-        self._heartbeat_timer.stop() # 재연결 중에는 연결확인 중지
+        # 연결 시도 중일때는 연결 확인 중지
+        self._stop_heartbeat_worker()
 
         max_retries = 3
         
@@ -113,15 +128,11 @@ class PLCService(QObject):
                 EVENT_BUS.conn.status_changed.emit(True)
                 EVENT_BUS.log.message.emit(success_msg, "INFO")
 
-                # Heartbeat 타이머 시작
-                self._heartbeat_timer.start()
+                # 연결 감시자 투입
+                self._start_heartbeat_worker()
 
-                # 현재위치 모니터링 타이머 시작
-                self._monitor_timer.start()
-                
                 QApplication.processEvents()
                 time.sleep(0.5)
-
                 return True
 
             except Exception as e:
@@ -142,70 +153,131 @@ class PLCService(QObject):
         return False
 
 
-    def _check_heartbeat(self):
-        """2초마다 실행되어 연결 상태 확인"""
 
-        # Model의 check_connection 호출
-        is_alive = self.connector.check_connection()
+    # ==========================================================
+    # Worker
+    # ==========================================================
+    def _create_worker(self, current_thread: QThread | None, command: str, data: Any = None, log_msg: str = "", force_interrupt: bool = False, cleanup_attrs: list[str] | None = None) -> tuple[QThread, PLCWorker] | None:
+        """
+        워커 스레드 생성 및 실행 공통 로직 (Factory Method)
         
-        if not is_alive:
-            self._heartbeat_timer.stop()
+        Args:
+            current_thread: 현재 돌고 있는 스레드 (중복 실행 체크용)
+            command: 실행할 명령
+            data: 데이터
+            log_msg: 시작 전 공지할 로그 메시지
+            force_interrupt: True면 진행 중인 스레드를 무조건 중단하고 대기 (긴급)
+            cleanup_attrs: 종료 시 None으로 초기화할 멤버 변수 이름 리스트 (예: ['_thread', '_worker'])
+            
+        Returns:
+            (new_thread, new_worker) 튜플. 실행되지 않았다면 None.
+        """
 
-            # --- 비상 상황 알림 --- #
-            # 통신 연결 상태 변경 시그널 emit
-            EVENT_BUS.conn.status_changed.emit(False)
-            EVENT_BUS.log.message.emit("⚠️ TwinCAT 연결 끊김 감지!", "ERROR")
+        # 1. 실행 중인 스레드 점검 및 처리
+        if current_thread and current_thread.isRunning():
+            if force_interrupt:
+                # 긴급 작업은 기존 작업을 덮어쓰고 즉시 실행 (방어코드)
+                current_thread.requestInterruption()
+                current_thread.wait(100)
+            else:
+                # 일반 작업은 STOP 명령일 때만 기존 작업 중단
+                if command == 'STOP':
+                    current_thread.requestInterruption()
+                else:
+                    EVENT_BUS.log.message.emit("이전 작업이 아직 진행중입니다", "WARNING")
+                    return None
 
-            # 시스템 에러 발생 시그널 emit
-            EVENT_BUS.system.error.emit("TwinCAT_DISCONNECTED")
+        # 2. 로그
+        if log_msg:
+            EVENT_BUS.log.message.emit(log_msg, "INFO")
 
+        # 사무실 계약
+        thread = QThread()
+
+        # 비서(Worker) 채용
+        worker = PLCWorker(self.connector, self.commander, command, data)
+
+        # 비서를 새 사무실로 전근 발령 - moveToThread() : 스레드 소속 변경
+        worker.moveToThread(thread)
+
+
+        # 비서의 전화보고(emit)를 받고 어떻게 처리(Slot)할지 미리 정해놓기(connect)
+        worker.result.connect(self._handle_worker_result)
+        
+        # _cleanup이 파라미터를 받으므로 lambda나 partial로 인자 구워삶기(Binding)
+        # 스레드와 워커가 종료될 때 이 특정 객체들을 정리하도록 지정함
+        worker.finished.connect(lambda: self._cleanup(thread, worker, cleanup_attrs))
+        
+        # --- 사무실(Thread)에서 벌어질 이벤트 예약(connect) ---
+        # 사무실 문 열리면 비서에게 “일 시작해라” 지시
+        thread.started.connect(worker.run)
+        # 사무실이 문 닫히면 → 사무실 정리하고 폐기하도록 예약
+        thread.finished.connect(thread.deleteLater)
+        
+        # 사무실 오픈(스레드 시작)
+        # 사무실 문을 열고 내부 이벤트 루프를 가동하는 것
+        thread.start()
+        
+        return thread, worker
+
+    def _cleanup(self, thread: QThread | None, worker: QObject | None, cleanup_attrs: list[str] | None = None):
+        """
+        실행 중인 스레드(사무실)와 워커(비서)를
+        우아하게 종료하고 메모리 누수 없이 안전하게 폐기하는 함수
+        """
+        if thread and thread.isRunning():
+            thread.quit()     # Thread의 이벤트 루프 종료 요청 - 남아 있는 이벤트 처리 후 종료
+            thread.wait(2000) # 사무실이 안전하게 문 닫을 때까지 2초동안 기다림
+
+        # 비서(Worker) 정리
+        #   Qt의 메모리 관리 시스템에 맡겨서 안전하게 폐기
+        #   파이썬 레퍼런스 해제는 아래 멤버변수 초기화에서 처리
+        #   이미 삭제된 객체라면 안전하게 무시하도록 try-except 로 처리
+        if worker:
+            try:
+                worker.deleteLater()    # Qt에게 삭제 요청
+            except RuntimeError:
+                pass
+
+        # 사무실(Thread) 정리
+        #   deleteLater는 '나중에' 지우라는 예약어이므로 즉시 None이 되지 않음.
+        #   하지만 더 이상 이 변수를 쓰면 안 되므로, 파이썬 쪽 레퍼런스를 끊어야 함.
+        #   이미 삭제된 객체라면 안전하게 무시하도록 try-except 로 처리
+        if thread:
+            try:
+                thread.deleteLater()  # Qt에게 삭제 요청
+            except RuntimeError:
+                pass
+            
+        # 멤버 변수 초기화 (동적 처리)
+        # cleanup_attrs에 지정된 멤버 변수들이 현재 정리 중인 객체와 같다면 None으로 초기화
+        if cleanup_attrs:
+            for attr_name in cleanup_attrs:
+                if hasattr(self, attr_name):
+                    current_obj = getattr(self, attr_name)
+                    # 정리 대상인 thread나 worker와 동일한 객체를 가리키고 있을 때만 None 처리
+                    # (이미 다른 작업이 시작되어 변수가 바뀌었을 수 있으므로 안전장치)
+                    if current_obj == thread or current_obj == worker:
+                        setattr(self, attr_name, None)
+
+    def _start_worker(self, command: str, data: Any = None, log_msg: str = ""):
+        """일반 작업 시작 (Wrapper)"""
+        # 결과가 있을 때만 멤버 변수 업데이트
+        if result := self._create_worker(self._thread, command, data, log_msg, force_interrupt=False, cleanup_attrs=['_thread', '_worker']):
+            self._thread, self._worker = result
+
+    def _start_emergency_worker(self, command: str, data: Any = None, log_msg: str = ""):
+        """긴급 작업 시작 (Wrapper)"""
+        # 결과가 있을 때만 멤버 변수 업데이트
+        if result := self._create_worker(self._emergency_thread, command, data, log_msg, force_interrupt=True, cleanup_attrs=['_emergency_thread', '_emergency_worker']):
+            self._emergency_thread, self._emergency_worker = result
 
 
     # ==========================================================
     # [비동기] 로봇 제어 명령 (Worker 사용)
     # ==========================================================
-    def _start_worker(self, command: str, data=None, log_msg: str = ""):
-        """비동기 워커 스레드 생성 및 실행 (공통 로직)"""
-
-        if self._thread and self._thread.isRunning():
-            if command == 'STOP':
-                self._thread.requestInterruption()  # 강제 중단 요청
-            else:
-                EVENT_BUS.log.message.emit("이전 작업이 아직 진행중입니다", "WARNING")
-                return # 이전 작업이 있다면 중복 실행 방지
-
-        if log_msg:
-            EVENT_BUS.log.message.emit(log_msg, "INFO")
-
-        # 사무실 계약
-        self._thread = QThread()
-
-        # 비서(Worker) 채용
-        self._worker = PLCWorker(self.connector, self.commander, command, data)
-
-        # 비서를 새 사무실로 전근 발령 - moveToThread() : 스레드 소속 변경
-        self._worker.moveToThread(self._thread)
-
-
-        # 비서의 전화보고(emit)를 받고 어떻게 처리(Slot)할지 미리 정해놓기(connect)
-        self._worker.result.connect(self._handle_worker_result)
-        self._worker.finished.connect(self._cleanup)
-
-        # --- 사무실(Thread)에서 벌어질 이벤트 예약(connect) ---
-        # 사무실 문 열리면 비서에게 “일 시작해라” 지시
-        self._thread.started.connect(self._worker.run)
-        # 사무실이 문 닫히면 → 사무실 정리하고 폐기하도록 예약
-        self._thread.finished.connect(self._thread.deleteLater)
-
-
-        # 사무실 오픈(스레드 시작)
-        # 사무실 문을 열고 내부 이벤트 루프를 가동하는 것
-        self._thread.start()
-
-
     def start_process(self):
         self._start_worker('START', log_msg="프로세스 시작 요청...")
-
 
     def stop_process(self):
         # 진행 중인 워커가 있다면 중단 요청
@@ -221,7 +293,6 @@ class PLCService(QObject):
 
         # 만약 실행 중인 게 없다면, 그냥 정지 신호만 한 번 보내줌 (안전장치)
         self._start_worker('STOP', log_msg="프로세스 중지 요청...")
-
 
     def move_robot_by_pose(self, fanuc_pose_obj:FANUCPose):
         """
@@ -245,8 +316,7 @@ class PLCService(QObject):
         # Worker 호출
         self._start_worker('MOVE', data=sequence_data, log_msg=f"단일 명령 이동: {fanuc_pose_obj}")
 
-
-    def process_sequence_data(self, csv_data: list):
+    def process_sequence_data(self, csv_data: List[Dict[str, Any]]):
         """
         시퀀스 데이터를 받아 로봇 작업을 시작함
         Args:
@@ -255,102 +325,27 @@ class PLCService(QObject):
         # Worker 호출
         self._start_worker('MOVE', data=csv_data, log_msg=f"csv 시퀀스 명령: {len(csv_data)}건")
 
-
     def set_robot_speed(self, feed_rate: float):
         self._start_worker('SET_SPEED', data=feed_rate, log_msg=f"로봇 속도 설정 변경 요청: {feed_rate} mm/sec")
-
-
-
-    # ==========================================================
-    # 상태 확인
-    # ==========================================================
-    @property
-    def is_running(self) -> bool:
-        """로봇이나 턴테이블이 현재 작업 중인지 확인"""
-
-        # 연결이 끊겼는가? (연결 없으면 상태 확인 불가)
-        if not self.connector.is_connected:
-            return False
-
-        # 스레드(Python)가 일하고 있는가?
-        if self._thread is not None and self._thread.isRunning():
-            return True
-
-        # Gadgets(로봇&턴테이블)이 움직이고 있는가?
-        return self.commander.are_gagets_busy()
-
 
 
     # ==========================================================
     # [슬롯] Worker 시그널에 대한 처리
     # ==========================================================
-    @pyqtSlot(bool, str)
+    @pyqtSlot(bool, str) # type: ignore
     def _handle_worker_result(self, success: bool, msg: str):
         """워커 실행 결과 처리"""
+        if not success:
+            # 에러 발생 시 사용자에게 팝업으로 알림 (제목, 내용)
+            EVENT_BUS.system.operation_error_alert.emit("작업 실행 실패", msg)
+
         level = "INFO" if success else "ERROR"
         EVENT_BUS.log.message.emit(msg, level)
-
-    @pyqtSlot()
-    def _cleanup(self):
-        """
-        실행 중인 스레드(사무실)와 워커(비서)를
-        우아하게 종료하고 메모리 누수 없이 안전하게 폐기하는 함수
-        """
-        if self._thread and self._thread.isRunning():
-            self._thread.quit()     # Thread의 이벤트 루프 종료 요청 - 남아 있는 이벤트 처리 후 종료
-            self._thread.wait(2000) # 사무실이 안전하게 문 닫을 때까지 2초동안 기다림
-
-        # 비서(Worker) 정리
-        if self._worker:
-            self._worker.deleteLater()  # 비서 정리 → Qt의 메모리 관리 시스템에 맡겨서 안전하게 폐기
-            self._worker = None         # Python 레벨에서도 비서 레퍼런스 해제(메모리 누수 방지)
-
-        # 사무실(Thread) 정리
-        if self._thread:
-            # deleteLater는 '나중에' 지우라는 예약어이므로 즉시 None이 되지 않음.
-            # 하지만 더 이상 이 변수를 쓰면 안 되므로, 파이썬 쪽 레퍼런스를 끊어야 함.
-            self._thread.deleteLater()  # Qt에게 삭제 요청
-            self._thread = None         # [핵심] 파이썬 변수 초기화
-
-    # ==========================================================
-    # 실시간 데이터 수집 루프
-    # ==========================================================
-    def _on_monitor_tick(self):
-        """
-        0.1초마다 실행되어 로봇/턴테이블의 현재 상태를 읽고 UI에 방송
-        """
-        if not self.connector.is_connected: return
-
-        try:
-            # --- 1. 위치 방송 --- #
-            # FANUC World 현재 위치 읽기 & 방송
-            world_pose = self.commander.robot.read_current_world_pose()
-            EVENT_BUS.control.robot_current_pose.emit(world_pose)
-
-            # FANUC 이동해야 될 목표 위치 확인 & 방송 <- 개발용
-            target_pose = self.commander.robot.read_target_world_pose()
-            # EVENT_BUS.control.tool_current_pose.emit(target_pose)
-
-            # TODO: 턴테이블 상태 읽기 & 방송
-            # table_status = self.commander.turntable.read_current_status()
-            # EVENT_BUS.control.turntable_current_pose.emit(table_status)
-
-            # --- 2. 바쁨 상태 방송 --- #
-            is_busy = self.is_running
-            EVENT_BUS.data.device_busy_status.emit({'is_busy': is_busy})
-
-
-        except Exception:
-            # 모니터링 중 에러는 로그를 남기지 않음 (로그 폭주 방지)
-            pass
-
-
 
     # ==========================================================
     # [비동기] 서보 모터 제어 (Worker 사용)
     # ==========================================================
-    
-    def move_servo_by_manual(self, data: dict):
+    def move_servo_by_manual(self, data: Dict[str, Any]):
         """
         서보 수동 조작
         
@@ -363,7 +358,6 @@ class PLCService(QObject):
         # 이동하는건 'MOVE' 명령으로 통일 (Commander가 알아서 Executor를 찾음)
         self._start_worker('MOVE', data=sequence_data, log_msg=f"서보 구동 요청: {data}")
 
-
     def stop_servo_all(self):
         """서보 모터 비상 정지"""
         
@@ -372,11 +366,143 @@ class PLCService(QObject):
             self._thread.requestInterruption()
             EVENT_BUS.log.message.emit("진행 중인 작업을 중단하고 서보 정지를 시도합니다.", "WARNING")
 
-        # 정지 명령 Worker 실행
-        self._start_worker('SERVO_STOP', log_msg="서보 전체 정지 요청")
-
+        # 정지 명령 Worker 실행 (긴급 스레드 사용)
+        # 만약 여기서 기존 스레드가 끝나길 기다리면(Wait), 원점 복귀 루프가 끝나지 않아서(Move가 안 멈춤) 데드락에 걸림.
+        # 따라서 병렬로 "즉시" 정지 신호를 쏴줘야 함.
+        self._start_emergency_worker('SERVO_STOP', log_msg="서보 전체 정지 요청")
 
     def home_servo_all(self):
         """서보 원점 복귀"""
         # 원점 복귀는 시간이 걸리는 작업이므로 Worker로 실행
         self._start_worker('SERVO_HOME', log_msg="서보 원점 복귀 요청 (Axis 1,2,3)")
+
+    def reset_servo_all(self):
+        """서보 에러 리셋"""
+        # 에러 리셋은 비교적 빠르지만, PLC 통신이 포함되므로 Worker로 실행
+        self._start_worker('SERVO_RESET', log_msg="서보 에러 리셋 요청")
+
+
+
+
+
+
+    # ==========================================================
+    # 상태 확인
+    # ==========================================================
+    @property
+    def is_running(self) -> bool:
+        """로봇이나 서보 모터가 현재 작업 중인지 확인"""
+
+        # 연결이 끊겼는가? (연결 없으면 상태 확인 불가)
+        if not self.connector.is_connected:
+            return False
+
+        # 스레드(Python)가 일하고 있는가?
+        if self._thread is not None and self._thread.isRunning():
+            return True
+
+        # Gadgets(로봇과 서보모터)가 움직이고 있는가?
+        return self.commander.are_gagets_busy()
+
+
+
+    # ==========================================================
+    # 기기의 현재 위치 모니터링
+    # ==========================================================
+    def _on_connectino_changed(self, is_connected: bool):
+        """연결되면 모니터링 시작, 끊기면 중지"""
+        if is_connected:
+            self._start_monitoring()
+        else:
+            self._stop_monitoring()
+
+    def _start_monitoring(self):
+        """모니터링 스레드 시작"""
+        if self._pose_monitor_thread is not None: return     # 이미 실행중
+
+        # 1. 스레드 및 워커 생성 (지역 변수를 사용하여 Pylance None 체크 통과)
+        thread = QThread()
+        worker = PoseMonitorWorker(self.commander)
+
+        self._pose_monitor_thread = thread
+        self._pose_monitor_worker = worker
+        
+        # 2. 워커를 스레드로 이동
+        worker.moveToThread(thread)
+        
+        # 3. 시그널 연결 (스레드 생명주기 관리)
+        thread.started.connect(worker.run)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+
+        # 스레드 정리 시 변수 초기화 연결
+        thread.finished.connect(self._clear_monitor_refs)
+
+        thread.start()
+        EVENT_BUS.log.message.emit("모니터링 스레드가 시작되었습니다.", "INFO")
+
+    def _stop_monitoring(self):
+        """모니터링 중지"""
+        if self._pose_monitor_worker:
+            self._pose_monitor_worker.stop()     # 루프 탈출 플래그 설정
+
+    def _clear_monitor_refs(self):
+        """스레드 종료 후 레퍼런스 초기화"""
+        self._pose_monitor_thread = None
+        self._pose_monitor_worker = None
+
+
+    # ==========================================================
+    # 연결 상태(Heartbeat) 모니터링 (Worker 관리)
+    # ==========================================================
+    def _start_heartbeat_worker(self):
+        """연결 감시 스레드 시작"""
+        if self._heartbeat_thread is not None: return
+
+        thread = QThread()
+        worker = HeartbeatWorker(self.connector, interval=2.0)
+
+        self._heartbeat_thread = thread
+        self._heartbeat_worker = worker
+        
+        worker.moveToThread(thread)
+
+        # 시그널 연결
+        thread.started.connect(worker.run)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(self._clear_conn_refs)
+
+        # [중요] 연결 끊김 보고 받으면 처리할 메서드 연결
+        worker.connection_lost.connect(self._handle_connection_lost)
+
+        thread.start()
+
+    def _stop_heartbeat_worker(self):
+        """연결 감시 중지"""
+        if self._heartbeat_worker:
+            self._heartbeat_worker.stop()
+            # 스레드가 종료될 때까지 잠시 대기 (안전한 종료)
+            if self._heartbeat_thread:
+                self._heartbeat_thread.wait(100)
+
+    def _clear_conn_refs(self):
+        """참조 초기화"""
+        self._heartbeat_thread = None
+        self._heartbeat_worker = None
+
+    @pyqtSlot()
+    def _handle_connection_lost(self):
+        """
+        [비상] 워커가 연결 끊김을 감지했을 때 호출됨
+        기존 _check_heartbeat 로직을 여기서 처리
+        """
+        # 스레드 정리
+        self._stop_heartbeat_worker()
+
+        # UI 및 시스템 알림 방송
+        EVENT_BUS.conn.status_changed.emit(False)
+        EVENT_BUS.log.message.emit("⚠️ TwinCAT 연결 끊김 감지! (Heartbeat Lost)", "ERROR")
+        EVENT_BUS.system.error.emit("TwinCAT_DISCONNECTED")

@@ -12,7 +12,7 @@
     값: 실수(float)
 """
 from pathlib import Path
-from typing import Callable, Any, Dict
+from typing import Callable, Any, Dict, Optional
 from utils.file_handler import load_json, save_json
 from utils.file_exceptions import FileOperationError
 from core.event_bus import EVENT_BUS
@@ -21,7 +21,7 @@ from core.event_bus import EVENT_BUS
 class MacroService:
 
     # 매크로 데이터 파일이 없을 때 사용되는 표준 초기값(빈 딕셔너리)
-    DEFAULT_MACRO_DATA = {}
+    DEFAULT_MACRO_DATA: Dict[str, Any] = {}
 
 
     def load_macro(self, path: Path):
@@ -85,10 +85,9 @@ class MacroService:
         
         except FileOperationError as e:
             # 로깅 (실패)
-            EVENT_BUS.log.message.emit(
-                f"[매크로 저장 오류] 파일: {path}, 이유: {type(e.original).__name__}",
-                "ERROR"
-            )
+            msg = f"파일: {path}\n이유: {type(e.original).__name__}"
+            EVENT_BUS.log.message.emit(f"[매크로 저장 오류] {msg}", "ERROR")
+            EVENT_BUS.system.operation_error_alert.emit("매크로 저장 실패", msg)
 
             return False
 
@@ -127,10 +126,9 @@ class MacroService:
                 "INFO"
             )
         except FileOperationError as e:
-            EVENT_BUS.log.message.emit(
-                f"[매크로 저장 오류] {e} — 원인:{type(e.original).__name__}, 파일:{e.path}",
-                "ERROR",
-            )
+            msg = f"{e} — 원인:{type(e.original).__name__}, 파일:{e.path}"
+            EVENT_BUS.log.message.emit(f"[매크로 저장 오류] {msg}", "ERROR")
+            EVENT_BUS.system.operation_error_alert.emit("매크로 저장 실패 (내부)", msg)
             return False
         return True
 
@@ -153,7 +151,6 @@ if __name__ == "__main__":
     import sys
     import os
     import json
-    import time
     from pathlib import Path
 
     # EventBus는 QObject를 상속하므로, 시그널을 처리하려면 QApplication 인스턴스가 필요합니다.
@@ -214,7 +211,8 @@ if __name__ == "__main__":
         
     # 데이터 구조 확인
     loaded_data_after_a = service.load_macro(test_file_path)
-    print(f"   👉 저장된 키 확인: {list(loaded_data_after_a.keys())}")
+    if loaded_data_after_a:
+        print(f"   👉 저장된 키 확인: {list(loaded_data_after_a.keys())}")
     
     # ==========================================================
     # 2️⃣ 기존 데이터에 새로운 매크로 추가 (Macro_B)

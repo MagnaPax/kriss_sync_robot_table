@@ -1,4 +1,4 @@
-# models/fanuc_pose_key,py.py
+# models/fanuc_pose_key.py
 """
 목적:
     오타 방지 / 축 이름 관리
@@ -151,11 +151,13 @@ class FanucSignal(str, Enum):
     LOOP_ON =       "MAIN.Robot1._UI1.DI43"             # 루프 반복 여부 (ON=반복)
     CYCLE_STOP =    "MAIN.Robot1._UI1.UI04_CycleStop"   # 비상 정지 / 정지
     START_RE =      "MAIN.Robot1._UI1.UI06_Start"       # 재시작 신호
+    FAULT_RESET =   "MAIN.Robot1._UI1.UI05_FaultReset"  # 에러 리셋 (Dummy)
     
     # [출력] Robot -> PLC (읽는 신호)
     COMPLETE =  "MAIN.Robot1._UO1.DO45"             # 받은 명령을 완료했다. (job complete)
-    BUSY =      "MAIN.Robot1._UO1._UO10_Busy"       # 로봇 바쁨 상태 (움직이고 있는 중)
+    BUSY =      "MAIN.Robot1._UO1.UO10_Busy"       # 로봇 바쁨 상태 (움직이고 있는 중)
     PAUSED =    "MAIN.Robot1._UO1.UO04_PrgPaused"   # 일시정지 상태
+    FAULT =     "MAIN.Robot1._UO1.UO06_Fault"       # 로봇 에러 발생 상태 (Dummy)
 
 
     @property

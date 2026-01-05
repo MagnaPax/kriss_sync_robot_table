@@ -19,7 +19,7 @@ def dict_to_axis_list(coords: Dict[str, Any]) -> List[float]:
     - 파일 파싱 후: {'x_coord': 95.8, 'feed': 10, ...}
     - 모두 안전하게 처리 + 공백 제거
     """
-    result = []
+    result: List[float] = []
     for axis in ['x', 'y', 'z', 'w', 'p', 'r', 'f']:
         value = None
         for possible_key in KEY_MAPPING[axis]:

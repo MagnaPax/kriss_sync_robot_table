@@ -1,14 +1,14 @@
 # ui/widgets/servo_control_widget.py
-from PyQt6.QtCore import Qt, pyqtSlot, QTimer
+from PyQt6.QtCore import QTimer, pyqtSlot
 from PyQt6.QtWidgets import (
     QVBoxLayout, 
     QGroupBox, 
-    QLabel, 
     QFrame, 
     QHBoxLayout, 
     QFormLayout, 
     QDoubleSpinBox, 
-    QPushButton
+    QPushButton,
+    QWidget
 )
 from config.data_formats import (
     KEY_TT_DEG,
@@ -30,7 +30,7 @@ class ServoControlWidget(BaseWidget):
     # ========================================
     # 초기화 및 설정 (Initialization)
     # ========================================
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None):
         """위젯 초기화"""
         # ViewModel 인스턴스를 클래스 속성으로 저장
         self.vm: Optional["ServoControlViewModel"] = None
@@ -42,6 +42,7 @@ class ServoControlWidget(BaseWidget):
         self.btn_start = None
         self.btn_stop = None
         self.btn_home = None
+        self.btn_reset = None
 
         # BaseWidget의 __init__()은 내부적으로 _init_ui()를 호출함
         super().__init__(parent)
@@ -55,11 +56,15 @@ class ServoControlWidget(BaseWidget):
         """
         self.vm = view_model
 
+        # 로봇과 턴테이블의 바쁨 상태 연결
+        self.vm.busy_state_changed.connect(self.update_data)
+
     def _bind_events(self):
         """UI 이벤트 바인딩"""
         if btn := self.btn_start: btn.clicked.connect(self._on_start_clicked)
         if btn := self.btn_stop:  btn.clicked.connect(self._on_stop_clicked)
         if btn := self.btn_home:  btn.clicked.connect(self._on_home_clicked)
+        if btn := self.btn_reset: btn.clicked.connect(self._on_reset_clicked)
 
 
 
@@ -95,7 +100,7 @@ class ServoControlWidget(BaseWidget):
         # 오른쪽: 턴테이블 (각도/RPM)
         tt_layout = QFormLayout()
         self.input_widgets["tt_angle"] = self._create_spinbox(-360, 360, 0)
-        self.input_widgets["tt_rpm"] = self._create_spinbox(0, 100, 5)
+        self.input_widgets["tt_rpm"] = self._create_spinbox(0, 2000, 5)
         tt_layout.addRow("턴테이블 각도 (deg):", self.input_widgets["tt_angle"])
         tt_layout.addRow("턴테이블 속도 (rpm):", self.input_widgets["tt_rpm"])
 
@@ -111,11 +116,13 @@ class ServoControlWidget(BaseWidget):
         self.btn_start = self._create_control_button("START", "special")
         self.btn_stop = self._create_control_button("STOP", "general")
         self.btn_home = self._create_control_button("HOME", "special")
+        self.btn_reset = self._create_control_button("RESET", "general")
 
         button_layout.addStretch(1)
         button_layout.addWidget(self.btn_start)
         button_layout.addWidget(self.btn_stop)
         button_layout.addWidget(self.btn_home)
+        button_layout.addWidget(self.btn_reset)
 
         # 그룹 레이아웃에 섹션 추가
         group_layout.addWidget(input_section)
@@ -123,7 +130,7 @@ class ServoControlWidget(BaseWidget):
         
         main_layout.addWidget(self.servo_group)
 
-    def _create_spinbox(self, min_val, max_val, default_val, suffix="") -> QDoubleSpinBox:
+    def _create_spinbox(self, min_val: float, max_val: float, default_val: float, suffix: str = "") -> QDoubleSpinBox:
         """스핀박스 생성 헬퍼"""
         spin = QDoubleSpinBox()
         spin.setRange(float(min_val), float(max_val))
@@ -132,11 +139,29 @@ class ServoControlWidget(BaseWidget):
         spin.setDecimals(1)
         spin.setSingleStep(1.0)
         spin.setFixedWidth(100)
+
+        # 음수 입력 차단 로직 (최소값이 0 이상일 때)
+        if min_val >= 0:
+            def validate_no_minus(text: str):
+                if '-' in text:
+                    # 1. 시그널 방출 (메인 윈도우에서 팝업)
+                    EVENT_BUS.system.operation_error_alert.emit(
+                        "입력 불가", 
+                        "속도 항목에는 음수(-)를 입력할 수 없습니다."
+                    )
+                    # 2. '-' 문자 강제 삭제
+                    line_edit = spin.lineEdit()
+                    line_edit.blockSignals(True)
+                    line_edit.setText(text.replace('-', ''))
+                    line_edit.blockSignals(False)
+            
+            spin.lineEdit().textChanged.connect(validate_no_minus)
+
         # TargetPositionWidget 스타일 참고: 포커스 시 전체 선택
         spin.focusInEvent = lambda e: QTimer.singleShot(0, spin.selectAll)
         return spin
 
-    def _create_control_button(self, text, btn_type) -> QPushButton:
+    def _create_control_button(self, text: str, btn_type: str) -> QPushButton:
         """제어 버튼 생성 헬퍼"""
         btn = QPushButton(text)
         btn.setFixedSize(80, 30)
@@ -154,8 +179,21 @@ class ServoControlWidget(BaseWidget):
             BaseWidget의 safe_update_data()를 통해 호출됨
         """
         # 상태에 따른 활성화/비활성화
-        # TODO: 서보 모터가 물리적으로 움직이는 중이면 모든 버튼 비활성화
-        pass
+        if 'is_servo_moving' in data:
+            is_busy = data['is_servo_moving']
+
+            # BaseWidget 내부 변수 업데이트
+            self._is_enabled = not is_busy
+
+            # 로봇/서보가 바쁘면 START, HOME, RESET 비활성화, STOP 활성화
+            if self.btn_start: self.btn_start.setEnabled(not is_busy)
+            if self.btn_home:  self.btn_home.setEnabled(not is_busy)
+            if self.btn_reset: self.btn_reset.setEnabled(not is_busy)
+            if self.btn_stop:  self.btn_stop.setEnabled(is_busy)
+            
+            # 입력창들도 비활성화하여 오작동 방지
+            for spin in self.input_widgets.values():
+                spin.setEnabled(not is_busy)
 
     def clear_widget(self):
         """위젯 상태 초기화"""
@@ -168,6 +206,7 @@ class ServoControlWidget(BaseWidget):
         if btn := self.btn_start: btn.setEnabled(True)
         if btn := self.btn_stop:  btn.setEnabled(False)
         if btn := self.btn_home:  btn.setEnabled(True)
+        if btn := self.btn_reset: btn.setEnabled(True)
 
         # 부모 클래스의 초기화(데이터 비우기) 호출
         super().clear_widget()
@@ -205,6 +244,11 @@ class ServoControlWidget(BaseWidget):
         """HOME 버튼 클릭 핸들러"""
         self._handle_manual_home()
 
+    @pyqtSlot()
+    def _on_reset_clicked(self):
+        """RESET 버튼 클릭 핸들러"""
+        self._handle_manual_reset()
+
 
 
     # ===============================================
@@ -229,6 +273,12 @@ class ServoControlWidget(BaseWidget):
         if not (vm := self.vm): return
         EVENT_BUS.log.message.emit(f"{self.log_prefix} MANUAL HOME", "DEBUG")
         vm.home_manual()
+
+    def _handle_manual_reset(self):
+        """MANUAL RESET 핸들러"""
+        if not (vm := self.vm): return
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} MANUAL RESET", "DEBUG")
+        vm.reset_manual()
 
 
 
@@ -258,7 +308,7 @@ if __name__ == "__main__":
     # 데모 모드로 실행될 것이므로 별도의 connect() 호출 없이도 어댑터 초기화 가능
     
     servo_adapter = ServoAdapter(connector)
-    vm = ServoControlViewModel(servo_adapter)
+    vm = ServoControlViewModel(servo_adapter) # type: ignore
 
 
     app = QApplication(sys.argv)
@@ -276,5 +326,3 @@ if __name__ == "__main__":
     window.show()
 
     sys.exit(app.exec())
-
-

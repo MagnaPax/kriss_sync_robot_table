@@ -1,5 +1,5 @@
 # view_models/target_position_viewmodel.py
-from PyQt6.QtCore import Qt, QObject, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 from models.fanuc_pose_model import FANUCPoseModel, FANUCPose
 from services.macro_service import MacroService
 from config.paths import CONFIG_MACRO_PATH

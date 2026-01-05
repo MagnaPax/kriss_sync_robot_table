@@ -1,7 +1,8 @@
 # core/startup.py
 import sys
 import time
-from PyQt6.QtWidgets import QApplication, QMessageBox
+from typing import Optional
+from PyQt6.QtWidgets import QApplication, QMessageBox, QWidget
 
 from core.event_bus import EVENT_BUS
 from utils.dll_loader import load_pyads_dll
@@ -116,7 +117,7 @@ class StartupManager:
         return False
 
 
-    def _show_critical_error(self, parent, title, error_msg):
+    def _show_critical_error(self, parent: Optional[QWidget], title: str, error_msg: str):
         """치명적 에러 처리"""
         msg = f"{title}: {error_msg}"
         EVENT_BUS.log.message.emit(msg, "CRITICAL")

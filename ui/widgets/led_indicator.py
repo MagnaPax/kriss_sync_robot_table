@@ -1,8 +1,9 @@
 # ui/widgets/led_indicator.py
 import sys
 from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton
-from PyQt6.QtGui import QPainter, QColor
+from PyQt6.QtGui import QPainter, QColor, QPaintEvent
 from PyQt6.QtCore import Qt, QSize
+from typing import Optional
 
 from .base_widget import BaseWidget
 
@@ -15,7 +16,7 @@ class LEDIndicator(BaseWidget):
     - 'running', 'waiting', 'red', 'gray' 등의 상태/색상 문자열을 data로 받음
     """
 
-    def __init__(self, parent=None, default_color='gray', size=12):
+    def __init__(self, parent: Optional[QWidget] = None, default_color: str = 'gray', size: int = 12):
         """
         LEDIndicator 초기화
         
@@ -67,7 +68,7 @@ class LEDIndicator(BaseWidget):
         self._color = QColor(color_name)
         self.update()  # paintEvent() 호출을 요청
 
-    def paintEvent(self, a0):
+    def paintEvent(self, a0: Optional[QPaintEvent]):
         """QPainter를 사용하여 원을 그린다"""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing) # 원을 부드럽게
@@ -115,7 +116,7 @@ if __name__ == '__main__':
     main_layout.addWidget(indicator, alignment=Qt.AlignmentFlag.AlignCenter)
 
     # 3. 테스트용 버튼 생성 함수
-    def create_button(text, state):
+    def create_button(text: str, state: str):
         btn = QPushButton(text)
         # safe_update_data를 호출하여 BaseWidget의 기능 테스트
         btn.clicked.connect(lambda: indicator.safe_update_data(state))

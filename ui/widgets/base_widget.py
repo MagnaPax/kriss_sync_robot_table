@@ -9,7 +9,7 @@
 from PyQt6.QtWidgets import QWidget
 from PyQt6.QtCore import pyqtSignal
 from typing import Any, Optional
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
 class BaseWidget(QWidget):
     """
@@ -40,7 +40,7 @@ class BaseWidget(QWidget):
     error_occurred = pyqtSignal(str)      # 에러 발생: (error_message)
     data_updated = pyqtSignal(object)     # 데이터 업데이트 완료: (data)
     
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None):
         """
         BaseWidget 초기화
         
@@ -74,7 +74,7 @@ class BaseWidget(QWidget):
     # 추상클래스: 메서드의 목록만 가진 클래스. @abstractmethod가 붙은 모든 추상 메서드를 상속받는 클래스에서 구현하도록 강제
     # ➡️ BaseWidget 자체가 추상 클래스가 됨. 미구현 위젯은 인스턴스화 자체가 불가능해짐
     @abstractmethod
-    def update_data(self, data: Any):
+    def update_data(self, data: Any) -> None:
         """
         데이터 업데이트 (서브클래스에서 반드시 구현)
         
@@ -213,11 +213,11 @@ if __name__ == '__main__':
             layout.addWidget(self.label)
             self.setLayout(layout)
         
-        def update_data(self, data):
+        def update_data(self, data: Any):
             """데이터 업데이트 구현"""
             self.label.setText(f"받은 데이터: {data}")
         
-        def clear_widget(self):
+        def clear_widget(self): # type: ignore
             """초기화"""
             self.label.setText("초기화됨")
             super().clear_widget()
@@ -232,8 +232,13 @@ if __name__ == '__main__':
     widget.show()
     
     # 에러 시그널 연결
-    widget.error_occurred.connect(lambda msg: print(f"🔴 에러: {msg}"))
-    widget.data_updated.connect(lambda data: print(f"🟢 업데이트 완료: {data}"))
+    def on_error(msg: str):
+        print(f"🔴 에러: {msg}")
+    def on_update(data: Any):
+        print(f"🟢 업데이트 완료: {data}")
+
+    widget.error_occurred.connect(on_error)
+    widget.data_updated.connect(on_update)
     
     # 테스트 1: 정상 업데이트
     print("\n=== 테스트 1: 정상 업데이트 ===")

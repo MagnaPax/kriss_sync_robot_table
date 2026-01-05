@@ -19,8 +19,9 @@ from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, QThread
 from communication.twincat_connector import TwinCATConnector
 from communication.twincat_commander import TwinCATCommander
 from config.data_formats import *
-from typing import Dict, List, Any, Optional
+from typing import Any
 from core.event_bus import EVENT_BUS
+from core.exceptions import AppError
 
 
 
@@ -58,7 +59,8 @@ class PLCWorker(QObject):
         try:
             import debugpy
             debugpy.debug_this_thread()
-        except ImportError:
+        except (ImportError, Exception):
+            # 디버거가 없거나 연결 불가 시 조용히 넘어감
             pass
 
         is_success = False
@@ -97,6 +99,8 @@ class PLCWorker(QObject):
                     is_success, msg = self.commander.shutdown_servos_safely()   # 안전 정지 및 전원 차단
                 case 'SERVO_HOME':
                     is_success, msg = self.commander.home_servos_safely()        # 안전 원점 복귀
+                case 'SERVO_RESET':
+                    is_success, msg = self.commander.reset_servos_safely()      # 서보모터 축의 에러 해제
                 case _:
                     msg = "알 수 없는 명령입니다."
 
@@ -107,13 +111,22 @@ class PLCWorker(QObject):
             is_success = False
             msg = "작업이 사용자에 의해 중단됨"
 
+        # 커스텀 비즈니스 로직 예외 (ServoBusyError, ServoFaultError 등)
+        except AppError as e:
+            is_success = False
+            msg = str(e)  # "작업중 오류 발생" 접두어 없이 원본 메시지 그대로 전달
+
         except Exception as e:
             is_success = False
             msg = f"작업중 오류 발생: {e}"
 
         # 결과 보고 및 종료
-        self.result.emit(is_success, msg)
-        self.finished.emit()
+        # 결과 보고 및 종료
+        try:
+            self.result.emit(is_success, msg)
+            self.finished.emit()
+        except RuntimeError:
+            pass
 
 
     def _is_interrupted(self) -> bool:

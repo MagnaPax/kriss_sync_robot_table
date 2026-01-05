@@ -1,11 +1,11 @@
 # communication/fanuc_adapter.py
 import time
 import pyads
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Union, Dict
 from communication.twincat_connector import TwinCATConnector
 from models.fanuc_pose_key import FANUCPoseKey, FanucSignal
 from models.fanuc_pose_model import FANUCPose
+from core.exceptions import RobotFaultError
 
 
 # 실제 런타임에는 실행 안 됨
@@ -104,9 +104,9 @@ class FanucAdapter:
         로봇이 움직이기 전에 필요한 모든 스위치를 초기화 & 시작 신호를 보낸다
         """
         # [초기화] 1단계 - 체크 비트 False
-        self._init_robot_signals
+        self._init_robot_signals()
         # [초기화] 2단계 - 시작 신호 True
-        self._start_process
+        self._start_process()
 
 
     def set_finish_signals(self):
@@ -125,6 +125,24 @@ class FanucAdapter:
         # 비상정지(Cycle Stop) 실행
         plc.write_by_name(FanucSignal.CYCLE_STOP.path, True, pyads.PLCTYPE_BOOL)
 
+    def validate_robot_ready(self):
+        """로봇이 명령을 수행할 수 있는 상태인지 검증"""
+        if self.has_fault():
+            # 로봇팀이 주소를 확정하면 상세 에러 코드를 읽어오는 로직으로 확장 가능
+            raise RobotFaultError("로봇에 결함(Fault)이 감지되었습니다. 컨트롤러의 에러를 확인하고 리셋해 주세요.")
+
+    def has_fault(self) -> bool:
+        """로봇 에러 상태 확인 (UO06_Fault)"""
+        try:
+            return bool(self._plc.read_by_name(FanucSignal.FAULT.path, pyads.PLCTYPE_BOOL))
+        except Exception as e:
+            # 로봇팀이 아직 변수를 만들지 않았거나(1808: Symbol not found), 
+            # 통신 에러가 나면 일단 에러가 없는 것으로 간주하고 진행 (개발/테스트 편의용)
+            if "1808" in str(e) or "symbol not found" in str(e).lower():
+                return False
+            # 그 외의 치명적인 통신 에러는 상위로 던짐
+            raise e
+
 
     # ==========================================================================
     # 2. 데이터 전송 (좌표값 보내기)
@@ -140,7 +158,7 @@ class FanucAdapter:
         self._send_feed(feed_rate)
 
 
-    def send_data_packet(self, feed_rate: float, delta: dict):
+    def send_data_packet(self, feed_rate: float, delta: Dict[str, float]):
         """
         [데이터 패킷 전송]
         속도(Feed)와 6개 축의 이동량(Delta)을 한 번에 전송

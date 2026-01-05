@@ -1,12 +1,13 @@
 # ui/widgets/status_indicator.py
-import sys, os
+import sys
 
-from PyQt6.QtWidgets import QHBoxLayout, QLabel
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QWidget
 from PyQt6.QtGui import QPainter, QPen
 from PyQt6.QtCore import Qt, QRectF
 
 from .base_widget import BaseWidget
 from .led_indicator import LEDIndicator
+from typing import Optional, Dict, Any
 
 
 
@@ -16,7 +17,7 @@ class StatusIndicatorBox(BaseWidget):
     외곽 테두리 색상은 내부 LED(LEDIndicator) 색과 동일.
     """
 
-    def __init__(self, title: str, parent=None, led_size: int = 12):
+    def __init__(self, title: str, parent: Optional[QWidget] = None, led_size: int = 12):
         self._title_text = title        # StatusIndicatorBox 인스턴스에 값 할당
         self._led_size = led_size       # StatusIndicatorBox 인스턴스에 값 할당
         super().__init__(parent)        # BaseWidget의 생성자 호출
@@ -37,7 +38,7 @@ class StatusIndicatorBox(BaseWidget):
         layout.addWidget(self._lbl_state)
 
 
-    def update_data(self, data: dict):
+    def update_data(self, data: Dict[str, Any]):
         """
         data: { 'state': 'running', 'title': '새 제목'} 형태의 딕셔너리.
                 'state'와 'title' 키가 반드시 포함되어야 한다
@@ -148,7 +149,7 @@ if __name__ == '__main__':
         data_dict = next(cycle_data)
         # 'title' 키가 없는 경우, 현재 위젯의 제목을 가져와서 채워줌
         if 'title' not in data_dict:
-            data_dict['title'] = indicator._title_text
+            data_dict['title'] = indicator._title_text # type: ignore
         indicator.safe_update_data(data_dict)
 
     timer = QTimer()

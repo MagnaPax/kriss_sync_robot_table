@@ -72,7 +72,7 @@ View → ViewModel → Service → Worker
     EVENT_BUS.시그널이름.connect(self.on_log_message)
 """
 
-from PyQt6.QtCore import QObject, pyqtSignal, QMetaObject, QMetaMethod
+from PyQt6.QtCore import QObject, pyqtSignal, QMetaMethod
 from typing import Optional, TYPE_CHECKING
 
 
@@ -129,6 +129,21 @@ class SystemSignals(QObject):
         - ConnectionService: 소켓 연결 close
         - LogManager: 파일 핸들 flush 및 close
         - WorkerThreads: 실행 중인 스레드 안전 종료 (quit/wait)
+    """
+
+    operation_error_alert = pyqtSignal(str, str)
+    """
+    작업 수행 중 발생한 사용자 알림 (Modal Dialog용)
+    
+    사용자가 'START', 'HOME', 'RESET' 등을 눌렀을 때 하드웨어 결함이나 
+    논리적 오류로 인해 작업을 시작하거나 계속할 수 없는 경우 발생합니다.
+    
+    Args:
+        str (title): 다이얼로그 제목 (예: "작업 실행 실패")
+        str (message): 사용자 조치 방법이 포함된 상세 메시지
+        
+    Subscribers:
+        - MainWindow: QMessageBox.critical 등을 사용하여 팝업 표시
     """
 
 
@@ -213,7 +228,7 @@ class DataSignals(QObject):
         dict: 선택된 행의 전체 데이터 (예: {'id': 1, 'x': 100.0, ...})
     """
 
-    device_busy_status = pyqtSignal(dict)
+    servo_busy_status = pyqtSignal(dict)
     """장비 바쁨 상태 방송용"""
 
 
@@ -227,23 +242,22 @@ class ControlSignals(QObject):
     """
     FANUC 현재 World 좌표 정보
         바닥(베이스 좌표계) 기준 TCP(Tool Center Point) 위치
-    
+
     Args:
         - .x, .y, .z, .w, .p, .r 속성을 가진 FANUCPose 객체
     """
 
-    tool_current_pose = pyqtSignal(object)
-    """FANUC 현재 Tool 좌표 정보"""
-
-    turntable_current_pose = pyqtSignal(object)
+    servo_current_motion = pyqtSignal(object)
     """
-    턴테이블 현재 각도/속도 정보 (ServoPose)
-    
+    서보모터의 현재 각도/속도 정보 (ServoPose)
+
     Args:
         - .angle (float): 현재 각도
         - .velocity (float): 현재 회전 속도
     """
 
+    tool_current_pose = pyqtSignal(object)
+    """FANUC 현재 Tool 좌표 정보"""
 
 # =============================================================================
 # 2. 실제 QObject
@@ -337,7 +351,7 @@ class EventBus:
             self._backend = _EventBusBackend()
         return self._backend
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str):
         """
         사용자가 EVENT_BUS.system.info 를 찾으면 이 함수가 호출됩니다.
         내부 백엔드(_EventBusBackend)에게 그 요청을 토스합니다.

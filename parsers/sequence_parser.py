@@ -22,7 +22,7 @@
 """
 
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Dict, List, Union
 from .base_parser import BaseParser
 from config.data_formats import CSV_SCHEMA, DEFAULT_VALUES
 

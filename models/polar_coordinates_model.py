@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from typing import Dict, Any
 
 
@@ -33,9 +33,6 @@ class PolarCoordinatesModel:
         """
         매크로 딕셔너리 데이터를 PolarCoordinates 객체로 변환
         """
-        if not isinstance(data, dict):
-            raise TypeError("극좌표 매크로 데이터는 dict 형식이어야 합니다.")
-
         result: Dict[str, PolarCoordinates] = {}
 
         for macro_id, macro_data in data.items():

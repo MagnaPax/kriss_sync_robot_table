@@ -43,12 +43,12 @@ class ColorFormatter(logging.Formatter):
     """
     
     COLORS = {
-        'DEBUG': '\033[36m',      # Cyan
-        'INFO': '\033[32m',       # Green
-        'WARNING': '\033[33m',    # Yellow
-        'ERROR': '\033[31m',      # Red
-        'CRITICAL': '\033[35m',   # Magenta
-        'RESET': '\033[0m'
+        'DEBUG': '\x1b[36m',      # Cyan
+        'INFO': '\x1b[32m',       # Green
+        'WARNING': '\x1b[33m',    # Yellow
+        'ERROR': '\x1b[31m',      # Red
+        'CRITICAL': '\x1b[35m',   # Magenta
+        'RESET': '\x1b[0m'
     }
     
     def format(self, record: logging.LogRecord) -> str:
@@ -101,7 +101,7 @@ class LoggerConfig:
     
 
     @classmethod
-    def _setup_log_config(cls, app_env):
+    def _setup_log_config(cls, app_env: AppEnv):
         """
         로그 저장 환경 설정
 
@@ -187,16 +187,16 @@ class LoggerConfig:
 
         사용 예시:
         • Windows:
-                C:\> set LOG_LEVEL=DEBUG
-                C:\> python 파일이름.py
+                C:> set LOG_LEVEL=DEBUG
+                C:> python 파일이름.py
 
         • macOS / Linux (bash, zsh 등):
                 $ export LOG_LEVEL=WARNING
                 $ python 파일이름.py
 
         환경변수 취소 방법
-                C:\> set LOG_LEVEL=
-                C:\> python 파일이름.py            
+                C:> set LOG_LEVEL=
+                C:> python 파일이름.py            
         """
 
         # LOG_LEVEL 환경변수 읽기
@@ -253,7 +253,7 @@ class LoggerConfig:
         return handler
 
     @classmethod
-    def create_console_handler(cls) -> logging.StreamHandler:
+    def create_console_handler(cls) -> logging.StreamHandler: # type: ignore
         """
         콘솔 핸들러 생성 (컬러 출력)
         
@@ -403,7 +403,7 @@ def get_logger(name: str = __name__) -> logging.Logger:
         logger.debug("디버그 정보")
     """
     logger_instance = Logger()
-    return logger_instance._get_child_logger(name)
+    return logger_instance._get_child_logger(name) # type: ignore
 
 
 # 다른 파일에서 쓰기 편하게 하위 호환성을 위한 전역 로거
