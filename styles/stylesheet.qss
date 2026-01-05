@@ -432,14 +432,8 @@ QLabel {
 #world_coordinates_widget QGroupBox {
     padding-bottom: 13px; /* 그룹박스 내부 하단에 여백 추가 */
 }
-/* 섹션 구분용 수평선 (QFrame) */
-#world_coordinates_widget QFrame {
-    border: 1px solid #ced4da;
-    max-height: 1px;
-    margin: 5px 2px;
-}
 
-/* 3. QLabel 초기화 (투명 배경, 테두리 없음) */
+/* QLabel 초기화 (투명 배경, 테두리 없음) */
 #world_coordinates_widget QLabel {
     background: transparent;
     border: none;
