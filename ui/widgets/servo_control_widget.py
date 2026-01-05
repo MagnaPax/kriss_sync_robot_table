@@ -139,6 +139,24 @@ class ServoControlWidget(BaseWidget):
         spin.setDecimals(1)
         spin.setSingleStep(1.0)
         spin.setFixedWidth(100)
+
+        # 음수 입력 차단 로직 (최소값이 0 이상일 때)
+        if min_val >= 0:
+            def validate_no_minus(text: str):
+                if '-' in text:
+                    # 1. 시그널 방출 (메인 윈도우에서 팝업)
+                    EVENT_BUS.system.operation_error_alert.emit(
+                        "입력 불가", 
+                        "속도 항목에는 음수(-)를 입력할 수 없습니다."
+                    )
+                    # 2. '-' 문자 강제 삭제
+                    line_edit = spin.lineEdit()
+                    line_edit.blockSignals(True)
+                    line_edit.setText(text.replace('-', ''))
+                    line_edit.blockSignals(False)
+            
+            spin.lineEdit().textChanged.connect(validate_no_minus)
+
         # TargetPositionWidget 스타일 참고: 포커스 시 전체 선택
         spin.focusInEvent = lambda e: QTimer.singleShot(0, spin.selectAll)
         return spin
