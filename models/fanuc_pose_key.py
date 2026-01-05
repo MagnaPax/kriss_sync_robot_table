@@ -70,73 +70,15 @@ class FANUCPoseKey(str, Enum):
         return "deg"
 
     # =========================================================
-    # PLC 주소 생성 (Adapter에서 f-string 제거용)
-    # 쓰기용 (Input: Robot <- PLC)
+    # [삭제됨] 비트 단위 주소 생성 로직
+    # 이유: 새로운 FanucUI1Struct 에서는 구조체를 통째로 쓰기 때문에
+    #       개별 비트 주소를 생성할 필요가 없음 (모델 레벨에서 비트 패킹 수행)
     # ---------------------------------------------------------
-    # 설명:
-    # PLC와 통신할 때 숫자를 통째로 보내는 게 아니라
-    # 16개의 전선(비트)으로 쪼개서 보낸다 (이진수 통신)
+    # def tag_check(self) -> str: ...
+    # def tag_low_bit(self, bit_index: int) -> str: ...
+    # def tag_high_bit(self, bit_index: int) -> str: ...
     # =========================================================
-    def tag_check(self) -> str:
-        """
-        [음수/양수 판별용] 체크 비트의 PLC 주소 반환
-
-        원리:
-            비트로 쪼개서 보내는 숫자는 '부호 없는' 정수(절댓값)
-            그래서 이 값이 양수(+)인지 음수(-)인지 알려주는 별도의 깃발(Flag)이 필요
-            
-        반환 예시:
-            "MAIN.Robot1._UI1.X_Check" (True면 음수, False면 양수)
-        """
-        return f"MAIN.Robot1._UI1.{self.value}_Check"
-
-    def tag_low_bit(self, bit_index: int) -> str:
-        """
-        [하위 8비트] 데이터 전송용 비트 주소 반환 (0~7번 비트)
-
-        설명:
-            큰 숫자를 16비트로 쪼갤 때 앞쪽 절반(Low Byte)을 담당
-            예를들어 1234원이라는 돈을 보낼 때 34원(하위)을 먼저 보내는 것과 같음
-            
-        인자:
-            bit_index (int): 0부터 7까지의 비트 번호
-            
-        반환 예시 (index=0일 때):
-            "MAIN.Robot1._UI1.Xl0" (X축의 Low 바이트 0번 비트)
-        """
-        return f"MAIN.Robot1._UI1.{self.value}l{bit_index}"
-
-    def tag_high_bit(self, bit_index: int) -> str:
-        """
-        [상위 8비트] 데이터 전송용 비트 주소 반환 (0~7번 비트)
-
-        설명:
-            큰 숫자를 16비트로 쪼갤 때, 뒤쪽 절반(High Byte)을 담당
-            예를들어 1234원이라는 돈을 보낼 때 1200원(상위)을 먼저 보내는 것과 같음
-            
-        인자:
-            bit_index (int): 0부터 7까지의 비트 번호
-            
-        반환 예시 (index=0일 때):
-            "MAIN.Robot1._UI1.Xh0" (X축의 High 바이트 0번 비트)
-        """
-        return f"MAIN.Robot1._UI1.{self.value}h{bit_index}"
-
-
-    # =========================================================
-    #   읽기용 (Output: Robot -> PLC, Feedback)
-    # =========================================================
-    def feedback_tag_check(self) -> str:
-        """[피드백] 부호 비트 주소 (예: MAIN.Robot1._UO1.X_Check)"""
-        return f"MAIN.Robot1._UO1.{self.value}_Check"
-
-    def feedback_tag_low_bit(self, bit_index: int) -> str:
-        """[피드백] 하위 16비트 주소 (l0 ~ l15)"""
-        return f"MAIN.Robot1._UO1.{self.value}l{bit_index}"
-
-    def feedback_tag_high_bit(self, bit_index: int) -> str:
-        """[피드백] 상위 8비트 주소 (h0 ~ h7)"""
-        return f"MAIN.Robot1._UO1.{self.value}h{bit_index}"
+    pass
 
 
 # =============================================================================
@@ -144,20 +86,45 @@ class FANUCPoseKey(str, Enum):
 # =============================================================================
 class FanucSignal(str, Enum):
     """
-    FANUC 로봇 제어를 위한 디지털 신호(Bit) 주소 모음
+    FANUC 로봇 제어 신호 키 (Key) 정의
+    
+    [변경 사항]
+    이전에는 PLC 주소(예: "MAIN.Robot1._UI1.UI10_RSR2")를 직접 가졌으나,
+    새로운 구조체 방식에서는 모델의 to_struct() 메서드에서 '이름(Key)'으로 값을 찾으므로
+    단순한 문자열 키로 변경함. (Service -> Model 전달용)
     """
     # [입력] Robot <- PLC (보내는 신호)
-    RSR2_START =    "MAIN.Robot1._UI1.UI10_RSR2"        # 작업 시작 요청 (Pulse)
-    LOOP_ON =       "MAIN.Robot1._UI1.DI43"             # 루프 반복 여부 (ON=반복)
-    CYCLE_STOP =    "MAIN.Robot1._UI1.UI04_CycleStop"   # 비상 정지 / 정지
-    START_RE =      "MAIN.Robot1._UI1.UI06_Start"       # 재시작 신호
-    FAULT_RESET =   "MAIN.Robot1._UI1.UI05_FaultReset"  # 에러 리셋 (Dummy)
+    # 키 이름은 FANUCPose.to_struct() 메서드 내부 로직과 일치해야 함
+    IMSP =          "IMSP"          # Immediate Stop
+    HOLD =          "Hold"          # Hold
+    SFSP =          "SFSP"          # Safety Speed
+    CYCLE_STOP =    "CycleStop"     # Cycle Stop
+    FAULT_RESET =   "FaultReset"    # Fault Reset
+    START =         "Start"         # Start
+    HOME =          "Home"          # Home
+    ENABLE =        "Enable"        # Enable
     
-    # [출력] Robot -> PLC (읽는 신호)
-    COMPLETE =  "MAIN.Robot1._UO1.DO45"             # 받은 명령을 완료했다. (job complete)
-    BUSY =      "MAIN.Robot1._UO1.UO10_Busy"       # 로봇 바쁨 상태 (움직이고 있는 중)
-    PAUSED =    "MAIN.Robot1._UO1.UO04_PrgPaused"   # 일시정지 상태
-    FAULT =     "MAIN.Robot1._UO1.UO06_Fault"       # 로봇 에러 발생 상태 (Dummy)
+    RSR1 =          "RSR1"          # Robot Service Request 1
+    RSR2 =          "RSR2"          # Robot Service Request 2 (주로 시작 신호로 사용)
+    
+    PNS_STROBE =    "PNSStrobe"     # PNS Strobe
+    PROD_START =    "ProdStart"     # Production Start
+    DI43 =          "DI43"          # Loop On/Off 등
+    DI44 =          "DI44"          # 예비
+
+    # [출력] Robot -> PLC (읽는 신호) - 얘는 아직 PLC 주소가 필요할 수도 있음 (읽기 방식에 따라 다름)
+    # 하지만 일단 키로 정의하고 Adapter에서 매핑하는 것이 좋음
+    # 레퍼런스 코드에서는 읽기(Feedback) 관련 내용보다는 쓰기(Trigger) 위주였음.
+    # 기존 코드 호환성을 위해 우선 남겨둠 (하지만 값은 확인 필요)
+    
+    # [중요] 완료 신호 (DO45)
+    # 로봇이 명령을 수행하고 완료되었음을 알리는 Handshake 신호.
+    # Rising Edge (0->1)가 발생할 때 Notification이 트리거됨.
+    COMPLETE =  "MAIN.Robot1._UO1.DO45"             # 완료 신호 (기존 유지)
+    
+    BUSY =      "MAIN.Robot1._UO1.UO10_Busy"       # 바쁨 신호 (기존 유지)
+    # PAUSED =    "MAIN.Robot1._UO1.UO04_PrgPaused"   # 일시정지
+    # FAULT =     "MAIN.Robot1._UO1.UO06_Fault"       # 에러
 
 
     @property

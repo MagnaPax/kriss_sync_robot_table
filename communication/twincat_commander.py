@@ -56,6 +56,33 @@ class FanucOnlyExecutor(BaseExecutor):
         return has_robot and not has_servo
 
     def execute(self, sequence_data: List[Dict[str, Any]]) -> tuple[bool, str]:
+        """
+        [FANUC 단독 제어 메인 로직]
+        
+        [Full Threading Logic 2025 개요]
+        이 함수는 FANUC 로봇에게 연속적인 이동 경로를 명령하며, 각 스텝마다 정확한 동기화를 보장합니다.
+        
+        1. 초기화:
+            - Handshake용 Event와 Callback을 준비합니다.
+            - `write_initial_signals()`로 로봇을 깨웁니다.
+        
+        2. 시퀀스 루프 (Step-by-Step):
+            a. Delta 계산 (Pre-calculation): 
+                - 현재 위치와 목표 위치의 차이(Delta)를 계산합니다 (모델 내부 `to_struct`에서 수행).
+            b. 패킷 전송 (Trigger): 
+                - `write_command_packet()`으로 데이터를 한 방에 보냅니다.
+            c. 완료 대기 (Handshake):
+                - 로봇이 이동을 완료하고 DO45 신호를 Rising Edge(0->1)로 띄울 때까지 기다립니다.
+                - `_move_complete_event.wait()`로 효율적으로 대기하며, 폴링(무한루프)을 사용하지 않습니다.
+                - 안전장치: 0.1초마다 `QThread` 중단 요청(Stop 버튼)을 체크하여 즉각 반응합니다.
+            
+        3. 종료:
+            - 모든 이동이 끝나면 `set_finish_signals()`로 정리합니다.
+            - `finally` 블록에서 Notification 리소스를 반드시 해제합니다.
+        
+        Returns:
+            (성공여부, 메시지)
+        """
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] FANUC 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 에서 처리될 전체 데이터\n{(sequence_data)}\n", "DEBUG")
 
@@ -68,19 +95,40 @@ class FanucOnlyExecutor(BaseExecutor):
         adapter.override_feed_rate = None
 
         num_sequences = len(sequence_data)  # 전체 시퀀스 갯수
+        
+        # Event 객체 생성 (Handshake용)
+        # 원본 파일: 260102.FANUC_FULL_THREADING.py
+        import threading
+        _move_complete_event = threading.Event()
+        
+        # 콜백 함수 정의 (직관적인 이름 사용)
+        def _on_robot_move_complete_signal(notification, data):
+            # 원본 라인 127: move_next_event.set()
+            _move_complete_event.set()
+
+        # 알림(Notification) 등록 핸들
+        notify_handle = None
 
         try:
             # 1. 시작 전 로봇 상태 검증
             adapter.validate_robot_ready()
+            
+            # Notification 등록
+            notify_handle = adapter.register_handshake_callback(_on_robot_move_complete_signal)
+            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] Handshake 알림 등록 완료 (Handle: {notify_handle})", "DEBUG")
 
-            init_done = False       # 첫 번째 명령을 보냈는지 확인하는 Flag
-            previous_coords = None  # 이전 명령
-
+            previous_pose = None  # 이전 명령 (Delta 계산용)
+            
             # 2. 초기 신호 전송
-            adapter.set_initial_signals()
+            # 원본 라인 185: plc.write_by_name(STRUCT_SYMBOL, init_payload, FanucUI1Struct)
+            adapter.write_initial_signals()
 
             # 3. 시퀀스 루프
             for idx, row in enumerate(sequence_data, 1):
+                # (A) 중단 요청 확인 (안전장치)
+                if (thread := QThread.currentThread()) and thread.isInterruptionRequested():
+                    return False, "사용자에 의해 작업이 중단되었습니다."
+
                 adapter.validate_robot_ready() # 매 스텝 시작 전 체크
 
                 # 데이터에 'id'가 있으면 가져오고, 없다면 루프 인덱스(idx)를 id로 사용
@@ -90,74 +138,103 @@ class FanucOnlyExecutor(BaseExecutor):
                 EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, "processing")
                 EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 현재 시퀀스 진행상태: {(current_id)}", "DEBUG")
 
-
-                # 이동 속도
+                # 이동 속도 결정
                 if adapter.override_feed_rate is not None:
                     # 사용자가 '지금' 바꾼 FEED RATE
                     feed_rate = adapter.override_feed_rate
                 else:
-                    # GO TO 버튼 눌렀을 때 입력한 FEED RATE
+                    # GO TO 버튼 눌렀을 때 입력한 FEED RATE 
+                    # (또는 데이터에 있는 F값)
                     feed_rate = row.get('f', 10.0)
 
-                # 현재 좌표
-
-                current_coords = {
-                    'x': row['x'], 'y': row['y'], 'z': row['z'],
-                    'w': row['w'], 'p': row['p'], 'r': row['r']
-                }
-
+                # 4. 목표 포즈 생성 (데이터 매핑)
                 target_pose = FANUCPose(
-                x=row.get('x', 0.0), y=row.get('y', 0.0), z=row.get('z', 0.0),
-                w=row.get('w', 0.0), p=row.get('p', 0.0), r=row.get('r', 0.0),
-                f=row.get('f', 0.0)
+                    x=row.get('x', 0.0), y=row.get('y', 0.0), z=row.get('z', 0.0),
+                    w=row.get('w', 0.0), p=row.get('p', 0.0), r=row.get('r', 0.0),
+                    f=feed_rate
                 )
                 # 현재 로봇 위치 방송
                 EVENT_BUS.control.robot_current_pose.emit(target_pose)
                 EVENT_BUS.log.message.emit(f"\n현재 로봇 위치: {target_pose}\n", "DEBUG")
 
+                # 5. 첫 번째 스텝 처리 (Delta=0)
+                if previous_pose is None:
+                    # 원본 로직: "if prev_coords is None: move_deltas = zero_deltas.copy()"
+                    # to_struct 내부에서 prev_pose와 target_pose가 같으면 Delta 0으로 처리됨
+                    # 따라서 첫 번째는 자기 자신을 prev로 넘겨줌
+                    previous_pose = target_pose
+                
+                # 6. 신호(Signal) 준비
+                # 원본 라인 177: base_signals = {'IMSP': True, ...}
+                signals = {
+                    'IMSP': True, 'Hold': True, 'SFSP': True, 'Enable': True,
+                    'CycleStop': False, 'Start': False, 'RSR2': False, 'DI43': True # DI43=True (이동 명령)
+                }
+                
+                # 원본 라인 208: if i == 1: signals['RSR2'] = True
+                # (첫 번째 무브먼트일 때 RSR2를 켜주는 로직 복원)
+                if idx == 1:
+                    signals['RSR2'] = True
 
-                # --- 증분 이동(Incremental/Relative Move) 제어 --- #
-                # TP 프로그램이 Absolute 가 아닌 Relative 로 설정되어 있음
+                # 7. 패킷 생성 (Delta 계산은 모델 내부 위임)
+                # [Reference] 원본 라인 210: payload = pack_fanuc_payload(...)
+                packet = target_pose.to_struct(previous_pose, signals)
 
-                # 첫 번째 시퀀스
-                if previous_coords is None:
-                    # 이동량(deltas)을 현재 좌표 그대로 설정
-                    deltas = current_coords.copy()
-                    # 기준점 업데이트
-                    previous_coords = current_coords.copy()
-
-                # 첫 번째 시퀀스 아니면
-                else:
-                    # 이동해야 될 양 = (현재 목표 - 직전 목표)
-                    deltas = {key: current_coords[key] - previous_coords[key] for key in current_coords}
-
-                    # 기준점 업데이트 (이번 목표가 다음번의 기준이 됨)
-                    previous_coords = current_coords.copy()
-
-
-                # --- 핸드셰이킹 (Busy Check) --- #
-                while True:
-                    # 로봇이 작업을 잘 마쳤는지 확인
-                    is_complete = adapter.read_complete_signal()
-
-                    # 로봇이 움직이는 동안(Digital Output 45번 핀) 미리 다음 명령을 전송한다
-                    #   -> 멈추지 않는 연속적인 동작을 위해
-                    if (not init_done) or is_complete:
-                        adapter.send_data_packet(feed_rate, deltas)
-
-                        init_done = True    # 첫 번째 명령 실행했다고 체크
-                        time.sleep(0.01)    # 통신 안정화
-
-                        # 다음 시퀀스로 이동
+                # 8. 전송 (Write)
+                # [Reference] 원본 라인 213: plc.write_by_name(STRUCT_SYMBOL, payload, FanucUI1Struct)
+                adapter.write_command_packet(packet)
+                
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] #{idx} 명령 전송 완료. Rising Edge 대기 중...", "DEBUG")
+                
+                # 9. Handshake 대기 (Wait for Rising Edge)
+                # [Reference] 원본 라인 219: if move_next_event.wait(timeout=20.0): ...
+                # [Refactoring] QThread 중단을 감지하기 위해 루프 사용 (사용자 요청 시 즉시 반응)
+                
+                _move_complete_event.clear() # 확실하게 클리어
+                
+                wait_start = time.time()
+                timeout = 20.0 # 20초 타임아웃
+                success = False
+                
+                while time.time() - wait_start < timeout:
+                    # (A) 중단 요청 확인
+                    if (thread := QThread.currentThread()) and thread.isInterruptionRequested():
+                        EVENT_BUS.log.message.emit("대기 중 사용자 중단 요청 감지", "WARNING")
+                        break # 바깥 루프의 중단 로직에서 처리됨
+                    
+                    # (B) 이벤트 확인 (0.1초씩 끊어서 대기)
+                    if _move_complete_event.wait(timeout=0.1):
+                        success = True
                         break
+                        
+                if not success:
+                    # 타임아웃인지 중단인지 확인
+                    if (thread := QThread.currentThread()) and thread.isInterruptionRequested():
+                        return False, "사용자에 의해 작업이 중단되었습니다."
                     else:
-                        # 아직 준비 안 됨 -> 대기
-                        time.sleep(0.01)
+                        return False, f"[{self.__class__.__name__}] 로봇 응답 시간 초과 (Timeout 20s)"
+                
+                EVENT_BUS.log.message.emit(" -> OK (Rising Edge Detected)", "DEBUG")
+
+                # 10. 기준점 업데이트
+                # 원본 라인 226: prev_coords = target_coords
+                previous_pose = target_pose
+
+                # 11. 첫 번째 스텝 이후 RSR2 끄기 (옵션)
+                # 원본 라인 228: if i == 1: signals['RSR2'] = False ...
+                if idx == 1:
+                    signals['RSR2'] = False
+                    # 신호만 끄고 다시 전송 (Delta는 그대로 둬야 함? 원본은 그대로 둠)
+                    # 원본은 target_coords, move_deltas 그대로 사용
+                    packet = target_pose.to_struct(previous_pose, signals) # previous_pose가 갱신되었으므로 Delta는 0이 됨
+                    adapter.write_command_packet(packet)
+
 
                 # 현재 시퀀스 진행상태 방송: 완료
                 EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, "processed")
 
             # 3. 종료 신호
+            # 원본의 finally 블록 혹은 루프 종료 후 정리
             adapter.set_finish_signals()
             return True, "작업 완료"
         
@@ -175,7 +252,12 @@ class FanucOnlyExecutor(BaseExecutor):
                 msg = "로봇 통신 변수를 찾을 수 없습니다. PLC 프로그램이 실행 중인지 확인해 주세요."
 
             return False, f"[{self.__class__.__name__}] {msg}"
-
+            
+        finally:
+            # 리소스 정리 (콜백 해제)
+            if notify_handle is not None:
+                adapter.remove_handshake_callback(notify_handle)
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] Handshake 알림 해제 완료", "DEBUG")
 
 class ServoOnlyExecutor(BaseExecutor):
     """

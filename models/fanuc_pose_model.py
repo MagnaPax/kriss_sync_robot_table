@@ -2,6 +2,8 @@
 from __future__ import annotations
 from dataclasses import dataclass, asdict
 from typing import Dict, Any
+import ctypes
+import math
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +47,153 @@ class FANUCPose:
     def to_dict_preserving_key_names(self) -> Dict[str, Any]:
         # dataclasses.asdict를 쓰면 자동으로 딕셔너리가 된다(키값은 똑같음)
         return asdict(self)
+
+    def distance_to(self, target: 'FANUCPose') -> tuple[float, float]:
+        """
+        현재 위치(self)와 목표 위치(target) 간의 거리 계산
+        
+        [Reference]
+        원본 파일: 260102.FANUC_FULL_THREADING.py
+        원본 함수: calculate_distance(current_pos, target_pos)
+        
+        Returns:
+            (linear_dist, angular_dist): (직선 거리 mm, 최대 회전 각도 deg)
+        """
+        dx = target.x - self.x
+        dy = target.y - self.y
+        dz = target.z - self.z
+        linear_dist = math.sqrt(dx**2 + dy**2 + dz**2)
+
+        dw = abs(target.w - self.w)
+        dp = abs(target.p - self.p)
+        dr = abs(target.r - self.r)
+        angular_dist = max(dw, dp, dr)
+        
+        return linear_dist, angular_dist
+
+    def to_struct(self, prev_pose: 'FANUCPose', signals: Dict[str, bool]) -> FanucCommandPacket:
+        """
+        [핵심] 도메인 포즈 객체 -> PLC 전송용 구조체(24byte) 변환
+
+        [Reference]
+        원본 파일: 260102.FANUC_FULL_THREADING.py
+        원본 함수: pack_fanuc_payload(coords, deltas, signals)
+
+        Args:
+            prev_pose (FANUCPose): 이전 위치 (Delta 계산용)
+            signals (Dict[str, bool]): 제어 신호 ('IMSP', 'Hold', 'Start' 등)
+
+        Returns:
+            FanucCommandPacket: PLC에 곧바로 쓸 수 있는 ctypes 구조체
+        """
+        payload = FanucCommandPacket()
+
+        # 1. 신호 패킹 (UI_Byte1, UI_Byte2, UI_Byte3 일부)
+        # ---------------------------------------------------------------------
+        # UI_Byte1
+        b1 = 0
+        if signals.get('IMSP', True):      b1 |= (1 << 0)
+        if signals.get('Hold', True):      b1 |= (1 << 1)
+        if signals.get('SFSP', True):      b1 |= (1 << 2)
+        if signals.get('CycleStop', False): b1 |= (1 << 3)
+        if signals.get('FaultReset', False):b1 |= (1 << 4)
+        if signals.get('Start', False):     b1 |= (1 << 5)
+        if signals.get('Home', False):      b1 |= (1 << 6)
+        if signals.get('Enable', True):     b1 |= (1 << 7)
+        payload.UI_Byte1 = b1
+
+        # UI_Byte2
+        b2 = 0
+        if signals.get('RSR1', False): b2 |= (1 << 0)
+        if signals.get('RSR2', False): b2 |= (1 << 1)
+        payload.UI_Byte2 = b2
+
+        # UI_Byte3 (하위 4비트: 신호 / 상위 4비트: Feed High)
+        b3 = 0
+        if signals.get('PNSStrobe', False): b3 |= (1 << 0)
+        if signals.get('ProdStart', False): b3 |= (1 << 1)
+        if signals.get('DI43', False):      b3 |= (1 << 2)
+        if signals.get('DI44', False):      b3 |= (1 << 3)
+        
+        # 2. Feed Rate 패킹 (자신의 속도 f 사용)
+        # ---------------------------------------------------------------------
+        # 공식: int(abs(round(val, 3) * 1000))
+        raw_F = int(abs(round(self.f, 3) * 1000))
+        
+        # 상위 4비트 -> UI_Byte3 상위
+        feed_high = (raw_F >> 16) & 0x0F
+        b3 |= (feed_high << 4)
+        payload.UI_Byte3 = b3
+        
+        # 하위 16비트 -> Feed_Low
+        payload.Feed_Low = raw_F & 0xFFFF
+
+        # 3. 좌표 Delta 패킹 (X, Y, Z, W, P, R)
+        # ---------------------------------------------------------------------
+        deltas = {
+            'X': self.x - prev_pose.x,
+            'Y': self.y - prev_pose.y,
+            'Z': self.z - prev_pose.z,
+            'W': self.w - prev_pose.w,
+            'P': self.p - prev_pose.p,
+            'R': self.r - prev_pose.r
+        }
+
+        # 축 순서 중요 (구조체 필드 순서와 비트 순서 일치)
+        axes = ['X', 'Y', 'Z', 'W', 'P', 'R']
+        check_byte = 0
+
+        for i, axis in enumerate(axes):
+            val = deltas[axis]
+            
+            # 정수 변환 (절댓값)
+            int_val = int(abs(round(val, 3) * 1000))
+            
+            # 구조체 필드에 할당 (동적 속성 할당)
+            # 예: payload.X_High = ...
+            setattr(payload, f"{axis}_High", (int_val >> 16) & 0xFF)
+            setattr(payload, f"{axis}_Low", int_val & 0xFFFF)
+            
+            # 음수 체크 비트 설정
+            if val < 0:
+                check_byte |= (1 << i)
+
+        payload.Check_Bits = check_byte
+
+        return payload
+
+
+# [변경] FanucUI1Struct -> FanucCommandPacket (더 직관적인 이름)
+class FanucCommandPacket(ctypes.Structure):
+    """
+    FANUC 로봇 제어 명령 패킷 (24 Byte)
+    
+    [구조 설명]
+    이 구조체는 Beckhoff PLC의 'MAIN.Robot1._UI1' 주소와 정확히 1:1 매핑됩니다.
+    
+    - UI_Byte1, 2, 3: 로봇 제어 신호(Start, Hold 등)와 Feed Rate의 상위 비트가 포함됨.
+    - Feed_Low: Feed Rate의 하위 16비트.
+    - X/Y/Z/W/P/R High/Low: 
+      각 축의 이동량(Delta)을 1000배 하여 정수화한 값. 
+      High(8bit) + Low(16bit) = 24bit Integer 표현.
+    - Check_Bits: 각 축의 이동량이 음수(-)인지 표시하는 부호 비트들의 모음.
+
+    Reference: FanucUI1Struct in 260102.FANUC_FULL_THREADING.py
+    """
+    _pack_ = 1
+    _fields_ = [
+        ("UI_Byte1", ctypes.c_uint8),
+        ("UI_Byte2", ctypes.c_uint8),
+        ("UI_Byte3", ctypes.c_uint8),
+        ("Feed_Low", ctypes.c_uint16),
+        ("X_High", ctypes.c_uint8), ("X_Low",  ctypes.c_uint16),
+        ("Y_High", ctypes.c_uint8), ("Y_Low",  ctypes.c_uint16),
+        ("Z_High", ctypes.c_uint8), ("Z_Low",  ctypes.c_uint16),
+        ("W_High", ctypes.c_uint8), ("W_Low",  ctypes.c_uint16),
+        ("P_High", ctypes.c_uint8), ("P_Low",  ctypes.c_uint16),
+        ("R_High", ctypes.c_uint8), ("R_Low",  ctypes.c_uint16),
+        ("Check_Bits", ctypes.c_uint8)
+    ]
 
 
 class FANUCPoseModel:
@@ -263,6 +412,50 @@ if __name__ == '__main__':
         print(f"   ✅ 의도된 예외 발생(KeyError): {e}") #
     except Exception as e:
         print(f"   ❌ 잘못된 예외 발생: {type(e).__name__}: {e}")
+
+    # 6. to_struct 테스트 (Struct Packing 검증)
+    print("\n6️⃣  to_struct() 구조체 패킹 테스트:")
+    
+    # 더미 데이터 생성
+    prev_pos = FANUCPose(x=0, y=0, z=0, w=0, p=0, r=0, f=0)
+    target_pos = FANUCPose(x=10.0, y=-5.0, z=0, w=0, p=0, r=0, f=100.0) # x=10(양이동), y=-5(음이동), f=100
+    
+    signals = {
+        'IMSP': True, 'Hold': True, 'SFSP': True, 'Enable': True,  # UI_Byte1 = 1|2|4|128 = 135 (0x87)
+        'RSR2': True,                                             # UI_Byte2 = 2 (0x02)
+        'DI43': True                                              # UI_Byte3 (Signal part) = 4 (0x04)
+    }
+
+    try:
+        struct_data = target_pos.to_struct(prev_pos, signals)
+        
+        print(f"   [UI_Byte1] Expected: 0x87, Actual: {hex(struct_data.UI_Byte1)}")
+        print(f"   [UI_Byte2] Expected: 0x02, Actual: {hex(struct_data.UI_Byte2)}")
+        
+        # Feed Rate: 100.0 * 1000 = 100000 (0x0186A0)
+        # Feed_High (0x01) -> UI_Byte3 상위 4비트에 들어감
+        # UI_Byte3 = (0x01 << 4) | 0x04 (Signal) = 0x14
+        print(f"   [UI_Byte3] Expected: 0x14, Actual: {hex(struct_data.UI_Byte3)}")
+        print(f"   [Feed_Low] Expected: 0x86A0, Actual: {hex(struct_data.Feed_Low)}")
+        
+        # X Axis: 10.0 * 1000 = 10000 (0x2710)
+        # X_High = 0x00, X_Low = 0x2710
+        print(f"   [X_Axis]   High: {hex(struct_data.X_High)}, Low: {hex(struct_data.X_Low)}")
+
+        # Y Axis: -5.0 * 1000 = -5000 -> abs -> 5000 (0x1388)
+        # Y가 음수이므로 CheckBits의 해당 비트(1번째, index=1)가 1이어야 함 -> 0x02
+        print(f"   [Y_Axis]   High: {hex(struct_data.Y_High)}, Low: {hex(struct_data.Y_Low)}")
+        print(f"   [CheckBits] Expected (Y=neg): 0x02, Actual: {hex(struct_data.Check_Bits)}")
+
+        assert struct_data.UI_Byte1 == 0x87
+        assert struct_data.UI_Byte3 == 0x14
+        assert struct_data.Check_Bits == 0x02
+        print("   ✅ 구조체 패킹 테스트 성공")
+
+    except Exception as e:
+        print(f"   ❌ 구조체 생성 실패: {e}")
+        import traceback
+        traceback.print_exc()
 
     print("\n" + "=" * 70)
     print("테스트 완료")

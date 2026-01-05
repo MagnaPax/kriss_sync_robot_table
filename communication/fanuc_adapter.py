@@ -1,16 +1,16 @@
 # communication/fanuc_adapter.py
 import time
 import pyads
-from typing import TYPE_CHECKING, Union, Dict
+import ctypes
+from typing import TYPE_CHECKING, Union, Dict, Callable
 from communication.twincat_connector import TwinCATConnector
 from models.fanuc_pose_key import FANUCPoseKey, FanucSignal
-from models.fanuc_pose_model import FANUCPose
+from models.fanuc_pose_model import FANUCPose, FanucCommandPacket
 from core.exceptions import RobotFaultError
-
 
 # 실제 런타임에는 실행 안 됨
 # 타입 검사기(Pylance)에게만 MockConnection의 존재를 알려줌
-# 순환 참조(Circular Import) 오류를 방지하면서 타입 힌트를 제공하기 위해
+# 순환 참조(Circular Import) 오류를 방지하면서 타입 힌트를 제공하기 위함
 if TYPE_CHECKING:
     from communication.mock_plc import MockConnection
 
@@ -18,13 +18,20 @@ if TYPE_CHECKING:
 class FanucAdapter:
     """
     FANUC 로봇 통신 로직을 담당하는 Model(도메인 + 프로토콜) 레이어
-        실제 로봇 인터페이스를 아는 곳
-        데이터 변환(Float -> Int -> Bit)과 전송(Write) 작업 수행
-
-        FanucAdapter: 손과 발
-            - 시키는 대로 비트(send_bits)를 쏘고, 상태(read_busy)를 읽기만 한다
-        TwinCAT Commander: 뇌 
-            - 로직(루프, 델타 계산, 핸드셰이킹 등) 담당
+    
+    [역할]
+    - "손과 발": 스스로 판단하지 않고, 외부(Commander)에서 시키는 대로 I/O를 수행함.
+    - 데이터 변환: 도메인 객체(FANUCPose) <-> PLC Raw Data 변환
+    
+    [통신 프로토콜: Full Threading Logic 2025]
+    1. 쓰기 (Write): 
+        - 24byte 구조체(FanucCommandPacket)를 한 번에 전송.
+        - 개별 비트 제어(Bit-banging) 방식 폐기됨.
+    2. 읽기 (Read): 
+        - 기존의 비트 단위 읽기 로직 유지 (로봇 팀의 Output 구조체가 정의되지 않음).
+    3. 핸드셰이킹 (Handshake):
+        - Polling(계속 물어보기) 방식 폐기됨.
+        - Event-driven: register_handshake_callback()을 통해 Rising Edge 알림을 받음.
     """
     def __init__(self, connector: TwinCATConnector):
         # 지갑(Connector)을 받아서 저장
@@ -46,89 +53,120 @@ class FanucAdapter:
 
 
     # ==========================================================================
-    # 1. 제어 신호 (깃발 흔들기)
-    # --------------------------------------------------------------------------
-    # 로봇에게 "준비해", "시작해", "멈춰" 같은 상태 신호를 보낸다
+    # 1. 쓰기 (Write): 구조체 전송
     # ==========================================================================
-    def _init_robot_signals(self):
+
+    def write_command_packet(self, packet: FanucCommandPacket):
         """
-        모든 시작/루프 신호와 체크 비트를 False로 초기화
-            원본의 initialize_signals(plc)와 동일
-        """
-        plc = self._plc
-
-        # 비상 정지(Cycle Stop) 해제
-        plc.write_by_name(FanucSignal.CYCLE_STOP.path, False, pyads.PLCTYPE_BOOL)
-        time.sleep(0.05)
-
-        # RSR(Robot Service Request) 신호 끄기
-        plc.write_by_name(FanucSignal.RSR2_START.path, False, pyads.PLCTYPE_BOOL)
-        time.sleep(0.05) 
-
-        # Loop 신호 끄기
-        plc.write_by_name(FanucSignal.LOOP_ON.path, False, pyads.PLCTYPE_BOOL)
-        time.sleep(0.05) 
-
-        # X, Y, Z, W, P, R 모든 축에 대해 반복
-        for key in FANUCPoseKey:
-            # --- 모든 축의 방향(양수/음수) 체크 비트 초기화(비트 끄기) --- #
-            # 예: "MAIN.Robot1._UI1.X_Check" = False (양수 상태로 초기화)
-            plc.write_by_name(key.tag_check(), False, pyads.PLCTYPE_BOOL)
-            time.sleep(0.05)
-
-            # --- 모든 축의 비트 값을 0으로 초기화 --- #
-            #   원본의 reset_all_axes(plc)와 동일
-            self._send_bits(key, 0, 0)
-            time.sleep(0.05)
-
-    def _start_process(self):
-        """
-        RSR 신호와 Loop 신호를 ON 하여 TP 프로그램 실행
-            원본의 start_process(plc)와 동일
-        """
-        plc = self._plc
-
-        # RSR(Robot Service Request) 신호 켜기
-        # "로봇아, 작업 요청이 들어왔어!"라고 알리는 초인종 같은 신호
-        plc.write_by_name(FanucSignal.RSR2_START.path, True, pyads.PLCTYPE_BOOL)
-        time.sleep(0.05)
+        [핵심] 명령 패킷(구조체)을 PLC에 전송
         
-        # Loop 신호 켜기
-        # "이 작업은 연속으로 계속될 거야"라고 알림(Ture: 루프 반복, False: 루프 종료)
-        plc.write_by_name(FanucSignal.LOOP_ON.path, True, pyads.PLCTYPE_BOOL)
-        time.sleep(0.05)
-
-    def set_initial_signals(self):
+        [Reference]
+        원본 파일: 260102.FANUC_FULL_THREADING.py
+        원본 코드: plc.write_by_name(STRUCT_SYMBOL, payload, FanucUI1Struct) (Line 185, 213)
         """
-        [시퀀스 시작 전 준비]
-        로봇이 움직이기 전에 필요한 모든 스위치를 초기화 & 시작 신호를 보낸다
+        # 구조체 타입(FanucCommandPacket)을 명시적으로 전달해야 함
+        self._plc.write_by_name("MAIN.Robot1._UI1", packet, FanucCommandPacket)
+
+    def write_initial_signals(self):
         """
-        # [초기화] 1단계 - 체크 비트 False
-        self._init_robot_signals()
-        # [초기화] 2단계 - 시작 신호 True
-        self._start_process()
-
-
-    def set_finish_signals(self):
-        """[시퀀스 종료] 모든 작업을 마치고 신호를 끈다"""
-        plc = self._plc
-        # 요청 신호 끄기
-        plc.write_by_name(FanucSignal.RSR2_START.path, False, pyads.PLCTYPE_BOOL)
-        # 반복 신호 끄기
-        plc.write_by_name(FanucSignal.LOOP_ON.path, False, pyads.PLCTYPE_BOOL)
+        [초기화] 로봇 제어권 및 시작 신호 초기화 (모두 OFF)
+        
+        [Reference]
+        원본 파일: 260102.FANUC_FULL_THREADING.py
+        원본 코드: init_payload = pack_fanuc_payload(...) (Line 182)
+        """
+        # 초기화용 패킷 생성 (Delta=0, 모든 신호 False 혹은 초기값)
+        # 원본 코드에서는 IMSP, Hold, SFSP, Enable은 True로 두고 나머지는 False로 둠
+        cmd_signals = {
+            'IMSP': True, 
+            'Hold': True, 
+            'SFSP': True, 
+            'Enable': True,
+            'CycleStop': False, 
+            'Start': False, 
+            'RSR2': False, # 초기화 시 RSR2 꺼짐
+            'DI43': False
+        }
+        
+        # 더미 포즈(Delta 계산용이 아님, 그냥 0 채우기용)
+        dummy_pose = FANUCPose() 
+        
+        # to_struct 호출 (Delta=0이 되도록 동일한 포즈 전달)
+        packet = dummy_pose.to_struct(dummy_pose, cmd_signals)
+        
+        self.write_command_packet(packet)
+        time.sleep(0.05) # 안정화 대기
 
     def set_emergency_stop(self):
-        """[비상 정지] 즉시 멈춤 신호를 보낸다"""
-        plc = self._plc
-        # 일단 작업 신호들은 다 끄고
-        self.set_finish_signals()
-        # 비상정지(Cycle Stop) 실행
-        plc.write_by_name(FanucSignal.CYCLE_STOP.path, True, pyads.PLCTYPE_BOOL)
+        """
+        [비상 정지] CycleStop 신호 전송
+        
+        [Reference]
+        원본 파일: 260102.FANUC_FULL_THREADING.py
+        원본 코드: estop_signals['CycleStop'] = True ... (Line 236)
+        """
+        cmd_signals = {
+            'IMSP': True, 'Hold': True, 'SFSP': True, 'Enable': False, # Enable 꺼짐
+            'CycleStop': True,  # CycleStop 켜짐
+            'Start': False, 'RSR2': False, 'DI43': False
+        }
+        dummy_pose = FANUCPose()
+        packet = dummy_pose.to_struct(dummy_pose, cmd_signals)
+        self.write_command_packet(packet)
 
+
+    # ==========================================================================
+    # 2. 알림 (Notification): 완료 신호 감지
+    # ==========================================================================
+
+    def register_handshake_callback(self, callback: Callable) -> int:
+        """
+        [핵심] 로봇의 완료 신호(DO45) 감지용 콜백 등록 (Rising Edge)
+        
+        [Reference]
+        원본 파일: 260102.FANUC_FULL_THREADING.py
+        원본 코드: 
+            attr = pyads.NotificationAttrib(...) (Line 159)
+            plc.add_device_notification(HANDSHAKE_SYMBOL, attr, on_handshake_change) (Line 166)
+            
+        Args:
+            callback: 신호 변경 시 호출될 함수 (서명: (notification, data) -> None)
+            
+        Returns:
+            int: 알림 핸들 (나중에 해제할 때 사용)
+        """
+        attr = pyads.NotificationAttrib(ctypes.sizeof(pyads.PLCTYPE_BOOL))
+        attr.nTransMode = pyads.ADSTRANS_SERVERONCHA # 값이 바뀔 때마다 알림
+        attr.nCycleTime = 100000 # 10ms (100ns 단위)
+        attr.nMaxDelay = 0
+        
+        # "MAIN.Robot1._UO1.DO45" (완료 신호)
+        handle = self._plc.add_device_notification(FanucSignal.COMPLETE.value, attr, callback)
+        return handle
+
+    def remove_handshake_callback(self, handle: int):
+        """
+        [정리] 알림 해제
+        
+        [Reference]
+        원본 파일: 260102.FANUC_FULL_THREADING.py
+        원본 코드: plc.del_device_notification(h_notify, HANDSHAKE_SYMBOL) (Line 248)
+        """
+        try:
+            self._plc.del_device_notification(handle, FanucSignal.COMPLETE.value)
+        except Exception:
+            pass
+
+
+    # ==========================================================================
+    # 3. 상태 읽기 (Read): 기존 유지 (Bit-wise)
+    # ==========================================================================
+    # 로봇팀 코드에 '읽기(Output)'용 구조체 정의가 없으므로,
+    # 기존에 잘 동작하던 비트 읽기 방식을 유지하는 것이 가장 안전함.
+    
     def validate_robot_ready(self):
         """로봇이 명령을 수행할 수 있는 상태인지 검증"""
         if self.has_fault():
-            # 로봇팀이 주소를 확정하면 상세 에러 코드를 읽어오는 로직으로 확장 가능
             raise RobotFaultError("로봇에 결함(Fault)이 감지되었습니다. 컨트롤러의 에러를 확인하고 리셋해 주세요.")
 
     def has_fault(self) -> bool:
@@ -140,170 +178,15 @@ class FanucAdapter:
             # 통신 에러가 나면 일단 에러가 없는 것으로 간주하고 진행 (개발/테스트 편의용)
             if "1808" in str(e) or "symbol not found" in str(e).lower():
                 return False
-            # 그 외의 치명적인 통신 에러는 상위로 던짐
             raise e
 
-
-    # ==========================================================================
-    # 2. 데이터 전송 (좌표값 보내기)
-    # --------------------------------------------------------------------------
-    # 컴퓨터의 실수(Float, 12.34)를 PLC가 이해하는 정수 비트 배열로 변환
-    # ==========================================================================
-
-    def send_instant_feed(self, feed_rate: float):
-        """
-        [공개 메서드] 이동 중인 로봇의 속도 비트를 즉시 갱신
-        """
-        # 내부의 _send_feed 메서드를 재활용
-        self._send_feed(feed_rate)
-
-
-    def send_data_packet(self, feed_rate: float, delta: Dict[str, float]):
-        """
-        [데이터 패킷 전송]
-        속도(Feed)와 6개 축의 이동량(Delta)을 한 번에 전송
-
-        Args:
-            feed_rate (float): 이동 속도
-            delta (dict): {'x': 10.0, 'y': -5.5 ...} 형태의 증분값 딕셔너리
-                        (주의: 키는 소문자일 수도 있고 대문자일 수도 있음. model_key로 해결)
-        """
-        # 1. 속도 전송
-        self._send_feed(feed_rate)
-
-        # 2. 6개 축 좌표 전송
-        # FANUCPoseKey(X, Y, Z...)를 하나씩 꺼내서 반복
-        for key in FANUCPoseKey:
-            # 딕셔너리에서 값 찾기
-            # key.model_key는 "x", "y" 같은 소문자 키를 반환
-            # 딕셔너리에 없으면 기본값 0.0을 사용
-            val = delta.get(key.model_key, 0.0)
-            
-            # 단일 축 전송 헬퍼 호출
-            self._send_coordinate(val, key)
-
-
-    def _send_coordinate(self, val: float, key: FANUCPoseKey):
-        """
-        [핵심] 단일 축 좌표 변환 및 전송 로직
-            24비트 전송 & 소수점 셋째자리 스케일링
-
-        원리:
-            PLC는 소수점(float)을 직접 받지 못한다
-            그래서 12.34를 보내고 싶으면 -> 1234 (정수)로 만들어서 보내야 된다
-            그리고 '이거 음수 값이다'라는 깃발(_Check)을 따로 든다
-        """
-        plc = self._plc
-
-        # 1. 반올림: 소수점 3자리까지만 유효 (예: 12.3456 -> 12.346)
-        rounded = round(val, 3)
-        
-        # 2. 정수화 (Scaling): 1000을 곱해서 소수점을 없앰 (예: 12.345 -> 12345)
-        #    abs()를 써서 부호(-)를 떼고 절댓값만 취함
-        scaled_int = int(abs(rounded * 1000))
-        
-        # 3. 비트 쪼개기
-        #    scaled_int라는 큰 숫자를 24개(하위16 + 상위8)의 작은 전선으로 나누어 보냄
-        low_word = scaled_int & 0xFFFF              # 하위 16비트
-        high_word = (scaled_int >> 16) & 0xFF   # 상위 8비트
-
-        # 4. 비트 전송 호출
-        self._send_bits(key, low_word, high_word)
-        
-        # 5. 부호(Sign) 전송
-        #    값이 0보다 작으면 Check 비트를 True(ON)로 켬
-        #    key.tag_check() -> "MAIN.Robot1._UI1.X_Check"
-        plc.write_by_name(key.tag_check(), rounded < 0, pyads.PLCTYPE_BOOL)
-
-
-    def _send_bits(self, key: FANUCPoseKey, lower_word: int, high_byte: int):
-        """
-        [비트 단위 전송]
-        숫자를 0과 1의 전기 신호로 바꾸어 16개의 스위치(비트)를 켠다
-
-        Args:
-            key: 어느 축인지 (X, Y...)
-            lower_word: 하위 16비트 숫자 (0~255)
-            high_byte: 상위 8비트 숫자 (0~255)
-        """
-        plc = self._plc
-        
-        # 0번부터 15번 비트까지 총 16번 반복
-        for i in range(16):
-            # -----------------------------------------------------
-            # 비트 연산 설명 (Shift & AND)
-            # (1 << i) : 1을 i칸만큼 왼쪽으로 밈. (예: i=2면 00000100)
-            # &        : 둘 다 1일 때만 1. (마스크 씌우기)
-            # > 0      : 결과가 0보다 크면 해당 자리에 1이 있다는 뜻
-            # -----------------------------------------------------
-
-            # 하위 16비트 전송 (예: l0 ~ l15)
-            # FANUCPoseKey가 주소("MAIN...Xl0")를 만들어줌
-            plc.write_by_name(
-                key.tag_low_bit(i), 
-                (lower_word & (1 << i)) > 0, 
-                pyads.PLCTYPE_BOOL
-            )
-
-        for i in range(8):
-            # 상위 8비트 전송 (h0 ~ h7)
-            plc.write_by_name(
-                key.tag_high_bit(i), 
-                (high_byte & (1 << i)) > 0, 
-                pyads.PLCTYPE_BOOL
-            )
-
-
-    def _send_feed(self, feed_rate: float):
-        """
-        [속도 전송] 좌표 전송과 원리는 같지만, 축 이름 대신 'F'를 사용
-            20비트(16+4) 전송 및 소수점 3자리 스케일링 적용
-        """
-        plc = self._plc
-
-        scaled = int(abs(round(feed_rate, 3) * 1000))
-
-        # Feed는 Enum에 없으므로 여기서 직접 주소를 조합 (Fl0~Fl7, Fh0~Fh1)
-        # 로봇측 프로토콜: F는 10비트(하위8 + 상위2)만 사용함
-        
-        # 하위 16비트 (Fl0 ~ Fl15)
-        for i in range(16):
-            plc.write_by_name(f"MAIN.Robot1._UI1.Fl{i}",
-                            (scaled & (1 << i)) > 0, pyads.PLCTYPE_BOOL)
-
-        # 상위 4비트 (Fh0 ~ Fh3) -> 4번 반복
-        for i in range(4):
-            plc.write_by_name(f"MAIN.Robot1._UI1.Fh{i}",
-                            ((scaled >> 16) & (1 << i)) > 0, pyads.PLCTYPE_BOOL)
-
-
-    # ==========================================================================
-    # 3. 상태 읽기 (로봇의 대답 듣기)
-    # --------------------------------------------------------------------------
-    # 로봇이 현재 바쁜지(Busy) 확인
-    # ==========================================================================
-
     def read_busy_signal(self) -> bool:
-        """
-        [물리적 상태] 로봇(FANUC)이 현재 움직이고 있는지 확인
-        
-        반환:
-            - True: 로봇 모터가 구동 중이다 (이동 중)
-            - False: 로봇이 정지해 있음
-
-        용도: '물리'적인 움직임을 확인. 안전 확인용
-        """
+        """로봇이 움직이고 있는지 확인"""
         return bool(self._plc.read_by_name(FanucSignal.BUSY.path, pyads.PLCTYPE_BOOL))
     
+    # (주의) read_complete_signal은 이제 Notification(Callback) 방식으로 대체되므로
+    # 직접 폴링(Polling)할 일은 줄어들겠지만, 상태 확인용으로 남겨둠.
     def read_complete_signal(self) -> bool:
-        """
-        [논리적 상태] 로봇(FANUC)이 이전 명령을 완료했는지 확인 (핸드셰이킹)
-        
-        반환:
-            - True: 방금 받은 명령 처리 끝났음(혹은 거의 끝남). ∴ 다음 명령 보내도 된다
-                    로봇의 input register 는 비어있기 때문에 다음 명령 받을 수 있다
-            - False: 명령 수행 중
-        """
         return bool(self._plc.read_by_name(FanucSignal.COMPLETE.path, pyads.PLCTYPE_BOOL))
 
 
@@ -354,10 +237,7 @@ class FanucAdapter:
         return round(scaled_val, 3)
 
     def read_current_world_pose(self) -> FANUCPose:
-        """
-        [피드백] 로봇의 현재 World 좌표(Cartesian)를 읽기
-        바닥(베이스 좌표계) 기준 TCP:Tool Center Point 위치
-        """
+        """현재 World 좌표 읽기"""
         return FANUCPose(
             x = self._read_axis_value(FANUCPoseKey.X),
             y = self._read_axis_value(FANUCPoseKey.Y),
@@ -366,7 +246,6 @@ class FanucAdapter:
             p = self._read_axis_value(FANUCPoseKey.P),
             r = self._read_axis_value(FANUCPoseKey.R)
         )
-
 
     # ==========================================================================
     # 5. 모니터링 데이터 읽기 <- 값 확인하는 디버깅 용
@@ -385,34 +264,32 @@ class FanucAdapter:
         # 1. 상위 8비트 읽기 (High Byte)
         top_val = 0
         for i in range(8):
-            # key.tag_high_bit(i) -> "MAIN.Robot1._UI1.Xh0" (이미 구현된 메서드 사용)
-            if plc.read_by_name(key.tag_high_bit(i), pyads.PLCTYPE_BOOL):
+            # tag_high_bit 메서드가 모델에서 삭제되었으므로, 여기서 문자열 f-string으로 복구하거나
+            # 모델 Key에 다시 추가해야 하는데... 
+            # 모델 Key에서 삭제했으므로 여기서 직접 문자열 조합을 사용 (Legacy 호환)
+            path = f"MAIN.Robot1._UI1.{key.value}h{i}"
+            if plc.read_by_name(path, pyads.PLCTYPE_BOOL):
                 top_val |= (1 << i)
 
         # 2. 하위 16비트 읽기 (Low Word)
         low_val = 0
         for j in range(16):
-            if plc.read_by_name(key.tag_low_bit(j), pyads.PLCTYPE_BOOL):
+            path = f"MAIN.Robot1._UI1.{key.value}l{j}"
+            if plc.read_by_name(path, pyads.PLCTYPE_BOOL):
                 low_val += (1 << j)
 
         # 3. 비트 합치기
         raw_val = (top_val << 16) + low_val
-
-        # 4. 부호 확인
-        # key.tag_check() -> "MAIN.Robot1._UI1.X_Check"
-        is_negative = plc.read_by_name(key.tag_check(), pyads.PLCTYPE_BOOL)
+        path = f"MAIN.Robot1._UI1.{key.value}_Check"
+        is_negative = plc.read_by_name(path, pyads.PLCTYPE_BOOL)
 
         # 5. 스케일링
         scaled_val = raw_val / 1000.0
-        if is_negative:
-            scaled_val = -scaled_val
-
+        if is_negative: scaled_val = -scaled_val
         return round(scaled_val, 3)
 
     def read_target_world_pose(self) -> FANUCPose:
-        """
-        [모니터링] 현재 PLC 레지스터에 기록된 '목표 위치(UI1)'를 읽어온다.
-        """
+        """현재 PLC 레지스터에 기록된 '목표 위치' 읽기"""
         return FANUCPose(
             x = self._read_target_axis_value(FANUCPoseKey.X),
             y = self._read_target_axis_value(FANUCPoseKey.Y),
@@ -421,3 +298,59 @@ class FanucAdapter:
             p = self._read_target_axis_value(FANUCPoseKey.P),
             r = self._read_target_axis_value(FANUCPoseKey.R)
         )
+
+
+# ==========================================================
+# Smoke Test
+# ==========================================================
+if __name__ == '__main__':
+    from communication.mock_plc import MockConnection
+    from unittest.mock import MagicMock
+
+    print("=" * 70)
+    print("FanucAdapter 단독 실행 테스트 (Mock)")
+    print("=" * 70)
+
+    # 1. Mock Connector 생성
+    mock_connector = MagicMock(spec=TwinCATConnector)
+    mock_plc = MagicMock(spec=MockConnection)
+    mock_connector.handle = mock_plc
+    
+    adapter = FanucAdapter(mock_connector)
+    print("✅ Adapter 생성 완료")
+
+    # 2. write_command_packet 테스트
+    print("\n[Test 1] write_command_packet")
+    dummy_pose = FANUCPose(x=10.0, y=20.0, z=30.0, w=0, p=0, r=0, f=100.0)
+    dummy_packet = dummy_pose.to_struct(dummy_pose, {'Start': True})
+    
+    adapter.write_command_packet(dummy_packet)
+    
+    # Verify: write_by_name called with struct
+    args, _ = mock_plc.write_by_name.call_args
+    # args[0] should be "MAIN.Robot1._UI1"
+    # args[1] should be the packet
+    # args[2] should be FanucCommandPacket type
+    print(f"   Call args: {args}")
+    assert args[0] == "MAIN.Robot1._UI1"
+    assert isinstance(args[1], FanucCommandPacket)
+    assert args[2] == FanucCommandPacket
+    print("✅ write_command_packet 호출 검증 성공")
+
+    # 3. register_handshake_callback 테스트
+    print("\n[Test 2] register_handshake_callback")
+    def my_callback(n, d):
+        pass
+    
+    adapter.register_handshake_callback(my_callback)
+    
+    # Verify: add_device_notification called
+    args, _ = mock_plc.add_device_notification.call_args
+    print(f"   Call args: {args}")
+    assert args[0] == FanucSignal.COMPLETE.value # "MAIN.Robot1._UO1.DO45"
+    assert args[2] == my_callback
+    print("✅ register_handshake_callback 호출 검증 성공")
+
+    print("\n" + "=" * 70)
+    print("테스트 완료")
+    print("=" * 70)
