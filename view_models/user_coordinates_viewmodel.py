@@ -15,10 +15,10 @@ if TYPE_CHECKING:
 class UserCoordinatesViewModel(QObject):
     
     # 로컬 시그널
-    user_robot_pose_changed = pyqtSignal(FANUCPose)      # 로봇의 현재 위치
-    user_tool_revolution_changed = pyqtSignal(ServoPose) # 툴의 회전 상태
-    user_tool_rotation_changed = pyqtSignal(ServoPose)   # 툴의 자전 상태
-    user_turntable_pose_changed = pyqtSignal(ServoPose)  # 턴테이블의 현재 상태
+    user_robot_pose_changed = pyqtSignal(FANUCPose)      # 로봇의 위치 - 사용자 좌표계
+    user_tool_revolution_changed = pyqtSignal(ServoPose) # 툴의 회전 상태 - 사용자 좌표계
+    user_tool_rotation_changed = pyqtSignal(ServoPose)   # 툴의 자전 상태 - 사용자 좌표계
+    user_turntable_pose_changed = pyqtSignal(ServoPose)  # 턴테이블의 상태 - 사용자 좌표계
 
 
     def __init__(self, plc_service: "PLCService"):
@@ -91,7 +91,7 @@ class UserCoordinatesViewModel(QObject):
         """현재 턴테이블(Axis 3) 위치를 0으로 설정"""
         if ServoAxis.TURNTABLE in self._raw_servo_states:
             self._servo_offsets[ServoAxis.TURNTABLE] = self._raw_servo_states[ServoAxis.TURNTABLE]
-            EVENT_BUS.log.message.emit(f"{self._log_prefix} 턴테이블 사용자 좌표계 원점 설정 완료", "INFO")
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 턴테이블(Axis 3) 사용자 좌표계 원점 설정 완료", "INFO")
 
     def origin_all_pose(self):
         """모든 좌표(로봇 + 모든 서보)를 0으로 설정"""
