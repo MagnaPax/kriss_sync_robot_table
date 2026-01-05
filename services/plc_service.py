@@ -77,10 +77,15 @@ class PLCService(QObject):
     def disconnect_plc(self):
         """연결 해제 (앱 종료 시 or 수동 끊기)"""
 
-        # 1. 감시자(Heartbeat) 먼저 퇴근시킴 - 죽은 연결을 체크하지 않게
+        # 1. 모니터링 하는 애들 먼저 퇴근시킴
         self._stop_heartbeat_worker()
+        self._stop_monitoring()
 
-        # 2. 실제 연결 끊기
+        # 2. 스레드 정리 및 대기
+        self._cleanup(self._heartbeat_thread, self._heartbeat_worker, ['_heartbeat_thread', '_heartbeat_worker'])
+        self._cleanup(self._pose_monitor_thread, self._pose_monitor_worker, ['_pose_monitor_thread', '_pose_monitor_worker'])
+
+        # 3. 실제 연결 끊기
         if self.connector.is_connected:
             self.connector.disconnect()
             EVENT_BUS.conn.status_changed.emit(False)
@@ -215,7 +220,7 @@ class PLCService(QObject):
         
         return thread, worker
 
-    def _cleanup(self, thread: QThread | None, worker: PLCWorker | None, cleanup_attrs: list[str] | None = None):
+    def _cleanup(self, thread: QThread | None, worker: QObject | None, cleanup_attrs: list[str] | None = None):
         """
         실행 중인 스레드(사무실)와 워커(비서)를
         우아하게 종료하고 메모리 누수 없이 안전하게 폐기하는 함수
@@ -225,15 +230,24 @@ class PLCService(QObject):
             thread.wait(2000) # 사무실이 안전하게 문 닫을 때까지 2초동안 기다림
 
         # 비서(Worker) 정리
+        #   Qt의 메모리 관리 시스템에 맡겨서 안전하게 폐기
+        #   파이썬 레퍼런스 해제는 아래 멤버변수 초기화에서 처리
+        #   이미 삭제된 객체라면 안전하게 무시하도록 try-except 로 처리
         if worker:
-            worker.deleteLater()  # 비서 정리 → Qt의 메모리 관리 시스템에 맡겨서 안전하게 폐기
-            # 파이썬 레퍼런스 해제는 아래 멤버변수 초기화에서 처리
+            try:
+                worker.deleteLater()    # Qt에게 삭제 요청
+            except RuntimeError:
+                pass
 
         # 사무실(Thread) 정리
+        #   deleteLater는 '나중에' 지우라는 예약어이므로 즉시 None이 되지 않음.
+        #   하지만 더 이상 이 변수를 쓰면 안 되므로, 파이썬 쪽 레퍼런스를 끊어야 함.
+        #   이미 삭제된 객체라면 안전하게 무시하도록 try-except 로 처리
         if thread:
-            # deleteLater는 '나중에' 지우라는 예약어이므로 즉시 None이 되지 않음.
-            # 하지만 더 이상 이 변수를 쓰면 안 되므로, 파이썬 쪽 레퍼런스를 끊어야 함.
-            thread.deleteLater()  # Qt에게 삭제 요청
+            try:
+                thread.deleteLater()  # Qt에게 삭제 요청
+            except RuntimeError:
+                pass
             
         # 멤버 변수 초기화 (동적 처리)
         # cleanup_attrs에 지정된 멤버 변수들이 현재 정리 중인 객체와 같다면 None으로 초기화
