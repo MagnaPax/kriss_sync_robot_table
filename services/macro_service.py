@@ -85,10 +85,9 @@ class MacroService:
         
         except FileOperationError as e:
             # 로깅 (실패)
-            EVENT_BUS.log.message.emit(
-                f"[매크로 저장 오류] 파일: {path}, 이유: {type(e.original).__name__}",
-                "ERROR"
-            )
+            msg = f"파일: {path}\n이유: {type(e.original).__name__}"
+            EVENT_BUS.log.message.emit(f"[매크로 저장 오류] {msg}", "ERROR")
+            EVENT_BUS.system.operation_error_alert.emit("매크로 저장 실패", msg)
 
             return False
 
@@ -127,10 +126,9 @@ class MacroService:
                 "INFO"
             )
         except FileOperationError as e:
-            EVENT_BUS.log.message.emit(
-                f"[매크로 저장 오류] {e} — 원인:{type(e.original).__name__}, 파일:{e.path}",
-                "ERROR",
-            )
+            msg = f"{e} — 원인:{type(e.original).__name__}, 파일:{e.path}"
+            EVENT_BUS.log.message.emit(f"[매크로 저장 오류] {msg}", "ERROR")
+            EVENT_BUS.system.operation_error_alert.emit("매크로 저장 실패 (내부)", msg)
             return False
         return True
 

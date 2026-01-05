@@ -75,6 +75,7 @@ class SequenceService(QObject):
         if file_path.suffix.lower() != '.csv':
             msg = f"{self._log_prefix} csv 파일이 아닙니다: {file_path}"
             EVENT_BUS.log.message.emit(f"{msg}", "ERROR")
+            EVENT_BUS.system.operation_error_alert.emit("파일 로드 실패", "선택하신 파일은 CSV 형식이 아닙니다.")
             raise ValueError(msg)
 
 
@@ -88,6 +89,10 @@ class SequenceService(QObject):
         # 상태 로그 방송
         level = "INFO" if success else "ERROR"
         EVENT_BUS.log.message.emit(msg, level)
+        
+        if not success:
+            EVENT_BUS.system.operation_error_alert.emit("시퀀스 로드 실패", msg)
+            return
 
         if success:
             # 딕셔너리 -> 리스트 (값만 추출)
