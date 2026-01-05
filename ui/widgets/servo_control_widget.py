@@ -160,8 +160,6 @@ class ServoControlWidget(BaseWidget):
         데이터(dict)를 받아 UI 업데이트
             BaseWidget의 safe_update_data()를 통해 호출됨
         """
-        EVENT_BUS.log.message.emit(f"{self.log_prefix} update_data() called: {data}", "DEBUG")
-
         # 상태에 따른 활성화/비활성화
         if 'is_servo_moving' in data:
             is_busy = data['is_servo_moving']
