@@ -39,6 +39,14 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
         if btn := self.btn_servo_origin: btn.clicked.connect(self._on_servo_origin_clicked)
         if btn := self.btn_reset: btn.clicked.connect(self._on_origin_all_clicked)
 
+        # 데이터 바인딩 - WorldCoordinatesWidget(부모클래스)의 메서드 재사용
+        # 로봇 좌표(User) 변경 시
+        self.viewmodel.user_robot_pose_changed.connect(self.update_data)
+        # 서보 상태(User) 변경 시
+        self.viewmodel.user_tool_revolution_changed.connect(self._update_tool_revolution_ui)
+        self.viewmodel.user_tool_rotation_changed.connect(self._update_tool_rotation_ui)
+        self.viewmodel.user_turntable_pose_changed.connect(self._update_turntable_ui)
+
 
     # ========================================
     # UI 구성 (Initialization)
@@ -80,7 +88,7 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
     # ===============================================
     def clear_widget(self):
         """위젯 상태 초기화"""
-        # 라벨 텍스트 초기화
+        # 레이블 텍스트 초기화
         if self.lbl_x: self.lbl_x.setText("0.000")
         if self.lbl_y: self.lbl_y.setText("0.000")
         if self.lbl_z: self.lbl_z.setText("0.000")
@@ -103,17 +111,14 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
     # ===============================================
     @pyqtSlot()
     def _on_robot_origin_clicked(self):
-        """"""
         self._handle_robot_origin()
 
     @pyqtSlot()
     def _on_servo_origin_clicked(self):
-        """"""
         self._handle_servo_origin()
 
     @pyqtSlot()
     def _on_origin_all_clicked(self):
-        """"""
         self._handle_origin_all()
 
 
