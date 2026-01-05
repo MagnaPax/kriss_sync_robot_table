@@ -32,6 +32,7 @@
 ## IntegratedExecutor 에 시퀀스를 동시에 움직이는 로직 완성 <- 로봇팀이 만들어 줘야 된다
 
 ## User Coordinates 표시 위젯
+- 버튼 누르면 사용자 입력 위젯들의 값들도 초기화 되어야 된다
 - Set Origin(Target Position 초기화) 한 다음에 Load
 - Set Origin 안 하고 Load 로 불러오면?
 - 움직이지 않을때는 0값이 나타나는 것 같은데
