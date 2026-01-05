@@ -29,22 +29,21 @@
 
 # 만들어야 될 것들 (급한것+우선순위)
 
+## IntegratedExecutor 에 시퀀스를 동시에 움직이는 로직 완성 <- 로봇팀이 만들어 줘야 된다
 
-
-## ServoControlWidget
-- 움직이는 동안에는 STOP 이외의 버튼 모두 비활성화
-- 시퀀스 동작 되는지 확인
-
-## WorldCoordinatesWidget
-- 구분선 표시
-- 켜지자 마자 World Coordinates 서보값 안 읽음
-
-## User Position 표시 위젯
+## User Coordinates 표시 위젯
 - Set Origin(Target Position 초기화) 한 다음에 Load
 - Set Origin 안 하고 Load 로 불러오면?
 - 움직이지 않을때는 0값이 나타나는 것 같은데
 
-## IntegratedExecutor 에 시퀀스를 동시에 움직이는 로직 완성 <- 로봇팀이 만들어 줘야 된다
+## TaskManager
+- 시퀀스 끝나면 Runtime 정지
+- 시퀀스 진행 중에는 START 버튼 비활성화
+
+## WorldCoordinatesWidget
+- 구분선 표시
+- 공전, 자전 rpm 표시값이 입력값의 * 6 으로 나오는 문제
+- 턴테이블 속도값이 마이너스로 표시됨
 
 ## TargetPositionWidget
 - GO TO 누르면 Use Position 에 나온 값을 기준으로 이동
@@ -53,6 +52,9 @@
 ## WaypointsWidget
     - 현재 진행 시퀀스 한가운데에 고정
     - 진행전, 진행중, 진행끝 표시
+
+## LogoWidget
+## TurntableWidget
 
 ## FANUC + 턴테이블 공용 feed rate 입력 창
 ## TwinCAT 연결이 끊기면 화면 비활성화
