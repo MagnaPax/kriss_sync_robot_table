@@ -231,6 +231,7 @@ class ServoOnlyExecutor(BaseExecutor):
 
                 # (B) UI 진행률 업데이트
                 EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSING)
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] {step_idx}/{total_steps} 진행 중", "DEBUG")
 
                 # (Pre-Check) 턴테이블 이동 결정
                 pose_turntable = ServoPoseModel.create_for_axis(row, 'turntable_deg')
@@ -660,6 +661,11 @@ class TwinCATCommander(QObject):
                 self.robot.set_initial_signals()
                 return True, "시작 신호 전송 완료"
             except Exception as e:
+                # 1808: Symbol not found (Servo Only 모드)
+                if "symbol not found" in str(e).lower() or "1808" in str(e):
+                    EVENT_BUS.log.message.emit(f"로봇 시작 신호 전송 실패 (변수 없음): {e}", "WARNING")
+                    return True, "로봇 연결 없음 (무시됨)"
+
                 return False, f"시작 신호 전송 실패: {e}"
         return False, "로봇이 연결되지 않았습니다."
 
@@ -670,6 +676,12 @@ class TwinCATCommander(QObject):
                 self.robot.set_finish_signals()
                 return True, "종료 신호 전송 완료"
             except Exception as e:
+                # 1808: Symbol not found (Servo Only 모드)
+                # 로봇이 없어도 서보 정지 등 후속 작업을 위해 True 반환
+                if "symbol not found" in str(e).lower() or "1808" in str(e):
+                    EVENT_BUS.log.message.emit(f"로봇 정지 신호 전송 실패 (변수 없음): {e}", "WARNING")
+                    return True, "로봇 연결 없음 (무시됨)"
+
                 return False, f"종료 신호 전송 실패: {e}"
         return False, "로봇이 연결되지 않았습니다."
 
