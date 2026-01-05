@@ -819,7 +819,11 @@ tests/테스트_종류.md
 # 배포할 때 필요 없는 파일과 폴더들
 TcAdsDll.dll
 
+# Beckhoff 장비 명세서 폴더
+EtherNetIP/
 
+# 추적 안 할 폴더, 파일들
+_for_tests_on_the_field/TODO.md
 00Testing/
 services/README.md
 docs/저장용pdf파일들
@@ -829,6 +833,3 @@ core/역할설명/
 tests/README.md
 models/README.md
 tests/unit/test_turntable.py
-
-# Beckhoff 장비 명세서 폴더
-EtherNetIP/
