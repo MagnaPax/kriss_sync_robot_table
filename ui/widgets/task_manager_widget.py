@@ -46,6 +46,10 @@ class TaskManagerWidget(BaseWidget):
         # 이벤트 연결 (UI만들어진 뒤)
         self._bind_events()
 
+        # 내부 상태 플래그
+        self._is_sequence_running = False
+        self._is_servo_busy = False
+
     def set_view_model(self, view_model: "TaskManagerViewModel"):
         """
         외부에서 뷰모델을 꽂아주는 함수(Setter)
@@ -56,6 +60,9 @@ class TaskManagerWidget(BaseWidget):
 
         # 로봇과 턴테이블의 바쁨 상태 연결
         self.vm.busy_state_changed.connect(self.update_data)
+        
+        # 시퀀스가 실행되고 있는지 아닌지 상태 변경 연결
+        self.vm.sequence_running_changed.connect(self._update_running_state)
 
         # 런타임 시간 업데이트 연결
         # 뷰모델이 "00:00:01" 보내면 -> 라벨 setText 실행
@@ -169,10 +176,13 @@ class TaskManagerWidget(BaseWidget):
     # ===============================================
     # 데이터 처리
     # ===============================================
+    # ===============================================
+    # 데이터 처리
+    # ===============================================
     def update_data(self, data: Dict[str, Any]):
         """
         데이터(dict)를 받아 UI 업데이트
-            BaseWidget의 safe_update_data()를 통해 호출됨
+            BaseWidget의 update_data()를 통해 호출됨
         
         Args:
             data (dict): {'is_busy': True/False}
@@ -180,17 +190,28 @@ class TaskManagerWidget(BaseWidget):
 
         # 상태에 따른 활성화/비활성화 (BaseWidget 기능 활용)
         if 'is_busy' in data:
-            is_busy = data['is_busy']
+            self._is_servo_busy = data['is_busy']  # 서보 busy 상태 저장
+            self._update_button_state()            # 버튼 상태 갱신 (서보 바쁨 or 시퀀스 실행 중)
 
-            # BaseWidget 내부 변수 업데이트
-            self._is_enabled = not is_busy
-
-            # 로봇이 바쁘면 -> START, LOAD 비활성화 (못 누르게)
-            if self.btn_start: self.btn_start.setEnabled(not is_busy)
-            if self.btn_load: self.btn_load.setEnabled(not is_busy)
-
-            # STOP 버튼은 정지를 위해 언제나 활성화
-            if self.btn_stop: self.btn_stop.setEnabled(True)
+    @pyqtSlot(bool)
+    def _update_running_state(self, is_running: bool):
+        """뷰모델에서 '시퀀스 실행 중' 상태 변경 알림"""
+        self._is_sequence_running = is_running
+        self._update_button_state()
+    
+    def _update_button_state(self):
+        """
+        START, LOAD 버튼의 활성화 여부 결정
+        조건: (시퀀스 실행 중 OR 서보 바쁨)이면 비활성화
+        """
+        should_disable = self._is_sequence_running or self._is_servo_busy
+        
+        # 로봇이 바쁘거나 실행 중 -> START, LOAD 비활성화
+        if self.btn_start: self.btn_start.setEnabled(not should_disable)
+        if self.btn_load: self.btn_load.setEnabled(not should_disable)
+        
+        # STOP 버튼은 언제나 활성화 (비상 정지용)
+        if self.btn_stop: self.btn_stop.setEnabled(True)
 
     def clear_widget(self):
         """
@@ -199,13 +220,16 @@ class TaskManagerWidget(BaseWidget):
         """
         EVENT_BUS.log.message.emit(f"{self.log_prefix} UI 초기화", "DEBUG")
         
+        # 내부 상태 초기화
+        self._is_sequence_running = False
+        self._is_servo_busy = False
+
         # UI 텍스트 초기화
         if self.lbl_filename:       self.lbl_filename.setText("FileName...")
         if self.lbl_runtime_val:    self.lbl_runtime_val.setText("00 : 00 : 00")
         
         # 버튼 활성화 복구
-        if self.btn_start: self.btn_start.setEnabled(True)
-        if self.btn_load: self.btn_load.setEnabled(True)
+        self._update_button_state()
         if self.btn_stop: self.btn_stop.setEnabled(True)
         
         # 부모 클래스의 초기화(데이터 비우기) 호출
@@ -247,6 +271,7 @@ class TaskManagerWidget(BaseWidget):
             EVENT_BUS.log.message.emit(f"{self.log_prefix} 뷰모델이 연결되지 않았습니다.", "WARNING")
             return
 
+        """
         # QFileDialog를 사용하여 문자열 경로 획득
         file_path_result = QFileDialog.getOpenFileName(
             self,
@@ -260,6 +285,9 @@ class TaskManagerWidget(BaseWidget):
             return
 
         file_path_str = file_path_result[0]
+        """
+
+        file_path_str = "D:/WORKSPACE/Projects_Dex/kriss_robot_sync/_for_tests_on_the_field/servoOnlyExecutor_test.csv"
         file_path_obj = Path(file_path_str)
 
         if self.lbl_filename:
