@@ -5,6 +5,7 @@ from core.event_bus import EVENT_BUS
 from models.fanuc_pose_model import FANUCPose
 from models.servo_pose_model import ServoPose
 from models.servo_pose_key import ServoAxis
+from config.data_formats import SERVO_SCHEMA, KEY_TOOL_REV_RPM, KEY_TOOL_ROT_RPM
 
 
 
@@ -37,13 +38,19 @@ class WorldCoordinatesViewModel(QObject):
         """
         # [Axis 1] 툴 공전 데이터가 있으면 -> 전용 시그널 발송
         if ServoAxis.TOOL_REVOLUTION in servo_states:
-            pose_revolution = servo_states[ServoAxis.TOOL_REVOLUTION]
-            self.tool_revolution_changed.emit(pose_revolution)
+            pose = servo_states[ServoAxis.TOOL_REVOLUTION]
+            # [스케일링 복원] deg/s -> RPM (SERVO_SCHEMA의 scale_factor 역산)
+            scale = SERVO_SCHEMA[KEY_TOOL_REV_RPM].get('scale_factor', 6.0)
+            pose_rpm = ServoPose(pose.angle, pose.velocity / scale)
+            self.tool_revolution_changed.emit(pose_rpm)
 
         # [Axis 2] 툴 자전 데이터가 있으면 -> 전용 시그널 발송
         if ServoAxis.TOOL_ROTATION in servo_states:
-            pose_rotation = servo_states[ServoAxis.TOOL_ROTATION]
-            self.tool_rotation_changed.emit(pose_rotation)
+            pose = servo_states[ServoAxis.TOOL_ROTATION]
+            # [스케일링 복원] deg/s -> RPM
+            scale = SERVO_SCHEMA[KEY_TOOL_ROT_RPM].get('scale_factor', 6.0)
+            pose_rpm = ServoPose(pose.angle, pose.velocity / scale)
+            self.tool_rotation_changed.emit(pose_rpm)
 
         # [Axis 3] 턴테이블 데이터가 있으면 -> 전용 시그널 발송
         if ServoAxis.TURNTABLE in servo_states:

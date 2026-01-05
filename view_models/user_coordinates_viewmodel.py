@@ -5,6 +5,7 @@ from core.event_bus import EVENT_BUS
 from models.fanuc_pose_model import FANUCPose
 from models.servo_pose_model import ServoPose
 from models.servo_pose_key import ServoAxis
+from config.data_formats import SERVO_SCHEMA, KEY_TOOL_REV_RPM, KEY_TOOL_ROT_RPM
 
 if TYPE_CHECKING:
     from services.plc_service import PLCService
@@ -66,12 +67,18 @@ class UserCoordinatesViewModel(QObject):
         if ServoAxis.TOOL_REVOLUTION in servo_states:
             raw = servo_states[ServoAxis.TOOL_REVOLUTION]
             off = self._servo_offsets[ServoAxis.TOOL_REVOLUTION]
-            self.user_tool_revolution_changed.emit(ServoPose(raw.angle - off.angle, raw.velocity - off.velocity))
+            # [스케일링 복원] (Raw - Offset) 후 deg/s -> RPM 변환
+            scale = SERVO_SCHEMA[KEY_TOOL_REV_RPM].get('scale_factor', 6.0)
+            user_vel = (raw.velocity - off.velocity) / scale
+            self.user_tool_revolution_changed.emit(ServoPose(raw.angle - off.angle, user_vel))
 
         if ServoAxis.TOOL_ROTATION in servo_states:
             raw = servo_states[ServoAxis.TOOL_ROTATION]
             off = self._servo_offsets[ServoAxis.TOOL_ROTATION]
-            self.user_tool_rotation_changed.emit(ServoPose(raw.angle - off.angle, raw.velocity - off.velocity))
+            # [스케일링 복원] (Raw - Offset) 후 deg/s -> RPM 변환
+            scale = SERVO_SCHEMA[KEY_TOOL_ROT_RPM].get('scale_factor', 6.0)
+            user_vel = (raw.velocity - off.velocity) / scale
+            self.user_tool_rotation_changed.emit(ServoPose(raw.angle - off.angle, user_vel))
 
         if ServoAxis.TURNTABLE in servo_states:
             raw = servo_states[ServoAxis.TURNTABLE]
