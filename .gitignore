@@ -823,8 +823,7 @@ TcAdsDll.dll
 EtherNetIP/
 
 # 추적 안 할 폴더, 파일들
-_for_tests_on_the_field/TODO.md
-00Testing/
+_for_tests_on_the_field/
 services/README.md
 docs/저장용pdf파일들
 docs/플로우차트
