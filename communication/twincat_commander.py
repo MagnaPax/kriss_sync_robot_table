@@ -7,6 +7,7 @@ TwinCAT Commander (Model Layer)
         TwinCAT 에 연결된 기기(FANUC 로봇, 턴테이블) 제어
 """
 import time
+import threading
 from PyQt6.QtCore import QThread, QObject
 from abc import ABC, abstractmethod
 from typing import List, Any, Optional, Dict
@@ -561,7 +562,6 @@ class IntegratedExecutor(BaseExecutor):
         servo = self.servo
         
         # 1. 동기화 이벤트 객체 생성
-        import threading
         evt_calc_req = threading.Event()
         evt_motion_done = threading.Event()
         
@@ -614,22 +614,43 @@ class IntegratedExecutor(BaseExecutor):
                 # 첫 번째 스텝은 즉시 시작하므로 대기하지 않거나, PLC 로직에 따라 다름.
                 # (260105.Clean.py 참조: 첫 스텝은 Immediate, 2번째부터 Wait)
                 if idx > 1:
-                    evt_calc_req.clear()
                     if not self._wait_event_with_safety(evt_calc_req, timeout=30.0):
                         return False, "Calc Req(DO45) 타임아웃 또는 중단"
 
                 # --- [Step 2] Pre-load Data Calculation ---
-                # 목표 값 파싱
+                # 데이터 키 로드 (config/data_formats.py 참조)
+                # 우선 X, Y, Z, W, P, R 직접 키가 있으면 사용하고,
+                # 없으면 Polar Coord 키 (mapped from X, Z, U)를 사용해 변환
+                
+                # 1. 로봇 좌표 (X, Z) 결정
+                # 'X' -> polar_coord_radius, 'Z' -> paraboloid_height (CSV_SCHEMA)
+                tgt_x = row.get('x', row.get('polar_coord_radius', 0.0))
+                tgt_z = row.get('z', row.get('paraboloid_height', 0.0))
+                
+                # 2. 로봇 포즈 생성
                 robot_tgt = FANUCPose(
-                    x=row.get('x',0), y=row.get('y',0), z=row.get('z',0),
-                    w=row.get('w',0), p=row.get('p',0), r=row.get('r',0)
+                    x=tgt_x, 
+                    y=row.get('y', 0.0), # Y는 보통 0
+                    z=tgt_z,
+                    w=row.get('w', 0.0), 
+                    p=row.get('p', 0.0), 
+                    r=row.get('r', 0.0)
                 )
                 
-                # 서보 목표 값
-                tt_angle_tgt = row.get('polar_coord_deg', row.get('turntable_deg', 0.0)) # Mapping key needs verification
+                # 3. 서보 목표 값
+                # 'U' -> polar_coord_theta -> turntable_deg
+                tt_angle_tgt = row.get('turntable_deg', row.get('polar_coord_theta', 0.0))
+                # 'F' -> turntable_feed_rate
                 tt_speed_tgt = row.get('turntable_feed_rate', 10.0)
-                tool_rev = row.get('tool_revolution_rpm', 0.0)
-                tool_rot = row.get('tool_rotation_rpm', 0.0)
+                
+                # 'B' -> tool_stroke_rpm (스트로크)
+                # 현재 서보 어댑터에는 스트로크 축(Axis)이 매핑되어 있지 않음 -> 일단 읽기만 함
+                # ('A' 키는 'unused_data_a'로 읽히지만 로직에서 무시함)
+                tool_stroke = row.get('tool_stroke_rpm', 0.0)
+                
+                # 공전/자전 데이터 없음 (CSV에 관련 키 부재) -> 0.0 처리
+                tool_rot = 0.0 # row.get('tool_rotation_rpm', 0.0)
+                tool_rev = 0.0 # row.get('tool_revolution_rpm', 0.0)
                 
                 # [속도 역산 로직: Turntable Master]
                 # 로봇 속도(F)를 턴테이블 시간에 맞춤
@@ -676,9 +697,6 @@ class IntegratedExecutor(BaseExecutor):
                 
                 # --- [Step 3] Wait for Motion Done (DO46) ---
                 if idx > 1:
-                    evt_motion_done.clear()
-                    # Motion Done과 Motor Done을 동시에 확인해야 하지만,
-                    # Motion Done이 오면 Motor도 거의 끝났을 것임 (동기화 되었으므로)
                     if not self._wait_event_with_safety(evt_motion_done, timeout=30.0):
                         return False, "Motion Done(DO46) 타임아웃 또는 중단"
 
@@ -686,6 +704,11 @@ class IntegratedExecutor(BaseExecutor):
                     # if not servo.is_all_stopped(): ...
 
                 # --- [Step 4] Trigger (Simultaneous Start) ---
+                # [CRITICAL] Race Condition 방지: Trigger하기 '직전'에 다음 이벤트를 비운다.
+                # (Trigger 후 언제 신호가 올지 모르므로 미리 비워야 함)
+                evt_calc_req.clear()
+                evt_motion_done.clear()
+
                 if idx == 1:
                     # 첫 스텝: 묻지도 따지지도 않고 즉시 출발
                     servo.execute_motion_batch(tt_speed_tgt, tt_angle_tgt, tool_rot, tool_rev)
@@ -734,20 +757,6 @@ class IntegratedExecutor(BaseExecutor):
             if event.wait(0.1):
                 return True
         return False
-
-        # 2. 통합 루프
-        for row in sequence_data:
-            # 동기화 및 전송 로직...
-
-            current_id = row.get('id')
-
-            # TODO: current_id 를 이벤트 버스에 실어서 방송하기
-            pass
-        
-        # 3. 종료 신호
-        self.robot.end_sequence_plc_signals()
-        """
-        return True, "통합 제어 실행 완료 (구현 필요)"
 
 
 class LegacyIntegratedExecutor(BaseExecutor):
