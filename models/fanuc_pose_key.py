@@ -88,13 +88,14 @@ class FanucSignal(str, Enum):
     """
     FANUC 로봇 제어 신호 키 (Key) 정의
     
-    [변경 사항]
-    이전에는 PLC 주소(예: "MAIN.Robot1._UI1.UI10_RSR2")를 직접 가졌으나,
-    새로운 구조체 방식에서는 모델의 to_struct() 메서드에서 '이름(Key)'으로 값을 찾으므로
-    단순한 문자열 키로 변경함. (Service -> Model 전달용)
+    구조체 방식에서는 모델(FANUCPose)의 to_struct() 메서드에서 '이름(Key)'으로 값을 찾는다
+    (Service -> Model 전달용)
     """
     # [입력] Robot <- PLC (보내는 신호)
     # 키 이름은 FANUCPose.to_struct() 메서드 내부 로직과 일치해야 함
+    # =========================================================
+    # [입력] Robot <- PLC (보내는 신호: Trigger/DataReady)
+    # =========================================================
     IMSP =          "IMSP"          # Immediate Stop
     HOLD =          "Hold"          # Hold
     SFSP =          "SFSP"          # Safety Speed
@@ -109,20 +110,36 @@ class FanucSignal(str, Enum):
     
     PNS_STROBE =    "PNSStrobe"     # PNS Strobe
     PROD_START =    "ProdStart"     # Production Start
-    DI43 =          "DI43"          # Loop On/Off 등
-    DI44 =          "DI44"          # 예비
+    
+    # DI43: 데이터 준비 완료 (Data Ready)
+    #       파이썬이 PLC에 구조체를 다 쓴 후 "데이터 가져가세요"라고 알리는 신호.
+    #       이때 DI44는 False여야 함 (데이터만 읽고 이동은 대기).
+    DI43 =          "DI43"          
+    
+    # DI44: 시작 트리거 (Start Trigger)
+    #       로봇와 턴테이블이 동시에 움직여야 할 타이밍에 펄스(Pulse)로 줌.
+    #       Rising Edge(0->1) 시 로봇이 동작 시작.
+    DI44 =          "DI44"
+    
+    DI44_RESERVED = "DI44"          # (구 호환성 유지용 Alias)
 
-    # [출력] Robot -> PLC (읽는 신호) - 얘는 아직 PLC 주소가 필요할 수도 있음 (읽기 방식에 따라 다름)
-    # 하지만 일단 키로 정의하고 Adapter에서 매핑하는 것이 좋음
-    # 레퍼런스 코드에서는 읽기(Feedback) 관련 내용보다는 쓰기(Trigger) 위주였음.
-    # 기존 코드 호환성을 위해 우선 남겨둠 (하지만 값은 확인 필요)
+    # =========================================================
+    # [출력] Robot -> PLC (읽는 신호: Handshake/Status)
+    # =========================================================
     
-    # [중요] 완료 신호 (DO45)
-    # 로봇이 명령을 수행하고 완료되었음을 알리는 Handshake 신호.
-    # Rising Edge (0->1)가 발생할 때 Notification이 트리거됨.
-    COMPLETE =  "MAIN.Robot1._UO1.DO45"             # 완료 신호 (기존 유지)
+    # [중요] 계산 요청 신호 (CALC_REQ / 구 COMPLETE)
+    # 기존: 단순 완료 신호 (COMPLETE)
+    # 변경(Sync): "다음 스텝 계산해서 데이터 보내라"는 요청 신호.
+    #            이 신호가 오면 파이썬은 다음 좌표를 계산해서 'Data Ready(DI43)' 상태로 만듦.
+    CALC_REQ =  "MAIN.Robot1._UO1.DO45"
+    COMPLETE =  "MAIN.Robot1._UO1.DO45" # (구 호환성 유지용 Alias)
     
-    BUSY =      "MAIN.Robot1._UO1.UO10_Busy"       # 바쁨 신호 (기존 유지)
+    # [중요] 이동 완료 신호
+    # 로봇이 물리적으로 이동을 완전히 멈췄을 때 발생하는 신호.
+    # 이 신호와 턴테이블의 완료 신호(bDone3)가 모두 확인되어야 '동시 출발 트리거(DI44)'를 쏠 수 있음.
+    MOTION_DONE = "MAIN.Robot1._UO1.DO46"
+
+    BUSY =      "MAIN.Robot1._UO1.UO10_Busy"        # 바쁨 신호
     # PAUSED =    "MAIN.Robot1._UO1.UO04_PrgPaused"   # 일시정지
     # FAULT =     "MAIN.Robot1._UO1.UO06_Fault"       # 에러
 

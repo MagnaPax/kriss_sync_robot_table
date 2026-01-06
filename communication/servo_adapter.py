@@ -382,9 +382,48 @@ class ServoAdapter:
         plc.write_by_name(ServoSignal.MOVE_ABS.path(axis_index), False, pyads.PLCTYPE_BOOL)
         plc.write_by_name(ServoSignal.MOVE_ABS.path(axis_index), True, pyads.PLCTYPE_BOOL)
 
+    def execute_motion_batch(self, f: float, t: float, m2: float, m3: float):
+        """
+        [동시 제어]
+        3개 축에 대한 이동 제어 명령을 '원자적(Atomic)'으로 한 번에 보낸다.
+        pyads.write_list_by_name을 사용하여 시간차 없이 PLC 변수들을 일괄 쓰기함.
+        
+        Args:
+            f (float): 턴테이블 속도 (deg/s) - MAIN.vel3
+            t (float): 턴테이블 목표 각도 (deg) - MAIN.pos3
+            m2 (float): 툴 자전 RPM - MAIN.vel2 (입력 후 * 6.0 스케일링 필요)
+            m3 (float): 툴 공전 RPM - MAIN.vel1 (입력 후 * 6.0 스케일링 필요)
+            
+        Logic:
+            1. Reset: 모든 실행(Move) 및 정지(Stop) 비트를 False로 내림.
+            2. Set & Execute: 파라미터(속도,위치)를 쓰고, 동시에 실행 비트(MoveVel/MoveAbs)를 True로 올림.
+        """
+        plc = self._plc
+        
+        # 1. Reset Execute Bits
+        # 먼저 모든 동작 신호를 꺼서 Rising Edge를 준비함
+        plc.write_list_by_name({
+            'MAIN.bMoveVel1': False, 'MAIN.bMoveVel2': False, 'MAIN.bMoveAbs3': False,
+            'MAIN.bStop1': False, 'MAIN.bStop2': False, 'MAIN.bStop3': False
+        })
+        
+        # 2. Set Values & Execute (Batch Write)
+        # 로봇 팀 코드의 Scaling(6.0) 로직 그대로 적용
+        plc.write_list_by_name({
+            'MAIN.vel3': float(f),          # 턴테이블 속도
+            'MAIN.pos3': float(t),          # 턴테이블 각도
+            'MAIN.bMoveAbs3': True,         # 턴테이블 이동 시작
+            
+            'MAIN.vel2': float(m2) * 6.0,   # 자전 속도 (* 6.0)
+            'MAIN.bMoveVel2': True,         # 자전 시작
+            
+            'MAIN.vel1': float(m3) * 6.0,   # 공전 속도 (* 6.0)
+            'MAIN.bMoveVel1': True          # 공전 시작
+        })
+
     def _homing(self, axis_index: int):
         """
-        [원점 복구] 특정 축의 원점 복귀(Homing) 작업을 시작합니다.
+        [원점 복구] 특정 축의 원점 복귀(Homing) 작업을 시작한다
         
         로봇팀 요구사항 반영:
             1. bHome 신호를 먼저 False로 초기화 (확실한 펄스 생성 위함)

@@ -119,43 +119,67 @@ class FanucAdapter:
     # 2. 알림 (Notification): 완료 신호 감지
     # ==========================================================================
 
-    def register_handshake_callback(self, callback: Callable) -> int:
+    def register_calc_req_callback(self, callback: Callable) -> int:
         """
-        [핵심] 로봇의 완료 신호(DO45) 감지용 콜백 등록 (Rising Edge)
+        [Sync Step 1: CALC_REQ] 로봇의 계산 요청(DO45) 감지 (Notification)
         
-        [Reference]
-        원본 파일: 260102.FANUC_FULL_THREADING.py
-        원본 코드: 
-            attr = pyads.NotificationAttrib(...) (Line 159)
-            plc.add_device_notification(HANDSHAKE_SYMBOL, attr, on_handshake_change) (Line 166)
+        설명:
+            - 이 신호가 Rising Edge(0->1)가 되면 "다음 스텝 데이터를 준비(Pre-load)하라"는 뜻.
             
         Args:
-            callback: 신호 변경 시 호출될 함수 (서명: (notification, data) -> None)
+            callback:
+                신호 변경 시 호출될 함수 (서명: (notification, data) -> None 형태의 콜백 함수)
             
         Returns:
-            int: 알림 핸들 (나중에 해제할 때 사용)
+            int: 알림 핸들
         """
+        return self._register_notification(FanucSignal.CALC_REQ.value, callback)
+
+    def register_motion_done_callback(self, callback: Callable) -> int:
+        """
+        [Sync Step 3: MOTION_DONE] 로봇의 물리적 이동 완료(DO46) 감지 (Notification)
+        
+        설명:
+            - 로봇이 목표 위치에 실제로 도달하고 멈췄을 때 발생하는 신호.
+            - 이 신호와 서보 완료 신호가 모두 확인되어야 '동시 출발(Trigger)' 가능.
+        """
+        return self._register_notification(FanucSignal.MOTION_DONE.value, callback)
+
+    def _register_notification(self, symbol: str, callback: Callable) -> int:
+        """(내부 헬퍼) ADS 알림 등록 공통 로직"""
         attr = pyads.NotificationAttrib(ctypes.sizeof(pyads.PLCTYPE_BOOL))
         attr.nTransMode = pyads.ADSTRANS_SERVERONCHA # 값이 바뀔 때마다 알림
         attr.nCycleTime = 100000 # 10ms (100ns 단위)
         attr.nMaxDelay = 0
-        
-        # "MAIN.Robot1._UO1.DO45" (완료 신호)
-        handle = self._plc.add_device_notification(FanucSignal.COMPLETE.value, attr, callback)
-        return handle
+        return self._plc.add_device_notification(symbol, attr, callback)
 
-    def remove_handshake_callback(self, handle: int):
-        """
-        [정리] 알림 해제
-        
-        [Reference]
-        원본 파일: 260102.FANUC_FULL_THREADING.py
-        원본 코드: plc.del_device_notification(h_notify, HANDSHAKE_SYMBOL) (Line 248)
-        """
+    def remove_notification(self, handle: int):
+        """[정리] 알림 해제 (공용)"""
         try:
-            self._plc.del_device_notification(handle, FanucSignal.COMPLETE.value)
+            self._plc.del_device_notification(handle)
         except Exception:
             pass
+
+    # 구버전 호환성 유지 (Reference: FanucOnlyExecutor)
+    # FanucOnlyExecutor는 아직 'Handshake'라는 용어를 사용하므로 Alias 제공
+    def register_handshake_callback(self, callback: Callable) -> int:
+        return self.register_calc_req_callback(callback)
+    
+    def remove_handshake_callback(self, handle: int):
+        # FanucOnlyExecutor에서 호출할 때 특정 심볼을 지우려고 시도할 수 있으므로
+        # remove_notification 공용 메서드를 사용하도록 유도
+        self.remove_notification(handle)
+        
+    def write_trigger_pulse(self, state: bool):
+        """
+        [Sync Step 4: TRIGGER] 동시 출발 트리거 (DI44) 제어
+        
+        설명:
+            - True: 출발 신호 (Rising Edge 발생 시 로봇 출발)
+            - False: 신호 리셋 (Pulse 형태 유지를 위해 사용)
+        """
+        self._plc.write_by_name(FanucSignal.DI44.value, state, pyads.PLCTYPE_BOOL)    
+
 
 
     # ==========================================================================
