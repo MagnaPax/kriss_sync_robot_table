@@ -53,7 +53,8 @@
 ## TurntableWidget
 
 ## FANUC + 턴테이블 공용 feed rate 입력 창
-## TwinCAT 연결이 끊기면 화면 비활성화
+## 앱 <-> TwinCAT 연결이 끊기면 화면 비활성화
+## TwinCAT <-> FANUC / 서보 연결이 끊기면 화면 비활성화
 ## MacroSettingsDialog 매크로 값들 - World coordinates 값
 
 
