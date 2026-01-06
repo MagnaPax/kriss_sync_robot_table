@@ -65,7 +65,8 @@ CSV_SCHEMA: Dict[str, Dict[str, Any]] = {
     'U':      {'name': KEY_POLAR_THETA,  'type': float},    # 극좌표계 Theta (각도) -> 턴테이블 회전량
     'X':      {'name': KEY_POLAR_RADIUS, 'type': float},    # 극좌표계 Radius (반지름)
     'Z':      {'name': KEY_PARA_HEIGHT,  'type': float},    # 쌍곡포물면 높이 (Z축)
-    'B':      {'name': KEY_TOOL_STROKE,  'type': float},    # 엔드 이펙터(Tool) 스트로크 속도
+    'A':      {'name': 'unused_data_a',  'type': float},    # 의미 없는 데이터 (읽기는 하되 로직에서 무시)
+    'B':      {'name': KEY_TOOL_STROKE,  'type': float},    # 툴 스트로크 속도
 }
 
 # --- TXT 파일 형식  --- #
