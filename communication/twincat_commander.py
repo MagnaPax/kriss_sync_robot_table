@@ -254,8 +254,12 @@ class FanucOnlyExecutor(BaseExecutor):
         finally:
             # 리소스 정리 (콜백 해제)
             if notify_handle is not None:
-                adapter.remove_handshake_callback(notify_handle)
-                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] Handshake 알림 해제 완료", "DEBUG")
+                adapter.remove_notification(notify_handle)
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 계산 요청 알림 해제 완료", "DEBUG")
+
+    def _is_interrupted(self) -> bool:
+        """안전장치: 현재 실행 중인 스레드가 정지 요청을 받았는지 확인한다."""
+        return bool((thread := QThread.currentThread()) and thread.isInterruptionRequested())
 
 class ServoOnlyExecutor(BaseExecutor):
     """
@@ -524,7 +528,6 @@ class ServoOnlyExecutor(BaseExecutor):
         # 3. thread가 None이면(False), 바로 False 반환
         return bool((thread := QThread.currentThread()) and thread.isInterruptionRequested())
 
-
 class IntegratedExecutor(BaseExecutor):
     """
     CSV 파일 형식 (로봇 + 턴테이블 통합 제어)
@@ -561,181 +564,185 @@ class IntegratedExecutor(BaseExecutor):
         adapter = self.robot
         servo = self.servo
         
-        # 1. 동기화 이벤트 객체 생성
-        evt_calc_req = threading.Event()
-        evt_motion_done = threading.Event()
+        # 1. 동기화 이벤트 객체 생성 (PLC 알림을 Python에서 처리하기 위한 신호기)
+        # '1년 뒤의 나'를 위한 설명:
+        # 이 이벤트들은 PLC의 DO45(계산 요청)와 DO46(이동 완료) 신호가 올 때까지 루프를 블락(Stop)하는 역할을 함.
+        calculation_request_event = threading.Event()
+        robot_motion_done_event = threading.Event()
         
-        # 콜백 정의
-        def _cb_calc_req(n, d):  evt_calc_req.set()
-        def _cb_motion_done(n, d): evt_motion_done.set()
+        # 콜백 정의 (PLC 통신 레이어에서 호출됨)
+        def _on_calculation_request(n, d): 
+            calculation_request_event.set()
+        def _on_robot_motion_done(n, d): 
+            robot_motion_done_event.set()
         
         h_calc, h_motion = None, None
 
         try:
-            # 2. 초기화 (서보 ON, 로봇 Ready, 알림 등록)
+            # 2. 초기화 (서보 전원 인가, 로봇 준비 확인, 알림 핸들러 등록)
             adapter.validate_robot_ready()
             
-            # 서보 전원 확인
+            # 서보 축 전원 ON 확인 (Spindle Revolution, Spindle Rotation, Turntable)
             for axis_idx in range(1, 4):
                 if not servo.is_servo_on(axis_idx):
                     servo.set_servo_state(axis_idx, True)
             
-            h_calc = adapter.register_calc_req_callback(_cb_calc_req)
-            h_motion = adapter.register_motion_done_callback(_cb_motion_done)
-            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] Sync 알림 등록 완료", "DEBUG")
+            # PLC 신호 감지(Handshake)를 위한 알림 등록
+            h_calc = adapter.register_calculation_request_callback(_on_calculation_request)
+            h_motion = adapter.register_robot_motion_done_callback(_on_robot_motion_done)
+            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 동기화(Handshake) 알림 등록 완료", "DEBUG")
 
-            # 3. 로봇 초기 신호 전송 (Reset)
+            # 3. 로봇 초기 통신 신호 리셋
             adapter.write_initial_signals()
             
-            # 4. 루프 변수 준비
-            current_pose = FANUCPose() # 0,0,0,0,0,0
-            # 턴테이블 현재 각도 읽기 (초기값)
+            # 4. 루프 제어용 위치 변수 초기화
+            current_robot_pose = FANUCPose() # (0,0,0,0,0,0)
+            
+            # 턴테이블 현재 실제 각도 읽기
             try:
-                tt_feedback = servo.read_current_servo_motion(3) # Axis 3
-                current_tt_angle = tt_feedback['position']
+                tt_feedback = servo.read_current_servo_motion(ServoAxis.TURNTABLE_AXIS_3)
+                current_turntable_angle = tt_feedback['position']
             except:
-                current_tt_angle = 0.0
+                current_turntable_angle = 0.0
 
-            prev_robot_f = 100.0 # 초기 속도 (안전값)
+            previous_robot_calculated_velocity = 100.0 # 초기 속도 기준값
 
-            # 5. 시퀀스 루프
+            # 5. 시퀀스 실행 루프 (정밀 동기화 4단계 모델)
+            # ---------------------------------------------------------------------
+            # '1년 뒤의 나'를 위한 핵심 로직 설명:
+            # 이 루프는 [계산 요청 -> 데이터 매립 -> 완료 대기 -> 동시 트리거]의 4단계 셰이킹을 수행함.
+            # ---------------------------------------------------------------------
             num_sequences = len(sequence_data)
             
             for idx, row in enumerate(sequence_data, 1):
-                # (A) 중단 체크
-                if (thread := QThread.currentThread()) and thread.isInterruptionRequested():
+                # (A) 안전 중단 체크
+                if self._is_interrupted():
                     return False, "사용자에 의해 작업이 중단되었습니다."
                 
                 adapter.validate_robot_ready()
                 current_id = row.get('id') or idx
                 EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, "processing")
                 
-                # --- [Step 1] Wait for Calc Request (DO45) ---
-                # 첫 번째 스텝은 즉시 시작하므로 대기하지 않거나, PLC 로직에 따라 다름.
-                # (260105.Clean.py 참조: 첫 스텝은 Immediate, 2번째부터 Wait)
+                # --- [Step 1] Wait for Calculation Request (DO45) ---
+                # 로봇이 다음 점(Point) 데이터를 가져갈 준비가 되었는지 PLC 신호를 기다린다.
+                # (첫 스텝은 즉시 시작하므로 2번째 스텝부터 대기함)
                 if idx > 1:
-                    if not self._wait_event_with_safety(evt_calc_req, timeout=30.0):
-                        return False, "Calc Req(DO45) 타임아웃 또는 중단"
+                    if not self._wait_event_with_safety(calculation_request_event, timeout=30.0):
+                        return False, "로봇의 다음 스텝 계산 요청(DO45)을 받지 못했습니다. (Timeout 30s)"
 
-                # --- [Step 2] Pre-load Data Calculation ---
-                # 데이터 키 로드 (config/data_formats.py 참조)
-                # 우선 X, Y, Z, W, P, R 직접 키가 있으면 사용하고,
-                # 없으면 Polar Coord 키 (mapped from X, Z, U)를 사용해 변환
+                # --- [Step 2] Pre-load Target Data Calculation ---
+                # 다음 스텝에서 이동할 위치와 속도를 미리 PLC 레지스터에 써넣는 공동 데이터 매립 단계.
                 
-                # 1. 로봇 좌표 (X, Z) 결정
-                # 'X' -> polar_coord_radius, 'Z' -> paraboloid_height (CSV_SCHEMA)
-                tgt_x = row.get('x', row.get('polar_coord_radius', 0.0))
-                tgt_z = row.get('z', row.get('paraboloid_height', 0.0))
+                # 1. 로봇 목표 좌표 로드 (CSV 키 매핑 기반)
+                # target_x: 반지름, target_z: 포물선 높이 (로봇 베이스 기준)
+                target_x = row.get('x', row.get('polar_coord_radius', 0.0))
+                target_z = row.get('z', row.get('paraboloid_height', 0.0))
                 
-                # 2. 로봇 포즈 생성
-                robot_tgt = FANUCPose(
-                    x=tgt_x, 
-                    y=row.get('y', 0.0), # Y는 보통 0
-                    z=tgt_z,
+                # 2. 로봇 이동 포즈 객체 준비
+                robot_target = FANUCPose(
+                    x=target_x, 
+                    y=row.get('y', 0.0), 
+                    z=target_z,
                     w=row.get('w', 0.0), 
                     p=row.get('p', 0.0), 
                     r=row.get('r', 0.0)
                 )
                 
-                # 3. 서보 목표 값
-                # 'U' -> polar_coord_theta -> turntable_deg
-                tt_angle_tgt = row.get('turntable_deg', row.get('polar_coord_theta', 0.0))
-                # 'F' -> turntable_feed_rate
-                tt_speed_tgt = row.get('turntable_feed_rate', 10.0)
+                # 3. 서보(턴테이블/스핀들) 목표 값 로드
+                # turntable_theta: 턴테이블 회전 각도, turntable_velocity: 턴테이블 이동 속도
+                turntable_angle_target = row.get('turntable_target_position', row.get('polar_coord_theta', 0.0))
+                turntable_velocity_target = row.get('turntable_moving_velocity', row.get('turntable_feed_rate', 10.0))
                 
-                # 'B' -> tool_stroke_rpm (스트로크)
-                # 현재 서보 어댑터에는 스트로크 축(Axis)이 매핑되어 있지 않음 -> 일단 읽기만 함
-                # ('A' 키는 'unused_data_a'로 읽히지만 로직에서 무시함)
-                tool_stroke = row.get('tool_stroke_rpm', 0.0)
+                # 자전(Rotation) / 공전(Revolution) RPM
+                spindle_rotation_rpm = row.get('spindle_rotation_velocity', 0.0)
+                spindle_revolution_rpm = row.get('spindle_revolution_velocity', 0.0)
                 
-                # 공전/자전 데이터 없음 (CSV에 관련 키 부재) -> 0.0 처리
-                tool_rot = 0.0 # row.get('tool_rotation_rpm', 0.0)
-                tool_rev = 0.0 # row.get('tool_revolution_rpm', 0.0)
+                # [속도 동기화 로직: Turntable Master Synchronization]
+                # 턴테이블이 목표 각도까지 도달하는 시간을 계산하여, 로봇의 F값을 역산한다.
+                # 이를 통해 로봇과 턴테이블이 동시에 도착하도록 '시간'을 맞춘다.
                 
-                # [속도 역산 로직: Turntable Master]
-                # 로봇 속도(F)를 턴테이블 시간에 맞춤
-                # 1. 턴테이블 이동 시간 (dt)
-                delta_tt = abs(tt_angle_tgt - current_tt_angle)
-                move_time = delta_tt / tt_speed_tgt if tt_speed_tgt > 0 else 0.0
+                # 1) 턴테이블 예상 이동 시간 (dt = distance / velocity)
+                tt_delta = abs(turntable_angle_target - current_turntable_angle)
+                expected_move_time = tt_delta / turntable_velocity_target if turntable_velocity_target > 0 else 0.0
                 
-                # 2. 로봇 이동 거리 (dist)
-                dist, _ = current_pose.distance_to(robot_tgt)
+                # 2) 로봇 이동 거리 (dist, mm)
+                robot_dist, _ = current_robot_pose.distance_to(robot_target)
                 
-                # 3. 로봇 속도(F) 결정
-                if dist < 0.001: 
-                    robot_f = 0.0 # 움직임 없음
-                elif move_time < 0.001:
-                    # 턴테이블이 거의 안 움직이면 -> 이전 속도 유지 or 기본 속도
-                    robot_f = prev_robot_f if prev_robot_f > 0 else 100.0
+                # 3) 로봇에 주입할 속도 F 결정 (speed = distance / dt)
+                if robot_dist < 0.001: 
+                    robot_calculated_velocity = 0.0 # 위치 변화 없음
+                elif expected_move_time < 0.001:
+                    # 턴테이블이 거의 안 움직이는 경우, 이전 속도를 유지하거나 기본 매뉴얼 속도 사용
+                    robot_calculated_velocity = previous_robot_calculated_velocity if previous_robot_calculated_velocity > 0 else 100.0
                 else:
-                    # 거리 / 시간 = 속도
-                    robot_f = dist / move_time
+                    robot_calculated_velocity = robot_dist / expected_move_time
                     
-                # 안전 상한선 (옵션)
-                robot_f = min(robot_f, 500.0) # 예: 500mm/s 제한
+                # 로봇 속도 물리적 상한선 제한 (안전을 위해 500mm/s로 캡)
+                robot_calculated_velocity = min(robot_calculated_velocity, 500.0)
 
-                # 로봇 목표 포즈에 계산된 속도 주입
-                # (FANUCPose는 Frozen이므로 새로 생성하거나 우회해야 함 -> to_struct에 f 인자 넘기는 방식이 없음)
-                # -> FANUCPose의 f 필드를 활용 (새 객체 생성)
-                robot_tgt_with_f = FANUCPose(
-                    x=robot_tgt.x, y=robot_tgt.y, z=robot_tgt.z,
-                    w=robot_tgt.w, p=robot_tgt.p, r=robot_tgt.r,
-                    f=robot_f
+                # 최종 계산된 속도가 포함된 포즈 생성
+                robot_target_final = FANUCPose(
+                    x=robot_target.x, y=robot_target.y, z=robot_target.z,
+                    w=robot_target.w, p=robot_target.p, r=robot_target.r,
+                    velocity=robot_calculated_velocity
                 )
 
-                # 신호 준비
+                # 4. PLC 데이터 매립 (DI43=True: 데이터 준비됨, DI44=False: 아직 출발하지마)
                 signals = {
                     'IMSP': True, 'Hold': True, 'SFSP': True, 'Enable': True,
-                    'CycleStop': False, 'Start': False, 'RSR2': (idx == 1), # 첫 스텝만 RSR2
-                    'DI43': True,   # Data Ready = True
-                    'DI44': False   # Trigger = False (Pre-load)
+                    'CycleStop': False, 'Start': False, 'RSR2': (idx == 1), 
+                    'DI43': True,   # [DATA READY]
+                    'DI44': False   # [TRIGGER HELD]
                 }
 
-                # 패킷 생성 (Pre-load용)
-                packet = robot_tgt_with_f.to_struct(current_pose, signals)
+                # 로봇 구조체 생성 및 전송 (Pre-load)
+                packet = robot_target_final.to_struct(current_robot_pose, signals)
                 adapter.write_command_packet(packet)
                 
-                # --- [Step 3] Wait for Motion Done (DO46) ---
+                # --- [Step 3] Wait for Legacy Motion Done (DO46) ---
+                # 이전 스텝의 물리적 이동이 완벽하게 끝났는지 확인한다.
                 if idx > 1:
-                    if not self._wait_event_with_safety(evt_motion_done, timeout=30.0):
-                        return False, "Motion Done(DO46) 타임아웃 또는 중단"
+                    if not self._wait_event_with_safety(robot_motion_done_event, timeout=30.0):
+                        return False, "이전 동작 완료(DO46) 신호를 받지 못했습니다. (Timeout 30s)"
 
-                    # 모터 동기 체크 (옵션)
-                    # if not servo.is_all_stopped(): ...
-
-                # --- [Step 4] Trigger (Simultaneous Start) ---
-                # [CRITICAL] Race Condition 방지: Trigger하기 '직전'에 다음 이벤트를 비운다.
-                # (Trigger 후 언제 신호가 올지 모르므로 미리 비워야 함)
-                evt_calc_req.clear()
-                evt_motion_done.clear()
-
-                if idx == 1:
-                    # 첫 스텝: 묻지도 따지지도 않고 즉시 출발
-                    servo.execute_motion_batch(tt_speed_tgt, tt_angle_tgt, tool_rot, tool_rev)
-                    # Loop 1에서는 위 write_command_packet으로 이미 RSR2=True가 나갔음
-                    EVENT_BUS.log.message.emit(f"#{idx} 즉시 출발 (First Step)", "DEBUG")
-                else:
-                    # 2번째 스텝부터: 트리거 발사
-                    # 로봇 트리거 (DI44=True)
-                    adapter.write_trigger_pulse(True)
-                    
-                    # 서보 실행 (Batch)
-                    servo.execute_motion_batch(tt_speed_tgt, tt_angle_tgt, tool_rot, tool_rev)
-                    
-                    # 펄스 리셋
-                    adapter.write_trigger_pulse(False)
-                    EVENT_BUS.log.message.emit(f"#{idx} 동시 출발 트리거 발사!", "DEBUG")
+                # --- [Step 4] Trigger (Atomic Simultaneous Start) ---
+                # 모든 장치가 준비되었으므로, 트리거 신호를 동시에 쏴서 출발시킨다.
                 
-                # 상태 업데이트
-                current_pose = robot_tgt_with_f
-                current_tt_angle = tt_angle_tgt
-                prev_robot_f = robot_f
+                # [중요] 레이스 컨디션 방지: 트리거 직전에 이벤트 플래그를 비운다.
+                calculation_request_event.clear()
+                robot_motion_done_event.clear()
+
+                # DI44(트리거)를 1로 세팅하여 로봇 구조체 재전송
+                signals['DI44'] = True
+                packet_trigger = robot_target_final.to_struct(current_robot_pose, signals)
+                adapter.write_command_packet(packet_trigger)
+
+                # 서보 멀티 축 동시 실행 (1, 2, 3축 Batch Write)
+                servo.execute_synchronized_motion(
+                    turntable_moving_velocity=turntable_velocity_target,
+                    turntable_target_position=turntable_angle_target,
+                    spindle_rotation_velocity=spindle_rotation_rpm,
+                    spindle_revolution_velocity=spindle_revolution_rpm
+                )
+                
+                # 트리거 펄스 리셋 (신호가 1로 계속 유지되지 않도록 다시 0으로 내림)
+                time.sleep(0.01) # 아주 짧은 대기 (Pulse 폭 확보)
+                signals['DI44'] = False
+                packet_reset = robot_target_final.to_struct(current_robot_pose, signals)
+                adapter.write_command_packet(packet_reset)
+
+                EVENT_BUS.log.message.emit(f"#{idx} 동시 동기화 트리거 전송 완료.", "DEBUG")
+                
+                # 다음 스텝을 위해 위치 정보 갱신
+                current_robot_pose = robot_target_final
+                current_turntable_angle = turntable_angle_target
+                previous_robot_calculated_velocity = robot_calculated_velocity
                 
                 EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, "processed")
 
-            # 종료 처리 (마지막 데이터 0으로 밀어내기 등)
-            adapter.set_finish_signals() # RSR2 Off 등
-            return True, "동기화 시퀀스 완료"
+            # 루프 종료 후 로봇 신호 정리
+            adapter.set_finish_signals()
+            return True, "동기화 시퀀스 작업 완료"
 
         except Exception as e:
             try:
@@ -758,7 +765,6 @@ class IntegratedExecutor(BaseExecutor):
                 return True
         return False
 
-
 class LegacyIntegratedExecutor(BaseExecutor):
     """
     레거시 TXT 파일 형식
@@ -778,7 +784,6 @@ class LegacyIntegratedExecutor(BaseExecutor):
         EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)        
 
         return True, "레거시 파일 모드 실행 완료 -> TODO: 로직 만들어야 된다"
-
 
 
 

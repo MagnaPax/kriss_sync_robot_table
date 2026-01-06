@@ -67,35 +67,25 @@ class FanucAdapter:
         # 구조체 타입(FanucCommandPacket)을 명시적으로 전달해야 함
         self._plc.write_by_name("MAIN.Robot1._UI1", packet, FanucCommandPacket)
 
-    def write_initial_signals(self):
-        """
-        [초기화] 로봇 제어권 및 시작 신호 초기화 (모두 OFF)
-        
-        [Reference]
-        원본 파일: 260102.FANUC_FULL_THREADING.py
-        원본 코드: init_payload = pack_fanuc_payload(...) (Line 182)
-        """
-        # 초기화용 패킷 생성 (Delta=0, 모든 신호 False 혹은 초기값)
-        # 원본 코드에서는 IMSP, Hold, SFSP, Enable은 True로 두고 나머지는 False로 둠
+    def set_initial_signals(self):
+        """[초기화] 로봇 시작 신호 초기화 (RSR2=False, DI43=False 등)"""
         cmd_signals = {
-            'IMSP': True, 
-            'Hold': True, 
-            'SFSP': True, 
-            'Enable': True,
-            'CycleStop': False, 
-            'Start': False, 
-            'RSR2': False, # 초기화 시 RSR2 꺼짐
-            'DI43': False
+            'IMSP': True, 'Hold': True, 'SFSP': True, 'Enable': True,
+            'CycleStop': False, 'Start': False, 'RSR2': False, 'DI43': False
         }
-        
-        # 더미 포즈(Delta 계산용이 아님, 그냥 0 채우기용)
-        dummy_pose = FANUCPose() 
-        
-        # to_struct 호출 (Delta=0이 되도록 동일한 포즈 전달)
+        dummy_pose = FANUCPose()
         packet = dummy_pose.to_struct(dummy_pose, cmd_signals)
-        
         self.write_command_packet(packet)
-        time.sleep(0.05) # 안정화 대기
+        time.sleep(0.05)
+
+    def set_finish_signals(self):
+        """[종료] 로봇 시퀀스 종료 신호 전송 (RSR2=False)"""
+        # 초기화와 거의 동일하게 모든 시작 신호를 끔
+        self.set_initial_signals()
+
+    def write_initial_signals(self):
+        """(Legacy Alias)"""
+        self.set_initial_signals()
 
     def set_emergency_stop(self):
         """
@@ -119,31 +109,33 @@ class FanucAdapter:
     # 2. 알림 (Notification): 완료 신호 감지
     # ==========================================================================
 
-    def register_calc_req_callback(self, callback: Callable) -> int:
+    def register_calculation_request_callback(self, callback: Callable) -> int:
         """
-        [Sync Step 1: CALC_REQ] 로봇의 계산 요청(DO45) 감지 (Notification)
+        [Sync Step 1: Calculation Request] 로봇의 계산 요청(DO45) 신호를 감지하기 위한 이벤트를 등록한다.
         
-        설명:
-            - 이 신호가 Rising Edge(0->1)가 되면 "다음 스텝 데이터를 준비(Pre-load)하라"는 뜻.
+        '1년 뒤의 나'를 위한 설명:
+            로봇 PLC가 다음 스텝의 경로 데이터를 계산해달라고 요청할 때 이 알림(Rising Edge)이 발생한다.
+            이 알림이 오면 파이썬(Commander)은 즉시 다음 좌표를 로봇에게 전송(Pre-load)해야 한다.
             
         Args:
-            callback:
-                신호 변경 시 호출될 함수 (서명: (notification, data) -> None 형태의 콜백 함수)
+            callback: 
+                신호 변화 시 실행될 함수. (notification, data) 형태의 인자를 받음.
             
         Returns:
-            int: 알림 핸들
+            int: 이 알림을 나중에 해제할 때 사용할 핸들(Handle) 번호.
         """
-        return self._register_notification(FanucSignal.CALC_REQ.value, callback)
+        return self._register_notification(FanucSignal.CALCULATION_REQUEST.value, callback)
 
-    def register_motion_done_callback(self, callback: Callable) -> int:
+    def register_robot_motion_done_callback(self, callback: Callable) -> int:
         """
-        [Sync Step 3: MOTION_DONE] 로봇의 물리적 이동 완료(DO46) 감지 (Notification)
+        [Sync Step 3: Robot Motion Done] 로봇의 물리적 이동 완료(DO46) 신호를 감지하기 위한 이벤트를 등록한다.
         
-        설명:
-            - 로봇이 목표 위치에 실제로 도달하고 멈췄을 때 발생하는 신호.
-            - 이 신호와 서보 완료 신호가 모두 확인되어야 '동시 출발(Trigger)' 가능.
+        '1년 뒤의 나'를 위한 설명:
+            로봇이 목표 위치에 실제로 도착했을 때 이 알림이 발생한다.
+            동시 동기 구동(Hand-in-hand)을 위해, 로봇과 서보(턴테이블)가 모두 이동을 마쳤는지 확인할 때 사용된다.
+            이 신호가 확인된 후에야 비로소 다음 스텝을 위한 'Sync Start Trigger(DI44)'를 보낼 수 있다.
         """
-        return self._register_notification(FanucSignal.MOTION_DONE.value, callback)
+        return self._register_notification(FanucSignal.ROBOT_MOTION_DONE.value, callback)
 
     def _register_notification(self, symbol: str, callback: Callable) -> int:
         """(내부 헬퍼) ADS 알림 등록 공통 로직"""
@@ -163,22 +155,26 @@ class FanucAdapter:
     # 구버전 호환성 유지 (Reference: FanucOnlyExecutor)
     # FanucOnlyExecutor는 아직 'Handshake'라는 용어를 사용하므로 Alias 제공
     def register_handshake_callback(self, callback: Callable) -> int:
-        return self.register_calc_req_callback(callback)
+        """(호환성 유지용) 구버전 연동을 위해 calculation_request_callback으로 연결함"""
+        return self.register_calculation_request_callback(callback)
     
     def remove_handshake_callback(self, handle: int):
         # FanucOnlyExecutor에서 호출할 때 특정 심볼을 지우려고 시도할 수 있으므로
         # remove_notification 공용 메서드를 사용하도록 유도
         self.remove_notification(handle)
         
-    def write_trigger_pulse(self, state: bool):
+    def write_synchronization_start_trigger(self, state: bool):
         """
-        [Sync Step 4: TRIGGER] 동시 출발 트리거 (DI44) 제어
+        [Sync Step 4: Sync Start Trigger] 로봇과 서보의 동시 출발을 위한 트리거(DI44)를 전송한다.
         
-        설명:
-            - True: 출발 신호 (Rising Edge 발생 시 로봇 출발)
-            - False: 신호 리셋 (Pulse 형태 유지를 위해 사용)
+        '1년 뒤의 나'를 위한 설명:
+            로봇과 서보가 모두 준비되었을 때(Step 3 완료), 이 메서드를 통해 신호를 1로 만들어 동시에 움직이게 한다.
+            펄스(Pulse) 형태여야 하므로, 신호를 준 후 즉시 다시 False(0)로 리셋해주어야 한다 (Commander에서 담당).
+            
+        Args:
+            state (bool): True면 시작 트리거 발생, False면 트리거 리셋.
         """
-        self._plc.write_by_name(FanucSignal.DI44.value, state, pyads.PLCTYPE_BOOL)    
+        self._plc.write_by_name(FanucSignal.SYNC_START_TRIGGER_DI44.value, state, pyads.PLCTYPE_BOOL)
 
 
 

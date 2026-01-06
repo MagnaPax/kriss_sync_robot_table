@@ -5,12 +5,12 @@ from enum import Enum, IntEnum
 
 class ServoAxis(IntEnum):
     """
-    서보 모터 축 번호 매핑
-    1, 2, 3 숫자 대신 의미가 담긴 이름을 사용한다
+    서보 모터 축 번호 매핑 (1-based index)
+    1, 2, 3 숫자 대신 물리적 역할이 담긴 직관적인 이름을 사용한다.
     """
-    TOOL_REVOLUTION = 1  # 툴 공전 (RPM 제어)
-    TOOL_ROTATION   = 2  # 툴 자전 (RPM 제어)
-    TURNTABLE       = 3  # 턴테이블 (Angle + RPM 제어)
+    SPINDLE_REVOLUTION_AXIS_1 = 1  # 툴 공전 (Revolution)
+    SPINDLE_ROTATION_AXIS_2   = 2  # 툴 자전 (Rotation)
+    TURNTABLE_AXIS_3         = 3  # 턴테이블 (Turntable)
 
 
 class ServoPoseKey(str, Enum):
@@ -70,14 +70,14 @@ class ServoSignal(str, Enum):
     ERROR_RESET  = 'MAIN.bReset{}'      # 에러 리셋 신호 (BOOL)
     ERROR_STATE  = 'MAIN.bError{}'      # 에러 발생 상태 (BOOL)
 
-    def path(self, axis_index: int) -> str:
+    def get_plc_path(self, axis_index: int) -> str:
         """
-        축 번호를 받아 실제 PLC 주소를 반환
+        축 번호를 받아 실제 PLC 주소(Tag Name)를 반환한다.
         
         Args:
-            axis_index (int): 1, 2, 3 등 축 번호
+            axis_index (int): 1, 2, 3 등 물리적 축 번호
             
         Returns:
-            'ServoSignal.SERVO_ON.path(1)'로 호출하면 'MAIN.bServoOn1'와 같은 완성된 주소를 반환
+            str: 완성된 PLC 심볼 경로 (예: 'MAIN.bServoOn1')
         """
         return self.value.format(axis_index)

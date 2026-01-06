@@ -65,12 +65,12 @@ class ServoAdapter:
         plc = self._plc
         
         # 1. 서보 전원 (bServoOn)
-        plc.write_by_name(ServoSignal.SERVO_ON.path(axis_index), enable, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(ServoSignal.SERVO_ON.get_plc_path(axis_index), enable, pyads.PLCTYPE_BOOL)
         
         # 2. 피드백 읽기 활성화 (bReadPos, bReadVel)
         #    원본 1219_Test.py의 Servo_Read_On 함수 로직 이식
-        plc.write_by_name(ServoSignal.READ_POS_ON.path(axis_index), enable, pyads.PLCTYPE_BOOL)
-        plc.write_by_name(ServoSignal.READ_VEL_ON.path(axis_index), enable, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(ServoSignal.READ_POS_ON.get_plc_path(axis_index), enable, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(ServoSignal.READ_VEL_ON.get_plc_path(axis_index), enable, pyads.PLCTYPE_BOOL)
 
         # 신호 안정화 대기 (하드웨어 특성 고려)
         time.sleep(0.05)
@@ -91,11 +91,11 @@ class ServoAdapter:
         if not self.has_servo_error(axis_index): return True
 
         # 2. 리셋 명령 - bReset: False -> Wait -> True(Rising Edge: 리셋명령실행) -> Wait -> False
-        plc.write_by_name(ServoSignal.ERROR_RESET.path(axis_index), False, pyads.PLCTYPE_BOOL)  # False
+        plc.write_by_name(ServoSignal.ERROR_RESET.get_plc_path(axis_index), False, pyads.PLCTYPE_BOOL)  # False
         time.sleep(0.5)
-        plc.write_by_name(ServoSignal.ERROR_RESET.path(axis_index), True, pyads.PLCTYPE_BOOL)   # True
+        plc.write_by_name(ServoSignal.ERROR_RESET.get_plc_path(axis_index), True, pyads.PLCTYPE_BOOL)   # True
         time.sleep(0.5)
-        plc.write_by_name(ServoSignal.ERROR_RESET.path(axis_index), False, pyads.PLCTYPE_BOOL)  # False
+        plc.write_by_name(ServoSignal.ERROR_RESET.get_plc_path(axis_index), False, pyads.PLCTYPE_BOOL)  # False
         
         # 3. 실제로 에러가 해제되었는지 확인
         time.sleep(0.5)
@@ -181,12 +181,12 @@ class ServoAdapter:
         if active:
             # 이동 신호 해제 (Latch 풀기)
             if axis in [ServoAxis.TOOL_REVOLUTION, ServoAxis.TOOL_ROTATION]:
-                plc.write_by_name(ServoSignal.MOVE_VEL.path(axis), False, pyads.PLCTYPE_BOOL)
+                plc.write_by_name(ServoSignal.MOVE_VEL.get_plc_path(axis), False, pyads.PLCTYPE_BOOL)
             elif axis == ServoAxis.TURNTABLE:
-                plc.write_by_name(ServoSignal.MOVE_ABS.path(axis), False, pyads.PLCTYPE_BOOL)
+                plc.write_by_name(ServoSignal.MOVE_ABS.get_plc_path(axis), False, pyads.PLCTYPE_BOOL)
         
         # 정지 신호 설정 (True: 정지 신호 인가 / False: 정지 신호 해제)
-        plc.write_by_name(ServoSignal.STOP.path(axis), active, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(ServoSignal.STOP.get_plc_path(axis), active, pyads.PLCTYPE_BOOL)
 
     def stop_axis(self, axis: ServoAxis):
         """[개별 정지] 특정 축을 안전하게 정지시킨다."""
@@ -251,13 +251,13 @@ class ServoAdapter:
         """
         [상태 확인] 특정 축의 서보 전원(Servo ON) 상태를 확인한다.
         """
-        return bool(self._plc.read_by_name(ServoSignal.SERVO_ON.path(axis_index), pyads.PLCTYPE_BOOL))
+        return bool(self._plc.read_by_name(ServoSignal.SERVO_ON.get_plc_path(axis_index), pyads.PLCTYPE_BOOL))
 
     def is_servo_logic_busy(self, axis_index: int) -> bool:
         """
         [상태 확인] PLC 기능 블록이 명령을 처리 중인가? (Busy 비트 확인)
         """
-        path = ServoSignal.BUSY.path(axis_index)
+        path = ServoSignal.BUSY.get_plc_path(axis_index)
         val = self._plc.read_by_name(path, pyads.PLCTYPE_BOOL)
         return bool(val)
 
@@ -267,8 +267,8 @@ class ServoAdapter:
         PLC: MAIN.Act_pos{i}, MAIN.Act_vel{i}
         오류 발생 시 예외 전파.
         """
-        curr_pos = self._plc.read_by_name(ServoSignal.ACT_POS.path(axis_index), pyads.PLCTYPE_LREAL)
-        curr_vel = self._plc.read_by_name(ServoSignal.ACT_VEL.path(axis_index), pyads.PLCTYPE_LREAL)
+        curr_pos = self._plc.read_by_name(ServoSignal.ACT_POS.get_plc_path(axis_index), pyads.PLCTYPE_LREAL)
+        curr_vel = self._plc.read_by_name(ServoSignal.ACT_VEL.get_plc_path(axis_index), pyads.PLCTYPE_LREAL)
         return {'position': curr_pos, 'velocity': curr_vel}
 
     def is_servo_moving_physically(self, axis_index: int, threshold: float = 0.1) -> bool:
@@ -301,7 +301,7 @@ class ServoAdapter:
         PLC: MAIN.bError{i} (True: 에러 발생, False: 정상)
         """
         return bool(self._plc.read_by_name(
-            ServoSignal.ERROR_STATE.path(int(axis_index)), 
+            ServoSignal.ERROR_STATE.get_plc_path(int(axis_index)), 
             pyads.PLCTYPE_BOOL
         ))
 
@@ -312,7 +312,7 @@ class ServoAdapter:
         error_msg = "None"
 
         if is_error:
-            error_id = self._plc.read_by_name(ServoSignal.ERROR_ID.path(int(axis_index)), pyads.PLCTYPE_UDINT)
+            error_id = self._plc.read_by_name(ServoSignal.ERROR_ID.get_plc_path(int(axis_index)), pyads.PLCTYPE_UDINT)
             
             # 에러 메시지 해석 (Adapter의 역할)
             if error_id == 1861:
@@ -349,12 +349,12 @@ class ServoAdapter:
         plc = self._plc
         
         # 1. 속도 입력 (MAIN.vel{i})
-        plc.write_by_name(ServoSignal.TARGET_VEL.path(axis_index), target_velocity, pyads.PLCTYPE_LREAL)
+        plc.write_by_name(ServoSignal.TARGET_VEL.get_plc_path(axis_index), target_velocity, pyads.PLCTYPE_LREAL)
         
         # 2. 속도 제어 트리거 ON (MAIN.bMoveVel{i})
         #    Latch 방식이므로 True로 유지
-        plc.write_by_name(ServoSignal.MOVE_VEL.path(axis_index), False, pyads.PLCTYPE_BOOL)
-        plc.write_by_name(ServoSignal.MOVE_VEL.path(axis_index), True, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(ServoSignal.MOVE_VEL.get_plc_path(axis_index), False, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(ServoSignal.MOVE_VEL.get_plc_path(axis_index), True, pyads.PLCTYPE_BOOL)
 
     def move_absolute(self, axis_index: int, target_pos: float, target_velocity: float):
         """
@@ -372,53 +372,60 @@ class ServoAdapter:
         plc = self._plc
 
         # 1. 목표 위치 입력 (MAIN.pos{i})
-        plc.write_by_name(ServoSignal.TARGET_POS.path(axis_index), target_pos, pyads.PLCTYPE_LREAL)
+        plc.write_by_name(ServoSignal.TARGET_POS.get_plc_path(axis_index), target_pos, pyads.PLCTYPE_LREAL)
 
         # 2. 이동 속도 입력 (MAIN.vel{i})
-        plc.write_by_name(ServoSignal.TARGET_VEL.path(axis_index), target_velocity, pyads.PLCTYPE_LREAL)
+        plc.write_by_name(ServoSignal.TARGET_VEL.get_plc_path(axis_index), target_velocity, pyads.PLCTYPE_LREAL)
         
         # 3. 절대 이동 트리거 (Pulse)
         #    Rising Edge(False -> True)를 만들어야 확실하게 동작함
-        plc.write_by_name(ServoSignal.MOVE_ABS.path(axis_index), False, pyads.PLCTYPE_BOOL)
-        plc.write_by_name(ServoSignal.MOVE_ABS.path(axis_index), True, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(ServoSignal.MOVE_ABS.get_plc_path(axis_index), False, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(ServoSignal.MOVE_ABS.get_plc_path(axis_index), True, pyads.PLCTYPE_BOOL)
 
-    def execute_motion_batch(self, f: float, t: float, m2: float, m3: float):
+    def execute_synchronized_motion(
+        self, 
+        turntable_moving_velocity: float, 
+        turntable_target_position: float, 
+        spindle_rotation_velocity: float, 
+        spindle_revolution_velocity: float
+    ):
         """
-        [동시 제어]
-        3개 축에 대한 이동 제어 명령을 '원자적(Atomic)'으로 한 번에 보낸다.
-        pyads.write_list_by_name을 사용하여 시간차 없이 PLC 변수들을 일괄 쓰기함.
+        [Sync Step 4: Synchronized Start] 3개 서보 축(공전/자전/턴테이블)에 대한 이동 명령을 원자적(Atomic)으로 동시 전송한다.
+        
+        '1년 뒤의 나'를 위한 설명:
+            로봇과 서보가 모두 준비되었을 때(Step 3 완료), 이 메서드를 통해 실질적인 물리 구동을 시작한다.
+            pyads의 write_list_by_name을 사용하여 통신 오버헤드를 최소화하고 3축이 동시 출발하도록 보장한다.
         
         Args:
-            f (float): 턴테이블 속도 (deg/s) - MAIN.vel3
-            t (float): 턴테이블 목표 각도 (deg) - MAIN.pos3
-            m2 (float): 툴 자전 RPM - MAIN.vel2 (입력 후 * 6.0 스케일링 필요)
-            m3 (float): 툴 공전 RPM - MAIN.vel1 (입력 후 * 6.0 스케일링 필요)
+            turntable_moving_velocity (float): 턴테이블의 회전 속도 (deg/s)
+            turntable_target_position (float): 턴테이블의 목표 각도 (deg)
+            spindle_rotation_velocity (float): 툴 자전 속도 (RPM -> deg/s 변환 전 원본 값)
+            spindle_revolution_velocity (float): 툴 공전 속도 (RPM -> deg/s 변환 전 원본 값)
             
         Logic:
-            1. Reset: 모든 실행(Move) 및 정지(Stop) 비트를 False로 내림.
-            2. Set & Execute: 파라미터(속도,위치)를 쓰고, 동시에 실행 비트(MoveVel/MoveAbs)를 True로 올림.
+            1. Reset: 이전 동작의 Latch를 풀기 위해 모든 실행(Move) 및 정지(Stop) 신호를 False로 내린다.
+            2. Set & Execute: 목표값들을 쓰고, 동시에 실행 비트(MoveVel/MoveAbs)를 True로 올려 구동을 시작한다.
         """
         plc = self._plc
         
-        # 1. Reset Execute Bits
-        # 먼저 모든 동작 신호를 꺼서 Rising Edge를 준비함
+        # 1. 동작 신호 초기화 (Rising Edge를 위한 준비)
         plc.write_list_by_name({
             'MAIN.bMoveVel1': False, 'MAIN.bMoveVel2': False, 'MAIN.bMoveAbs3': False,
             'MAIN.bStop1': False, 'MAIN.bStop2': False, 'MAIN.bStop3': False
         })
         
-        # 2. Set Values & Execute (Batch Write)
-        # 로봇 팀 코드의 Scaling(6.0) 로직 그대로 적용
+        # 2. 파라미터 업데이트 및 동시 실행 (Batch Write)
+        # 툴 모터(Axis 1, 2)는 RPM 단위를 deg/s로 변환하기 위해 6.0배 스케일링을 수행함 (1 RPM = 6 deg/s)
         plc.write_list_by_name({
-            'MAIN.vel3': float(f),          # 턴테이블 속도
-            'MAIN.pos3': float(t),          # 턴테이블 각도
-            'MAIN.bMoveAbs3': True,         # 턴테이블 이동 시작
+            'MAIN.vel3': float(turntable_moving_velocity),
+            'MAIN.pos3': float(turntable_target_position),
+            'MAIN.bMoveAbs3': True,
             
-            'MAIN.vel2': float(m2) * 6.0,   # 자전 속도 (* 6.0)
-            'MAIN.bMoveVel2': True,         # 자전 시작
+            'MAIN.vel2': float(spindle_rotation_velocity) * 6.0,
+            'MAIN.bMoveVel2': True,
             
-            'MAIN.vel1': float(m3) * 6.0,   # 공전 속도 (* 6.0)
-            'MAIN.bMoveVel1': True          # 공전 시작
+            'MAIN.vel1': float(spindle_revolution_velocity) * 6.0,
+            'MAIN.bMoveVel1': True
         })
 
     def _homing(self, axis_index: int):
@@ -436,7 +443,7 @@ class ServoAdapter:
         
         # Enum 객체가 들어올 경우를 대비해 int로 변환하여 주소 생성
         # 예: ServoAxis.TURNTABLE -> 3 -> "MAIN.bHome3"
-        home_signal = ServoSignal.HOME.path(int(axis_index))
+        home_signal = ServoSignal.HOME.get_plc_path(int(axis_index))
 
         # 1. 선행 초기화: 먼저 False를 써줌 (로봇팀 가이드)
         plc.write_by_name(home_signal, False, pyads.PLCTYPE_BOOL)

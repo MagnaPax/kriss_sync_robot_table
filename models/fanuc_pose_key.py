@@ -114,12 +114,14 @@ class FanucSignal(str, Enum):
     # DI43: 데이터 준비 완료 (Data Ready)
     #       파이썬이 PLC에 구조체를 다 쓴 후 "데이터 가져가세요"라고 알리는 신호.
     #       이때 DI44는 False여야 함 (데이터만 읽고 이동은 대기).
-    DI43 =          "DI43"          
+    DATA_READY_DI43 = "DI43"          
+    DI43 = "DI43" # (호환성 유지용)
     
     # DI44: 시작 트리거 (Start Trigger)
     #       로봇와 턴테이블이 동시에 움직여야 할 타이밍에 펄스(Pulse)로 줌.
     #       Rising Edge(0->1) 시 로봇이 동작 시작.
-    DI44 =          "DI44"
+    SYNC_START_TRIGGER_DI44 = "DI44"
+    DI44 = "DI44" # (호환성 유지용)
     
     DI44_RESERVED = "DI44"          # (구 호환성 유지용 Alias)
 
@@ -140,8 +142,8 @@ class FanucSignal(str, Enum):
     MOTION_DONE = "MAIN.Robot1._UO1.DO46"
 
     BUSY =      "MAIN.Robot1._UO1.UO10_Busy"        # 바쁨 신호
-    # PAUSED =    "MAIN.Robot1._UO1.UO04_PrgPaused"   # 일시정지
-    # FAULT =     "MAIN.Robot1._UO1.UO06_Fault"       # 에러
+    PAUSED =    "MAIN.Robot1._UO1.UO04_PrgPaused"   # 일시정지
+    FAULT =     "MAIN.Robot1._UO1.UO06_Fault"       # 에러
 
 
     @property
