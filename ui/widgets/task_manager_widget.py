@@ -287,7 +287,7 @@ class TaskManagerWidget(BaseWidget):
         file_path_str = file_path_result[0]
         """
 
-        file_path_str = "D:/WORKSPACE/Projects_Dex/kriss_robot_sync/_for_tests_on_the_field/servoOnlyExecutor_test.csv"
+        file_path_str = "D:/WORKSPACE/Projects_Dex/kriss_robot_sync/_for_tests_on_the_field/테스트용데이터/sequence_sample.csv"
         file_path_obj = Path(file_path_str)
 
         if self.lbl_filename:
