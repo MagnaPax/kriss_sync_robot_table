@@ -57,6 +57,8 @@ class ServoAdapter:
     def set_servo_state(self, axis_index: int, enable: bool):
         """
         [전원 제어] 특정 축의 서보 모터 전원(Servo ON) 및 읽기 기능을 켠다/끈다.
+        [원본] 131: def set_servo_power(self, enabled=True)
+        [원본] 378: motor.set_servo_power(True)
         
         Args:
             axis_index (int): 축 번호 (1, 2, 3)
@@ -186,6 +188,7 @@ class ServoAdapter:
                 plc.write_by_name(ServoSignal.MOVE_ABS.get_plc_path(axis), False, pyads.PLCTYPE_BOOL)
         
         # 정지 신호 설정 (True: 정지 신호 인가 / False: 정지 신호 해제)
+        # [원본] 160~162: MAIN.bStop1~3 Control
         plc.write_by_name(ServoSignal.STOP.get_plc_path(axis), active, pyads.PLCTYPE_BOOL)
 
     def stop_axis(self, axis: ServoAxis):
@@ -405,6 +408,10 @@ class ServoAdapter:
         Logic:
             1. Reset: 이전 동작의 Latch를 풀기 위해 모든 실행(Move) 및 정지(Stop) 신호를 False로 내린다.
             2. Set & Execute: 목표값들을 쓰고, 동시에 실행 비트(MoveVel/MoveAbs)를 True로 올려 구동을 시작한다.
+            
+        [Reference]
+        [원본] 141: def execute_synchronized_motion(...)
+        [원본] 341: motor_controller.execute_synchronized_motion(...)
         """
         plc = self._plc
         

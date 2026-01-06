@@ -61,8 +61,9 @@ class FanucAdapter:
         [핵심] 명령 패킷(구조체)을 PLC에 전송
         
         [Reference]
-        원본 파일: 260102.FANUC_FULL_THREADING.py
-        원본 코드: plc.write_by_name(STRUCT_SYMBOL, payload, FanucUI1Struct) (Line 185, 213)
+        원본 파일: FANUC_SYNC_CLEAN_renamed(260105).py
+        [원본] 88: def send_robot_command_packet(self, symbol, payload)
+        [원본] 296, 322, 339: robot_controller.send_robot_command_packet(...)
         """
         # 구조체 타입(FanucCommandPacket)을 명시적으로 전달해야 함
         self._plc.write_by_name("MAIN.Robot1._UI1", packet, FanucCommandPacket)
@@ -107,15 +108,16 @@ class FanucAdapter:
 
     # ==========================================================================
     # 2. 알림 (Notification): 완료 신호 감지
+    # [원본] 96: def add_device_notification(self, symbol, callback)
     # ==========================================================================
 
     def register_calculation_request_callback(self, callback: Callable) -> int:
         """
         [Sync Step 1: Calculation Request] 로봇의 계산 요청(DO45) 신호를 감지하기 위한 이벤트를 등록한다.
+        [원본] 430: handle_calc = robot.add_device_notification(SYM_CALC_REQUEST, handle_calculation_request)
         
-        '1년 뒤의 나'를 위한 설명:
-            로봇 PLC가 다음 스텝의 경로 데이터를 계산해달라고 요청할 때 이 알림(Rising Edge)이 발생한다.
-            이 알림이 오면 파이썬(Commander)은 즉시 다음 좌표를 로봇에게 전송(Pre-load)해야 한다.
+        로봇 PLC가 다음 스텝의 경로 데이터를 계산해달라고 요청할 때 이 알림(Rising Edge)이 발생한다.
+        이 알림이 오면 파이썬(Commander)은 즉시 다음 좌표를 로봇에게 전송(Pre-load)해야 한다.
             
         Args:
             callback: 
@@ -129,6 +131,7 @@ class FanucAdapter:
     def register_robot_motion_done_callback(self, callback: Callable) -> int:
         """
         [Sync Step 3: Robot Motion Done] 로봇의 물리적 이동 완료(DO46) 신호를 감지하기 위한 이벤트를 등록한다.
+        [원본] 384: handle_motion = robot.add_device_notification(SYM_ROBOT_MOTION_DONE, handle_robot_motion_done)
         
         '1년 뒤의 나'를 위한 설명:
             로봇이 목표 위치에 실제로 도착했을 때 이 알림이 발생한다.
@@ -166,6 +169,9 @@ class FanucAdapter:
     def write_synchronization_start_trigger(self, state: bool):
         """
         [Sync Step 4: Sync Start Trigger] 로봇과 서보의 동시 출발을 위한 트리거(DI44)를 전송한다.
+        [원본] 97: def write_digital_signal(self, symbol, value)
+        [원본] 339: robot_controller.send_robot_command_packet(..., packet_trigger) (Trigger logic)
+        [원본] 349: robot_controller.write_digital_signal(SYM_SYNC_START_TRIGGER, False)
         
         '1년 뒤의 나'를 위한 설명:
             로봇과 서보가 모두 준비되었을 때(Step 3 완료), 이 메서드를 통해 신호를 1로 만들어 동시에 움직이게 한다.
