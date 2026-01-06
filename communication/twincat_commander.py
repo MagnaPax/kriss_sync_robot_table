@@ -18,7 +18,12 @@ from communication.servo_adapter import ServoAdapter
 from communication.twincat_connector import TwinCATConnector
 from models.fanuc_pose_model import FANUCPose
 from models.servo_pose_model import ServoPoseModel
-from config.data_formats import TaskStatus, SERVO_KEYS, ROBOT_KEYS
+from config.data_formats import (
+    TaskStatus, SERVO_KEYS, ROBOT_KEYS,
+    KEY_ROBOT_X, KEY_ROBOT_Y, KEY_ROBOT_Z, KEY_ROBOT_W, KEY_ROBOT_P, KEY_ROBOT_R,
+    KEY_ROBOT_FEED_RATE, KEY_TURNTABLE_DEG, KEY_TURNTABLE_FEED_RATE,
+    KEY_TOOL_REV_RPM, KEY_TOOL_ROT_RPM
+)
 from models.servo_pose_key import ServoAxis
 from core.settings import SETTINGS
 
@@ -143,12 +148,12 @@ class FanucOnlyExecutor(BaseExecutor):
                 else:
                     # GO TO 버튼 눌렀을 때 입력한 FEED RATE 
                     # (또는 데이터에 있는 F값)
-                    feed_rate = row.get('f', 10.0)
+                    feed_rate = row.get(KEY_ROBOT_FEED_RATE, 10.0)
 
                 # 4. 목표 포즈 생성 (데이터 매핑)
                 target_pose = FANUCPose(
-                    x=row.get('x', 0.0), y=row.get('y', 0.0), z=row.get('z', 0.0),
-                    w=row.get('w', 0.0), p=row.get('p', 0.0), r=row.get('r', 0.0),
+                    x=row.get(KEY_ROBOT_X, 0.0), y=row.get(KEY_ROBOT_Y, 0.0), z=row.get(KEY_ROBOT_Z, 0.0),
+                    w=row.get(KEY_ROBOT_W, 0.0), p=row.get(KEY_ROBOT_P, 0.0), r=row.get(KEY_ROBOT_R, 0.0),
                     f=feed_rate
                 )
                 # 현재 로봇 위치 방송
@@ -318,7 +323,7 @@ class ServoOnlyExecutor(BaseExecutor):
                 EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] {step_idx}/{total_steps} 진행 중", "DEBUG")
 
                 # (Pre-Check) 턴테이블 이동 결정
-                pose_turntable = ServoPoseModel.create_for_axis(row, 'turntable_deg')
+                pose_turntable = ServoPoseModel.create_for_axis(row, KEY_TURNTABLE_DEG)
                 current_turntable_pos = adapter.read_current_servo_motion(ServoAxis.TURNTABLE)['position']
                 
                 should_move_turntable = True
@@ -345,15 +350,15 @@ class ServoOnlyExecutor(BaseExecutor):
                 log_msg = (
                     f"\n"
                     f"[{self.__class__.__name__}] 시퀀스 #{seq_id} 실행 시작 ({step_idx}/{total_steps}) | "
-                    f"공전={row.get('tool_revolution_rpm', 0):.1f}RPM, "
-                    f"자전={row.get('tool_rotation_rpm', 0):.1f}RPM, "
-                    f"턴테이블={row.get('turntable_deg', 0):.1f}deg, "
-                    f"턴테이블 속도={row.get('turntable_feed_rate', 0):.1f}mm/rev"
+                    f"공전={row.get(KEY_TOOL_REV_RPM, 0):.1f}RPM, "
+                    f"자전={row.get(KEY_TOOL_ROT_RPM, 0):.1f}RPM, "
+                    f"턴테이블={row.get(KEY_TURNTABLE_DEG, 0):.1f}deg, "
+                    f"턴테이블 속도={row.get(KEY_TURNTABLE_FEED_RATE, 0):.1f}mm/rev"
                 )
                 EVENT_BUS.log.message.emit(log_msg, "INFO")
 
                 # [Axis 1] Tool 공전 (속도 제어)
-                pose_revolution = ServoPoseModel.create_for_axis(row, 'tool_revolution_rpm')
+                pose_revolution = ServoPoseModel.create_for_axis(row, KEY_TOOL_REV_RPM)
                 EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] pose_revolution 생성: {pose_revolution}", "DEBUG")
                 if pose_revolution.velocity != 0:
                     adapter.move_velocity(ServoAxis.TOOL_REVOLUTION, pose_revolution.velocity)
@@ -366,7 +371,7 @@ class ServoOnlyExecutor(BaseExecutor):
                     EVENT_BUS.log.message.emit(f"Axis 1 에러 발생! ID: {err_rev['id']}", "ERROR")
 
                 # [Axis 2] Tool 자전 (속도 제어)
-                pose_rotation = ServoPoseModel.create_for_axis(row, 'tool_rotation_rpm')
+                pose_rotation = ServoPoseModel.create_for_axis(row, KEY_TOOL_ROT_RPM)
                 EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] pose_rotation 생성: {pose_rotation}", "DEBUG")
                 if pose_rotation.velocity != 0:
                     adapter.move_velocity(ServoAxis.TOOL_ROTATION, pose_rotation.velocity)
@@ -534,11 +539,12 @@ class IntegratedExecutor(BaseExecutor):
     """
     def can_execute(self, sample_data: Dict[str, Any]) -> bool:
         data_keys = set(sample_data.keys())
-        # CSV 통합 키 (polar_coord_...) 가 포함되어 있는지 확인
-        #   통합 제어는 로봇과 서보 키가 같이 있다
+        # CSV 통합 키: 로봇 키 + 서보 키가 모두 포함되어 있어야 함
         has_robot = not ROBOT_KEYS.isdisjoint(data_keys)
         has_servo = not SERVO_KEYS.isdisjoint(data_keys)
-        return has_robot and has_servo and ('polar_coord_theta' in data_keys or 'polar_coord_radius' in data_keys)
+        # 구체적인 키 확인 (오탐지 방지)
+        has_specific_key = (KEY_TURNTABLE_DEG in data_keys) or (KEY_ROBOT_X in data_keys)
+        return has_robot and has_servo and has_specific_key
 
     def execute(self, sequence_data: List[Dict[str, Any]]) -> tuple[bool, str]:
         """
@@ -635,27 +641,27 @@ class IntegratedExecutor(BaseExecutor):
                 
                 # 1. 로봇 목표 좌표 로드 (CSV 키 매핑 기반)
                 # target_x: 반지름, target_z: 포물선 높이 (로봇 베이스 기준)
-                target_x = row.get('x', row.get('polar_coord_radius', 0.0))
-                target_z = row.get('z', row.get('paraboloid_height', 0.0))
+                target_x = row.get(KEY_ROBOT_X, 0.0)
+                target_z = row.get(KEY_ROBOT_Z, 0.0)
                 
                 # 2. 로봇 이동 포즈 객체 준비
                 robot_target = FANUCPose(
                     x=target_x, 
-                    y=row.get('y', 0.0), 
+                    y=row.get(KEY_ROBOT_Y, 0.0), 
                     z=target_z,
-                    w=row.get('w', 0.0), 
-                    p=row.get('p', 0.0), 
-                    r=row.get('r', 0.0)
+                    w=row.get(KEY_ROBOT_W, 0.0), 
+                    p=row.get(KEY_ROBOT_P, 0.0), 
+                    r=row.get(KEY_ROBOT_R, 0.0)
                 )
                 
                 # 3. 서보(턴테이블/스핀들) 목표 값 로드
                 # turntable_theta: 턴테이블 회전 각도, turntable_velocity: 턴테이블 이동 속도
-                turntable_angle_target = row.get('turntable_target_position', row.get('polar_coord_theta', 0.0))
-                turntable_velocity_target = row.get('turntable_moving_velocity', row.get('turntable_feed_rate', 10.0))
+                turntable_angle_target = row.get(KEY_TURNTABLE_DEG, 0.0)
+                turntable_velocity_target = row.get(KEY_TURNTABLE_FEED_RATE, 10.0)
                 
                 # 자전(Rotation) / 공전(Revolution) RPM
-                spindle_rotation_rpm = row.get('spindle_rotation_velocity', 0.0)
-                spindle_revolution_rpm = row.get('spindle_revolution_velocity', 0.0)
+                spindle_rotation_rpm = row.get(KEY_TOOL_ROT_RPM, 0.0)
+                spindle_revolution_rpm = row.get(KEY_TOOL_REV_RPM, 0.0)
                 
                 # [속도 동기화 로직: Turntable Master Synchronization]
                 # 턴테이블이 목표 각도까지 도달하는 시간을 계산하여, 로봇의 F값을 역산한다.

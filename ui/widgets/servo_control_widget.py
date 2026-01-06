@@ -11,8 +11,8 @@ from PyQt6.QtWidgets import (
     QWidget
 )
 from config.data_formats import (
-    KEY_TT_DEG,
-    KEY_TT_FEED,
+    KEY_TURNTABLE_DEG,
+    KEY_TURNTABLE_FEED_RATE,
     KEY_TOOL_REV_RPM,
     KEY_TOOL_ROT_RPM
 )
@@ -219,8 +219,8 @@ class ServoControlWidget(BaseWidget):
         return {
             KEY_TOOL_REV_RPM: self.input_widgets["rev_rpm"].value(),
             KEY_TOOL_ROT_RPM: self.input_widgets["rot_rpm"].value(),
-            KEY_TT_DEG: self.input_widgets["tt_angle"].value(),
-            KEY_TT_FEED: self.input_widgets["tt_rpm"].value()
+            KEY_TURNTABLE_DEG: self.input_widgets["tt_angle"].value(),
+            KEY_TURNTABLE_FEED_RATE: self.input_widgets["tt_rpm"].value()
         }
 
 
