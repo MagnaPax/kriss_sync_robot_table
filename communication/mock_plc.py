@@ -21,6 +21,9 @@ class MockConnection:
         self._callbacks: Dict[int, tuple] = {}
         self._callback_counter = 0
         self._lock = threading.RLock()
+        
+        # [State] RSR2 신호 상태 추적 (Rising Edge 감지용)
+        self._is_rsr2_active = False
 
     def open(self):
         self._is_open = True
@@ -57,17 +60,29 @@ class MockConnection:
             
         # 2. _UI1Struct 전송 시 RSR2 (Start) 또는 DI44 (Trigger) 체크
         if "Robot1._UI1" in name:
-            # UI_Byte2 에 RSR2 (bit 1) 가 포함됨
-            if hasattr(value, 'UI_Byte2'):
-                ui2 = getattr(value, 'UI_Byte2', 0)
-                if ui2 & 0x02: # RSR2 (1 << 1)
-                    self._simulate_robot_motion("RSR2 Start (Struct)")
+            triggered = False
             
-            # UI_Byte3 에 DI44 (bit 3) 가 포함됨
+            # (A) DI44 Check (Priority 1: Trigger)
             if hasattr(value, 'UI_Byte3'):
                 ui3 = getattr(value, 'UI_Byte3', 0)
                 if ui3 & 0x08: # DI44 (1 << 3)
                     self._simulate_robot_motion("DI44 Trigger (Struct)")
+                    triggered = True
+            
+            # (B) RSR2 Check (Priority 2: Output Start - Rising Edge Only)
+            if hasattr(value, 'UI_Byte2'):
+                ui2 = getattr(value, 'UI_Byte2', 0)
+                is_rsr2_high = bool(ui2 & 0x02) # RSR2 (1 << 1)
+                
+                # Rising Edge 감지: 이전에 Low였는데 지금 High일 때만 Trigger
+                if is_rsr2_high and not self._is_rsr2_active:
+                    if not triggered: # DI44랑 겹치면 DI44가 우선
+                        self._simulate_robot_motion("RSR2 Start (Struct)")
+                
+                # 상태 업데이트
+                self._is_rsr2_active = is_rsr2_high
+            else:
+                self._is_rsr2_active = False
 
     def write_list_by_name(self, data_map: Dict[str, Any]):
         """배치 쓰기 모킹"""
@@ -109,8 +124,14 @@ class MockConnection:
         t1.start()
         
         # 2. 1.5초 후: Motion Done (DO46) ON -> "이번 동작 끝났어"
+        # 2. 1.5초 후: Motion Done (DO46) ON -> "이번 동작 끝났어"
         t2 = threading.Timer(1.5, self._fire_notification, args=("DO46", True))
         t2.start()
+
+        # 3. 1.7초 후: Turntable Done (bDone3) ON -> "턴테이블도 끝났어" (동기 검증용)
+        # 로봇보다 약간 늦게 도착하는 상황 시뮬레이션
+        t3 = threading.Timer(1.7, self._fire_notification, args=("bDone3", True))
+        t3.start()
 
     def _fire_notification(self, signal_keyword: str, value: Any):
         """저장된 콜백 중 해당 신호를 구독하는 콜백 실행"""
