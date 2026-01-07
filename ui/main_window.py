@@ -10,7 +10,7 @@ MainWindow 클래스 (View)
 4. 재접속 시도 로직 (SplashScreen 재사용)
 """
 
-from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QLabel, QMessageBox
+from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QLabel, QMessageBox, QDialog
 from PyQt6.QtCore import Qt, pyqtSlot
 from PyQt6.QtGui import QIcon
 
@@ -45,6 +45,9 @@ class MainWindow(QMainWindow):
 
         # --- UI 이벤트 바인딩 --- #
         self._bind_ui_events()
+
+        # 전역 로딩 다이얼로그 (Lazy Loading)
+        self.loading_dialog: QProgressDialog | None = None
 
 
     # =====================
@@ -110,17 +113,14 @@ class MainWindow(QMainWindow):
         __init__(초기화) 단계에서 딱 1번 호출된다
         """
 
-        # [연결 상태] VM에서 상태 데이터(dict)가 오면 -> 
-        #   위젯 업데이트 함수에 바로 전달
-        # VM에서 전화(twincat_status_data 로컬 시그널)가 오면 -> 
-        #   StatusIndicatorBox 위젯 업데이트 함수 호출
-        self.vm.twincat_status_data.connect(self.twincat_indicator.safe_update_data)
-        
-        # VM에서 전화(show_recovery_dialog 로컬 시그널)가 오면 show_recovery_ui 에 일시킴
-        self.vm.show_recovery_dialog.connect(self.show_recovery_ui)
+        # --- VM의 시그널(전화) 연결 --- #
+        self.vm.twincat_status_data.connect(self.twincat_indicator.safe_update_data)    # PLC 연결 상태 화면 표시
+        self.vm.show_recovery_dialog.connect(self._on_recovery_dialog)                  # 재접속 모달 표시
 
-        # [전역 알림] 작업 중 발생한 에러 팝업 연결
-        EVENT_BUS.system.operation_error_alert.connect(self._show_operation_error_dialog)
+        # --- 이벤트 버스 시그널(라디오 방송) 연결 --- #
+        EVENT_BUS.system.operation_error_alert.connect(self._on_operation_error_dialog)   # 작업 중 발생한 에러 팝업
+        EVENT_BUS.system.loading_started.connect(self._on_loading_started)      # 파일 읽기 시작
+        EVENT_BUS.system.loading_finished.connect(self._on_loading_finished)    # 파일 읽기 끝
 
     def _bind_ui_events(self):
         """
@@ -151,7 +151,7 @@ class MainWindow(QMainWindow):
     # 공통 핸들러
     # ==========================================================
     @pyqtSlot()
-    def show_recovery_ui(self):
+    def _on_recovery_dialog(self):
         """
         [복구 모드] 연결 끊김 시 재접속 시도 UI (모달) 표시
         """
@@ -184,7 +184,7 @@ class MainWindow(QMainWindow):
             )
 
     @pyqtSlot(str, str)
-    def _show_operation_error_dialog(self, title: str, message: str):
+    def _on_operation_error_dialog(self, title: str, message: str):
         """작업 에러 발생 시 모달 다이얼로그 표시"""
         QMessageBox.critical(self, title, message)
 
@@ -196,3 +196,40 @@ class MainWindow(QMainWindow):
         이 함수가 실행되어 경고창을 띄운다
         """
         QMessageBox.critical(self, "오류", error_message)
+
+    @pyqtSlot(str)
+    def _on_loading_started(self, message: str):
+        """파일 읽기 다이얼로그 표시"""
+        if self.loading_dialog is None:
+            # 단순 메시지 창을 위한 QDialog 구성
+            self.loading_dialog = QDialog(self)
+            self.loading_dialog.setObjectName("loading_dialog") # QSS 스타일링용 ID
+            self.loading_dialog.setProperty("type", "success")   # QSS 타입 (성공/진행 - 초록색)
+            self.loading_dialog.setWindowTitle("알림")
+            self.loading_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+            
+            # 레이아웃과 레이블 추가
+            layout = QVBoxLayout(self.loading_dialog)
+            self.loading_label = QLabel(self.loading_dialog)
+            self.loading_label.setObjectName("loading_label") # QSS 스타일링용 ID
+            self.loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.loading_label.setWordWrap(True)
+            layout.addWidget(self.loading_label)
+
+            # 창 크기 고정 및 디자인 설정
+            self.loading_dialog.setFixedSize(300, 100)
+            # 도움말 버튼(?) 제거
+            self.loading_dialog.setWindowFlags(self.loading_dialog.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+
+        self.loading_label.setText(message)
+        self.loading_dialog.show()
+        
+        # 즉시 렌더링 (메인 스레드가 곧 블로킹될 것이므로 미리 그려야 함)
+        import PyQt6.QtWidgets
+        PyQt6.QtWidgets.QApplication.processEvents()
+
+    @pyqtSlot()
+    def _on_loading_finished(self):
+        """파일 읽기 다이얼로그 닫기"""
+        if self.loading_dialog:
+            self.loading_dialog.close()
