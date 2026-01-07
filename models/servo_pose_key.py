@@ -8,9 +8,9 @@ class ServoAxis(IntEnum):
     서보 모터 축 번호 매핑 (1-based index)
     1, 2, 3 숫자 대신 물리적 역할이 담긴 직관적인 이름을 사용한다.
     """
-    SPINDLE_REVOLUTION_AXIS_1 = 1  # 툴 공전 (Revolution)
-    SPINDLE_ROTATION_AXIS_2   = 2  # 툴 자전 (Rotation)
-    TURNTABLE_AXIS_3         = 3  # 턴테이블 (Turntable)
+    TOOL_REVOLUTION = 1     # 툴 공전 (Revolution)
+    TOOL_ROTATION = 2       # 툴 자전 (Rotation)
+    TURNTABLE = 3           # 턴테이블 (Turntable)
 
 
 class ServoPoseKey(str, Enum):
@@ -59,6 +59,9 @@ class ServoSignal(str, Enum):
     
     # [공통 입력]
     TARGET_VEL   = 'MAIN.vel{}'         # 목표 속도 입력 (LREAL) - 위치/속도 모드 공용
+    
+    # [상태 확인]
+    DONE         = 'MAIN.bDone{}'       # 이동 완료 (BOOL) - Rising Edge
 
     # [피드백 (Read)]
     BUSY         = 'MAIN.Busy{}'        # 이동 중 여부 (BOOL) - 명령 받아도 write ❌

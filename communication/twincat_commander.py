@@ -716,7 +716,7 @@ class IntegratedExecutor(BaseExecutor):
             # [원본] 311: for index in range(1, len(sequence_lines)):
             for idx, row in enumerate(sequence_data[1:], 2): # idx는 2부터 시작
                 # (A) 안전 중단 체크
-                if self._is_interrupted():
+                if (thread := QThread.currentThread()) and thread.isInterruptionRequested():
                     return False, "사용자에 의해 작업이 중단되었습니다."
                 
                 adapter.validate_robot_ready()

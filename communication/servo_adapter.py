@@ -1,7 +1,8 @@
 # communication/turntable_adapter.py
 import time
 import pyads
-from typing import TYPE_CHECKING, Union, Dict, Any
+import ctypes
+from typing import TYPE_CHECKING, Union, Dict, Any, Callable
 from communication.twincat_connector import TwinCATConnector
 from models.servo_pose_key import ServoSignal
 from models.servo_pose_key import ServoAxis
@@ -246,6 +247,27 @@ class ServoAdapter:
             return False
 
 
+
+    # ==========================================================================
+    # 알림 (Notification)
+    # ==========================================================================
+    def register_turntable_motion_done_callback(self, callback: Callable) -> int:
+        """
+        [Sync Step 4: Turntable Motion Done] 턴테이블 이동 완료(bDone3) 신호 감지
+        
+        '1년 뒤의 나'를 위한 설명:
+            핸드셰이킹의 한 축을 담당하는 턴테이블의 완료 신호를 감지한다.
+            DO46(로봇 완료)과 bDone3(턴테이블 완료)가 모두 True여야 다음 스텝으로 진행 가능.
+        """
+        # MAIN.bDone3 감시 (값이 변할 때마다 콜백)
+        attr = pyads.NotificationAttrib(ctypes.sizeof(pyads.PLCTYPE_BOOL))
+        attr.nTransMode = pyads.ADSTRANS_SERVERONCHA
+        attr.nCycleTime = 100000 # 10ms
+        attr.nMaxDelay = 0
+        
+        # 주소: MAIN.bDone3 (ServoSignal.DONE + Axis 3)
+        symbol = ServoSignal.DONE.get_plc_path(ServoAxis.TURNTABLE.value)
+        return self._plc.add_device_notification(symbol, attr, callback)
 
     # ==========================================================================
     # 상태 모니터링 (Read Feedback)

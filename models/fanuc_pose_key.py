@@ -129,17 +129,17 @@ class FanucSignal(str, Enum):
     # [출력] Robot -> PLC (읽는 신호: Handshake/Status)
     # =========================================================
     
-    # [중요] 계산 요청 신호 (CALC_REQ / 구 COMPLETE)
+    # [중요] 계산 요청 신호 (CALCULATION_REQUEST / 구 COMPLETE)
     # 기존: 단순 완료 신호 (COMPLETE)
     # 변경(Sync): "다음 스텝 계산해서 데이터 보내라"는 요청 신호.
     #            이 신호가 오면 파이썬은 다음 좌표를 계산해서 'Data Ready(DI43)' 상태로 만듦.
-    CALC_REQ =  "MAIN.Robot1._UO1.DO45"
+    CALCULATION_REQUEST =  "MAIN.Robot1._UO1.DO45"
     COMPLETE =  "MAIN.Robot1._UO1.DO45" # (구 호환성 유지용 Alias)
     
     # [중요] 이동 완료 신호
     # 로봇이 물리적으로 이동을 완전히 멈췄을 때 발생하는 신호.
     # 이 신호와 턴테이블의 완료 신호(bDone3)가 모두 확인되어야 '동시 출발 트리거(DI44)'를 쏠 수 있음.
-    MOTION_DONE = "MAIN.Robot1._UO1.DO46"
+    ROBOT_MOTION_DONE = "MAIN.Robot1._UO1.DO46"
 
     BUSY =      "MAIN.Robot1._UO1.UO10_Busy"        # 바쁨 신호
     PAUSED =    "MAIN.Robot1._UO1.UO04_PrgPaused"   # 일시정지
