@@ -406,12 +406,14 @@ class ServoOnlyExecutor(BaseExecutor):
                 feedback_rotation = adapter.read_current_servo_motion(ServoAxis.TOOL_ROTATION)
                 feedback_turntable = adapter.read_current_servo_motion(ServoAxis.TURNTABLE)
 
-                EVENT_BUS.log.message.emit(
-                    f"[{self.__class__.__name__}] 툴 공전 (RPM) 완료: 목표={pose_revolution.velocity:.1f}, 현재={feedback_revolution['velocity']:.1f}", "DEBUG"
-                )
-                EVENT_BUS.log.message.emit(
-                    f"[{self.__class__.__name__}] 툴 자전 (RPM) 완료: 목표={pose_rotation.velocity:.1f}, 현재={feedback_rotation['velocity']:.1f}", "DEBUG"
-                )
+                if KEY_TOOL_REV_RPM in row:
+                    EVENT_BUS.log.message.emit(
+                        f"[{self.__class__.__name__}] 툴 공전 (RPM) 완료: 목표={pose_revolution.velocity:.1f}, 현재={feedback_revolution['velocity']:.1f}", "DEBUG"
+                    )
+                if KEY_TOOL_ROT_RPM in row:
+                    EVENT_BUS.log.message.emit(
+                        f"[{self.__class__.__name__}] 툴 자전 (RPM) 완료: 목표={pose_rotation.velocity:.1f}, 현재={feedback_rotation['velocity']:.1f}", "DEBUG"
+                    )
                 EVENT_BUS.log.message.emit(
                     f"[{self.__class__.__name__}] 턴테이블 (deg & RPM) 완료: 목표={pose_turntable.angle:.1f} & {pose_turntable.velocity:.1f}, 현재={feedback_turntable['position']:.1f} & {feedback_turntable['velocity']:.1f}", "DEBUG"
                 )
