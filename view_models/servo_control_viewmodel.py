@@ -1,6 +1,6 @@
 # view_models/servo_control_viewmodel.py
 from typing import TYPE_CHECKING
-from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 from core.event_bus import EVENT_BUS
 
 if TYPE_CHECKING:
