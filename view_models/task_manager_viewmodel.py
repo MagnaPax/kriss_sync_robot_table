@@ -141,7 +141,7 @@ class TaskManagerViewModel(QObject):
         # divmod(나눌 수, 나누는 수) -> (몫, 나머지) 반환
         minutes, seconds = divmod(self._elapsed_seconds, 60)
         hours, minutes = divmod(minutes, 60)
-        runtime_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        runtime_str = f"{hours:02d} : {minutes:02d} : {seconds:02d}"
 
         # 방송 - UI야, 이 글자로 바꿔라
         self.runtime_updated.emit(runtime_str)
