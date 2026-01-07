@@ -256,7 +256,7 @@ class TurntableWidget(BaseWidget):
 # ==========================================================
 # 3. 단독 실행 (테스트용)
 """
-python -m ui.widgets.gau_G
+python -m ui.widgets.turntable_gauge
 """
 # ==========================================================
 if __name__ == '__main__':
