@@ -116,7 +116,7 @@ class ServoControlWidget(BaseWidget):
         button_layout.setSpacing(10)
 
         self.btn_start = self._create_control_button("START", "special")
-        self.btn_tt_start = self._create_control_button("TT START", "special")
+        self.btn_tt_start = self._create_control_button("TT ONLY", "special")
         self.btn_stop = self._create_control_button("STOP", "general")
         self.btn_home = self._create_control_button("HOME", "special")
         self.btn_reset = self._create_control_button("RESET", "general")
