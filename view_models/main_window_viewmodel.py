@@ -10,6 +10,7 @@ from view_models.target_position_viewmodel import TargetPositionViewModel
 from view_models.world_coordinates_viewmodel import WorldCoordinatesViewModel
 from view_models.servo_control_viewmodel import ServoControlViewModel
 from view_models.user_coordinates_viewmodel import UserCoordinatesViewModel
+from view_models.waypoints_viewmodel import WaypointsViewModel
 
 
 
@@ -49,6 +50,8 @@ class MainViewModel(QObject):
         self.task_manager_vm = TaskManagerViewModel(self.sequence_service, self._service)
         # 사용자 좌표계: 전체 PLC 서비스 전달(비동기 처리 권한)
         self.user_coordinates_vm = UserCoordinatesViewModel(self._service)
+        # 웨이포인트(테이블): 독자적인 뷰모델
+        self.waypoints_vm = WaypointsViewModel()
 
 
 

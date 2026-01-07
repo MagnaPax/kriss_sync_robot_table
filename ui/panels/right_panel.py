@@ -31,6 +31,7 @@ class RightPanel(QFrame):
         # --- 뷰모델 주입 --- #
         # MainViewModel에서 뷰모델을 꺼내서 주입
         task_manager.set_view_model(self.vm.task_manager_vm)
+        waypoints.set_view_model(self.vm.waypoints_vm)
 
         # 제일 밑 로그 2개를 위한 수평 레이아웃
         logs_layout = QHBoxLayout()
