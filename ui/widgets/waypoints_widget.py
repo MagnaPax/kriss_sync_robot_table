@@ -12,6 +12,9 @@ from PyQt6.QtWidgets import (
     QWidget
 )
 
+if TYPE_CHECKING:
+    from view_models.waypoints_viewmodel import WaypointsViewModel
+
 from core.event_bus import EVENT_BUS
 from ui.widgets.base_widget import BaseWidget
 from models.waypoints_table_model import WaypointsTableModel
@@ -28,7 +31,12 @@ class WaypointsWidget(BaseWidget):
     # ========================================
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
+        self.vm: Optional["WaypointsViewModel"] = None
 
+    def set_view_model(self, view_model: "WaypointsViewModel"):
+        """외부에서 뷰모델을 주입"""
+        self.vm = view_model
+        
         # 이벤트 연결
         self._bind_events()
 
@@ -68,8 +76,15 @@ class WaypointsWidget(BaseWidget):
             selection_model.selectionChanged.connect(self._on_row_selected)
 
     def _bind_events(self):
-        # safe_update_data를 연결하면 에러 처리(try-except)까지 BaseWidget이 알아서 해준다
-        EVENT_BUS.data.sequence_data_loaded.connect(self.safe_update_data)
+        if not self.vm: return
+
+        # VM의 데이터 갱신 시그널 구독
+        self.vm.waypoints_data_changed.connect(self.safe_update_data)
+        
+        # VM의 초기화 요청 시그널 구독
+        self.vm.clear_waypoints.connect(self.clear_widget)
+
+
 
 
 
