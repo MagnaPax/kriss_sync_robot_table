@@ -267,6 +267,14 @@ class ControlSignals(QObject):
         str (type): "robot", "servo", "all"
     """
 
+    clear_view_content = pyqtSignal(str)
+    """
+    현재 화면에 표시된 콘텐츠 초기화
+    
+    Args:
+        str (type): "waypoints", "logs", "inputs", "all"
+    """
+
 # =============================================================================
 # 2. 실제 QObject
 # =============================================================================
