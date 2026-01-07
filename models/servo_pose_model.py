@@ -23,6 +23,16 @@ class ServoPose:
     target_position: float = 0.0
     moving_velocity: float = 10.0  # 기본 이동 속도
 
+    @property
+    def angle(self) -> float:
+        """Alias for target_position (UI/Logic compatibility)"""
+        return self.target_position
+
+    @property
+    def velocity(self) -> float:
+        """Alias for moving_velocity (UI/Logic compatibility)"""
+        return self.moving_velocity
+
     def to_dict_preserving_key_names(self) -> Dict[str, float]:
         return asdict(self)
 
