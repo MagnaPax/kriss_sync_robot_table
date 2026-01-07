@@ -63,6 +63,9 @@ class TaskManagerViewModel(QObject):
         # 새 파일을 열면 런타임 초기화
         self._reset_runtime_timer()
         
+        # [UX] 파일 읽기 시작 알림 방송
+        EVENT_BUS.system.loading_started.emit("파일 읽는 중...")
+
         # 이전에 표시된 Waypoints 콘텐츠 초기화 시그널 방송
         EVENT_BUS.control.clear_view_content.emit("waypoints")
 
