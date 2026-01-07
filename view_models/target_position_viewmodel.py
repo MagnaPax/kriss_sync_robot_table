@@ -14,6 +14,7 @@ class TargetPositionViewModel(QObject):
 
     # View에게 상태를 알리는 시그널
     state_changed = pyqtSignal(str)
+    robot_poses_clear = pyqtSignal()    # 로봇 좌표 초기화 요청 시그널
     macros_loaded = pyqtSignal(dict)    # 매크로 데이터 가져오기 완료
 
 
@@ -33,6 +34,9 @@ class TargetPositionViewModel(QObject):
 
         self._plc_service = plc_service
         self._macro_service = MacroService()
+
+        # 시그널 구독(수동 입력 필드 초기화 요청)
+        EVENT_BUS.control.clear_user_inputs.connect(self._on_clear_manual_inputs)
 
 
     @pyqtSlot()
@@ -85,3 +89,21 @@ class TargetPositionViewModel(QObject):
         EVENT_BUS.log.message.emit(f"FEED RATE 스핀박스 값 변경됨\n사용자 입력값:{feed_rate}", "DEBUG")
 
         self._plc_service.set_robot_speed(feed_rate)
+        
+    @pyqtSlot(str)
+    def _on_clear_manual_inputs(self, type_: str):
+        """
+        EventBus로부터 '입력 필드 초기화 요청'을 받았을 때 호출
+        """
+        # "robot" 또는 "all"일 때 로봇/턴테이블 위젯(TargetPositionWidget) 초기화
+        # (TargetPositionWidget은 로봇, 턴테이블 좌표 모두를 담당하므로 이 둘에 반응해야 함)
+        if type_ in ["robot", "servo", "all"]:
+            # [주의] TargetPositionWidget은 로봇(XYZ), 턴테이블(WPR) 모두 포함하므로
+            # "servo" 요청 시에도 턴테이블(WPR) 부분 초기화를 위해 신호를 받아야 함.
+            # View에서 clear_widget 구현 시 type_에 따라 부분 초기화를 하거나 
+            # 여기서는 단순히 전체 초기화 요청만 보내고 View가 알아서 하도록 할 수 있음.
+            # 현재 계획은 "View의 clear_widget 호출"이므로 전체 초기화가 될 가능성이 큼.
+            # 만약 부분 초기화가 필요하다면 signal에 인자를 추가해야 함.
+            # -> 사용자 요청상 'TargetPositionWidget의 입력 필드가 초기화' 되어야 하므로
+            #    단순히 초기화 신호를 보냄.
+            self.robot_poses_clear.emit()
