@@ -73,6 +73,7 @@ class TargetPositionWidget(BaseWidget):
         
         # [중요] VM이 생겼을 때 시그널 연결
         self.vm.macros_loaded.connect(self._on_macro_data_loaded)
+        self.vm.view_reset_requested.connect(self.clear_widget) # [추가]
         
         # 매크로 데이터에서 버튼 제목을 읽어 와야 되기 때문에 UI가 생성된 후에 바로 호출
         self.vm.load_macro_data()
@@ -113,6 +114,28 @@ class TargetPositionWidget(BaseWidget):
         BaseWidget의 추상 메서드를 구현한다
         """
         pass
+
+    def clear_widget(self):
+        """
+        [새로 구현] 입력 데이터 모두 초기화
+        - 로봇 좌표 (X,Y,Z,W,P,R)
+        - Feed Rate
+        """
+        EVENT_BUS.log.message.emit("TargetPositionWidget 입력 필드 초기화", "DEBUG")
+
+        # 1. 좌표 입력창 초기화
+        for axis, widget in self.coord_widgets.items():
+            if isinstance(widget, QLineEdit):
+                widget.setText("0.000")
+            elif isinstance(widget, QDoubleSpinBox):
+                # FEED RATE 등 스핀박스인 경우
+                if axis == "FEED RATE":
+                    widget.setValue(10.0) # 기본값으로
+                else:
+                    widget.setValue(0.0)
+        
+        # 2. 부모 위젯 초기화 (필요 시)
+        # super().clear_widget() # BaseWidget에는 별도 구현 없음 (pass)
 
 
     def _configure_base_layout(self) -> QGroupBox:
