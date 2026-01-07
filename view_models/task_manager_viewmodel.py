@@ -49,11 +49,11 @@ class TaskManagerViewModel(QObject):
         # --- 시그널 구독 --- #
         # 시퀀스 데이터 읽기 완료
         EVENT_BUS.data.sequence_data_loaded.connect(self._on_sequence_data_updated)
-        # 진행 상황 모니터링 (작업 끝났는지 감시용)
-        EVENT_BUS.data.progress_updated.connect(self._check_sequence_finished)
         # '바쁨 상태' 방송이 오면 -> 내 로컬 시그널(busy_state_changed)로 바로 재방송
         #   TaskManagerWidget.update_data와 연결
         EVENT_BUS.data.servo_busy_status.connect(self.busy_state_changed.emit)
+        # 전체 시퀀스 작업(Job) 종료 시그널 연결
+        EVENT_BUS.data.sequence_job_finished.connect(self._on_sequence_job_finished)
 
 
     def load_sequence_data(self, file_path: Path):
@@ -147,14 +147,14 @@ class TaskManagerViewModel(QObject):
         self.runtime_updated.emit(runtime_str)
 
 
-    @pyqtSlot(int, int, str)
-    def _check_sequence_finished(self, current_step: int, total_steps: int, status: str):
-        """진행 상황을 감시하다가 끝났으면 타이머 정지"""
-
-        # 마지막 스텝이고 + 상태가 '처리완료(processed)'라면
-        if current_step == total_steps and status == "processed":
-            # 타이머 정지
+    @pyqtSlot()
+    def _on_sequence_job_finished(self):
+        """[중요] 시퀀스 작업(Job)이 실제 종료되었을 때 (성공/실패/중단)"""
+        # 타이머 정지
+        if self._runtime_timer.isActive():
             self._runtime_timer.stop()
-            # 실행중 상태 해제
-            self.sequence_running_changed.emit(False)
-            EVENT_BUS.log.message.emit(f"{self._log_prefix} 모든 시퀀스 작업 완료 (총 {total_steps}개의 데이터)", "INFO")
+        
+        # 실행 모드 해제 (START 버튼 활성화 등)
+        self.sequence_running_changed.emit(False)
+        total_count = len(self._cached_sequence_data) if self._cached_sequence_data else 0
+        EVENT_BUS.log.message.emit(f"{self._log_prefix} 모든 시퀀스 작업 완료 (총 {total_count}개의 데이터)", "INFO")
