@@ -257,6 +257,9 @@ class FanucOnlyExecutor(BaseExecutor):
             return False, f"[{self.__class__.__name__}] {msg}"
             
         finally:
+            # 시퀀스 실행 종료 방송
+            EVENT_BUS.data.sequence_job_finished.emit()
+
             # 리소스 정리 (콜백 해제)
             if notify_handle is not None:
                 adapter.remove_notification(notify_handle)
@@ -432,6 +435,9 @@ class ServoOnlyExecutor(BaseExecutor):
             return False, f"[{self.__class__.__name__}] 오류 발생: {str(e)}"
 
         finally:
+            # 시퀀스 실행 종료 방송
+            EVENT_BUS.data.sequence_job_finished.emit()
+
             # 3. 종료 처리 (Teardown)
             EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 종료 절차: 서보모터 정지 및 전원 차단을 시도합니다...", "DEBUG")
 
@@ -856,6 +862,9 @@ class IntegratedExecutor(BaseExecutor):
             return False, f"[{self.__class__.__name__}] 에러: {e}"
             
         finally:
+            # 시퀀스 실행 종료 방송
+            EVENT_BUS.data.sequence_job_finished.emit()
+
             if h_calc: adapter.remove_notification(h_calc)
             if h_motion: adapter.remove_notification(h_motion)
 
