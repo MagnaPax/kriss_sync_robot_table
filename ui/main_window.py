@@ -15,6 +15,7 @@ from PyQt6.QtCore import Qt, pyqtSlot
 from PyQt6.QtGui import QIcon
 
 from core.event_bus import EVENT_BUS
+from core.settings import SETTINGS
 # 패널 및 위젯
 from ui.splash_screen import SplashScreen
 from ui.widgets.base_widget import BaseWidget
@@ -32,7 +33,7 @@ class MainWindow(QMainWindow):
         self.vm = viewmodel
 
         # 기본 UI 설정
-        self.setWindowTitle("KRISS Robot Polishing Machine")
+        self.setWindowTitle(SETTINGS.app.name)
         self.setWindowIcon(QIcon("resources/icons/kriss.gif"))
         self.setGeometry(100, 100, 1200, 800)  # 초기 창 크기
 
