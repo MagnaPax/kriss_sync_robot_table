@@ -358,30 +358,32 @@ class ServoOnlyExecutor(BaseExecutor):
                 EVENT_BUS.log.message.emit(log_msg, "INFO")
 
                 # [Axis 1] Tool 공전 (속도 제어)
-                pose_revolution = ServoPoseModel.create_for_axis(row, KEY_TOOL_REV_RPM)
-                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] pose_revolution 생성: {pose_revolution}", "DEBUG")
-                if pose_revolution.velocity != 0:
-                    adapter.move_velocity(ServoAxis.TOOL_REVOLUTION, pose_revolution.velocity)
-                else:
-                    adapter.stop_axis(ServoAxis.TOOL_REVOLUTION)
+                if KEY_TOOL_REV_RPM in row:
+                    pose_revolution = ServoPoseModel.create_for_axis(row, KEY_TOOL_REV_RPM)
+                    EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] pose_revolution 생성: {pose_revolution}", "DEBUG")
+                    if pose_revolution.velocity != 0:
+                        adapter.move_velocity(ServoAxis.TOOL_REVOLUTION, pose_revolution.velocity)
+                    else:
+                        adapter.stop_axis(ServoAxis.TOOL_REVOLUTION)
 
-                # 명령 후 즉시 에러 체크
-                err_rev = adapter.is_servo_error_active(ServoAxis.TOOL_REVOLUTION)
-                if err_rev['error']:
-                    EVENT_BUS.log.message.emit(f"Axis 1 에러 발생! ID: {err_rev['id']}", "ERROR")
+                    # 명령 후 즉시 에러 체크
+                    err_rev = adapter.is_servo_error_active(ServoAxis.TOOL_REVOLUTION)
+                    if err_rev['error']:
+                        EVENT_BUS.log.message.emit(f"Axis 1 에러 발생! ID: {err_rev['id']}", "ERROR")
 
                 # [Axis 2] Tool 자전 (속도 제어)
-                pose_rotation = ServoPoseModel.create_for_axis(row, KEY_TOOL_ROT_RPM)
-                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] pose_rotation 생성: {pose_rotation}", "DEBUG")
-                if pose_rotation.velocity != 0:
-                    adapter.move_velocity(ServoAxis.TOOL_ROTATION, pose_rotation.velocity)
-                else:
-                    adapter.stop_axis(ServoAxis.TOOL_ROTATION)
+                if KEY_TOOL_ROT_RPM in row:
+                    pose_rotation = ServoPoseModel.create_for_axis(row, KEY_TOOL_ROT_RPM)
+                    EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] pose_rotation 생성: {pose_rotation}", "DEBUG")
+                    if pose_rotation.velocity != 0:
+                        adapter.move_velocity(ServoAxis.TOOL_ROTATION, pose_rotation.velocity)
+                    else:
+                        adapter.stop_axis(ServoAxis.TOOL_ROTATION)
 
-                # 명령 후 즉시 에러 체크
-                err_rot = adapter.is_servo_error_active(ServoAxis.TOOL_ROTATION)
-                if err_rot['error']:
-                    EVENT_BUS.log.message.emit(f"Axis 2 에러 발생! ID: {err_rot['id']}", "ERROR")
+                    # 명령 후 즉시 에러 체크
+                    err_rot = adapter.is_servo_error_active(ServoAxis.TOOL_ROTATION)
+                    if err_rot['error']:
+                        EVENT_BUS.log.message.emit(f"Axis 2 에러 발생! ID: {err_rot['id']}", "ERROR")
 
                 # [Axis 3] 턴테이블 (위치 제어)
                 EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] pose_turntable 생성: {pose_turntable}", "DEBUG")
