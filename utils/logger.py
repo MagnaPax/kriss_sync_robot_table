@@ -208,8 +208,19 @@ class LoggerConfig:
             return getattr(logging, level_name)
         
         # 기본값: 개발모드는 DEBUG, 배포모드는 INFO
-        app_env = AppEnv()
-        return logging.DEBUG if not app_env.is_packaged else logging.INFO
+        
+        # 순환 참조 방지를 위해 함수 내부에서 import
+        try:
+            from core.settings import SETTINGS
+            # settings.ini의 DEBUG 값이 True면 DEBUG 레벨, False면 INFO 레벨
+            if SETTINGS.app.debug:
+                return logging.DEBUG
+            else:
+                return logging.INFO
+        except ImportError:
+            # 아직 core 모듈이 로딩되지 않았거나 단독 실행 시
+            app_env = AppEnv()
+            return logging.DEBUG if not app_env.is_packaged else logging.INFO
     
 
 
@@ -330,7 +341,7 @@ class Logger:
         self._root_logger.addHandler(
             LoggerConfig.create_file_handler(
                 LoggerConfig.INFO_LOG, 
-                logging.INFO,
+                LoggerConfig.get_log_level(),
                 is_error_log=False
             )
         )
