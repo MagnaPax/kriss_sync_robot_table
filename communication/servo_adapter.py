@@ -407,6 +407,28 @@ class ServoAdapter:
         plc.write_by_name(ServoSignal.MOVE_ABS.get_plc_path(axis_index), False, pyads.PLCTYPE_BOOL)
         plc.write_by_name(ServoSignal.MOVE_ABS.get_plc_path(axis_index), True, pyads.PLCTYPE_BOOL)
 
+    def move_turntable_atomic(self, axis_index: int, target_pos: float, target_velocity: float):
+        """
+        턴테이블 독립 제어
+            위치, 속도, 트리거를 한 번에(Batch) 전송
+        """
+        # 명령 받을 준비 됐는지 검증
+        self.validate_axis_ready(axis_index)
+
+        plc = self._plc
+        
+        # 1. 트리거 리셋 (0 -> 1 상승 엣지 신호를 만들기 위해 먼저 0으로 내림)
+        trigger_path = ServoSignal.MOVE_ABS.get_plc_path(axis_index)
+        plc.write_by_name(trigger_path, False, pyads.PLCTYPE_BOOL)
+        
+        # 2. 값 설정 및 출발 (위치, 속도, 출발 신호를 한 번에 묶어서 전송)
+        # 위치, 속도, 트리거(ON)를 한 번에 전송
+        plc.write_list_by_name({
+            ServoSignal.TARGET_VEL.get_plc_path(axis_index): target_velocity,
+            ServoSignal.TARGET_POS.get_plc_path(axis_index): target_pos,
+            trigger_path: True
+        })
+
     def execute_synchronized_motion(
         self, 
         turntable_moving_velocity: float, 
