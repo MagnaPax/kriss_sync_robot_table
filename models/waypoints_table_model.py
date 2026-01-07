@@ -36,10 +36,10 @@ class WaypointsTableModel(QAbstractTableModel):
         """
         [데이터 주입] 외부에서 데이터를 받아와 모델을 갱신하는 곳.
         
-        Q: 왜 그냥 self._data = data 하면 안 되나요?
-        A: 뷰(View)는 모델의 데이터가 바뀐지 모릅니다. 
+        Q: 그냥 self._data = data 하면 안 되는 이유
+        A: 뷰(View)는 모델의 데이터가 바뀐지 모른다
             반드시 beginResetModel()과 endResetModel()로 감싸서 
-            "야, 데이터 싹 갈아엎는다! 다시 그려!"라고 신호를 보내야 합니다.
+            "야, 데이터 싹 갈아엎는다! 다시 그려!"라고 신호를 보내야 한다
         """
         if not data:
             self.beginResetModel()
@@ -82,13 +82,13 @@ class WaypointsTableModel(QAbstractTableModel):
 
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
         """
-        [핵심] 뷰(View)가 화면을 그릴 때마다 쉴 새 없이 호출하는 함수입니다.
+        [핵심] 뷰(View)가 화면을 그릴 때마다 쉴 새 없이 호출하는 함수
         
         "야, 3번째 줄 2번째 칸에 글자(DisplayRole) 뭐 써야 돼?"
         "야, 3번째 줄 2번째 칸 정렬(TextAlignmentRole)은 어떻게 해?"
         
-        주의: 여기서 복잡한 계산을 하거나 DB를 조회하면 프로그램이 렉 걸립니다.
-                최대한 빨리 값을 리턴해야 합니다.
+        주의: 여기서 복잡한 계산을 하거나 DB를 조회하면 앱에 렉이 걸린다
+                최대한 빨리 값을 리턴해야 한다
         """
         if not index.isValid():
             return None
