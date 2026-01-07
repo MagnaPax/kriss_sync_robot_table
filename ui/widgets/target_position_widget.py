@@ -71,9 +71,9 @@ class TargetPositionWidget(BaseWidget):
         """외부에서 뷰모델 주입 시 호출"""
         self.vm = view_model
         
-        # [중요] VM이 생겼을 때 시그널 연결
+        # VM의 로컬 시그널 연결
         self.vm.macros_loaded.connect(self._on_macro_data_loaded)
-        self.vm.view_reset_requested.connect(self.clear_widget) # [추가]
+        self.vm.robot_poses_clear.connect(self.clear_widget)
         
         # 매크로 데이터에서 버튼 제목을 읽어 와야 되기 때문에 UI가 생성된 후에 바로 호출
         self.vm.load_macro_data()
@@ -150,7 +150,7 @@ class TargetPositionWidget(BaseWidget):
         ##########################
 
         # 모든 부속 위젯을 담을 그룹박스 생성
-        base_group_box = QGroupBox("Target Position")
+        base_group_box = QGroupBox("Robot Control")
 
 
         widgets_layout = QVBoxLayout()
