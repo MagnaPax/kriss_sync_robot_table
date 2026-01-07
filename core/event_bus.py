@@ -259,6 +259,14 @@ class ControlSignals(QObject):
     tool_current_pose = pyqtSignal(object)
     """FANUC 현재 Tool 좌표 정보"""
 
+    clear_user_inputs = pyqtSignal(str)
+    """
+    사용자 입력 필드 초기화
+    
+    Args:
+        str (type): "robot", "servo", "all"
+    """
+
 # =============================================================================
 # 2. 실제 QObject
 # =============================================================================
