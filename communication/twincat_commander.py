@@ -386,7 +386,7 @@ class ServoOnlyExecutor(BaseExecutor):
                 # [Axis 3] 턴테이블 (위치 제어)
                 EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] pose_turntable 생성: {pose_turntable}", "DEBUG")
                 if should_move_turntable:
-                    adapter.move_absolute(ServoAxis.TURNTABLE, pose_turntable.angle, pose_turntable.velocity)
+                    adapter.move_turntable_atomic(ServoAxis.TURNTABLE, pose_turntable.angle, pose_turntable.velocity)
 
                 # (D) 대기 (Stop-and-Go)
                 # 각 스텝의 이동이 완료될 때까지 대기 (Stop-and-Go 방식)
