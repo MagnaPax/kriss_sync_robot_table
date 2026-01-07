@@ -62,6 +62,9 @@ class TaskManagerViewModel(QObject):
 
         # 새 파일을 열면 런타임 초기화
         self._reset_runtime_timer()
+        
+        # 현재 화면에 표시된 콘텐츠 초기화 시그널 방송
+        EVENT_BUS.control.clear_view_content.emit("waypoints")
 
         # 파일 경로가 잘못되었거나 형식이 깨졌을 때 에러가 올라올 수 있으므로 try-except로 처리
         try:
