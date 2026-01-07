@@ -47,7 +47,7 @@ class TaskManagerViewModel(QObject):
         self._runtime_timer.timeout.connect(self._on_runtime_tick)
 
         # --- 시그널 구독 --- #
-        # 시퀀스 데이터
+        # 시퀀스 데이터 읽기 완료
         EVENT_BUS.data.sequence_data_loaded.connect(self._on_sequence_data_updated)
         # 진행 상황 모니터링 (작업 끝났는지 감시용)
         EVENT_BUS.data.progress_updated.connect(self._check_sequence_finished)
@@ -63,7 +63,7 @@ class TaskManagerViewModel(QObject):
         # 새 파일을 열면 런타임 초기화
         self._reset_runtime_timer()
         
-        # 현재 화면에 표시된 콘텐츠 초기화 시그널 방송
+        # 이전에 표시된 Waypoints 콘텐츠 초기화 시그널 방송
         EVENT_BUS.control.clear_view_content.emit("waypoints")
 
         # 파일 경로가 잘못되었거나 형식이 깨졌을 때 에러가 올라올 수 있으므로 try-except로 처리

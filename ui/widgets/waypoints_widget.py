@@ -137,7 +137,8 @@ class WaypointsWidget(BaseWidget):
             QApplication.restoreOverrideCursor()
             
             # 완료 메시지
-            EVENT_BUS.log.message.emit(f"{self.log_prefix} 데이터 렌더링 완료", "INFO")
+            EVENT_BUS.log.message.emit(f"{self.log_prefix} 데이터 렌더링 완료 {len(data)}건", "INFO")
+
 
     def clear_widget(self):
         """화면을 깨끗하게 지우고 초기화"""
