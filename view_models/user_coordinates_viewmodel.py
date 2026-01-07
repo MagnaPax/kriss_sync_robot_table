@@ -92,12 +92,16 @@ class UserCoordinatesViewModel(QObject):
     def origin_robot_pose(self):
         """현재 로봇 위치를 0으로 설정 (오프셋 업데이트)"""
         self._robot_offset = self._raw_robot_pose
+        # 입력 필드 초기화 요청 방송
+        EVENT_BUS.control.clear_user_inputs.emit("robot")
         EVENT_BUS.log.message.emit(f"{self._log_prefix} 로봇 사용자 좌표계 원점 설정 완료", "INFO")
 
     def origin_servo_pose(self):
         """현재 턴테이블(Axis 3) 위치를 0으로 설정"""
         if ServoAxis.TURNTABLE in self._raw_servo_states:
             self._servo_offsets[ServoAxis.TURNTABLE] = self._raw_servo_states[ServoAxis.TURNTABLE]
+            # 입력 필드 초기화 요청 방송
+            EVENT_BUS.control.clear_user_inputs.emit("servo")
             EVENT_BUS.log.message.emit(f"{self._log_prefix} 턴테이블(Axis 3) 사용자 좌표계 원점 설정 완료", "INFO")
 
     def origin_all_pose(self):
@@ -110,4 +114,6 @@ class UserCoordinatesViewModel(QObject):
             if axis in self._raw_servo_states:
                 self._servo_offsets[axis] = self._raw_servo_states[axis]
         
+        # 입력 필드 초기화 요청 방송
+        EVENT_BUS.control.clear_user_inputs.emit("all")
         EVENT_BUS.log.message.emit(f"{self._log_prefix} 모든 장치 사용자 좌표계 원점 설정 완료", "INFO")
