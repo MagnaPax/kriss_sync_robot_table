@@ -236,6 +236,9 @@ class DataSignals(QObject):
     servo_busy_status = pyqtSignal(dict)
     """장비 바쁨 상태 방송용"""
 
+    sequence_job_finished = pyqtSignal()
+    """모든 시퀀스 작업(Job)이 종료됨을 알림 (성공/실패/중단 여부 상관 없이)"""
+
 
 class ControlSignals(QObject):
     """
