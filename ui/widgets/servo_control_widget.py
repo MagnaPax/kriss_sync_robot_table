@@ -40,6 +40,7 @@ class ServoControlWidget(BaseWidget):
         
         # 버튼 참조
         self.btn_start = None
+        self.btn_tt_start = None
         self.btn_stop = None
         self.btn_home = None
         self.btn_reset = None
@@ -62,6 +63,7 @@ class ServoControlWidget(BaseWidget):
     def _bind_events(self):
         """UI 이벤트 바인딩"""
         if btn := self.btn_start: btn.clicked.connect(self._on_start_clicked)
+        if btn := self.btn_tt_start: btn.clicked.connect(self._on_tt_start_clicked)
         if btn := self.btn_stop:  btn.clicked.connect(self._on_stop_clicked)
         if btn := self.btn_home:  btn.clicked.connect(self._on_home_clicked)
         if btn := self.btn_reset: btn.clicked.connect(self._on_reset_clicked)
@@ -114,12 +116,14 @@ class ServoControlWidget(BaseWidget):
         button_layout.setSpacing(10)
 
         self.btn_start = self._create_control_button("START", "special")
+        self.btn_tt_start = self._create_control_button("TT START", "special")
         self.btn_stop = self._create_control_button("STOP", "general")
         self.btn_home = self._create_control_button("HOME", "special")
         self.btn_reset = self._create_control_button("RESET", "general")
 
         button_layout.addStretch(1)
         button_layout.addWidget(self.btn_start)
+        button_layout.addWidget(self.btn_tt_start)
         button_layout.addWidget(self.btn_stop)
         button_layout.addWidget(self.btn_home)
         button_layout.addWidget(self.btn_reset)
@@ -187,6 +191,7 @@ class ServoControlWidget(BaseWidget):
 
             # 로봇/서보가 바쁘면 START, HOME, RESET 비활성화, STOP 활성화
             if self.btn_start: self.btn_start.setEnabled(not is_busy)
+            if self.btn_tt_start: self.btn_tt_start.setEnabled(not is_busy)
             if self.btn_home:  self.btn_home.setEnabled(not is_busy)
             if self.btn_reset: self.btn_reset.setEnabled(not is_busy)
             if self.btn_stop:  self.btn_stop.setEnabled(is_busy)
@@ -204,6 +209,7 @@ class ServoControlWidget(BaseWidget):
         # 버튼 활성화 복구
         # 존재 여부를 확인(Safety Check)함과 동시에 setEnabled를 호출
         if btn := self.btn_start: btn.setEnabled(True)
+        if btn := self.btn_tt_start: btn.setEnabled(True)
         if btn := self.btn_stop:  btn.setEnabled(False)
         if btn := self.btn_home:  btn.setEnabled(True)
         if btn := self.btn_reset: btn.setEnabled(True)
@@ -235,6 +241,11 @@ class ServoControlWidget(BaseWidget):
         self._handle_manual_start()
 
     @pyqtSlot()
+    def _on_tt_start_clicked(self): # [추가]
+        """TT ONLY START 버튼 클릭 핸들러"""
+        self._handle_manual_tt_start()
+
+    @pyqtSlot()
     def _on_stop_clicked(self):
         """STOP 버튼 클릭 핸들러"""
         self._handle_manual_stop()
@@ -261,6 +272,21 @@ class ServoControlWidget(BaseWidget):
         data = self._get_input_data()
         EVENT_BUS.log.message.emit(f"{self.log_prefix} MANUAL START: {data}", "DEBUG")
         vm.start_manual(data)
+
+    def _handle_manual_tt_start(self):
+        """턴테이블 전용 START 핸들러 (스핀들 제외)"""
+        if not (vm := self.vm): return
+        
+        # 전체 데이터에서 턴테이블 관련 키만 추출
+        all_data = self._get_input_data()
+        tt_data = {
+            KEY_TURNTABLE_DEG: all_data[KEY_TURNTABLE_DEG],
+            KEY_TURNTABLE_FEED_RATE: all_data[KEY_TURNTABLE_FEED_RATE]
+        }
+        
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} MANUAL TT START: {tt_data}", "DEBUG")
+        # 뷰모델의 일반 시작 메서드 재사용 (데이터가 필터링됨)
+        vm.start_manual(tt_data)
 
     def _handle_manual_stop(self):
         """MANUAL STOP 핸들러"""
