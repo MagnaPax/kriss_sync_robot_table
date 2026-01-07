@@ -16,13 +16,9 @@ class WaypointsViewModel(QObject):
         self._log_prefix = f"[{self.__class__.__name__}]"
 
         # EventBus 구독
-        EVENT_BUS.data.sequence_data_loaded.connect(self._on_sequence_data_loaded)  # 시퀀스 데이터 로드 완료 방송
-        EVENT_BUS.control.clear_view_content.connect(self._on_clear_requested)      # 현재 화면에 표시된 콘텐츠 초기화
-
-    @pyqtSlot(list)
-    def _on_sequence_data_loaded(self, data: List[Dict[str, Any]]):
-        """데이터 로드 시 View에게 전달"""
-        self.waypoints_data_changed.emit(data)
+        # '시퀀스 데이터 로드 완료' 방송 주파수가 잡히면 -> 내 로컬 시그널로 바로 재방송
+        EVENT_BUS.data.sequence_data_loaded.connect(self.waypoints_data_changed.emit)
+        EVENT_BUS.control.clear_view_content.connect(self._on_clear_requested)      # 화면에 표시된 콘텐츠 초기화
 
     @pyqtSlot(str)
     def _on_clear_requested(self, scope: str):
