@@ -9,8 +9,13 @@ from PyQt6.QtWidgets import (
     QGroupBox,
     QAbstractItemView,
     QTableView,
-    QWidget
+    QWidget,
+    QLabel,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
+    QStyle
 )
+from PyQt6.QtGui import QPainter, QPalette
 
 if TYPE_CHECKING:
     from view_models.waypoints_viewmodel import WaypointsViewModel
@@ -18,6 +23,64 @@ if TYPE_CHECKING:
 from core.event_bus import EVENT_BUS
 from ui.widgets.base_widget import BaseWidget
 from models.waypoints_table_model import WaypointsTableModel
+
+
+class WaypointsDelegate(QStyledItemDelegate):
+    """
+    [QSS 스타일링을 위한 델리게이트]
+    모델(Python Code)에 하드코딩된 색상을 제거하고, stylesheet.qss의 정의를 따르기 위해 사용
+    
+    Proxy Widget 기법:
+        실제로는 보이지 않는 QLabel을 하나 만들어서 QSS 속성(Property)을 먹인 뒤,
+        그 라벨의 Palette 색상을 훔쳐와서 테이블 셀을 그립니다.
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        # 스타일 추출용 Proxy Widget
+        self._proxy_label = QLabel()
+        self._proxy_label.setVisible(False)
+        self._proxy_label.setAutoFillBackground(True) # Palette에 배경색이 반영되도록 설정
+        self._proxy_label.setProperty("usage", "waypoint_result") # QSS 선택자용
+
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index):
+        # 1. 원본 데이터 가져오기
+        text = index.data(Qt.ItemDataRole.DisplayRole)
+        
+        # 2. 'result' 컬럼인 경우에만 특별 처리
+        status_str = str(text).lower().strip()
+        
+        # 3. 상태 정규화 (QSS에 정의된 status 값과 매핑)
+        qss_status = "wait"
+        
+        if status_str == "processing":
+            qss_status = "processing"
+        elif status_str in ["processed", "success", "done"]:
+            qss_status = "processed"
+        elif status_str in ["fail", "error"]:
+            qss_status = "error"
+        elif status_str in ["pending", "wait", "unprocessed", "-"]:
+            qss_status = "wait"
+
+        # 4. Proxy Widget에 속성 설정 및 스타일 폴리싱(Polishing)
+        #    주의: Property 변경 후 반드시 unpolish -> polish 과정을 거쳐야 QSS가 재계산됨
+        self._proxy_label.setProperty("status", qss_status)
+        style = self._proxy_label.style()
+        style.unpolish(self._proxy_label)
+        style.polish(self._proxy_label)
+        
+        # 5. QSS가 적용된 라벨에서 배경색 및 글자색 추출
+        bg_color = self._proxy_label.palette().color(QPalette.ColorRole.Window)
+        text_color = self._proxy_label.palette().color(QPalette.ColorRole.WindowText)
+        
+        # 6. 배경 칠하기 (선택된 행이 아닐 때만 커스텀 배경 적용)
+        #    선택된 행은 QSS의 selection-background-color가 우선순위를 가짐
+        if not (option.state & QStyle.StateFlag.State_Selected):
+            painter.fillRect(option.rect, bg_color)
+
+        # 7. 옵션의 팔레트 교체 (글자색 적용)
+        option.palette.setColor(QPalette.ColorRole.Text, text_color)
+        
+        super().paint(painter, option, index)
 
 
 class WaypointsWidget(BaseWidget):
@@ -64,6 +127,11 @@ class WaypointsWidget(BaseWidget):
         self.table_view.setModel(self.model)
         # 스타일 설정
         self._setup_table_style()
+        
+        # 델리게이트 설정 (Result 컬럼 스타일링)
+        # 주의: Result 컬럼이 항상 0번이라고 가정 (모델에서 insert(0) 했음)
+        self.delegate = WaypointsDelegate(self.table_view)
+        self.table_view.setItemDelegateForColumn(0, self.delegate)
 
         # 조립
         group_layout.addWidget(self.table_view) # 테이블 -> 그룹박스
@@ -83,6 +151,9 @@ class WaypointsWidget(BaseWidget):
         
         # VM의 초기화 요청 시그널 구독
         self.vm.clear_waypoints.connect(self.clear_widget)
+
+        # VM의 진행률 업데이트 시그널 구독
+        self.vm.progress_updated.connect(self._on_progress_updated)
 
 
 
@@ -177,6 +248,36 @@ class WaypointsWidget(BaseWidget):
             # 이벤트 버스에 실어서 방송 송출
             EVENT_BUS.data.waypoints_selected.emit(row_data)
             EVENT_BUS.log.message.emit(f"{self.log_prefix} 사용자가 선택한 행({row}): {row_data['id']}", "DEBUG")
+
+    @pyqtSlot(int, int, str)
+    def _on_progress_updated(self, step: int, total: int, status: str):
+        """
+        [실시간 시각화] 로봇이 이동 중일 때 호출됨
+        
+        Args:
+            step (int): 현재 스텝 (1-based index)
+            total (int): 전체 스텝 수
+            status (str): 진행 상태 ('processed', 'processing', 'unprocessed')
+        """
+        
+        # 1. UI용 Row Index 변환 (1-based -> 0-based)
+        row = step - 1
+        
+        # 2. 모델 상태 업데이트 (글자색 변경 등)
+        self.model.update_status(row, status)
+
+        # 3. [UX] 현재 실행 중인 행 강조 및 자동 스크롤
+        #    '처리 중'이거나 '처리 완료' 되었을 때 해당 행을 보여준다
+        if row >= 0:
+            # 해당 행 선택 (파란색 하이라이트)
+            self.table_view.selectRow(row)
+            
+            # 해당 행이 화면 중앙에 오도록 자동 스크롤
+            # (매번 하면 어지러울 수 있으니 필요할 때만 하거나 부드럽게 하는게 좋음)
+            # 여기서는 즉시 스크롤 적용
+            index = self.model.index(row, 0)
+            if index.isValid():
+                self.table_view.scrollTo(index, QAbstractItemView.ScrollHint.PositionAtCenter)
 
 
 

@@ -9,6 +9,7 @@ class WaypointsViewModel(QObject):
     # 로컬 시그널 (뷰가 구독)    
     waypoints_data_changed = pyqtSignal(list)   # 데이터 갱신
     clear_waypoints = pyqtSignal()              # 화면 초기화
+    progress_updated = pyqtSignal(int, int, str) # 진행률 업데이트 (step, total, status)
     
 
     def __init__(self):
@@ -19,6 +20,9 @@ class WaypointsViewModel(QObject):
         # '시퀀스 데이터 로드 완료' 방송 주파수가 잡히면 -> 내 로컬 시그널로 바로 재방송
         EVENT_BUS.data.sequence_data_loaded.connect(self.waypoints_data_changed.emit)
         EVENT_BUS.control.clear_view_content.connect(self._on_clear_requested)      # 화면에 표시된 콘텐츠 초기화
+        
+        # 진행률 업데이트 릴레이
+        EVENT_BUS.data.progress_updated.connect(self.progress_updated.emit)
 
     @pyqtSlot(str)
     def _on_clear_requested(self, scope: str):

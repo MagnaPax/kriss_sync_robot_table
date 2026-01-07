@@ -15,6 +15,7 @@ A: 데이터가 적을 땐 QTableWidget이 편하지만, 데이터가 1,000개�
 
 from typing import List, Dict, Any, Optional
 from PyQt6.QtCore import QAbstractTableModel, Qt, QModelIndex, QObject
+from PyQt6.QtGui import QColor, QBrush
 
 
 
@@ -63,8 +64,33 @@ class WaypointsTableModel(QAbstractTableModel):
             if k not in self._headers:
                 self._headers.append(k)
 
+        # 4. [UX] 'result' 컬럼이 없으면 강제로 추가 (상태 표시용)
+        if 'result' not in self._headers:
+            self._headers.insert(0, 'result') # 맨 앞에 추가
+            # 모든 데이터에 result 초기값 주입
+            for row_data in self._data:
+                row_data['result'] = '-'
+
         # 3. 모델 리셋 종료 알림 (공사 끝! 이제 새로 그려도 돼!)
         self.endResetModel()
+
+    def update_status(self, row_idx: int, status: str):
+        """
+        [부분 갱신] 특정 행의 'result' 상태만 빠르게 업데이트
+        전체 리셋(beginResetModel)을 하지 않으므로 깜빡임이 없고 빠름
+        """
+        if 0 <= row_idx < len(self._data):
+            self._data[row_idx]['result'] = status
+            
+            # result 컬럼의 위치 찾기
+            try:
+                col_idx = self._headers.index('result')
+                # 변경된 위치(Index) 생성
+                index = self.index(row_idx, col_idx)
+                # 뷰에게 알림: "이 좌표의 데이터가 변했으니 다시 그려라"
+                self.dataChanged.emit(index, index, [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ForegroundRole])
+            except ValueError:
+                pass # 헤더에 result가 없으면 무시
 
     # --- 필수 오버라이드 메서드 (Qt가 이 함수들을 호출해서 화면을 그림) ---
 
@@ -108,7 +134,6 @@ class WaypointsTableModel(QAbstractTableModel):
         if role == Qt.ItemDataRole.TextAlignmentRole:
             return Qt.AlignmentFlag.AlignCenter
 
-        # 3. (옵션) 색상(BackgroundRole), 폰트(FontRole) 등도 여기서 처리 가능
         return None
 
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
