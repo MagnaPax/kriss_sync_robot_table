@@ -34,7 +34,7 @@ class MainWindow(QMainWindow):
 
         # 기본 UI 설정
         self.setWindowTitle(SETTINGS.app.name)
-        self.setWindowIcon(QIcon("resources/icons/kriss.gif"))
+        self.setWindowIcon(QIcon(SETTINGS.app.icon_path))
         self.setGeometry(100, 100, 1200, 800)  # 초기 창 크기
 
         # --- UI 초기화 --- #
