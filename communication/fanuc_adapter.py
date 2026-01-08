@@ -168,18 +168,18 @@ class FanucAdapter:
     def write_synchronization_start_trigger(self, state: bool):
         """
         [Sync Step 4: Sync Start Trigger] 로봇과 서보의 동시 출발을 위한 트리거(DI44)를 전송한다.
-        [원본] 97: def write_digital_signal(self, symbol, value)
-        [원본] 339: robot_controller.send_robot_command_packet(..., packet_trigger) (Trigger logic)
-        [원본] 349: robot_controller.write_digital_signal(SYM_SYNC_START_TRIGGER, False)
-        
-        '1년 뒤의 나'를 위한 설명:
-            로봇과 서보가 모두 준비되었을 때(Step 3 완료), 이 메서드를 통해 신호를 1로 만들어 동시에 움직이게 한다.
-            펄스(Pulse) 형태여야 하므로, 신호를 준 후 즉시 다시 False(0)로 리셋해주어야 한다 (Commander에서 담당).
-            
-        Args:
-            state (bool): True면 시작 트리거 발생, False면 트리거 리셋.
         """
-        self._plc.write_by_name(FanucSignal.SYNC_START_TRIGGER_DI44.value, state, pyads.PLCTYPE_BOOL)
+        self.write_digital_signal(FanucSignal.SYNC_START_TRIGGER_DI44, state)
+
+    def write_digital_signal(self, signal: Union[FanucSignal, str], value: bool):
+        """
+        [공용] 디지털 신호(Bit) 쓰기
+        Args:
+            signal: FanucSignal Enum 또는 문자열 주소
+            value: True/False
+        """
+        path = signal.value if isinstance(signal, FanucSignal) else signal
+        self._plc.write_by_name(path, value, pyads.PLCTYPE_BOOL)
 
 
 

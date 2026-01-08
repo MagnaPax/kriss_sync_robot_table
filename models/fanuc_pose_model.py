@@ -4,6 +4,7 @@ from dataclasses import dataclass, asdict
 from typing import Dict, Any
 import ctypes
 import math
+from config.data_formats import KEY_ROBOT_X, KEY_ROBOT_Y, KEY_ROBOT_Z, KEY_ROBOT_W, KEY_ROBOT_P, KEY_ROBOT_R, KEY_ROBOT_FEED_RATE
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,6 +41,21 @@ class FANUCPose:
     p: float = 0.0
     r: float = 0.0
     velocity: float = 0.0  # 속도 정보 (기존 f)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'FANUCPose':
+        """
+        딕셔너리(CSV Row 등)에서 FANUCPose 객체 생성
+        """
+        return cls(
+            x=float(data.get(KEY_ROBOT_X, 0.0)),
+            y=float(data.get(KEY_ROBOT_Y, 0.0)),
+            z=float(data.get(KEY_ROBOT_Z, 0.0)),
+            w=float(data.get(KEY_ROBOT_W, 0.0)),
+            p=float(data.get(KEY_ROBOT_P, 0.0)),
+            r=float(data.get(KEY_ROBOT_R, 0.0)),
+            velocity=float(data.get(KEY_ROBOT_FEED_RATE, 0.0))
+        )
 
     def to_dict_with_meaningful_names(self) -> Dict[str, float]:
         return {"robot_velocity":self.velocity, "axis_x": self.x, "axis_y": self.y, "axis_z": self.z, "yaw_w": self.w, "pitch_p": self.p, "roll_r": self.r}

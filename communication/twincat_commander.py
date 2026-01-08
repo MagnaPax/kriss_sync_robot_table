@@ -17,6 +17,7 @@ from communication.fanuc_adapter import FanucAdapter
 from communication.servo_adapter import ServoAdapter
 from communication.twincat_connector import TwinCATConnector
 from models.fanuc_pose_model import FANUCPose
+FanucPoseModel = FANUCPose # Alias for consistency
 from models.servo_pose_model import ServoPoseModel
 from config.data_formats import (
     TaskStatus, SERVO_KEYS, ROBOT_KEYS,
@@ -25,6 +26,7 @@ from config.data_formats import (
     KEY_TOOL_REV_RPM, KEY_TOOL_ROT_RPM
 )
 from models.servo_pose_key import ServoAxis
+from models.fanuc_pose_key import FanucSignal
 from core.settings import SETTINGS
 
 
@@ -544,339 +546,370 @@ class ServoOnlyExecutor(BaseExecutor):
         return bool((thread := QThread.currentThread()) and thread.isInterruptionRequested())
 
 class IntegratedExecutor(BaseExecutor):
-    """
-    CSV 파일 형식 (로봇 + 턴테이블 통합 제어)
-    """
+    """CSV 파일 형식 (로봇 + 턴테이블 통합 제어)"""
+
+    def __init__(self, robot: FanucAdapter, servo: ServoAdapter):
+        super().__init__(robot, servo)
+        
+        # 서보를 기다려주는 시간 (설정 파일에서 값 로드)
+        self.BUSY_TIMEOUT = SETTINGS.servo.busy_timeout
+        self.MOVE_TIMEOUT = SETTINGS.servo.move_timeout
+
     def can_execute(self, sample_data: Dict[str, Any]) -> bool:
         data_keys = set(sample_data.keys())
-        # CSV 통합 키: 로봇 키 + 서보 키가 모두 포함되어 있어야 함
         has_robot = not ROBOT_KEYS.isdisjoint(data_keys)
         has_servo = not SERVO_KEYS.isdisjoint(data_keys)
-        # 구체적인 키 확인 (오탐지 방지)
         has_specific_key = (KEY_TURNTABLE_DEG in data_keys) or (KEY_ROBOT_X in data_keys)
         return has_robot and has_servo and has_specific_key
 
+    def _calculate_and_pack(
+        self, 
+        current_robot_pose: FanucPoseModel, 
+        target_robot_pose: FanucPoseModel, 
+        current_turntable_angle: float,
+        target_turntable_angle: float,
+        target_turntable_velocity: float,
+        previous_robot_velocity: float, 
+        data_ready: bool, 
+        start_trigger: bool
+    ) -> tuple[Any, float]:
+        """
+        [Helper] 로봇 속도 계산 및 데이터 패킷 생성
+        턴테이블 이동 시간을 기준으로 로봇 속도를 동기화 계산함.
+        """
+        # 1. 턴테이블 이동 시간 계산
+        tt_delta = abs(target_turntable_angle - current_turntable_angle)
+        expected_move_time = tt_delta / target_turntable_velocity if target_turntable_velocity > 0 else 0.0
+        
+        # 2. 로봇 이동 거리 계산
+        robot_dist, _ = current_robot_pose.distance_to(target_robot_pose)
+        
+        # 3. 로봇 속도 역산 (v = d / t)
+        if robot_dist < 0.001: 
+            robot_calculated_velocity = 0.0
+        elif expected_move_time < 0.001:
+            # 시간이 0에 가까우면 (턴테이블 이동 없음) 이전 속도 유지하거나 기본값
+            robot_calculated_velocity = previous_robot_velocity if previous_robot_velocity > 0 else 100.0
+        else:
+            robot_calculated_velocity = robot_dist / expected_move_time
+            
+        # 안전 제한 (Max 500 mm/s)
+        robot_calculated_velocity = min(robot_calculated_velocity, 500.0)
+        
+        # 4. 최종 타겟 포즈 (속도 포함)
+        robot_target_final = FanucPoseModel(
+            x=target_robot_pose.x, y=target_robot_pose.y, z=target_robot_pose.z,
+            w=target_robot_pose.w, p=target_robot_pose.p, r=target_robot_pose.r,
+            velocity=robot_calculated_velocity
+        )
+        
+        # 5. 신호 조합
+        signals = {
+            FanucSignal.IMSP: True, FanucSignal.HOLD: True, FanucSignal.SFSP: True, FanucSignal.ENABLE: True,
+            FanucSignal.CYCLE_STOP: False, FanucSignal.START: False, 
+            FanucSignal.RSR2: True,        # [SIGNAL] Always True for Auto Mode
+            FanucSignal.DATA_READY_DI43: data_ready,   # [DATA READY]
+            FanucSignal.SYNC_START_TRIGGER_DI44: start_trigger # [TRIGGER]
+        }
+        
+        # 6. 패킷 생성
+        packet = robot_target_final.to_struct(current_robot_pose, signals)
+        return packet, robot_calculated_velocity
+
     def execute(self, sequence_data: List[Dict[str, Any]]) -> tuple[bool, str]:
-        """
-        [로봇 + 서보 통합 동기화 제어 메인 로직]
-        
-        [동작 원리: Pipeline Handshake]
-        이 함수는 TwinCAT을 허브로 삼아 FANUC 로봇과 Panasonic 서보를 정밀하게 동기화한다
-        
-        [파이프라인 4단계]
-        Loop i:
-            1. Wait DO45 (Calc Req): PLC가 "다음 데이터 내놔"라고 할 때까지 대기
-            2. Pre-load: 계산된 데이터를 미리 써넣음 (DI43=True, DI44=False)
-            3. Wait DO46 (Motion Done): 이전 동작이 완전히 끝날 때까지 대기
-            4. Trigger (DI44=True): 로봇과 서보를 동시에 출발시킴
-        
-        [속도 제어 전략: Turntable Master]
-            턴테이블이 T만큼 도는 시간을 기준으로 로봇의 속도 F를 역산하여
-            로봇과 턴테이블이 '같은 시간' 동안 움직이도록 제어한다
-        """
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] CSV 통합 동기화 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
         EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
 
-        adapter = self.robot
+        robot = self.robot
         servo = self.servo
         
-        # 1. 동기화 이벤트 객체 생성 (PLC 알림을 Python에서 처리하기 위한 신호기)
-        # [원본] 36~36: calculation_request_event = threading.Event()
-        # [원본] 37~37: robot_motion_done_event = threading.Event()
-        calculation_request_event = threading.Event()
-        robot_motion_done_event = threading.Event()
+        # =========================================================================
+        # 1. 동기화 이벤트 객체 생성
+        # =========================================================================
+        # 역할: 비동기 -> 동기 변환
+        # PLC 통신은 본질적으로 비동기이다. 즉, 로봇이 언제 도착할지 모른다.
+        # 반면 Python의 제어 루프는 순차적으로 실행되어야 한다.
+        # 이 두 세계를 연결하기 위해 'Threading Event'를 사용한다.
+        # - 동작: Main Thread는 event.wait()로 멈춰 있고, Callback Thread가 event.set()으로 깨워준다
+        calculation_request_event = threading.Event()   # 로봇: "다음 데이터 주세요" (DO45)
+        robot_motion_done_event = threading.Event()     # 로봇: "이동 끝났어요" (DO46)
+        motor_motion_done_event = threading.Event()     # 턴테이블: "회전 끝났어요" (Servo Done)
         
-        # 턴테이블 완료 타임스탬프 (동기 검증용)
-        # [원본] 303: timestamp_turntable_done = None
         self._timestamp_turntable_done = None
+        self._timestamp_robot_done = None
         
-        # 콜백 정의 (PLC 통신 레이어에서 호출됨)
-        # [원본] 261~265, 434
+        # =========================================================================
+        # 2. 콜백 함수 정의
+        # =========================================================================
+        # 역할: C++ Level -> Python Level 신호 전달
+        # ADS/CTYPES 라이브러리는 백그라운드 스레드에서 PLC 신호를 감시하다가 변화가 생기면 이 함수들을 호출한다
+        # 이곳에서 복잡한 로직을 수행하면 절대 안 됨 (데드락 위험)
+        # 단순히 깃발(Event)만 흔들어주고 빨리 리턴해야 된다
         def _on_calculation_request(n, d): 
             calculation_request_event.set()
         def _on_robot_motion_done(n, d): 
+            self._timestamp_robot_done = time.time()
             robot_motion_done_event.set()
         def _on_turntable_motion_done(n, d):
-            # [원본] 434: global timestamp_turntable_done; timestamp_turntable_done = time.time()
             self._timestamp_turntable_done = time.time()
-            # 로깅은 너무 빈번할 수 있으므로 디버그 레벨로
-            EVENT_BUS.log.message.emit(f"Turntable Motion Done: {self._timestamp_turntable_done}", "DEBUG")
-        
-        h_calc, h_motion, h_turntable = None, None, None
+            motor_motion_done_event.set()
+
+        # =========================================================================
+        # 3. 알림 구독
+        # =========================================================================
+        # Polling vs Interrupt
+        # 일정 시간마다 주기적으로 도착했는지 계속 물어보는 것(Polling)은 CPU 낭비가 심하고 반응이 느리다.
+        # "도착하면 알려줘!" 라고 등록(Subscribe)해두면 PLC가 신호를 보낼 때 즉시 반응할 수 있다.
+        # 반환된 handle은 나중에 연결을 끊을 때 사용한다.
+        handle_calc = robot.register_calculation_request_callback(_on_calculation_request)
+        handle_motion = robot.register_robot_motion_done_callback(_on_robot_motion_done)
+        handle_turntable = servo.register_turntable_motion_done_callback(_on_turntable_motion_done)
 
         try:
-            # 2. 초기화 (서보 전원 인가, 로봇 준비 확인, 알림 핸들러 등록)
-            adapter.validate_robot_ready()
+            # 2. 초기화 (Setup)
+            for axis in ServoAxis:
+                servo.set_servo_state(axis, True)
             
-            # 서보 축 전원 ON 확인 (Spindle Revolution, Spindle Rotation, Turntable)
-            # [원본] 420: motor.set_servo_power(True)
-            for axis_idx in range(1, 4):
-                if not servo.is_servo_on(axis_idx):
-                    servo.set_servo_state(axis_idx, True)
+            # 상태 변수
+            current_pose = FanucPoseModel(x=0, y=0, z=0, w=0, p=0, r=0)
+            previous_robot_velocity = 0.0
             
-            # PLC 신호 감지(Handshake)를 위한 알림 등록
-            # [원본] 430: handle_calc = robot.add_device_notification(SYM_CALC_REQUEST, handle_calculation_request)
-            # [원본] 431: handle_motion = robot.add_device_notification(SYM_ROBOT_MOTION_DONE, handle_robot_motion_done)
-            # [원본] 432: handle_turntable = motor.add_device_notification(SYM_TURNTABLE_MOTION_DONE, handle_turntable_motion_done)
-            h_calc = adapter.register_calculation_request_callback(_on_calculation_request)
-            h_motion = adapter.register_robot_motion_done_callback(_on_robot_motion_done)
-            h_turntable = servo.register_turntable_motion_done_callback(_on_turntable_motion_done)
-            
-            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 동기화(Handshake) 알림 등록 완료", "DEBUG")
-
-            # 3. 로봇 초기 통신 신호 리셋
-            adapter.write_initial_signals()
-            
-            # 4. 루프 제어용 위치 변수 초기화
-            # [원본] 319: current_pose = { ... }
-            current_robot_pose = FANUCPose() # (0,0,0,0,0,0)
-            
-            # 턴테이블 현재 실제 각도 읽기
+            # 턴테이블 초기 각도 읽기 (안전)
             try:
-                tt_feedback = servo.read_current_servo_motion(ServoAxis.TURNTABLE_AXIS_3)
-                current_turntable_angle = tt_feedback['position']
+                tt_fb = servo.read_current_servo_motion(ServoAxis.TURNTABLE)
+                current_turntable_angle = tt_fb['position']
             except:
                 current_turntable_angle = 0.0
+            
+            prev_motor_active = False # [Optimization]
+            total_steps = len(sequence_data)
+            
+            # =========================================================================
+            # [Step 1: Immediate Start]
+            # =========================================================================
+            if sequence_data:
+                row = sequence_data[0]
+                EVENT_BUS.data.progress_updated.emit(1, total_steps, TaskStatus.PROCESSING)
 
-            # [원본] 323: previous_robot_velocity = 0.0
-            previous_robot_calculated_velocity = 100.0 # 초기 속도 기준값
-
-            # 5. 시퀀스 실행 루프 (정밀 동기화 4단계 모델)
-            # ---------------------------------------------------------------------
-            # [Step 1 분리] 첫 번째 포인트는 핸드셰이크 없이 즉시 시작함 (원본 로직 준수)
-            # ---------------------------------------------------------------------
-            num_sequences = len(sequence_data)
-            first_row = sequence_data[0]
-            current_id = first_row.get('id') or 1
-
-            # (1-1) Step 1 데이터 준비
-            # [원본] 294~309: (첫 번째 스텝 계산 및 데이터 준비)
-            
-            # 턴테이블 현재 값 읽기
-            try:
-                tt_feedback = servo.read_current_servo_motion(ServoAxis.TURNTABLE_AXIS_3)
-                current_turntable_angle = tt_feedback['position']
-            except:
-                current_turntable_angle = 0.0
-
-            # 목표 데이터 로드
-            target_x = first_row.get(KEY_ROBOT_X, 0.0)
-            target_z = first_row.get(KEY_ROBOT_Z, 0.0)
-            turntable_angle_target = first_row.get(KEY_TURNTABLE_DEG, 0.0)
-            turntable_velocity_target = first_row.get(KEY_TURNTABLE_FEED_RATE, 10.0)
-            spindle_rotation_rpm = first_row.get(KEY_TOOL_ROT_RPM, 0.0)
-            spindle_revolution_rpm = first_row.get(KEY_TOOL_REV_RPM, 0.0)
-            
-            robot_target = FANUCPose(
-                x=target_x, y=first_row.get(KEY_ROBOT_Y, 0.0), z=target_z,
-                w=first_row.get(KEY_ROBOT_W, 0.0), p=first_row.get(KEY_ROBOT_P, 0.0), r=first_row.get(KEY_ROBOT_R, 0.0)
-            )
-
-            # 속도 계산 (첫 스텝은 속도 0에서 시작하므로 계산 로직 단순화 가능하나, 원본 함수 사용 권장)
-            # 여기서는 편의상 원본 로직을 그대로 인라인으로 풀어서 적용 (함수 호출 비용 절감)
-            tt_delta = abs(turntable_angle_target - current_turntable_angle)
-            expected_move_time = tt_delta / turntable_velocity_target if turntable_velocity_target > 0 else 0.0
-            robot_dist, _ = current_robot_pose.distance_to(robot_target)
-            
-            if robot_dist < 0.001: robot_calculated_velocity = 0.0
-            elif expected_move_time < 0.001: robot_calculated_velocity = 100.0 # Default
-            else: robot_calculated_velocity = robot_dist / expected_move_time
-            robot_calculated_velocity = min(robot_calculated_velocity, 500.0)
-            
-            robot_target_final = FANUCPose(
-                x=robot_target.x, y=robot_target.y, z=robot_target.z,
-                w=robot_target.w, p=robot_target.p, r=robot_target.r,
-                velocity=robot_calculated_velocity
-            )
-            
-            # (1-2) Step 1 패킷 전송 (Trigger=False, RSR2=True)
-            # [원본] 296: robot_controller.send_robot_command_packet(..., packet)
-            # [원본] 282: handshake_signals (DataReady=True, StartTrigger=False, RSR2=True)
-            signals = {
-                'IMSP': True, 'Hold': True, 'SFSP': True, 'Enable': True,
-                'CycleStop': False, 'Start': False, 
-                'RSR2': True,   # [중요] 시퀀스 내내 True 유지
-                'DI43': True,   # [DATA READY]
-                'DI44': False   # [TRIGGER HELD] - 첫 스텝은 트리거 없이 즉시 시작
-            }
-            packet = robot_target_final.to_struct(current_robot_pose, signals)
-            adapter.write_command_packet(packet)
-            
-            # (1-3) Step 1 서보 실행
-            # [원본] 299: motor_controller.execute_synchronized_motion(...)
-            servo.execute_synchronized_motion(
-                turntable_moving_velocity=turntable_velocity_target,
-                turntable_target_position=turntable_angle_target,
-                spindle_rotation_velocity=spindle_rotation_rpm,
-                spindle_revolution_velocity=spindle_revolution_rpm
-            )
-            
-            EVENT_BUS.log.message.emit(f"Step 1 (First) Started.", "DEBUG")
-            
-            # 상태 갱신
-            current_robot_pose = robot_target_final
-            current_turntable_angle = turntable_angle_target
-            previous_robot_calculated_velocity = robot_calculated_velocity
-            EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, TaskStatus.COMPLETED)
-
-
-            # ---------------------------------------------------------------------
-            # [Step 2+] 나머지 파이프라인 루프 (DI44 인가)
-            # ---------------------------------------------------------------------
-            # [원본] 311: for index in range(1, len(sequence_lines)):
-            for idx, row in enumerate(sequence_data[1:], 2): # idx는 2부터 시작
-                # (A) 안전 중단 체크
-                if (thread := QThread.currentThread()) and thread.isInterruptionRequested():
-                    return False, "사용자에 의해 작업이 중단되었습니다."
+                # -----------------------------------------------------------------
+                # 1. Start Motor (3축 동시 제어)
+                # -----------------------------------------------------------------
+                # 첫 번째 스텝은 로봇과의 핸드셰이크(Handshake) 없이 즉시 시작한다
+                # 로봇이 이미 초기 위치에 도착해 있다고 가정하거나
+                # 첫 이동은 별도의 트리거 없이 RSR 신호만으로 시작하기 때문
                 
-                adapter.validate_robot_ready()
-                current_id = row.get('id') or idx
-                EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, TaskStatus.PROCESSING)
+                # (A) 데이터 파싱 (Parse Data)
+                target_pose = FanucPoseModel.from_dict(row)
+                pose_turntable = ServoPoseModel.create_for_axis(row, KEY_TURNTABLE_DEG)
+                rpm_rev = row.get(KEY_TOOL_REV_RPM, 0.0)
+                rpm_rot = row.get(KEY_TOOL_ROT_RPM, 0.0)
                 
-                # --- [Pipeline Step 1] Wait for Calculation Request (DO45) ---
-                # [원본] 315: if not event_calculation_request.wait(30.0): ...
-                if not self._wait_event_with_safety(calculation_request_event, timeout=30.0):
-                    return False, f"Step {idx}: 로봇 계산 요청(DO45) Timeout (30s)"
-                calculation_request_event.clear() # 다음을 위해 클리어
-
-                # --- [Pipeline Step 2] Pre-load Target Data Calculation ---
-                target_x = row.get(KEY_ROBOT_X, 0.0)
-                target_z = row.get(KEY_ROBOT_Z, 0.0)
-                
-                robot_target = FANUCPose(
-                    x=target_x, y=row.get(KEY_ROBOT_Y, 0.0), z=target_z,
-                    w=row.get(KEY_ROBOT_W, 0.0), p=row.get(KEY_ROBOT_P, 0.0), r=row.get(KEY_ROBOT_R, 0.0)
-                )
-                
-                turntable_angle_target = row.get(KEY_TURNTABLE_DEG, 0.0)
-                turntable_velocity_target = row.get(KEY_TURNTABLE_FEED_RATE, 10.0)
-                spindle_rotation_rpm = row.get(KEY_TOOL_ROT_RPM, 0.0)
-                spindle_revolution_rpm = row.get(KEY_TOOL_REV_RPM, 0.0)
-                
-                # 속도 계산 Logic (원본과 동일)
-                # [원본] 206~226 Logic Inline
-                tt_delta = abs(turntable_angle_target - current_turntable_angle)
-                expected_move_time = tt_delta / turntable_velocity_target if turntable_velocity_target > 0 else 0.0
-                robot_dist, _ = current_robot_pose.distance_to(robot_target)
-                
-                if robot_dist < 0.001: robot_calculated_velocity = 0.0
-                elif expected_move_time < 0.001:
-                    robot_calculated_velocity = previous_robot_calculated_velocity if previous_robot_calculated_velocity > 0 else 100.0
+                # (B) 모터 이동 여부 판단 (Optimization)
+                # 이번 스텝에서 턴테이블이 움직이는지 미리 체크하여
+                # 다음 스텝(Step 2)에서 '모터 완료 대기'를 할지 말지 결정
+                if abs(pose_turntable.angle - current_turntable_angle) > 0.05:
+                    prev_motor_active = True
                 else:
-                    robot_calculated_velocity = robot_dist / expected_move_time
-                robot_calculated_velocity = min(robot_calculated_velocity, 500.0)
+                    prev_motor_active = False
 
-                robot_target_final = FANUCPose(
-                    x=robot_target.x, y=robot_target.y, z=robot_target.z,
-                    w=robot_target.w, p=robot_target.p, r=robot_target.r,
-                    velocity=robot_calculated_velocity
+                # (C) 로봇 데이터 전송
+                # Step 1에서는 start_trigger=False로 보낸다
+                # 첫 스텝은 트리거 펄스 없이 데이터만 써두면 된다
+                packet, velocity = self._calculate_and_pack(
+                    current_pose, target_pose, 
+                    current_turntable_angle, pose_turntable.angle, pose_turntable.velocity,
+                    0.0, 
+                    data_ready=True, start_trigger=False
                 )
+                robot.write_command_packet(packet)
 
-                # 4. PLC 데이터 매립 (Pre-load)
-                # [원본] 320: handshake_signals['DataReady'] = True, ['StartTrigger'] = False
-                # [원본] 332: RSR2 = True (Loop 내내 유지)
-                signals = {
-                    'IMSP': True, 'Hold': True, 'SFSP': True, 'Enable': True,
-                    'CycleStop': False, 'Start': False, 
-                    'RSR2': True,   # [중요] True 유지
-                    'DI43': True,   # [DATA READY]
-                    'DI44': False   # [TRIGGER HELD]
-                }
-                
-                # [원본] 322: robot_controller.send_robot_command_packet(...)
-                packet = robot_target_final.to_struct(current_robot_pose, signals)
-                adapter.write_command_packet(packet)
-                
-                # --- [Pipeline Step 3] Wait for Legacy Motion Done (DO46) ---
-                # 전 스텝의 물리적 이동 완료 대기
-                # 타임스탬프 리셋 (동기 검증용)
-                # [원본] 325: timestamp_start_step = time.time()
-                # [원본] 326: timestamp_robot_done = None (여기선 이벤트로 처리)
-                # [원본] 327: timestamp_turntable_done = None
-                step_start_time = time.time()
-                self._timestamp_turntable_done = None # 리셋
-
-                # [원본] 327: if not event_robot_motion_done.wait(30.0): ...
-                if not self._wait_event_with_safety(robot_motion_done_event, timeout=30.0):
-                    return False, f"Step {idx}: 이전 동작 완료(DO46) Timeout (30s)"
-                robot_motion_done_event.clear()
-
-                # --- [Pipeline Step 4] Sync Verification (Turntable Check) ---
-                # [원본] 332~335: Check turntable motion done timestamp
-                # 로봇은 도착했는데 턴테이블이 아직 안 왔는지 확인 (3초 대기)
-                wait_sync_start = time.time()
-                sync_ok = False
-                while time.time() - wait_sync_start < 3.0:
-                    if self._timestamp_turntable_done is not None:
-                        # [원본] 334: if timestamp_turntable_done > timestamp_start_step:
-                        if self._timestamp_turntable_done > step_start_time:
-                            sync_ok = True
-                            break
-                    time.sleep(0.01)
-                
-                if not sync_ok:
-                    EVENT_BUS.log.message.emit(f"⚠️ [Sync Warning] Step {idx}: 턴테이블 도착 신호(MAIN.bDone3)가 늦거나 확인되지 않음.", "WARNING")
-                    # 원본 코드는 경고만 찍고 진행함 (break 하지 않음)
-
-                # --- [Pipeline Step 5] Trigger (Atomic Simultaneous Start) ---
-                # [원본] 337: handshake_signals['StartTrigger'] = True
-                signals['DI44'] = True
-                
-                # [원본] 339: robot_controller.send_robot_command_packet(..., packet_trigger)
-                packet_trigger = robot_target_final.to_struct(current_robot_pose, signals)
-                adapter.write_command_packet(packet_trigger)
-
-                # [원본] 341: motor_controller.execute_synchronized_motion(...)
+                # 2. Start Motor (동기화 됨)
                 servo.execute_synchronized_motion(
-                    turntable_moving_velocity=turntable_velocity_target,
-                    turntable_target_position=turntable_angle_target,
-                    spindle_rotation_velocity=spindle_rotation_rpm,
-                    spindle_revolution_velocity=spindle_revolution_rpm
+                    turntable_moving_velocity=pose_turntable.velocity, 
+                    turntable_target_position=pose_turntable.angle, 
+                    spindle_rotation_velocity=rpm_rot, 
+                    spindle_revolution_velocity=rpm_rev
                 )
+                EVENT_BUS.log.message.emit("[Init] Step 1 Started.", "DEBUG")
                 
-                # --- [Pulse Reset] ---
-                # [원본] 349: robot_controller.write_digital_signal(SYM_SYNC_START_TRIGGER, False)
-                # 구조체 전체 재전송 대신 'Trigger 비트만 끄는' 더 명시적이고 가벼운 방식 사용 (원본과 동일 효과)
-                # signals['DI44'] = False (메모리상 반영)
-                adapter.write_synchronization_start_trigger(False)
-
-                EVENT_BUS.log.message.emit(f"#{idx} 동시 동기화 트리거 완료.", "DEBUG")
+                # Update State
+                current_pose = target_pose
+                current_turntable_angle = pose_turntable.angle
+            # =========================================================================
+            # [Step 2+: Pipeline Loop]
+            # =========================================================================
+            for i in range(1, total_steps):
+                step_idx = i + 1
+                row = sequence_data[i]
                 
-                # 상태 갱신
-                current_robot_pose = robot_target_final
-                current_turntable_angle = turntable_angle_target
-                previous_robot_calculated_velocity = robot_calculated_velocity
-                EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, TaskStatus.COMPLETED)
+                # =================================================================
+                # [Step 2+: Pipeline Loop (Handshake)]
+                # =================================================================
+                # 이 루프는 [PLC와 Python간의 4단계 핸드셰이크]를 통해 정밀하게 동기화 된다
+                #
+                # [원리: Pipeline Architecture]
+                # 1. Wait Calc Request (DO45): PLC가 "다음 데이터 내놔" 할 때까지 대기
+                # 2. Pre-load Data: 다음 로봇/모터 좌표를 미리 계산해서 쓰기 (DI43=True, DI44=False)
+                # 3. Wait Previous Done (DO46): 이전 동작이 '완전히' 끝날 때까지 대기 (Main Motion Done)
+                # 4. Trigger (DI44=True): 동시에 출발! (Hand-in-hand)
+                # =================================================================
 
-            # 루프 종료 후 로봇 신호 정리
-            # [원본] : (Cleanup Logic)
+                if self._is_interrupted(): raise InterruptedError("User Stopped")
 
-            adapter.set_finish_signals()
-            return True, "동기화 시퀀스 작업 완료"
+                # -----------------------------------------------------------------
+                # 1. Wait calc req (DO45: 계산 요청 대기)
+                # -----------------------------------------------------------------
+                # 로봇이 현재 동작을 수행하는 도중에, "다음 동작을 미리 준비해달라"고 요청을 보낸다.
+                # 이 신호를 받으면 다음 스텝의 좌표를 계산해서 미리 메모리에 써둬야 한다
+                if not self._wait_event_with_safety(calculation_request_event, timeout=self.BUSY_TIMEOUT):
+                    raise TimeoutError(f"Step {step_idx}: DO45 (Calculation Request) Timeout")
+                calculation_request_event.clear()
+
+                # -----------------------------------------------------------------
+                # 2. Pre-load (데이터 미리 채우기)
+                # -----------------------------------------------------------------
+                # PLC 메모리(UI1 구조체)에 다음 좌표와 속도를 기록한다
+                # 아직 '출발(StartTrigger)' 신호는 주지 않는다 (DI44=False)
+                # 단지 '데이터가 준비되었다(DataReady)' 신호만 준다 (DI43=True)
+                target_pose = FanucPoseModel.from_dict(row)
+                pose_turntable = ServoPoseModel.create_for_axis(row, KEY_TURNTABLE_DEG)
+                
+                packet, velocity = self._calculate_and_pack(
+                    current_pose, target_pose, 
+                    current_turntable_angle, pose_turntable.angle, pose_turntable.velocity,
+                    previous_robot_velocity, 
+                    data_ready=True, start_trigger=False
+                )
+                robot.write_command_packet(packet)
+                EVENT_BUS.log.message.emit(f"[Step {step_idx}] 데이터 미리 전송 완료 (Pre-loaded)", "DEBUG")
+
+                # -----------------------------------------------------------------
+                # 3. Wait Previous Robot step done (DO46: 이전 동작 완료 대기)
+                # -----------------------------------------------------------------
+                # 로봇이 이전 목표 지점에 '물리적으로' 도착했는지 확인한다
+                # 도착하지 않았다면 다음 명령을 바로 내리면 안 된다. (충돌 방지)
+                robot_motion_done_event.clear()
+                motor_motion_done_event.clear() # 모터 완료 이벤트도 초기화
+                self._timestamp_turntable_done = None 
+                
+                if not self._wait_event_with_safety(robot_motion_done_event, timeout=self.MOVE_TIMEOUT):
+                    raise TimeoutError(f"[Step {step_idx}] 로봇 이동 완료 대기 시간 초과 (DO46)")
+                
+                # -----------------------------------------------------------------
+                # 4. Wait Motor (Optimization: 모터 완료 대기)
+                # -----------------------------------------------------------------
+                # [스마트 동기화]
+                # 만약 이전 스텝에서 모터(턴테이블)가 움직였다면, 모터도 다 돌았는지 확인해야 한다
+                # 로봇만 도착하고 모터는 아직 돌고 있는데 다음 명령을 내리면 축이 꼬인다
+                if prev_motor_active:
+                    # 모터가 움직였던 경우에만 대기 (안 움직였으면 즉시 통과 -> 시간 절약)
+                    if not self._wait_event_with_safety(motor_motion_done_event, timeout=self.MOVE_TIMEOUT):
+                        # 타임아웃 발생 시, 동기화가 깨진 것으로 간주하고 멈춘다
+                        raise TimeoutError(f"[Step {step_idx}] 턴테이블 이동 완료 대기 시간 초과")
+                
+                    # (디버깅용) 로봇과 턴테이블의 도착 시간 차이를 로그에 남김
+                    if self._timestamp_robot_done and self._timestamp_turntable_done:
+                        diff = (self._timestamp_turntable_done - self._timestamp_robot_done) * 1000
+                        EVENT_BUS.log.message.emit(f"동기화 오차 확인: {diff:.1f}ms", "DEBUG")
+                
+                # 이전 스텝이 완전히 끝났다는 방송 송출
+                EVENT_BUS.data.progress_updated.emit(i, total_steps, TaskStatus.COMPLETED)
+                # 다음 스텝이 '진행 중' 상태로 진입했다는 방송 송출
+                EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSING)
+
+                # -----------------------------------------------------------------
+                # 5. Trigger Next (DI44: 동시 출발 신호)
+                # -----------------------------------------------------------------
+                # 모든 준비가 끝났다. 이제 로봇과 턴테이블에게 "동시에 움직여!" 하고 신호를 준다
+                
+                # (A) 이번 스텝에서 모터가 움직여야 하는지 미리 계산 (다음 루프의 'Sync Check'를 위해)
+                if abs(pose_turntable.angle - current_turntable_angle) > 0.05:
+                    prev_motor_active = True
+                else:
+                    prev_motor_active = False # 움직임이 미미하면 안 움직인 것으로 간주 (Wait Motor 스킵)
+                
+                # (B) 로봇에게 트리거 전송 (DI44=True가 포함된 패킷)
+                packet_trig, _ = self._calculate_and_pack(
+                    current_pose, target_pose, 
+                    current_turntable_angle, pose_turntable.angle, pose_turntable.velocity,
+                    previous_robot_velocity, 
+                    data_ready=True, start_trigger=True
+                )
+                robot.write_command_packet(packet_trig)
+                
+                # (C) 턴테이블에게 트리거 전송 (Atomic Write)
+                servo.move_turntable_atomic(ServoAxis.TURNTABLE, pose_turntable.angle, pose_turntable.velocity)
+                
+                # (D) 펄스 리셋 (Trig bit Off)
+                # 트리거는 펄스 형태여야 하므로, 켜자마자 바로 꺼준다. (Rising Edge 감지용)
+                robot.write_digital_signal(FanucSignal.SYNC_START_TRIGGER_DI44, False)
+                
+                EVENT_BUS.log.message.emit(f" -> [Step {step_idx}] 동시 출발 트리거 완료", "DEBUG")
+                
+                # (E) 현재 위치 정보 갱신 (다음 계산을 위해)
+                current_pose = target_pose
+                current_turntable_angle = pose_turntable.angle
+                previous_robot_velocity = velocity
+
+            # 모든 스텝이 완료되었다는 방송 송출
+            EVENT_BUS.data.progress_updated.emit(total_steps, total_steps, TaskStatus.COMPLETED)
+            # [Loop End] 모든 시퀀스 수행 완료
+            return True, "작업 완료"
 
         except Exception as e:
-            try:
-                adapter.set_emergency_stop()
-                servo.request_immediate_stop()
-            except: pass
-            return False, f"[{self.__class__.__name__}] 에러: {e}"
+            return False, f"오류 발생: {e}"
             
         finally:
-            # 시퀀스 실행 종료 방송
+            # -----------------------------------------------------------------
+            # 6. Cleanup (뒷정리)
+            # -----------------------------------------------------------------
+            # 성공/실패 여부와 상관없이 로봇과 장비를 안전한 상태로 되돌려놓는다
             EVENT_BUS.data.sequence_job_finished.emit()
+            
+            try:
+                # 사용했던 신호(DI43, DI44)는 반드시 끈다. 안 끄면 다음 실행 때 오작동한다
+                robot.write_digital_signal(FanucSignal.DATA_READY_DI43, False)
+                robot.write_digital_signal(FanucSignal.SYNC_START_TRIGGER_DI44, False)
+                
+                # Homing 수행 (항상 원점으로 복귀하여 안전 확보)
+                servo.home_all_safely(timeout=30.0)
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] Homing 수행", "DEBUG")
+                
+            except Exception as e:
+                EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 클린업 도중 오류 발생: {e}", "WARNING")
 
-            if h_calc: adapter.remove_notification(h_calc)
-            if h_motion: adapter.remove_notification(h_motion)
-
+            # 이벤트 리스너 해제 (메모리 누수 방지)
+            try:
+                robot.remove_notification(handle_calc)
+                robot.remove_notification(handle_motion)
+                servo.remove_notification(handle_turntable)
+            except: pass    # finally 블록 내부이므로 에러가 발생해도 전체 프로세스가 멈추면 안 되기 때문
+    
     def _wait_event_with_safety(self, event: threading.Event, timeout: float) -> bool:
-        """안전장치(중단 요청 확인)가 포함된 이벤트 대기 함수"""
+        """
+        목적: 
+            긴 시간(예: 60초) 동안 이벤트를 기다릴 때, 사용자의 '정지(Stop)' 요청에 즉각 반응하기 위함.
+        
+        원리:
+            event.wait(timeout)을 한 번에 호출하면 그 시간 동안은 스레드가 완전히 멈춰서(Blocking)
+            외부의 정지 신호(QThread.requestInterruption)를 감지할 수 없다.
+            이를 방지하기 위해 0.1초씩 잘게 쪼개서 대기하며, 사이사이에 "중단 요청 왔나?" 하고 확인한다.
+        """
         start = time.time()
         while time.time() - start < timeout:
+            # 1. 사용자가 STOP 버튼을 눌렀는지 체크 (안전)
             if (t := QThread.currentThread()) and t.isInterruptionRequested():
                 return False
+            
+            # 2. 0.1초만 대기 (Wait)
             if event.wait(0.1):
-                return True
-        return False
+                return True # 이벤트가 발생했으면 즉시 성공 리턴
+                
+        return False # 시간 초과
+        
+    def _is_interrupted(self) -> bool:
+        return bool((thread := QThread.currentThread()) and thread.isInterruptionRequested())
+
 
 class LegacyIntegratedExecutor(BaseExecutor):
     """
