@@ -2,6 +2,12 @@
 from typing import TYPE_CHECKING
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 from core.event_bus import EVENT_BUS
+from config.data_formats import (
+    KEY_TURNTABLE_DEG,
+    KEY_TURNTABLE_FEED_RATE,
+    KEY_TOOL_REV_RPM,
+    KEY_TOOL_ROT_RPM
+)
 
 if TYPE_CHECKING:
     from services.plc_service import PLCService
@@ -10,9 +16,11 @@ if TYPE_CHECKING:
 
 class ServoControlViewModel(QObject):
     """서보모터 제어용 뷰모델"""
-    # View에게 상태를 알리는 시그널 (TaskManagerViewModel과 일관성 유지)
+
+    # 로컬 시그널 - View 가 구독
     busy_state_changed = pyqtSignal(dict)
-    servo_inputs_clear = pyqtSignal()   # 서보 입력 필드 초기화 요청 시그널
+    servo_inputs_clear = pyqtSignal()                   # 서보 입력 필드 초기화 요청 시그널
+    servo_axis_motion_changed = pyqtSignal(dict)        # 서보 축 값 바꾸기
 
     def __init__(self, plc_service: "PLCService"):
         """
@@ -28,6 +36,9 @@ class ServoControlViewModel(QObject):
 
         # [EventBus 구독] 수동 입력 필드 초기화 요청
         EVENT_BUS.control.clear_user_inputs.connect(self._on_clear_manual_inputs)
+
+        # [EventBus 구독] 웨이포인트 선택됨
+        EVENT_BUS.data.waypoints_selected.connect(self._on_replace_inputs_by_selected_sequence_on_waypoints_table)
 
 
     # ================================
@@ -70,3 +81,24 @@ class ServoControlViewModel(QObject):
         # "servo" 또는 "all" 일 때만 반응
         if type_ in ["servo", "all"]:
             self.servo_inputs_clear.emit()
+
+    @pyqtSlot(dict)
+    def _on_replace_inputs_by_selected_sequence_on_waypoints_table(self, row_data: dict):
+        """WaypointsTable에서 선택된 시퀀스를 View에게 전달하여 입력 필드를 채우게 함"""
+        EVENT_BUS.log.message.emit(f"{self._log_prefix} 선택된 시퀀스 값: {row_data}", "DEBUG")
+        
+        try:
+            # 필요한 값만 추출하여 딕셔너리 생성
+            servo_data = {
+                KEY_TURNTABLE_DEG:       float(row_data.get(KEY_TURNTABLE_DEG, 0.0)),
+                KEY_TURNTABLE_FEED_RATE: float(row_data.get(KEY_TURNTABLE_FEED_RATE, 10.0)),
+                KEY_TOOL_REV_RPM:        float(row_data.get(KEY_TOOL_REV_RPM, 0.0)),
+                KEY_TOOL_ROT_RPM:        float(row_data.get(KEY_TOOL_ROT_RPM, 0.0))
+            }
+
+            self.servo_axis_motion_changed.emit(servo_data)
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 선택된 시퀀스에서 추출한 서보 값:{servo_data}", "DEBUG")
+
+        except Exception as e:
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 서보 데이터 파싱 실패: {e}", "WARNING")
+
