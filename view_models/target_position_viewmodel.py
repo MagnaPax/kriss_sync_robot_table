@@ -12,10 +12,11 @@ if TYPE_CHECKING:
 
 class TargetPositionViewModel(QObject):
 
-    # View에게 상태를 알리는 시그널
+    # 로컬 시그널 - View 가 구독
     state_changed = pyqtSignal(str)
-    robot_poses_clear = pyqtSignal()    # 로봇 좌표 초기화 요청 시그널
-    macros_loaded = pyqtSignal(dict)    # 매크로 데이터 가져오기 완료
+    robot_poses_clear = pyqtSignal()                # 로봇 좌표 초기화 요청 시그널
+    robot_poses_changed = pyqtSignal(FANUCPose)     # 로봇 좌표 변경됨
+    macros_loaded = pyqtSignal(dict)                # 매크로 데이터 가져오기 완료
 
 
     def __init__(self, model: FANUCPoseModel, plc_service: "PLCService"):
@@ -35,8 +36,9 @@ class TargetPositionViewModel(QObject):
         self._plc_service = plc_service
         self._macro_service = MacroService()
 
-        # 시그널 구독(수동 입력 필드 초기화 요청)
-        EVENT_BUS.control.clear_user_inputs.connect(self._on_clear_manual_inputs)
+        # --- 이벤트 버스 시그널 구독 --- #
+        EVENT_BUS.control.clear_user_inputs.connect(self._on_clear_manual_inputs)   # 입력 필드 초기화
+        EVENT_BUS.data.waypoints_selected.connect(self._on_replace_inputs_by_selected_sequence_on_waypoints_table)      # 웨이포인트에서 선택된 시퀀스
 
 
     @pyqtSlot()
@@ -107,3 +109,16 @@ class TargetPositionViewModel(QObject):
             # -> 사용자 요청상 'TargetPositionWidget의 입력 필드가 초기화' 되어야 하므로
             #    단순히 초기화 신호를 보냄.
             self.robot_poses_clear.emit()
+
+    @pyqtSlot(dict)
+    def _on_replace_inputs_by_selected_sequence_on_waypoints_table(self, row_data: dict):
+        """WaypointsTable에서 선택된 시퀀스를 View에게 전달하여 입력 필드를 채우게 함"""
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} 선택된 시퀀스 값: {row_data}", "DEBUG")
+        
+        # 딕셔너리 -> 도메인 모델(FANUCPose) 변환
+        try:
+            fanuc_pose = FANUCPose.from_dict(row_data)
+            self.robot_poses_changed.emit(fanuc_pose)
+            EVENT_BUS.log.message.emit(f"{self.log_prefix} 선택된 시퀀스에서 FANUCPose로 변환된 값:{fanuc_pose}", "DEBUG")
+        except Exception as e:
+            EVENT_BUS.log.message.emit(f"{self.log_prefix} 데이터 파싱 실패: {e}", "WARNING")
