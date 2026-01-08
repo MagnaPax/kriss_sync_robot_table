@@ -99,11 +99,11 @@ class WaypointsTableModel(QAbstractTableModel):
                 
         # [UX] 그 다음은 Status가 오도록 보장 (ID 뒷자리)
         if len(self._headers) > 1 and self._headers[1] != self._status_key:
-             if self._status_key in self._headers:
-                 self._headers.remove(self._status_key)
-                 # ID가 0번에 있다면 1번에 삽입
-                 target_idx = 1 if self._headers[0] == KEY_ID else 0
-                 self._headers.insert(target_idx, self._status_key)
+            if self._status_key in self._headers:
+                self._headers.remove(self._status_key)
+                # ID가 0번에 있다면 1번에 삽입
+                target_idx = 1 if self._headers[0] == KEY_ID else 0
+                self._headers.insert(target_idx, self._status_key)
 
         # 3. 모델 리셋 종료 알림
         self.endResetModel()
