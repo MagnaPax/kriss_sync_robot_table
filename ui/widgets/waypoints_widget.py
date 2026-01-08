@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
     QStyle
 )
 from PyQt6.QtGui import QPainter, QPalette
-
+from config.data_formats import TaskStatus, KEY_STATUS  # Status 상수 임포트
 if TYPE_CHECKING:
     from view_models.waypoints_viewmodel import WaypointsViewModel
 
@@ -43,23 +43,24 @@ class WaypointsDelegate(QStyledItemDelegate):
         self._proxy_label.setProperty("usage", "waypoint_result") # QSS 선택자용
 
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index):
-        # 1. 원본 데이터 가져오기
+        # 1. 원본 데이터 가져오기 (DisplayRole)
         text = index.data(Qt.ItemDataRole.DisplayRole)
         
-        # 2. 'result' 컬럼인 경우에만 특별 처리
+        # 2. 'status' 컬럼 데이터 정규화
         status_str = str(text).lower().strip()
+
+        # 3. 상태 정규화 (QSS 속성값 결정을 위해 매핑)
+        qss_status = TaskStatus.PENDING
         
-        # 3. 상태 정규화 (QSS에 정의된 status 값과 매핑)
-        qss_status = "wait"
-        
-        if status_str == "processing":
-            qss_status = "processing"
-        elif status_str in ["processed", "success", "done"]:
-            qss_status = "processed"
-        elif status_str in ["fail", "error"]:
-            qss_status = "error"
-        elif status_str in ["pending", "wait", "unprocessed", "-"]:
-            qss_status = "wait"
+        # 동의어 처리 및 매핑
+        if status_str in [TaskStatus.PROCESSING, "process", "running"]:
+            qss_status = TaskStatus.PROCESSING
+        elif status_str in [TaskStatus.COMPLETED, "processed", "success", "done"]:
+            qss_status = TaskStatus.COMPLETED
+        elif status_str in [TaskStatus.FAILED, "fail", "error", "alarm"]:
+            qss_status = TaskStatus.FAILED
+        elif status_str in [TaskStatus.PENDING, "wait", "unprocessed", "-"]:
+            qss_status = TaskStatus.PENDING
 
         # 4. Proxy Widget에 속성 설정 및 스타일 폴리싱(Polishing)
         #    주의: Property 변경 후 반드시 unpolish -> polish 과정을 거쳐야 QSS가 재계산됨
@@ -153,7 +154,7 @@ class WaypointsWidget(BaseWidget):
         self.vm.clear_waypoints.connect(self.clear_widget)
 
         # VM의 진행률 업데이트 시그널 구독
-        self.vm.progress_updated.connect(self._on_progress_updated)
+        self.vm.progress_changed.connect(self._on_progress_updated)
 
 
 
@@ -172,9 +173,14 @@ class WaypointsWidget(BaseWidget):
         self.table_view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table_view.setAlternatingRowColors(True)
         
+        self.table_view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded) # 가로 스크롤바 활성화
+
         # 헤더 설정
         if (h_header := self.table_view.horizontalHeader()) is not None:
-            h_header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch) # 컬럼 너비 꽉 채우기
+            # ResizeMode.Stretch: 모든 컬럼을 화면 너비에 억지로 맞춤 (스크롤바 안 생김)
+            # ResizeMode.Interactive: 사용자가 조절 가능 + 내용물 많으면 스크롤바 생김
+            h_header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive) 
+            h_header.setStretchLastSection(True) # 마지막 컬럼은 남은 공간 채우기
         
         if (v_header := self.table_view.verticalHeader()) is not None:
             v_header.setVisible(False) # 행 번호 숨김
@@ -201,6 +207,24 @@ class WaypointsWidget(BaseWidget):
             # 모델에게 데이터 전달 (여기서 beginResetModel이 호출되며 화면 갱신됨)
             # 수천 건의 데이터를 QTableView에 그리는 작업은 메인 스레드에서만 가능하므로 어쩔 수 없이 블로킹됨
             self.model.set_data(data)
+
+            # [Delegate 재설정] 데이터 로드 후 컬럼 순서가 바뀔 수 있으므로, Status 컬럼을 찾아 Delegate를 다시 걸어준다.
+            # 모델의 headerData를 사용하여 Status 컬럼의 인덱스를 찾는다.
+            status_col_idx = -1
+            col_count = self.model.columnCount()
+            for col in range(col_count):
+                header_text = self.model.headerData(col, Qt.Orientation.Horizontal).lower()
+                if header_text == KEY_STATUS:
+                    status_col_idx = col
+                    break
+            
+            if status_col_idx != -1:
+                # 찾았으면 해당 컬럼에만 Delegate 적용
+                self.table_view.setItemDelegateForColumn(status_col_idx, self.delegate)
+            else:
+                # 못 찾았으면 (혹시 모르니) 1번 컬럼에 적용 (기본값)
+                self.table_view.setItemDelegateForColumn(1, self.delegate)
+
 
             self.group_box.setTitle(f"Waypoints (Total: {len(data)})")
             
@@ -255,7 +279,7 @@ class WaypointsWidget(BaseWidget):
         [실시간 시각화] 로봇이 이동 중일 때 호출됨
         
         Args:
-            step (int): 현재 스텝 (1-based index)
+            step (int): 현재 스텝 (1부터 시작)
             total (int): 전체 스텝 수
             status (str): 진행 상태 ('processed', 'processing', 'unprocessed')
         """

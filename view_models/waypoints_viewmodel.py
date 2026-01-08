@@ -6,10 +6,10 @@ from typing import List, Dict, Any
 class WaypointsViewModel(QObject):
     """WaypointsWidget의 상태 및 비즈니스 로직을 관리하는 뷰모델"""
 
-    # 로컬 시그널 (뷰가 구독)    
+    # 로컬 시그널 (View가 구독)
     waypoints_data_changed = pyqtSignal(list)   # 데이터 갱신
     clear_waypoints = pyqtSignal()              # 화면 초기화
-    progress_updated = pyqtSignal(int, int, str) # 진행률 업데이트 (step, total, status)
+    progress_changed = pyqtSignal(int, int, str) # 진행률 업데이트 (step, total, status)
     
 
     def __init__(self):
@@ -22,7 +22,7 @@ class WaypointsViewModel(QObject):
         EVENT_BUS.control.clear_view_content.connect(self._on_clear_requested)      # 화면에 표시된 콘텐츠 초기화
         
         # 진행률 업데이트 릴레이
-        EVENT_BUS.data.progress_updated.connect(self.progress_updated.emit)
+        EVENT_BUS.data.progress_updated.connect(self.progress_changed.emit)
 
     @pyqtSlot(str)
     def _on_clear_requested(self, scope: str):

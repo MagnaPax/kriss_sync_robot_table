@@ -138,7 +138,7 @@ class FanucOnlyExecutor(BaseExecutor):
                 current_id = row.get('id') or idx
 
                 # 현재 시퀀스 진행상태 방송: 진행중
-                EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, "processing")
+                EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, TaskStatus.PROCESSING)
                 EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 현재 시퀀스 진행상태: {(current_id)}", "DEBUG")
 
                 # 이동 속도 결정
@@ -234,7 +234,7 @@ class FanucOnlyExecutor(BaseExecutor):
 
 
                 # 현재 시퀀스 진행상태 방송: 완료
-                EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, "processed")
+                EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, TaskStatus.COMPLETED)
 
             # 3. 종료 신호
             # 원본의 finally 블록 혹은 루프 종료 후 정리
@@ -422,7 +422,7 @@ class ServoOnlyExecutor(BaseExecutor):
                 )
 
                 # (E) 스텝 완료 방송
-                EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSED)
+                EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.COMPLETED)
 
             return True, "모든 서보 시퀀스 작업이 완료되었습니다."
 
@@ -600,7 +600,7 @@ class IntegratedExecutor(BaseExecutor):
             # [원본] 434: global timestamp_turntable_done; timestamp_turntable_done = time.time()
             self._timestamp_turntable_done = time.time()
             # 로깅은 너무 빈번할 수 있으므로 디버그 레벨로
-            # EVENT_BUS.log.message.emit(f"Turntable Motion Done: {self._timestamp_turntable_done}", "DEBUG")
+            EVENT_BUS.log.message.emit(f"Turntable Motion Done: {self._timestamp_turntable_done}", "DEBUG")
         
         h_calc, h_motion, h_turntable = None, None, None
 
@@ -717,7 +717,7 @@ class IntegratedExecutor(BaseExecutor):
             current_robot_pose = robot_target_final
             current_turntable_angle = turntable_angle_target
             previous_robot_calculated_velocity = robot_calculated_velocity
-            EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, "processed")
+            EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, TaskStatus.COMPLETED)
 
 
             # ---------------------------------------------------------------------
@@ -731,7 +731,7 @@ class IntegratedExecutor(BaseExecutor):
                 
                 adapter.validate_robot_ready()
                 current_id = row.get('id') or idx
-                EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, "processing")
+                EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, TaskStatus.PROCESSING)
                 
                 # --- [Pipeline Step 1] Wait for Calculation Request (DO45) ---
                 # [원본] 315: if not event_calculation_request.wait(30.0): ...
@@ -846,7 +846,7 @@ class IntegratedExecutor(BaseExecutor):
                 current_robot_pose = robot_target_final
                 current_turntable_angle = turntable_angle_target
                 previous_robot_calculated_velocity = robot_calculated_velocity
-                EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, "processed")
+                EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, TaskStatus.COMPLETED)
 
             # 루프 종료 후 로봇 신호 정리
             # [원본] : (Cleanup Logic)
@@ -933,7 +933,7 @@ class TwinCATCommander(QObject):
             return False, "데이터가 비어있습니다."
 
         sample_row = sequence_data[0]
-        print(f"입력된 자료에 맞는 Excutor 선택을 위한 샘플 데이터(sequence_data[0]): {sample_row}")
+        EVENT_BUS.log.message.emit(f"입력된 자료에 맞는 Excutor 선택을 위한 샘플 데이터(sequence_data[0]): {sample_row}", "DEBUG")
 
         # 1. 적절한 Executor 찾기
         target_executor = None

@@ -6,7 +6,7 @@
 
 데이터 흐름:
     1. 파일 로드 (CSV/TXT) -> [CSV_SCHEMA / TXT_SCHEMA]를 사용해 파싱
-    2. 파서 -> [DEFAULT_VALUES] (status, result) 주입
+    2. 파서 -> [DEFAULT_VALUES] status 주입
     3. Service/Worker -> [FANUC_SCHEMA]를 사용해 PLC 전송용 데이터로 변환
 
 사용법:
@@ -194,20 +194,13 @@ SERVO_KEYS = {
 # =============================================================================
 class TaskStatus:
     """작업 진행 상태"""
-    UNPROCESSED = 'unprocessed' # 대기 중 (아직 시작 안 함)
-    PROCESSING  = 'processing'  # 실행 중 (현재 로봇이 이동 중)
-    PROCESSED   = 'processed'   # 완료됨 (이 줄은 실행 끝남)
-
-class TaskResult:
-    """작업 최종 결과"""
     PENDING   = 'pending'         # 결과 대기 (아직 모름)
+    PROCESSING  = 'processing'    # 실행 중 (현재 로봇이 이동 중)
     COMPLETED = 'completed'       # 성공
-    FAILED    = 'failed'          # 실패 (에러 발생)
-
+    FAILED    = 'failed'          # 실패 (에러 발생)    
 
 # 용도: 파일에는 없지만, 앱 구동을 위해 파서가 강제로 주입해야 하는 기본값들
 # 위치: SequenceParser.parse() 메서드에서 사용됨
 DEFAULT_VALUES: dict[str, str] = {
-    KEY_STATUS: TaskStatus.UNPROCESSED,
-    KEY_RESULT: TaskResult.PENDING
+    KEY_STATUS: TaskStatus.PENDING
 }

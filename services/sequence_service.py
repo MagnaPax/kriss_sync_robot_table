@@ -106,6 +106,7 @@ class SequenceService(QObject):
             #   "데이터 준비됐습니다~ 필요한 분들 가져다 쓰세요"
             EVENT_BUS.data.sequence_data_loaded.emit(sequence_list)
             EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 파일 -> 데이터 처리 완료: {len(sequence_list)}건", "INFO")
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 읽어온 시퀀스 파일 첫번째: {sequence_list[0]}", "DEBUG")
 
 
     @pyqtSlot() # type: ignore
