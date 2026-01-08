@@ -19,6 +19,8 @@ from typing import Dict, Any, TYPE_CHECKING, Union, Optional
 from core.event_bus import EVENT_BUS
 from ui.widgets.base_widget import BaseWidget
 from models.fanuc_pose_model import FANUCPose
+from models.fanuc_pose_key import FANUCPoseKey
+from config.data_formats import KEY_ROBOT_FEED_RATE
 from utils.validators import NumericValidator
 from ui.dialogs.macro_settings_dialog import MacroSettingsDialog
 from PyQt6.QtWidgets import QWidget
@@ -74,6 +76,7 @@ class TargetPositionWidget(BaseWidget):
         # VM의 로컬 시그널 연결
         self.vm.macros_loaded.connect(self._on_macro_data_loaded)
         self.vm.robot_poses_clear.connect(self.clear_widget)
+        self.vm.robot_poses_changed.connect(self.safe_update_data)
         
         # 매크로 데이터에서 버튼 제목을 읽어 와야 되기 때문에 UI가 생성된 후에 바로 호출
         self.vm.load_macro_data()
@@ -109,11 +112,7 @@ class TargetPositionWidget(BaseWidget):
         main_layout.addWidget(base_group_box)
 
 
-    def update_data(self, data: Any):
-        """
-        BaseWidget의 추상 메서드를 구현한다
-        """
-        pass
+
 
     def clear_widget(self):
         """
@@ -190,12 +189,16 @@ class TargetPositionWidget(BaseWidget):
         section_robot_coordinate = QFrame()
         section_robot_coordinate.setObjectName("section_robot_coordinate")
         # 로봇팔 좌표 입력 영역에 X, Y, Z 폼 레이아웃 생성하여 추가
-        section_robot_coordinate.setLayout(self._create_coordinate_input_fields(["X", "Y", "Z"]))
+        section_robot_coordinate.setLayout(self._create_coordinate_input_fields([
+            FANUCPoseKey.X, FANUCPoseKey.Y, FANUCPoseKey.Z
+        ]))
 
         # 턴테이블(W, P, R) 입력 영역
         section_turtable_coordinate = QFrame()
         # 턴테이블 좌표 입력 섹션에 W, P, R 폼 레이아웃 생성하여 추가
-        section_turtable_coordinate.setLayout(self._create_coordinate_input_fields(["W", "P", "R"]))
+        section_turtable_coordinate.setLayout(self._create_coordinate_input_fields([
+            FANUCPoseKey.W, FANUCPoseKey.P, FANUCPoseKey.R
+        ]))
 
         # 좌표 입력 레이아웃에 로봇팔, 턴테이블 입력 영역 넣기
         layout_coordinate.addWidget(section_robot_coordinate)
@@ -296,6 +299,53 @@ class TargetPositionWidget(BaseWidget):
 
         return btn
     
+    def set_widgets_disabled(self, disabled: bool):
+        """위만 전부 비활성화/활성화"""
+        self.setEnabled(not disabled)
+
+
+
+    def update_data(self, pose: FANUCPose):
+        """
+        [Override] BaseWidget.update_data
+        실제 UI 업데이트 로직 (safe_update_data에 의해 호출됨)
+        """
+        if not pose: return
+
+        # [리팩토링] 하드코딩된 매핑 대신 FANUCPoseKey를 사용한 동적 매핑
+        
+        # 1. 로봇 좌표 (X, Y, Z, W, P, R)
+        for key_enum in FANUCPoseKey:
+            # Data Key: 'x' (소문자) -> pose.x 접근용
+            data_attr = key_enum.model_key
+            
+            # Widget Key: 'X' (대문자) -> self.coord_widgets 접근용
+            widget_key = key_enum.value
+            
+            # 1) 데이터 가져오기
+            val = getattr(pose, data_attr, 0.0)
+            
+            # 2) 위젯 가져오기
+            if widget := self.coord_widgets.get(widget_key):
+                # 시그널 차단 (피드백 루프 방지)
+                blocker = widget.blockSignals(True)
+                
+                if isinstance(widget, QDoubleSpinBox):
+                    widget.setValue(float(val))
+                elif isinstance(widget, QLineEdit):
+                    widget.setText(str(val))
+                
+                widget.blockSignals(blocker)
+
+        # 2. Feed Rate (FANUCPoseKey에 없으므로 별도 처리)
+        # 키는 config.data_formats.KEY_ROBOT_FEED_RATE ('f') 이지만
+        # UI 위젯 키는 'FEED RATE'로 되어 있음 -> 이건 유지하거나 상수로 뺄 수 있음
+        # 여기서는 기존 문자열 'FEED RATE'를 그대로 사용 (단, pose.f 로 값은 가져옴)
+        if widget := self.coord_widgets.get('FEED RATE'):
+            blocker = widget.blockSignals(True)
+            widget.setValue(pose.f)
+            widget.blockSignals(blocker)
+
     def _create_goto_button(self) -> QPushButton:
         """ GoTo 버튼 생성 """
         self.goto_button = self._create_button(title="Go To", type="special")
@@ -303,12 +353,12 @@ class TargetPositionWidget(BaseWidget):
 
 
     # --- 좌표 입력 만들기 --- #
-    def _create_coordinate_input_fields(self, axes: list[str]) -> QFormLayout:
+    def _create_coordinate_input_fields(self, axes: list[Union[str, FANUCPoseKey]]) -> QFormLayout:
         """
         지정된 축(axes) 목록에 대해 '라벨-입력창' QFormLayout을 생성
 
         인자 값:
-            axes: ["X", "Y", "Z"] 또는 ["W", "P", "R"]
+            axes: [FANUCPoseKey.X, ...] 또는 ["FEED RATE"]
 
         반환:
             QFormLayout: 라벨과 QLineEdit가 채워진 폼 레이아웃
@@ -322,13 +372,16 @@ class TargetPositionWidget(BaseWidget):
         form_layout.setVerticalSpacing(5)
 
         for axis in axes:
-            label = QLabel(f"{axis}:")
+            # Enum인 경우 value("X", "Y"...)를 사용, 문자열이면 그대로 사용
+            axis_name = axis.value if isinstance(axis, FANUCPoseKey) else axis
+            
+            label = QLabel(f"{axis_name}:")
 
-            if axis not in ["FEED RATE"]:
+            if axis_name not in ["FEED RATE"]:
                 # 일반 좌표는 QLineEdit 사용
                 line_edit = QLineEdit()
-                line_edit.setObjectName(f"line_edit_{axis}") # QSS 적용을 위한 ID
-                line_edit.setPlaceholderText(f"{axis} 값 입력...")
+                line_edit.setObjectName(f"line_edit_{axis_name}") # QSS 적용을 위한 ID
+                line_edit.setPlaceholderText(f"{axis_name} 값 입력...")
 
                 # 숫자만 입력 가능하도록 유효성 검사기 추가
                 # 에러 발생 시 BaseWidget의 error_occurred 시그널을 통해 알림
@@ -344,7 +397,7 @@ class TargetPositionWidget(BaseWidget):
             else:
                 # feed rate는 QDoubleSpinBox 사용
                 spin_box = QDoubleSpinBox()
-                spin_box.setObjectName(f"spinbox_{axis.lower().replace(' ', '_')}")
+                spin_box.setObjectName(f"spinbox_{axis_name.lower().replace(' ', '_')}")
 
                 # 설정 적용
                 spin_box.setRange(0.0, 1000.0)      # 범위 0 ~ 1000
@@ -357,8 +410,8 @@ class TargetPositionWidget(BaseWidget):
 
                 input_widget = spin_box
 
-            # 만든 위젯을 보관함에 저장
-            self.coord_widgets[axis] = input_widget
+            # 만든 위젯을 보관함에 저장 (Key: "X", "Y", "FEED RATE" 등 문자열)
+            self.coord_widgets[axis_name] = input_widget
             form_layout.addRow(label, input_widget)
 
         return form_layout
@@ -376,18 +429,20 @@ class TargetPositionWidget(BaseWidget):
         data = {}
 
         # 좌표값 읽기
-        for axis in ['x', 'y', 'z', 'w', 'p', 'r']:
-            widget_key = axis.upper() # 위젯 찾을 때는 대문자 ID 사용
+        # 좌표값 읽기
+        for key_enum in FANUCPoseKey:
+            widget_key = key_enum.value # "X", "Y", ... (Dictionary Key)
+            data_key = key_enum.model_key # "x", "y", ... (Data Attribute)
+            
             widget = self.coord_widgets.get(widget_key)
 
             if widget:
+                # QLineEdit 전용 로직
                 text = widget.text().strip()
-                # 빈 문자열이면 0.0, 아니면 float 변환
-                # (여기서 에러가 나면 호출부의 try-except가 잡음)
                 val = float(text) if text else 0.0
-                data[axis] = val
+                data[data_key] = val
             else:
-                data[axis] = 0.0
+                data[data_key] = 0.0
 
         # 위젯 타입에 따라 값 가져오는 방식 분기
         feed_widget = self.coord_widgets.get('FEED RATE')
@@ -523,17 +578,15 @@ class TargetPositionWidget(BaseWidget):
         )
 
         # 2. 데이터 -> UI 입력창으로 복사
-        # 매크로 데이터 키는 소문자('x'), 위젯 키는 대문자('X')임에 주의
-        axes = ['X', 'Y', 'Z', 'W', 'P', 'R']
-        
-        for axis in axes:
-            data_key = axis.lower() # 'X' -> 'x'
+        for key_enum in FANUCPoseKey:
+            data_key = key_enum.model_key  # 'x'
+            widget_key = key_enum.value    # 'X'
             
             # 데이터 가져오기 (없으면 0.0)
             val = macro_data.get(data_key, 0.0)
             
             # 위젯 가져오기
-            line_edit = self.coord_widgets.get(axis)
+            line_edit = self.coord_widgets.get(widget_key)
             
             if isinstance(line_edit, QLineEdit):
                 # QLineEdit에 값 설정 (소수점 3자리까지)
