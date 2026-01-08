@@ -86,6 +86,8 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         self.mainLayout = QHBoxLayout(central_widget)
+        self.mainLayout.setSpacing(0)   # 패널 사이의 간격 (Spacing)
+        self.mainLayout.setContentsMargins(5, 3, 5, 0)
 
         # 패널 생성 - 부모를 centralWidget로 명시
         # TODO: 나중에 패널 내부에서도 로직이 필요하면 self.vm을 전달하면 된다
