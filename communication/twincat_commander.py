@@ -600,7 +600,7 @@ class IntegratedExecutor(BaseExecutor):
         robot_target_final = FanucPoseModel(
             x=target_robot_pose.x, y=target_robot_pose.y, z=target_robot_pose.z,
             w=target_robot_pose.w, p=target_robot_pose.p, r=target_robot_pose.r,
-            velocity=robot_calculated_velocity
+            f=robot_calculated_velocity
         )
         
         # 5. 신호 조합
