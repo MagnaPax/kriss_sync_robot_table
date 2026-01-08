@@ -179,7 +179,8 @@ class WaypointsWidget(BaseWidget):
         if (h_header := self.table_view.horizontalHeader()) is not None:
             # ResizeMode.Stretch: 모든 컬럼을 화면 너비에 억지로 맞춤 (스크롤바 안 생김)
             # ResizeMode.Interactive: 사용자가 조절 가능 + 내용물 많으면 스크롤바 생김
-            h_header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive) 
+            # ResizeMode.ResizeToContents: 내용물(헤더 포함) 길이에 맞춰 자동 조절
+            h_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents) 
             h_header.setStretchLastSection(True) # 마지막 컬럼은 남은 공간 채우기
         
         if (v_header := self.table_view.verticalHeader()) is not None:
