@@ -40,7 +40,7 @@ class FANUCPose:
     w: float = 0.0
     p: float = 0.0
     r: float = 0.0
-    velocity: float = 0.0  # 속도 정보 (기존 f)
+    f: float = 0.0
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'FANUCPose':
@@ -54,11 +54,11 @@ class FANUCPose:
             w=float(data.get(KEY_ROBOT_W, 0.0)),
             p=float(data.get(KEY_ROBOT_P, 0.0)),
             r=float(data.get(KEY_ROBOT_R, 0.0)),
-            velocity=float(data.get(KEY_ROBOT_FEED_RATE, 0.0))
+            f=float(data.get(KEY_ROBOT_FEED_RATE, 0.0))
         )
 
     def to_dict_with_meaningful_names(self) -> Dict[str, float]:
-        return {"robot_velocity":self.velocity, "axis_x": self.x, "axis_y": self.y, "axis_z": self.z, "yaw_w": self.w, "pitch_p": self.p, "roll_r": self.r}
+        return {"robot_feed_rate":self.f, "axis_x": self.x, "axis_y": self.y, "axis_z": self.z, "yaw_w": self.w, "pitch_p": self.p, "roll_r": self.r}
     
     def to_dict_preserving_key_names(self) -> Dict[str, Any]:
         # dataclasses.asdict를 쓰면 자동으로 딕셔너리가 된다(키값은 똑같음)
@@ -131,18 +131,18 @@ class FANUCPose:
         if signals.get('DI43', False):      b3 |= (1 << 2)
         if signals.get('DI44', False):      b3 |= (1 << 3)
         
-        # 2. Feed Rate 패킹 (자신의 속도 velocity 사용)
+        # 2. Feed Rate 패킹 (자신의 속도 f 사용)
         # ---------------------------------------------------------------------
         # 공식: int(abs(round(val, 3) * 1000))
-        raw_velocity = int(abs(round(self.velocity, 3) * 1000))
+        raw_feed_rate = int(abs(round(self.f, 3) * 1000))
         
         # 상위 4비트 -> UI_Byte3 상위
-        feed_high = (raw_velocity >> 16) & 0x0F
+        feed_high = (raw_feed_rate >> 16) & 0x0F
         b3 |= (feed_high << 4)
         payload.UI_Byte3 = b3
         
         # 하위 16비트 -> Feed_Low
-        payload.Feed_Low = raw_velocity & 0xFFFF
+        payload.Feed_Low = raw_feed_rate & 0xFFFF
 
         # 3. 좌표 Delta 패킹 (X, Y, Z, W, P, R)
         # ---------------------------------------------------------------------
@@ -293,12 +293,12 @@ class FANUCPoseModel:
             except (TypeError, ValueError):
                 raise ValueError(f"매크로 '{macro_id}'의 '{key}' 값이 숫자가 아닙니다: {value}")
 
-        # velocity(Feed)는 필수가 아니므로 get을 사용 (기본값 0.0)
-        velocity_val = macro_data.get('velocity', macro_data.get('f', 0.0))
+        # feed rate는 필수가 아니므로 get을 사용 (기본값 0.0)
+        feed_rate_val = macro_data.get('feed_rate', macro_data.get('f', 0.0))
         try:
-            velocity_val = float(velocity_val)
+            feed_rate_val = float(feed_rate_val)
         except:
-            velocity_val = 0.0
+            feed_rate_val = 0.0
 
         return FANUCPose(
             x=get_float("x"),
@@ -307,7 +307,7 @@ class FANUCPoseModel:
             w=get_float("w"),
             p=get_float("p"),
             r=get_float("r"),
-            velocity=velocity_val
+            f=feed_rate_val
         )
 
     @staticmethod
@@ -433,8 +433,8 @@ if __name__ == '__main__':
     print("\n6️⃣  to_struct() 구조체 패킹 테스트:")
     
     # 더미 데이터 생성
-    prev_pos = FANUCPose(x=0, y=0, z=0, w=0, p=0, r=0, velocity=0)
-    target_pos = FANUCPose(x=10.0, y=-5.0, z=0, w=0, p=0, r=0, velocity=100.0) # x=10(양이동), y=-5(음이동), velocity=100
+    prev_pos = FANUCPose(x=0, y=0, z=0, w=0, p=0, r=0, f=0)
+    target_pos = FANUCPose(x=10.0, y=-5.0, z=0, w=0, p=0, r=0, f=100.0) # x=10(양이동), y=-5(음이동), feed_rate=100
     
     signals = {
         'IMSP': True, 'Hold': True, 'SFSP': True, 'Enable': True,  # UI_Byte1 = 1|2|4|128 = 135 (0x87)
