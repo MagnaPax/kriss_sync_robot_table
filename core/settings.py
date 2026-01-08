@@ -37,6 +37,7 @@ class AppConfig:
     debug: bool
     log_dir: Path
     icon_path: str
+    kriss_ci_path: str
 
 @dataclass
 class TwinCATConfig:
@@ -132,7 +133,8 @@ class Settings:
             version=section.get('VERSION', '0.0.0'),
             debug=section.get('DEBUG', 'False').lower() == 'true',
             log_dir=self.ROOT_DIR / section.get('LOG_DIR', 'logs'),
-            icon_path=section.get('APP_ICON', 'resources/icons/kriss.gif')
+            icon_path=section.get('APP_ICON', 'resources/icons/kriss.gif'),
+            kriss_ci_path=section.get('KRISS_CI', 'resources/images/kriss_logo.gif')
         )
 
     @property
