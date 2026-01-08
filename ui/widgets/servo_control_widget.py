@@ -58,8 +58,9 @@ class ServoControlWidget(BaseWidget):
         self.vm = view_model
 
         # 로봇과 턴테이블의 바쁨 상태 연결
-        self.vm.busy_state_changed.connect(self.update_data)
+        self.vm.busy_state_changed.connect(self.safe_update_data)
         self.vm.servo_inputs_clear.connect(self.clear_widget)
+        self.vm.servo_axis_motion_changed.connect(self.safe_update_data)
 
     def _bind_events(self):
         """UI 이벤트 바인딩"""
@@ -95,17 +96,17 @@ class ServoControlWidget(BaseWidget):
 
         # 왼쪽: 공전/자전 (RPM)
         tool_layout = QFormLayout()
-        self.input_widgets["rev_rpm"] = self._create_spinbox(0, 3000, 10)
-        self.input_widgets["rot_rpm"] = self._create_spinbox(0, 3000, 10)
-        tool_layout.addRow("공전 (rpm):", self.input_widgets["rev_rpm"])
-        tool_layout.addRow("자전 (rpm):", self.input_widgets["rot_rpm"])
+        self.input_widgets[KEY_TOOL_REV_RPM] = self._create_spinbox(0, 3000, 10)
+        self.input_widgets[KEY_TOOL_ROT_RPM] = self._create_spinbox(0, 3000, 10)
+        tool_layout.addRow("공전 (rpm):", self.input_widgets[KEY_TOOL_REV_RPM])
+        tool_layout.addRow("자전 (rpm):", self.input_widgets[KEY_TOOL_ROT_RPM])
 
         # 오른쪽: 턴테이블 (각도/RPM)
         tt_layout = QFormLayout()
-        self.input_widgets["tt_angle"] = self._create_spinbox(-360, 360, 0)
-        self.input_widgets["tt_rpm"] = self._create_spinbox(0, 2000, 5)
-        tt_layout.addRow("턴테이블 각도 (deg):", self.input_widgets["tt_angle"])
-        tt_layout.addRow("턴테이블 속도 (rpm):", self.input_widgets["tt_rpm"])
+        self.input_widgets[KEY_TURNTABLE_DEG] = self._create_spinbox(-360, 360, 0)
+        self.input_widgets[KEY_TURNTABLE_FEED_RATE] = self._create_spinbox(0, 2000, 5)
+        tt_layout.addRow("턴테이블 각도 (deg):", self.input_widgets[KEY_TURNTABLE_DEG])
+        tt_layout.addRow("턴테이블 속도 (rpm):", self.input_widgets[KEY_TURNTABLE_FEED_RATE])
 
         input_layout.addLayout(tool_layout)
         input_layout.addLayout(tt_layout)
@@ -180,10 +181,12 @@ class ServoControlWidget(BaseWidget):
     # ===============================================
     def update_data(self, data: Any):
         """
-        데이터(dict)를 받아 UI 업데이트
-            BaseWidget의 safe_update_data()를 통해 호출됨
+        [Override] BaseWidget.update_data
+        실제 UI 업데이트 로직 (safe_update_data에 의해 호출됨)
         """
-        # 상태에 따른 활성화/비활성화
+        if not isinstance(data, dict): return
+
+        # case 1: 상태 업데이트 (is_servo_moving)
         if 'is_servo_moving' in data:
             is_busy = data['is_servo_moving']
 
@@ -200,6 +203,24 @@ class ServoControlWidget(BaseWidget):
             # 입력창들도 비활성화하여 오작동 방지
             for spin in self.input_widgets.values():
                 spin.setEnabled(not is_busy)
+
+        # case 2: 서보 값 업데이트 (PLC 또는 테이블 선택으로부터 온 데이터)
+        target_keys = [
+            KEY_TURNTABLE_DEG, 
+            KEY_TURNTABLE_FEED_RATE, 
+            KEY_TOOL_REV_RPM, 
+            KEY_TOOL_ROT_RPM
+        ]
+
+        for key in target_keys:
+            # 데이터 딕셔너리에 키가 존재하는지 확인 (None이 아니면 0이어도 진행)
+            if (val := data.get(key)) is not None:
+                # 해당 값을 표시할 UI 위젯(SpinBox)이 등록되어 있는지 확인
+                if widget := self.input_widgets.get(key):
+                    # 값이 바뀌었다는 시그널 잠시 차단 - 안 하면 무한 루프 발생
+                    blocker = widget.blockSignals(True)
+                    widget.setValue(float(val))         # 실제 위젯에 값 적용 (0.0 포함)
+                    widget.blockSignals(blocker)        # 업데이트 후 차단 해제
 
     def clear_widget(self):
         """위젯 상태 초기화"""
@@ -224,10 +245,10 @@ class ServoControlWidget(BaseWidget):
         '시스템 표준 키 상수'로 매핑된 딕셔너리를 반환
         """
         return {
-            KEY_TOOL_REV_RPM: self.input_widgets["rev_rpm"].value(),
-            KEY_TOOL_ROT_RPM: self.input_widgets["rot_rpm"].value(),
-            KEY_TURNTABLE_DEG: self.input_widgets["tt_angle"].value(),
-            KEY_TURNTABLE_FEED_RATE: self.input_widgets["tt_rpm"].value()
+            KEY_TOOL_REV_RPM: self.input_widgets[KEY_TOOL_REV_RPM].value(),
+            KEY_TOOL_ROT_RPM: self.input_widgets[KEY_TOOL_ROT_RPM].value(),
+            KEY_TURNTABLE_DEG: self.input_widgets[KEY_TURNTABLE_DEG].value(),
+            KEY_TURNTABLE_FEED_RATE: self.input_widgets[KEY_TURNTABLE_FEED_RATE].value()
         }
 
 
@@ -300,6 +321,10 @@ class ServoControlWidget(BaseWidget):
         if not (vm := self.vm): return
         EVENT_BUS.log.message.emit(f"{self.log_prefix} MANUAL HOME", "DEBUG")
         vm.home_manual()
+
+
+
+
 
     def _handle_manual_reset(self):
         """MANUAL RESET 핸들러"""
