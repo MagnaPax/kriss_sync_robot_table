@@ -52,9 +52,7 @@ class ServoControlWidget(BaseWidget):
         self._bind_events()
 
     def set_view_model(self, view_model: "ServoControlViewModel"):
-        """
-        외부에서 뷰모델을 주입하는 함수
-        """
+        """외부에서 뷰모델을 주입하는 함수"""
         self.vm = view_model
 
         # 로봇과 턴테이블의 바쁨 상태 연결
@@ -321,10 +319,6 @@ class ServoControlWidget(BaseWidget):
         if not (vm := self.vm): return
         EVENT_BUS.log.message.emit(f"{self.log_prefix} MANUAL HOME", "DEBUG")
         vm.home_manual()
-
-
-
-
 
     def _handle_manual_reset(self):
         """MANUAL RESET 핸들러"""
