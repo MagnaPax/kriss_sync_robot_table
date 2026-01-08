@@ -42,7 +42,9 @@ class TargetPositionWidget(BaseWidget):
         - 매크로 버튼(사용자가 입력한 매크로 제목)을 누르면 저장된 값 불러오기
         - 'GoTo' 버튼 클릭 시 `goto_requested` 시그널 발생
     """
-
+    # ========================================
+    # 초기화 및 설정 (Initialization)
+    # ========================================
     def __init__(self, parent: Optional[QWidget] = None):
         # ViewModel 인스턴스를 클래스 속성으로 저장
         # super().__init__() 전에 저장
@@ -68,9 +70,8 @@ class TargetPositionWidget(BaseWidget):
         # 클릭 이벤트 처리 (UI 생성 후)
         self._bind_events()
 
-    # 외부에서 뷰모델을 꽂아주는 함수(Setter) 추가
     def set_view_model(self, view_model: "TargetPositionViewModel"):
-        """외부에서 뷰모델 주입 시 호출"""
+        """외부에서 뷰모델을 꽂아주는 함수(Setter)"""
         self.vm = view_model
         
         # VM의 로컬 시그널 연결
@@ -81,6 +82,40 @@ class TargetPositionWidget(BaseWidget):
         # 매크로 데이터에서 버튼 제목을 읽어 와야 되기 때문에 UI가 생성된 후에 바로 호출
         self.vm.load_macro_data()
 
+    def _bind_events(self):
+        """
+        전선 연결하기 (아직 불 들어온것 아님)
+            - 누가 누구랑 연결될 지 미리 정해주기
+            - 앱이 시작될 때 딱 1번만 호출
+        시그널-슬롯(_on으로 시작하는 메서드) connect를 모아놓음 - 버튼 눌리면 어떤 일을 할 지 약속
+        """
+
+        # self.edit_macro_button이 None이 아님을 명시적으로 확인 (Pylance 경고 해결 및 런타임 안정성)
+        assert self.edit_macro_button is not None, "Edit Macro 버튼이 생성되지 않았습니다."
+        self.edit_macro_button.clicked.connect(self._on_edit_macro_button_clicked)
+
+        # self.goto_button이 None이 아님을 명시적으로 확인 (Pylance 경고 해결 및 런타임 안정성)
+        assert self.goto_button is not None, "GoTo 버튼이 생성되지 않았습니다."
+        self.goto_button.clicked.connect(self._on_goto_btn_clicked) # type: ignore
+
+        # 매크로 버튼 클릭 이벤트 연결
+        # 보관함에 저장된 모든 매크로 버튼에 대해 연결을 수행
+        for macro_id, btn in self.macro_btn_map.items():
+            assert btn is not None, f"매크로 버튼 '{macro_id}'이 생성되지 않았습니다."
+            # partial을 사용하여 어떤 버튼이 눌렸는지(macro_id)를 함께 넘김
+            btn.clicked.connect(partial(self._on_macro_btn_clicked, macro_id)) # type: ignore
+
+        # Feed Rate 값 변경 이벤트 연결
+        feed_widget = self.coord_widgets.get('FEED RATE')
+        if feed_widget and isinstance(feed_widget, QDoubleSpinBox):
+            # valueChanged는 값이 변경될 때(버튼 클릭 포함) 발생합니다.
+            feed_widget.valueChanged.connect(self._on_feed_rate_changed)            
+
+
+
+    # ========================================
+    # UI 구성 (Initialization)
+    # ========================================
     def _init_ui(self):
         """
         BaseWidget이 호출하는 UI 초기화 메서드
@@ -110,32 +145,6 @@ class TargetPositionWidget(BaseWidget):
         # 새로운 UI 구성 - GroupBox 생성 후 레이아웃에 추가
         base_group_box = self._configure_base_layout()
         main_layout.addWidget(base_group_box)
-
-
-
-
-    def clear_widget(self):
-        """
-        [새로 구현] 입력 데이터 모두 초기화
-        - 로봇 좌표 (X,Y,Z,W,P,R)
-        - Feed Rate
-        """
-        EVENT_BUS.log.message.emit("TargetPositionWidget 입력 필드 초기화", "DEBUG")
-
-        # 1. 좌표 입력창 초기화
-        for axis, widget in self.coord_widgets.items():
-            if isinstance(widget, QLineEdit):
-                widget.setText("0.000")
-            elif isinstance(widget, QDoubleSpinBox):
-                # FEED RATE 등 스핀박스인 경우
-                if axis == "FEED RATE":
-                    widget.setValue(10.0) # 기본값으로
-                else:
-                    widget.setValue(0.0)
-        
-        # 2. 부모 위젯 초기화 (필요 시)
-        # super().clear_widget() # BaseWidget에는 별도 구현 없음 (pass)
-
 
     def _configure_base_layout(self) -> QGroupBox:
         """
@@ -264,12 +273,6 @@ class TargetPositionWidget(BaseWidget):
 
         return base_group_box
 
-
-    ##############################
-    # --- 부속 위젯들 만들기 --- #
-    ##############################
-    
-    # --- 버튼 만들기 --- #
     def _create_button(self, title: str, type: str) -> QPushButton:
         button = QPushButton(title.upper())
         # QSS에서 찾기 쉽게 소문자와 언더스코어를 사용
@@ -298,61 +301,12 @@ class TargetPositionWidget(BaseWidget):
         btn.setProperty("macro_id", macro_id)
 
         return btn
-    
-    def set_widgets_disabled(self, disabled: bool):
-        """위만 전부 비활성화/활성화"""
-        self.setEnabled(not disabled)
-
-
-
-    def update_data(self, pose: FANUCPose):
-        """
-        [Override] BaseWidget.update_data
-        실제 UI 업데이트 로직 (safe_update_data에 의해 호출됨)
-        """
-        if not pose: return
-
-        # [리팩토링] 하드코딩된 매핑 대신 FANUCPoseKey를 사용한 동적 매핑
-        
-        # 1. 로봇 좌표 (X, Y, Z, W, P, R)
-        for key_enum in FANUCPoseKey:
-            # Data Key: 'x' (소문자) -> pose.x 접근용
-            data_attr = key_enum.model_key
-            
-            # Widget Key: 'X' (대문자) -> self.coord_widgets 접근용
-            widget_key = key_enum.value
-            
-            # 1) 데이터 가져오기
-            val = getattr(pose, data_attr, 0.0)
-            
-            # 2) 위젯 가져오기
-            if widget := self.coord_widgets.get(widget_key):
-                # 시그널 차단 (피드백 루프 방지)
-                blocker = widget.blockSignals(True)
-                
-                if isinstance(widget, QDoubleSpinBox):
-                    widget.setValue(float(val))
-                elif isinstance(widget, QLineEdit):
-                    widget.setText(str(val))
-                
-                widget.blockSignals(blocker)
-
-        # 2. Feed Rate (FANUCPoseKey에 없으므로 별도 처리)
-        # 키는 config.data_formats.KEY_ROBOT_FEED_RATE ('f') 이지만
-        # UI 위젯 키는 'FEED RATE'로 되어 있음 -> 이건 유지하거나 상수로 뺄 수 있음
-        # 여기서는 기존 문자열 'FEED RATE'를 그대로 사용 (단, pose.f 로 값은 가져옴)
-        if widget := self.coord_widgets.get('FEED RATE'):
-            blocker = widget.blockSignals(True)
-            widget.setValue(pose.f)
-            widget.blockSignals(blocker)
 
     def _create_goto_button(self) -> QPushButton:
         """ GoTo 버튼 생성 """
         self.goto_button = self._create_button(title="Go To", type="special")
         return self.goto_button
-
-
-    # --- 좌표 입력 만들기 --- #
+    
     def _create_coordinate_input_fields(self, axes: list[Union[str, FANUCPoseKey]]) -> QFormLayout:
         """
         지정된 축(axes) 목록에 대해 '라벨-입력창' QFormLayout을 생성
@@ -418,7 +372,69 @@ class TargetPositionWidget(BaseWidget):
 
 
 
-    # --- 헬퍼 메서드 --- #
+    # ===============================================
+    # 데이터 처리
+    # ===============================================
+    def update_data(self, pose: FANUCPose):
+        """
+        [Override] BaseWidget.update_data
+        실제 UI 업데이트 로직 (safe_update_data에 의해 호출됨)
+        """
+        if not pose: return
+
+        # [리팩토링] 하드코딩된 매핑 대신 FANUCPoseKey를 사용한 동적 매핑
+        
+        # 1. 로봇 좌표 (X, Y, Z, W, P, R)
+        for key_enum in FANUCPoseKey:
+            # Data Key: 'x' (소문자) -> pose.x 접근용
+            data_attr = key_enum.model_key
+            
+            # Widget Key: 'X' (대문자) -> self.coord_widgets 접근용
+            widget_key = key_enum.value
+            
+            # 1) 데이터 가져오기
+            val = getattr(pose, data_attr, 0.0)
+            
+            # 2) 위젯 가져오기
+            if widget := self.coord_widgets.get(widget_key):
+                # 시그널 차단 (피드백 루프 방지)
+                blocker = widget.blockSignals(True)
+                
+                if isinstance(widget, QDoubleSpinBox):
+                    widget.setValue(float(val))
+                elif isinstance(widget, QLineEdit):
+                    widget.setText(str(val))
+                
+                widget.blockSignals(blocker)
+
+        # 2. Feed Rate (FANUCPoseKey에 없으므로 별도 처리)
+        # 키는 config.data_formats.KEY_ROBOT_FEED_RATE ('f') 이지만
+        # UI 위젯 키는 'FEED RATE'로 되어 있음 -> 이건 유지하거나 상수로 뺄 수 있음
+        # 여기서는 기존 문자열 'FEED RATE'를 그대로 사용 (단, pose.f 로 값은 가져옴)
+        if widget := self.coord_widgets.get('FEED RATE'):
+            blocker = widget.blockSignals(True)
+            widget.setValue(pose.f)
+            widget.blockSignals(blocker)
+
+    def clear_widget(self):
+        """
+        [새로 구현] 입력 데이터 모두 초기화
+        - 로봇 좌표 (X,Y,Z,W,P,R)
+        - Feed Rate
+        """
+        EVENT_BUS.log.message.emit("TargetPositionWidget 입력 필드 초기화", "DEBUG")
+
+        # 1. 좌표 입력창 초기화
+        for axis, widget in self.coord_widgets.items():
+            if isinstance(widget, QLineEdit):
+                widget.setText("0.000")
+            elif isinstance(widget, QDoubleSpinBox):
+                # FEED RATE 등 스핀박스인 경우
+                if axis == "FEED RATE":
+                    widget.setValue(10.0) # 기본값으로
+                else:
+                    widget.setValue(0.0)
+
     def _extract_data_from_ui(self) -> FANUCPose:
         """
         QLineEdit 객체들에서 데이터만 뽑아서 FANUCPose 객체를 만든다.
@@ -470,42 +486,10 @@ class TargetPositionWidget(BaseWidget):
 
 
 
-    # ==========================================================
-    # 이벤트 발생 시 동작 약속
-    # ==========================================================
-    def _bind_events(self):
-        """
-        전선 연결하기 (아직 불 들어온것 아님)
-            - 누가 누구랑 연결될 지 미리 정해주기
-            - 앱이 시작될 때 딱 1번만 호출
-        시그널-슬롯(_on으로 시작하는 메서드) connect를 모아놓음 - 버튼 눌리면 어떤 일을 할 지 약속
-        """
-
-        # self.edit_macro_button이 None이 아님을 명시적으로 확인 (Pylance 경고 해결 및 런타임 안정성)
-        assert self.edit_macro_button is not None, "Edit Macro 버튼이 생성되지 않았습니다."
-        self.edit_macro_button.clicked.connect(self._on_edit_macro_button_clicked)
-
-        # self.goto_button이 None이 아님을 명시적으로 확인 (Pylance 경고 해결 및 런타임 안정성)
-        assert self.goto_button is not None, "GoTo 버튼이 생성되지 않았습니다."
-        self.goto_button.clicked.connect(self._on_goto_btn_clicked) # type: ignore
-
-        # 매크로 버튼 클릭 이벤트 연결
-        # 보관함에 저장된 모든 매크로 버튼에 대해 연결을 수행
-        for macro_id, btn in self.macro_btn_map.items():
-            assert btn is not None, f"매크로 버튼 '{macro_id}'이 생성되지 않았습니다."
-            # partial을 사용하여 어떤 버튼이 눌렸는지(macro_id)를 함께 넘김
-            btn.clicked.connect(partial(self._on_macro_btn_clicked, macro_id)) # type: ignore
-
-        # Feed Rate 값 변경 이벤트 연결
-        feed_widget = self.coord_widgets.get('FEED RATE')
-        if feed_widget and isinstance(feed_widget, QDoubleSpinBox):
-            # valueChanged는 값이 변경될 때(버튼 클릭 포함) 발생합니다.
-            feed_widget.valueChanged.connect(self._on_feed_rate_changed)            
-
-
-    # ==========================================================
-    # 슬롯
-    # ==========================================================
+    # ===============================================
+    # 이벤트 슬롯 [물리적 신호 처리]
+    #   - 사용자 입력(클릭, 선택)에 대한 신호 처리
+    # =============================================== 
     @pyqtSlot(dict)
     def _on_macro_data_loaded(self, data: Dict[str, Any]):
         """"""
