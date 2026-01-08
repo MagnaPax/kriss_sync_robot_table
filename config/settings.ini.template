@@ -11,17 +11,15 @@ VERSION = 1.0.0                         ; 버전
 DEBUG = True                            ; 로그 레벨에 따라 표시되는 로그를 조절 가능 (개발 중엔 True, 배포 시 False)
 LOG_DIR = logs                          ; 로그 저장 폴더
 APP_ICON = resources/icons/kriss.gif    ; 앱 아이콘 위치
+KRISS_CI = resources/images/kriss_logo.gif  ; 표준연 로고
 
 
 [TwinCAT]
 ; TwinCAT PLC 접속 정보
 ; 로컬 테스트: 127.0.0.1.1.1
-
 ; AMS_NET_ID = 5.143.171.16.1.1 <- PLC 고유 주소
 ; PORT = 851                    <- TwinCAT3 기본 포트
 ; DEMO_MODE = False             <- 데모 모드 : PLC 없이 테스트할 때는 True로 바꾸기
-
-
 AMS_NET_ID = 127.0.0.1.1.1
 PORT = 851
 DEMO_MODE = True
