@@ -6,7 +6,7 @@
 
 [App]
 ; 애플리케이션 기본 설정
-APP_NAME = FANUC-Turntable-Syncronizer  ; 앱 이름
+APP_NAME = Robot-Turntable-Syncronizer  ; 앱 이름
 VERSION = 1.0.0                         ; 버전
 DEBUG = True                            ; 로그 레벨에 따라 표시되는 로그를 조절 가능 (개발 중엔 True, 배포 시 False)
 LOG_DIR = logs                          ; 로그 저장 폴더
