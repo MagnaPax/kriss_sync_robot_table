@@ -132,7 +132,7 @@ class FanucOnlyExecutor(BaseExecutor):
             for idx, row in enumerate(sequence_data, 1):
                 # (A) 중단 요청 확인 (안전장치)
                 if (thread := QThread.currentThread()) and thread.isInterruptionRequested():
-                    return False, "사용자에 의해 작업이 중단되었습니다."
+                    raise InterruptedError("사용자에 의해 작업이 중단되었습니다.")
 
                 adapter.validate_robot_ready() # 매 스텝 시작 전 체크
 
@@ -205,7 +205,7 @@ class FanucOnlyExecutor(BaseExecutor):
                     # (A) 중단 요청 확인
                     if (thread := QThread.currentThread()) and thread.isInterruptionRequested():
                         EVENT_BUS.log.message.emit("대기 중 사용자 중단 요청 감지", "WARNING")
-                        break # 바깥 루프의 중단 로직에서 처리됨
+                        raise InterruptedError("사용자에 의해 작업이 중단되었습니다.")
                     
                     # (B) 이벤트 확인 (0.1초씩 끊어서 대기)
                     if _move_complete_event.wait(timeout=0.1):
@@ -215,9 +215,9 @@ class FanucOnlyExecutor(BaseExecutor):
                 if not success:
                     # 타임아웃인지 중단인지 확인
                     if (thread := QThread.currentThread()) and thread.isInterruptionRequested():
-                        return False, "사용자에 의해 작업이 중단되었습니다."
+                        raise InterruptedError("사용자에 의해 작업이 중단되었습니다.")
                     else:
-                        return False, f"[{self.__class__.__name__}] 로봇 응답 시간 초과 (Timeout 20s)"
+                        raise TimeoutError(f"[{self.__class__.__name__}] 로봇 응답 시간 초과 (Timeout 20s)")
                 
                 EVENT_BUS.log.message.emit(" -> OK (Rising Edge Detected)", "DEBUG")
 
@@ -244,10 +244,16 @@ class FanucOnlyExecutor(BaseExecutor):
             return True, "작업 완료"
         
         except InterruptedError as e:
-            return False, str(e)  # "사용자에 의해 작업이 중단되었습니다." 메시지 그대로 반환
+            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 작업이 사용자에 의해 중단되었습니다. 로봇 정지 신호 전송...", "WARNING")
+            try:
+                adapter.set_emergency_stop() # 명시적 정지 신호
+            except Exception as stop_err:
+                EVENT_BUS.log.message.emit(f"정지 신호 전송 실패: {stop_err}", "ERROR")
+            return False, str(e)
+
 
         except Exception as e:
-
+            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 예외 발생. 로봇 정지 시도...", "ERROR")
             try:
                 adapter.set_emergency_stop()
             except:
@@ -324,8 +330,7 @@ class ServoOnlyExecutor(BaseExecutor):
 
                 # (A) 중단 요청 확인
                 if self._is_interrupted():
-                    adapter.request_immediate_stop()
-                    return False, "사용자에 의해 작업이 중단되었습니다."
+                    raise InterruptedError("사용자에 의해 작업이 중단되었습니다.")
 
                 # (B) UI 진행률 업데이트
                 EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSING)
@@ -433,6 +438,8 @@ class ServoOnlyExecutor(BaseExecutor):
             return True, "모든 서보 시퀀스 작업이 완료되었습니다."
 
         except InterruptedError as e:
+            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 작업이 사용자에 의해 중단되었습니다. 서보 정지 신호 전송...", "WARNING")
+            adapter.request_immediate_stop()
             return False, str(e)
 
         except Exception as e:
@@ -892,7 +899,37 @@ class IntegratedExecutor(BaseExecutor):
             # [Loop End] 모든 시퀀스 수행 완료
             return True, "작업 완료"
 
+        except InterruptedError as e:
+            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 작업이 사용자에 의해 중단되었습니다. 장비 정지 신호 전송...", "WARNING")
+            
+            # 1. 로봇 비상 정지 (IMSP, CycleStop)
+            try:
+                robot.set_emergency_stop()
+            except Exception as r_err:
+                EVENT_BUS.log.message.emit(f"로봇 정지 명령 실패: {r_err}", "ERROR")
+
+            # 2. 로봇 트리거 리셋 (혹시 켜져 있을 경우)
+            try:
+                robot.write_digital_signal(FanucSignal.SYNC_START_TRIGGER_DI44, False)
+            except: pass
+
+            # 3. 서보 비상 정지 (Stop All)
+            try:
+                servo.request_immediate_stop()
+            except Exception as s_err:
+                EVENT_BUS.log.message.emit(f"서보 정지 명령 실패: {s_err}", "ERROR")
+
+            return False, str(e)
+
         except Exception as e:
+            EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 예외 발생. 장비 정지 시도...", "ERROR")
+            
+            # 예외 발생 시에도 안전을 위해 정지 시도
+            try: robot.set_emergency_stop() 
+            except: pass
+            try: servo.request_immediate_stop() 
+            except: pass
+
             return False, f"오류 발생: {e}"
             
         finally:
