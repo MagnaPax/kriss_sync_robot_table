@@ -1,6 +1,6 @@
 # ui/widgets/task_manager_widget.py
 from pathlib import Path
-from PyQt6.QtCore import pyqtSlot
+from PyQt6.QtCore import pyqtSlot, QSettings
 from PyQt6.QtWidgets import (
     QVBoxLayout, 
     QGroupBox, 
@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
 )
 from ui.widgets.base_widget import BaseWidget
 from core.event_bus import EVENT_BUS
+from config.paths import USER_STATE_PATH
 from typing import TYPE_CHECKING, Optional, Dict, Any
 
 
@@ -271,12 +272,17 @@ class TaskManagerWidget(BaseWidget):
             EVENT_BUS.log.message.emit(f"{self.log_prefix} 뷰모델이 연결되지 않았습니다.", "WARNING")
             return
 
-        """
+        # 1. 마지막으로 열었던 경로 불러오기 (없으면 기본값 "/")
+        #     Mac/Linux: ~/.config/KRISS/RobotTable.conf (INI format)
+        #     Windows: Registry or INI
+        settings = QSettings(str(USER_STATE_PATH), QSettings.Format.IniFormat)
+        last_dir = settings.value("last_sequence_dir", "/")
+
         # QFileDialog를 사용하여 문자열 경로 획득
         file_path_result = QFileDialog.getOpenFileName(
             self,
             "시퀀스 파일 선택",
-            "/",
+            str(last_dir),
             "시퀀스 파일 (*.csv)"
         )
 
@@ -285,12 +291,16 @@ class TaskManagerWidget(BaseWidget):
             return
 
         file_path_str = file_path_result[0]
+        
+        # 2. 파일 선택 성공 시, 해당 폴더 경로 저장
+        new_dir = str(Path(file_path_str).parent)
+        settings.setValue("last_sequence_dir", new_dir)
+        
         """
-
         test_file_root_path = "D:/WORKSPACE/Projects_Dex/kriss_robot_sync/_for_tests_on_the_field/테스트용데이터/"
         file_path_str = test_file_root_path + "20231218_203627_spiral.csv"
         file_path_str = test_file_root_path + "sequence_sample.csv"
-
+        """
 
         file_path_obj = Path(file_path_str)
 
