@@ -51,11 +51,7 @@ class LeftPanel(QFrame):
 
 
         # 바탕 레이아웃에 위젯 추가
-        """
-        main_layout.addWidget(self.logo_widget,  stretch=10)    # 10%
-        main_layout.addWidget(turntable_group,   stretch=35)    # 35%
-        main_layout.addWidget(target_position,   stretch=40)    # 45%
-        main_layout.addWidget(servo_control,     stretch=15)    # 15%
-        """
-        main_layout.addWidget(target_position,   stretch=30)
-        main_layout.addWidget(servo_control,     stretch=30)
+        # main_layout.addWidget(turntable_group,   stretch=5)
+        main_layout.addWidget(self.logo_widget,  stretch=10)
+        main_layout.addWidget(target_position,   stretch=45)
+        main_layout.addWidget(servo_control,     stretch=45)

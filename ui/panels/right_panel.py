@@ -40,7 +40,6 @@ class RightPanel(QFrame):
         logs_layout.addWidget(log_batch_completion)
 
 
-        # progress_bar.setStyleSheet("color: black; border: 1px solid black;")
         log_robot_movement.setStyleSheet("color: black; border: 1px solid yellow;")
         log_batch_completion.setStyleSheet("color: black; border: 1px solid yellow;")
 
