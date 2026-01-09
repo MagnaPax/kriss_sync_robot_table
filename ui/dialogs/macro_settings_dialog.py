@@ -18,6 +18,7 @@ from PyQt6.QtGui import QIcon
 from typing import Dict, Any, Tuple, cast, Optional, Type
 from functools import partial
 
+from core.settings import SETTINGS
 from config.paths import CONFIG_MACRO_PATH
 
 from services.macro_service import MacroService as Service
@@ -66,9 +67,7 @@ class MacroSettingsDialog(QDialog):
 
 
     def _init_ui(self):
-        self.setWindowTitle("Macro Settings")
-        self.setWindowIcon(QIcon("resources/icons/kriss.gif"))
-        self.setModal(True)     # 모달로 실행: Dialog 를 닫을 때까지 부모 윈도우의 조작을 막는다
+        self.setObjectName("macro_settings_dialog")
         self.setMinimumWidth(1200)
 
         # --- 메인 레이아웃(가로 정렬) --- #
@@ -114,6 +113,7 @@ class MacroSettingsDialog(QDialog):
         # QGroupBox 컨테이너 생성
         # 메인 레이아웃을 담는다
         group_box = QGroupBox(macro_id)
+        group_box.setObjectName(f"macro_group_{macro_id.replace(' ', '_')}")
         
         # 메인 레이아웃(세로 정렬)
         group_v_layout = QVBoxLayout(group_box)
@@ -124,6 +124,7 @@ class MacroSettingsDialog(QDialog):
 
         # 레이블로 사용할 매크로 명칭 입력 - 사용자 키보드 입력
         name_input = QLineEdit()
+        name_input.setObjectName("macro_name_input")
         form_layout.addRow(QLabel("Name:"), name_input)
 
         # 좌표 입력 필드 생성
@@ -132,6 +133,7 @@ class MacroSettingsDialog(QDialog):
         # X, Y, Z (mm)
         for axis in ['X', 'Y', 'Z']:
             spin_box = QDoubleSpinBox()
+            spin_box.setObjectName(f"macro_spin_{axis.lower()}")
             spin_box.setRange(-99999.0, 99999.0)
             spin_box.setDecimals(3)
             spin_box.setSuffix(" mm")
@@ -141,6 +143,7 @@ class MacroSettingsDialog(QDialog):
         # W, P, R (deg)
         for axis in ['W', 'P', 'R']:
             spin_box = QDoubleSpinBox()
+            spin_box.setObjectName(f"macro_spin_{axis.lower()}")
             spin_box.setRange(-360.0, 360.0)
             spin_box.setDecimals(3)
             spin_box.setSuffix(" °")
@@ -149,6 +152,7 @@ class MacroSettingsDialog(QDialog):
 
         # 저장 버튼
         save_btn = QPushButton("Save")
+        save_btn.setObjectName("macro_save_btn")
         
         # 메인 레이아웃에 폼과 버튼 쌓기
         group_v_layout.addLayout(form_layout)
