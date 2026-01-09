@@ -1020,6 +1020,40 @@ class TwinCATCommander(QObject):
 
 
     # ================================= #
+    # --- 비상 정지 명령 (로봇&서보)--- #
+    # ================================= #
+    def emergency_stop(self) -> tuple[bool, str]:
+        """
+        [비상 정지] 로봇과 서보를 즉시 정지시킴
+        """
+        results = []
+        
+        # 1. 로봇 비상 정지 (CycleStop)
+        if self.robot:
+            try:
+                self.robot.set_emergency_stop()
+                results.append("로봇정지: 성공")
+            except Exception as e:
+                results.append(f"로봇정지: 실패({e})")
+        else:
+            results.append("로봇정지: 연결없음")
+
+        # 2. 서보 비상 정지 (Power Off)
+        if self.servo:
+            try:
+                self.servo.turn_off_all_servos()
+                results.append("서보정지: 성공 (전원 차단)")
+            except Exception as e:
+                results.append(f"서보정지: 실패({e})")
+        else:
+            results.append("서보정지: 연결없음")
+            
+        return True, ", ".join(results)
+
+
+
+
+    # ================================= #
     # --- 로봇에게 내리는 명령들 --- #
     # ================================= #
     def apply_user_feed_rate_when_moving_robot(self, feed_rate: float) -> str | None:
@@ -1096,7 +1130,6 @@ class TwinCATCommander(QObject):
 
                 return False, f"종료 신호 전송 실패: {e}"
         return False, "로봇이 연결되지 않았습니다."
-
 
 
     # ================================= #

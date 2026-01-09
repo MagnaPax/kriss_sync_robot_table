@@ -246,6 +246,18 @@ class ServoAdapter:
         except Exception:
             return False
 
+    def turn_off_all_servos(self):
+        """
+        [비상 정지] 모든 서보 전원 즉시 차단
+        """
+        try:
+            for axis in ServoAxis:
+                # 서보 전원 (bServoOn) 종료
+                self.set_servo_state(axis.value, False)
+        except Exception as e:
+            # 비상 정지 중 에러는 로깅만 하고 무시 (최대한 끄는 게 중요)
+            print(f"Error during turn_off_all: {e}")
+
 
 
     # ==========================================================================
