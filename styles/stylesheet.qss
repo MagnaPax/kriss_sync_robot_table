@@ -512,8 +512,8 @@ QLabel {
 
 /* 
     [Waypoints Result Status Colors]
-    Delegate에서 Dummy QLabel을 사용하여 이 스타일을 읽어옵니다.
-    usage="waypoint_result" 속성을 가진 라벨을 통해 색상을 매핑합니다.
+    Delegate에서 Dummy QLabel을 사용하여 이 스타일을 읽어온다.
+    usage="waypoint_result" 속성을 가진 라벨을 통해 색상을 매핑한다.
 */
 QLabel[usage="waypoint_result"][status="processed"], 
 QLabel[usage="waypoint_result"][status="success"],
@@ -534,8 +534,8 @@ QLabel[usage="waypoint_result"][status="failed"] {
 QLabel[usage="waypoint_result"][status="unprocessed"],
 QLabel[usage="waypoint_result"][status="wait"],
 QLabel[usage="waypoint_result"][status="pending"] {
-    background-color: transparent; /* 배경 투명 (테이블 배경과 조화) */
-    color: #555555;            /* 글자색을 약간 더 진하게 (가독성 확보) */
+    background-color: #eef2f7;
+    color: #475569;
 }
 
 

@@ -38,7 +38,8 @@ class WaypointsDelegate(QStyledItemDelegate):
     def __init__(self, parent=None):
         super().__init__(parent)
         # 스타일 추출용 Proxy Widget
-        self._proxy_label = QLabel()
+        # 부모를 지정해야 앱 전체 스타일시트(QSS)를 상속받을 수 있다
+        self._proxy_label = QLabel(parent)
         self._proxy_label.setVisible(False)
         self._proxy_label.setAutoFillBackground(True) # Palette에 배경색이 반영되도록 설정
         self._proxy_label.setProperty("usage", "waypoint_result") # QSS 선택자용
@@ -64,7 +65,7 @@ class WaypointsDelegate(QStyledItemDelegate):
             qss_status = TaskStatus.PENDING
 
         # 4. Proxy Widget에 속성 설정 및 스타일 폴리싱(Polishing)
-        #    주의: Property 변경 후 반드시 unpolish -> polish 과정을 거쳐야 QSS가 재계산됨
+        #    Property 변경 후 반드시 unpolish -> polish 과정을 거쳐야 QSS가 재계산된다
         self._proxy_label.setProperty("status", qss_status)
         style = self._proxy_label.style()
         style.unpolish(self._proxy_label)
@@ -74,15 +75,22 @@ class WaypointsDelegate(QStyledItemDelegate):
         bg_color = self._proxy_label.palette().color(QPalette.ColorRole.Window)
         text_color = self._proxy_label.palette().color(QPalette.ColorRole.WindowText)
         
-        # 6. 배경 칠하기 (선택된 행이 아닐 때만 커스텀 배경 적용)
-        #    선택된 행은 QSS의 selection-background-color가 우선순위를 가짐
-        if not (option.state & QStyle.StateFlag.State_Selected):
+        # 6. 그리기 (Drawing)
+        #    선택된 행(Selected): 기본 스타일(super)에 위임하여 하이라이트 처리 유지
+        #    일반 행(Normal): QSS가 적용된 배경색과 글자색으로 직접 그림 (super 호출 시 QSS 배경색 덮어쓰기 방지)
+        if option.state & QStyle.StateFlag.State_Selected:
+            # 선택된 상태일 때는 그냥 기본 동작 (선택색 #C7DBF8 사용)
+            super().paint(painter, option, index)
+        else:
+            # 1) 배경 그리기
             painter.fillRect(option.rect, bg_color)
-
-        # 7. 옵션의 팔레트 교체 (글자색 적용)
-        option.palette.setColor(QPalette.ColorRole.Text, text_color)
-        
-        super().paint(painter, option, index)
+            
+            # 2) 글자 그리기
+            painter.save()
+            painter.setPen(text_color)
+            # 텍스트 중앙 정렬
+            painter.drawText(option.rect, Qt.AlignmentFlag.AlignCenter, status_str)
+            painter.restore()
 
 
 class WaypointsWidget(BaseWidget):
