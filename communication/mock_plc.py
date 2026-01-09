@@ -91,6 +91,11 @@ class MockConnection:
         # 현재 IntegratedExecutor는 Servo만 Batch로 쏘고 Robot은 개별 Write함.
         pass
 
+    def write_control(self, ads_state, device_state, data, plc_type):
+        """TwinCAT 상태 제어 모킹 (ensure_run_mode 지원)"""
+        self.logger.info(f"[MOCK] write_control 호출됨: State={ads_state}")
+        # 아무것도 안 함 (이미 read_state에서 항상 RUN을 리턴하므로)
+
     # ==========================================================
     # Notification (Callback) Support
     # ==========================================================

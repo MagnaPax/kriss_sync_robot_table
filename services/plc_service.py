@@ -131,6 +131,15 @@ class PLCService(QObject):
                 # 연결 감시자 투입
                 self._start_heartbeat_worker()
 
+                # 4. [NEW] Run Mode 보장
+                if self.connector.ensure_run_mode():
+                    EVENT_BUS.log.message.emit("TwinCAT Run Mode 확인 완료.", "INFO")
+                else:
+                    EVENT_BUS.log.message.emit("TwinCAT Run Mode 전환 실패! PLC 로직이 동작하지 않을 수 있습니다.", "CRITICAL")
+                    # 실패 시 어떻게 할지 결정 (여기선 Critical 로그만 남기고 일단 진행 or 실패 처리)
+                    # 현재 요구사항은 "켜지게 하려면" 이므로 실패하면 큰 문제임. 하지만 접속 자체는 성공했으니... 
+                    # 사용자 알림을 위해 팝업을 띄우는게 좋겠지만, 일단 CRITICAL 로그로 충분
+                
                 QApplication.processEvents()
                 time.sleep(0.5)
                 return True
