@@ -429,7 +429,7 @@ QLabel {
 
 
 /* WaypointsWidget (QTableWidget) 스타일 */
-/* 1. 그룹박스 스타일 (TargetPosition, TaskManager와 통일) */
+/* 1. 그룹박스 스타일 */
 #waypoints_groupbox {
     border: 1px solid #94a3b8;
     border-radius: 6px;
@@ -446,27 +446,33 @@ QLabel {
 }
 
 /* 2. 테이블 기본 스타일 */
-#waypoints_widget QTableView {
-    color: black;
-    /* background-color: #ffffff; */
+/* 컨테이너에 그라데이션 배경 적용 (두 테이블 뒤에 깔림) */
+#waypoints_container {
     background: qlineargradient(
         x1:1, y1:0, x2:0, y2:1,
         stop:0 #e2e8f0, stop:1 #cbd5e1
     );
-    gridline-color: #e0e0e0;     /* 격자 색상 (연한 회색) */
     border: 1px solid #ced4da;
     border-radius: 4px;
-    selection-background-color: #DAE8FC; /* 부드러운 하늘색 (눈이 편한 색) */
+}
+
+#waypoints_widget QTableView {
+    color: black;
+    background-color: transparent; /* 투명하게 해서 컨테이너 배경이 보이도록 */
+    border: none; /* 테두리는 컨테이너가 담당 */
+    gridline-color: #e0e0e0;     /* 격자 색상 (연한 회색) */
+    selection-background-color: #C7DBF8; /* 현재 진행(선택) row 색깔 */
     selection-color: #000000;            /* 검은색 글자 */
 }
 
 /* 3. 헤더 (Header) 스타일 */
 #waypoints_widget QHeaderView::section {
-    background-color: #f8f9fa;   /* 헤더 배경 (아주 연한 회색) */
+    background-color: #d1d9e6;
     color: #495057;              /* 헤더 글자색 (진한 회색) */
     padding: 1px;
-    border: 1px solid #dee2e6;
-    border-top: none;            /* 상단 테두리 제거 (깔끔하게) */
+    border: none;
+    border-right: 1px solid #dee2e6;
+    border-bottom: 1px solid #dee2e6;
     font-weight: bold;
 }
 
@@ -475,6 +481,22 @@ QLabel {
 #waypoints_widget QTableView::item {
     color: #333333;
     padding: 4px; /* 셀 내부 여백 */
+    background-color: #f3f6fa;  /* 모든 행 배경색 */
+    border-bottom: 1px solid #e0e0e0; /* 행 구분선 추가 */
+}
+
+#waypoints_widget QTableView::item:alternate {
+    background-color: #f3f6fa; /* 짝수 행도 동일하게 */
+}
+
+/* 고정 테이블 스타일링 (경계면 자연스럽게) */
+#frozen_table {
+    border-right: 1px solid #d0d0d0; /* ID 컬럼 구분선 */
+}
+
+#waypoints_widget QTableView::item:selected {
+    background-color: #B0C4DE; /* 선택된 행 (위의 selection-background-color와 일치) */
+    color: #000000;
 }
 
 /* 마우스 호버 시 행 스타일 */
@@ -483,9 +505,9 @@ QLabel {
     color: #000000;            /* 호버 시 완전 검은색 */
 }
 
-/* (참고) 짝수/홀수 행 배경색은 QSS에서 alternate-background-color 속성으로 제어 */
+/* 짝수/홀수 행 배경색은 QSS에서 alternate-background-color 속성으로 제어 */
 #waypoints_widget QTableView {
-    alternate-background-color: #fafbfc; /* 더 연한 회색 줄무늬 */
+    alternate-background-color: #ffffff; /* 줄무늬 효과 제거 (흰색 통일) */
 }
 
 /* 
@@ -498,12 +520,6 @@ QLabel[usage="waypoint_result"][status="success"],
 QLabel[usage="waypoint_result"][status="completed"] {
     background-color: #E8F5E9; /* 연한 초록색 배경 */
     color: #2E7D32;            /* 진한 초록색 글자 */
-    font-weight: bold;
-}
-
-QLabel[usage="waypoint_result"][status="processing"] {
-    background-color: #E3F2FD; /* 연한 파란색 배경 */
-    color: #1976D2;            /* 진한 파란색 글자 */
     font-weight: bold;
 }
 

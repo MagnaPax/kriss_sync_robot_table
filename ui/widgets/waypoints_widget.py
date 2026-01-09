@@ -5,6 +5,7 @@ from PyQt6.QtCore import Qt, pyqtSlot
 from PyQt6.QtWidgets import (
     QApplication,
     QVBoxLayout, 
+    QHBoxLayout,
     QHeaderView, 
     QGroupBox,
     QAbstractItemView,
@@ -120,27 +121,54 @@ class WaypointsWidget(BaseWidget):
         group_layout = QVBoxLayout(self.group_box)
         group_layout.setContentsMargins(5, 15, 5, 5) # 상단 여백은 제목 공간 확보
 
-        # --- 스프레드시트 --- #
-        # 테이블 뷰 생성
+        # --- 스프레드시트 컨테이너 (좌우 분할) --- #
+        table_container = QWidget()
+        table_container.setObjectName("waypoints_container") # 스타일링용 ID 부여
+        table_layout = QHBoxLayout(table_container)
+        table_layout.setContentsMargins(0, 0, 0, 0)
+        table_layout.setSpacing(0) # 두 테이블 사이 간격 제거
+
+        # 1. 고정 테이블 (좌측: ID 보여주기용)
+        self.frozen_table_view = QTableView()
+        self.frozen_table_view.setObjectName("frozen_table")
+        
+        # 2. 메인 테이블 (우측: 나머지 데이터)
         self.table_view = QTableView()
-        # 모델 생성 및 연결
+        
+        # 모델 생성 및 연결 (하나의 모델을 공유!)
         self.model = WaypointsTableModel()
+        self.frozen_table_view.setModel(self.model)
         self.table_view.setModel(self.model)
-        # 스타일 설정
+        
+        # 선택 모델 공유 (Row 선택 시 같이 선택됨)
+        self.frozen_table_view.setSelectionModel(self.table_view.selectionModel())
+
+        # 스타일 및 동작 설정
         self._setup_table_style()
         
+        # 스크롤바 동기화
+        # 메인 테이블의 스크롤바가 움직이면 -> 고정 테이블도 같이 움직임
+        self.table_view.verticalScrollBar().valueChanged.connect(
+            self.frozen_table_view.verticalScrollBar().setValue
+        )
+        self.frozen_table_view.verticalScrollBar().valueChanged.connect(
+            self.table_view.verticalScrollBar().setValue
+        )
+
         # 델리게이트 설정 (Result 컬럼 스타일링)
         # 주의: Result 컬럼이 항상 0번이라고 가정 (모델에서 insert(0) 했음)
         self.delegate = WaypointsDelegate(self.table_view)
-        self.table_view.setItemDelegateForColumn(0, self.delegate)
+        # 메인 테이블에만 적용하면 됨 (ID 컬럼엔 스타일 필요 없으므로)
+        # 하지만 update_data에서 동적으로 적용하므로 여기서는 패스
 
         # 조립
-        group_layout.addWidget(self.table_view) # 테이블 -> 그룹박스
+        table_layout.addWidget(self.frozen_table_view)
+        table_layout.addWidget(self.table_view)
+        
+        group_layout.addWidget(table_container) # 컨테이너 -> 그룹박스
         main_layout.addWidget(self.group_box)   # 그룹박스 -> 메인 위젯
 
         # 사용자의 행 선택이 바뀌면(마우스, 키보드) 실행된다
-        #   := (왈러스 연산자): 변수에 selectionModel()의 반환값을 할당함과 동시에
-        #       그 값을 if 조건문에서 바로 사용할 수 있게 해준다
         if (selection_model := self.table_view.selectionModel()) is not None:
             selection_model.selectionChanged.connect(self._on_row_selected)
 
@@ -156,36 +184,40 @@ class WaypointsWidget(BaseWidget):
         # VM의 진행률 업데이트 시그널 구독
         self.vm.progress_changed.connect(self._on_progress_updated)
 
-
-
-
-
     # =========================================
     # UI 구성 및 동적 스타일 
     #   - 테이블 컬럼/헤더 설정, 폰트 크기 조절
     # =========================================
     def _setup_table_style(self):
-        """테이블 스타일 및 동작 설정(한 번만 설정하면 되는 것들)"""
+        """테이블 스타일 및 동작 설정"""
 
-        # 수정 불가 / 행 단위 선택 / 단일 선택
-        self.table_view.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.table_view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.table_view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.table_view.setAlternatingRowColors(True)
-        
-        self.table_view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded) # 가로 스크롤바 활성화
+        for tv in [self.frozen_table_view, self.table_view]:
+            # 공통 설정
+            tv.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+            tv.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+            tv.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+            tv.setAlternatingRowColors(False) # 모든 행의 배경색 통일
+            
+            # 수직 헤더(행 번호) 숨김
+            if (v_header := tv.verticalHeader()) is not None:
+                v_header.setVisible(False)
+
+        # --- 고정 테이블 전용 설정 ---
+        self.frozen_table_view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff) # 가로 스크롤바 제거
+        self.frozen_table_view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)   # 세로 스크롤바 제거 (메인에 의존)
+        self.frozen_table_view.setFixedWidth(60) # ID 컬럼 너비만큼 고정 (나중에 동적으로 조절 가능)
+        self.frozen_table_view.setFocusPolicy(Qt.FocusPolicy.NoFocus) # 포커스 뺏어가지 않도록
+
+        # --- 메인 테이블 전용 설정 ---
+        self.table_view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
         # 헤더 설정
         if (h_header := self.table_view.horizontalHeader()) is not None:
-            # ResizeMode.Stretch: 모든 컬럼을 화면 너비에 억지로 맞춤 (스크롤바 안 생김)
-            # ResizeMode.Interactive: 사용자가 조절 가능 + 내용물 많으면 스크롤바 생김
-            # ResizeMode.ResizeToContents: 내용물(헤더 포함) 길이에 맞춰 자동 조절
             h_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents) 
-            h_header.setStretchLastSection(True) # 마지막 컬럼은 남은 공간 채우기
-        
-        if (v_header := self.table_view.verticalHeader()) is not None:
-            v_header.setVisible(False) # 행 번호 숨김
-
+            h_header.setStretchLastSection(True)
+            
+        if (fh_header := self.frozen_table_view.horizontalHeader()) is not None:
+            fh_header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed) # 고정 너비
 
 
     # ===============================================
@@ -198,19 +230,23 @@ class WaypointsWidget(BaseWidget):
         """
         if not data: return
 
-        # EVENT_BUS.log.message.emit(f"{self.log_prefix} 데이터 로드: {len(data)}건\n받은데이터\n{data}", "DEBUG")
-
-        # UI 갱신을 위해 잠시 대기 (다이얼로그가 뜨자마자 멈추는 것 방지)
+        # UI 갱신을 위해 잠시 대기
         QApplication.processEvents()
 
         try:
-            # --- [대용량 데이터 처리: 이 구간에서 UI 메인 스레드 멈춤 발생] ---
-            # 모델에게 데이터 전달 (여기서 beginResetModel이 호출되며 화면 갱신됨)
-            # 수천 건의 데이터를 QTableView에 그리는 작업은 메인 스레드에서만 가능하므로 어쩔 수 없이 블로킹됨
+            # 모델에게 데이터 전달
             self.model.set_data(data)
 
-            # [Delegate 재설정] 데이터 로드 후 컬럼 순서가 바뀔 수 있으므로, Status 컬럼을 찾아 Delegate를 다시 걸어준다.
-            # 모델의 headerData를 사용하여 Status 컬럼의 인덱스를 찾는다.
+            # --- 컬럼 숨김/보임 처리 (핵심) ---
+            # 1. 고정 테이블: 0번 컬럼(ID) 빼고 다 숨김
+            for col in range(1, self.model.columnCount()):
+                self.frozen_table_view.setColumnHidden(col, True)
+            self.frozen_table_view.setColumnWidth(0, 60) # ID 컬럼 너비
+
+            # 2. 메인 테이블: 0번 컬럼(ID) 숨김
+            self.table_view.setColumnHidden(0, True)
+
+            # [Delegate 재설정] Status 컬럼 찾기
             status_col_idx = -1
             col_count = self.model.columnCount()
             for col in range(col_count):
@@ -220,10 +256,9 @@ class WaypointsWidget(BaseWidget):
                     break
             
             if status_col_idx != -1:
-                # 찾았으면 해당 컬럼에만 Delegate 적용
+                # 메인 테이블의 해당 컬럼에만 Delegate 적용
                 self.table_view.setItemDelegateForColumn(status_col_idx, self.delegate)
             else:
-                # 못 찾았으면 (혹시 모르니) 1번 컬럼에 적용 (기본값)
                 self.table_view.setItemDelegateForColumn(1, self.delegate)
 
 
@@ -233,10 +268,7 @@ class WaypointsWidget(BaseWidget):
             EVENT_BUS.log.message.emit(f"{self.log_prefix} 데이터 렌더링 중 에러: {e}", "ERROR")
             
         finally:
-            # 로딩 완료 방송 ('파일 읽는 중...' 다이얼로그 닫기)
             EVENT_BUS.system.loading_finished.emit()
-            
-            # 완료 메시지
             EVENT_BUS.log.message.emit(f"{self.log_prefix} 데이터 렌더링 완료 {len(data)}건", "INFO")
 
 
@@ -244,7 +276,7 @@ class WaypointsWidget(BaseWidget):
         """화면을 깨끗하게 지우고 초기화"""
         EVENT_BUS.log.message.emit(f"{self.log_prefix} 위젯 초기화", "DEBUG")
 
-        self.model.set_data([]) # 빈 리스트 전달 -> 초기화
+        self.model.set_data([]) 
         self.group_box.setTitle("Waypoints")
         super().clear_widget()
 
@@ -256,21 +288,16 @@ class WaypointsWidget(BaseWidget):
     @pyqtSlot()
     def _on_row_selected(self):
         """사용자가 스프레드시트의 행을 선택 했을 때 실행"""
-
         # 현재 선택된 인덱스 가져오기
         if (selection_model := self.table_view.selectionModel()) is None: return
         indexes = selection_model.selectedRows()
         if not indexes: return
 
-        # 첫 번째 선택된 행의 인덱스
         idx = indexes[0]
         row = idx.row()
-
-        # Model에게 해당 행의 '진짜 데이터'를 달라고 요청
         row_data = self.model.get_row_data(row)
 
         if row_data:
-            # 이벤트 버스에 실어서 방송 송출
             EVENT_BUS.data.waypoints_selected.emit(row_data)
             EVENT_BUS.log.message.emit(f"{self.log_prefix} 사용자가 선택한 행({row}): {row_data['id']}", "DEBUG")
 
@@ -278,17 +305,12 @@ class WaypointsWidget(BaseWidget):
     def _on_progress_updated(self, step: int, total: int, status: str):
         """
         [실시간 시각화] 로봇이 이동 중일 때 호출됨
-        
-        Args:
-            step (int): 현재 스텝 (1부터 시작)
-            total (int): 전체 스텝 수
-            status (str): 진행 상태 ('processed', 'processing', 'unprocessed')
         """
         
         # 1. UI용 Row Index 변환 (1-based -> 0-based)
         row = step - 1
         
-        # 2. 모델 상태 업데이트 (글자색 변경 등)
+        # 2. 모델 상태 업데이트
         self.model.update_status(row, status)
 
         # 3. [UX] 현재 실행 중인 행 강조 및 자동 스크롤
@@ -298,11 +320,14 @@ class WaypointsWidget(BaseWidget):
             self.table_view.selectRow(row)
             
             # 해당 행이 화면 중앙에 오도록 자동 스크롤
-            # (매번 하면 어지러울 수 있으니 필요할 때만 하거나 부드럽게 하는게 좋음)
-            # 여기서는 즉시 스크롤 적용
             index = self.model.index(row, 0)
             if index.isValid():
+                # 두 테이블 모두 스크롤 (시그널로 연결되어 있음)
                 self.table_view.scrollTo(index, QAbstractItemView.ScrollHint.PositionAtCenter)
+                
+                # 강제로 중앙 정렬 보정 (가끔 PositionAtCenter가 밀리는 현상 방지)
+                # 특히 데이터가 추가되거나 빠르게 변할 때 유용함
+                self.frozen_table_view.scrollTo(index, QAbstractItemView.ScrollHint.PositionAtCenter)
 
 
 
