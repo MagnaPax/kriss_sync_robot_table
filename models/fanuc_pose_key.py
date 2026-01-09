@@ -91,10 +91,9 @@ class FanucSignal(str, Enum):
     구조체 방식에서는 모델(FANUCPose)의 to_struct() 메서드에서 '이름(Key)'으로 값을 찾는다
     (Service -> Model 전달용)
     """
-    # [입력] Robot <- PLC (보내는 신호)
-    # 키 이름은 FANUCPose.to_struct() 메서드 내부 로직과 일치해야 함
     # =========================================================
     # [입력] Robot <- PLC (보내는 신호: Trigger/DataReady)
+    # 키 이름은 FANUCPose.to_struct() 메서드 내부 로직과 일치해야 함
     # =========================================================
     IMSP =          "IMSP"          # Immediate Stop
     HOLD =          "Hold"          # Hold

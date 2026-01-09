@@ -381,9 +381,9 @@ class TargetPositionWidget(BaseWidget):
         실제 UI 업데이트 로직 (safe_update_data에 의해 호출됨)
         """
         if not pose: return
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} 입력창에 넣을 데이터: {pose}", "DEBUG")
 
-        # [리팩토링] 하드코딩된 매핑 대신 FANUCPoseKey를 사용한 동적 매핑
-        
+        # FANUCPoseKey를 사용한 동적 매핑
         # 1. 로봇 좌표 (X, Y, Z, W, P, R)
         for key_enum in FANUCPoseKey:
             # Data Key: 'x' (소문자) -> pose.x 접근용

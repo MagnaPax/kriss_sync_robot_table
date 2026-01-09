@@ -213,7 +213,9 @@ class FanucCommandPacket(ctypes.Structure):
       High(8bit) + Low(16bit) = 24bit Integer 표현.
     - Check_Bits: 각 축의 이동량이 음수(-)인지 표시하는 부호 비트들의 모음.
 
-    Reference: FanucUI1Struct in 260102.FANUC_FULL_THREADING.py
+    Reference:
+        - FanucUI1Struct in 260102.FANUC_FULL_THREADING.py
+        - PLC Definition: docs/plc/DUT_FANUC_UI1.st
     """
     _pack_ = 1
     _fields_ = [
