@@ -53,6 +53,16 @@ class RobotConfig:
 class ServoConfig:
     move_timeout: float
     busy_timeout: float
+    # 서보 관련 상수 (기본값 및 범위)
+    turntable_deg_default: float
+    turntable_deg_min: float
+    turntable_deg_max: float
+    turntable_rpm_default: float
+    turntable_rpm_min: float
+    turntable_rpm_max: float
+    tool_rpm_default: float
+    tool_rpm_min: float
+    tool_rpm_max: float
 
 
 # =============================================================================
@@ -167,7 +177,19 @@ class Settings:
         section: Any = self._config['Servo'] if 'Servo' in self._config else {}
         return ServoConfig(
             move_timeout=float(section.get('SERVO_MOVE_TIMEOUT_SEC', '180.0')),
-            busy_timeout=float(section.get('SERVO_BUSY_TIMEOUT_SEC', '5.0'))
+            busy_timeout=float(section.get('SERVO_BUSY_TIMEOUT_SEC', '5.0')),
+            
+            turntable_deg_default=float(section.get('TURNTABLE_DEG_DEFAULT', '0')),
+            turntable_deg_min=float(section.get('TURNTABLE_DEG_MIN', '-99999')),
+            turntable_deg_max=float(section.get('TURNTABLE_DEG_MAX', '99999')),
+            
+            turntable_rpm_default=float(section.get('TURNTABLE_RPM_DEFAULT', '5')),
+            turntable_rpm_min=float(section.get('TURNTABLE_RPM_MIN', '0')),
+            turntable_rpm_max=float(section.get('TURNTABLE_RPM_MAX', '2000')),
+            
+            tool_rpm_default=float(section.get('TOOL_RPM_DEFAULT', '10')),
+            tool_rpm_min=float(section.get('TOOL_RPM_MIN', '0')),
+            tool_rpm_max=float(section.get('TOOL_RPM_MAX', '3000')),
         )
 
 # 전역 인스턴스
