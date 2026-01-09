@@ -207,22 +207,36 @@ class MainWindow(QMainWindow):
             # 단순 메시지 창을 위한 QDialog 구성
             self.loading_dialog = QDialog(self)
             self.loading_dialog.setObjectName("loading_dialog") # QSS 스타일링용 ID
-            self.loading_dialog.setProperty("type", "success")   # QSS 타입 (성공/진행 - 초록색)
-            self.loading_dialog.setWindowTitle("알림")
-            self.loading_dialog.setWindowModality(Qt.WindowModality.WindowModal)
             
-            # 레이아웃과 레이블 추가
-            layout = QVBoxLayout(self.loading_dialog)
+            # Frameless 설정
+            self.loading_dialog.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
+            self.loading_dialog.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+            self.loading_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+
+            # 메인 레이아웃 (여백 없음)
+            main_layout = QVBoxLayout(self.loading_dialog)
+            main_layout.setContentsMargins(0, 0, 0, 0)
+            
+            # 배경 위젯 (실제 다이얼로그 디자인)
+            self.loading_bg = QWidget(self.loading_dialog)
+            self.loading_bg.setObjectName("loading_bg")
+            self.loading_bg.setProperty("type", "success") # QSS 타입
+            main_layout.addWidget(self.loading_bg)
+
+            # 내용 레이아웃
+            content_layout = QVBoxLayout(self.loading_bg)
+            content_layout.setContentsMargins(20, 20, 20, 20)
+            
             self.loading_label = QLabel(self.loading_dialog)
             self.loading_label.setObjectName("loading_label") # QSS 스타일링용 ID
             self.loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.loading_label.setWordWrap(True)
-            layout.addWidget(self.loading_label)
+            content_layout.addWidget(self.loading_label)
 
             # 창 크기 고정 및 디자인 설정
             self.loading_dialog.setFixedSize(300, 100)
-            # 도움말 버튼(?) 제거
-            self.loading_dialog.setWindowFlags(self.loading_dialog.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+            # 도움말 버튼(?) 제거 (Frameless라 사실 의미없음)
+            # self.loading_dialog.setWindowFlags(self.loading_dialog.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
 
         self.loading_label.setText(message)
         self.loading_dialog.show()
