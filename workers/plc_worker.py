@@ -75,6 +75,10 @@ class PLCWorker(QObject):
                     is_success = True
                     msg = f"TwinCAT 연결 성공 ({self.connector.ams_net_id})"
 
+                # --- 비상 정지 (전체) --- #
+                case 'EMERGENCY_STOP':
+                    is_success, msg = self.commander.emergency_stop()
+
 
                 # --- 이동 명령 (Commander 사용) --- #
                 case 'MOVE':
@@ -101,6 +105,7 @@ class PLCWorker(QObject):
                     is_success, msg = self.commander.home_servos_safely()        # 안전 원점 복귀
                 case 'SERVO_RESET':
                     is_success, msg = self.commander.reset_servos_safely()      # 서보모터 축의 에러 해제
+                
                 case _:
                     msg = "알 수 없는 명령입니다."
 

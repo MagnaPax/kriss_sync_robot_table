@@ -15,6 +15,7 @@ from view_models.waypoints_viewmodel import WaypointsViewModel
 
 
 class MainViewModel(QObject):
+    """시스템 전체의 생명주기와 상태를 관리"""
 
     # 로컬 시그널 (View가 UI 갱신을 위해 구독)
     # View는 한 개의 ViewModel만 갖기 때문에
@@ -99,6 +100,10 @@ class MainViewModel(QObject):
     def request_disconnect(self):
         """연결 해제 요청"""
         self._service.disconnect_plc()
+
+    def emergency_stop(self):
+        """비상 정지 요청"""
+        self._service.trigger_emergency_stop()
 
     def retry_connection(self, ui_callback: Callable[..., Any]) -> bool:
         """

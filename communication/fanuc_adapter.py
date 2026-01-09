@@ -68,11 +68,22 @@ class FanucAdapter:
         # 구조체 타입(FanucCommandPacket)을 명시적으로 전달해야 함
         self._plc.write_by_name("MAIN.Robot1._UI1", packet, FanucCommandPacket)
 
+    def set_emergency_stop(self):
+        """[비상 정지] IMSP 신호 전송"""
+        cmd_signals = {
+            FanucSignal.IMSP: True, FanucSignal.HOLD: True, FanucSignal.SFSP: True, FanucSignal.ENABLE: False,
+            FanucSignal.CYCLE_STOP: True, FanucSignal.START: False, FanucSignal.RSR2: False, FanucSignal.RSR3: False, FanucSignal.DATA_READY_DI43: False
+        }
+        # 비상 정지 신호를 보낼 때도 로봇 좌표는 필요 없다.
+        # 'IMSP' 신호를 확실하게 전달하는 것이 핵심
+        packet = FANUCPose.create_signal_only_packet(cmd_signals)
+        self.write_command_packet(packet)        
+
     def set_initial_signals(self):
         """[초기화] 로봇 시작 신호 초기화 (RSR2=False, DI43=False 등)"""
         cmd_signals = {
-            'IMSP': True, 'Hold': True, 'SFSP': True, 'Enable': True,
-            'CycleStop': False, 'Start': False, 'RSR2': False, 'RSR3': False, 'DI43': False
+            FanucSignal.IMSP: True, FanucSignal.HOLD: True, FanucSignal.SFSP: True, FanucSignal.ENABLE: True,
+            FanucSignal.CYCLE_STOP: False, FanucSignal.START: False, FanucSignal.RSR2: False, FanucSignal.RSR3: False, FanucSignal.DATA_READY_DI43: False
         }
         # 로봇을 움직이려는 게 아니라 초기화 신호(Reset)만 보냄
         # 따라서 좌표값은 의미가 없으므로 '신호 전송용 패킷'을 생성해서 보낸다
@@ -89,17 +100,7 @@ class FanucAdapter:
         """(Legacy Alias)"""
         self.set_initial_signals()
 
-    def set_emergency_stop(self):
-        """[비상 정지] CycleStop 신호 전송"""
-        cmd_signals = {
-            'IMSP': True, 'Hold': True, 'SFSP': True, 'Enable': False, # Enable 꺼짐
-            'CycleStop': True,  # CycleStop 켜짐
-            'Start': False, 'RSR2': False, 'RSR3': False, 'DI43': False
-        }
-        # 비상 정지 신호를 보낼 때도 좌표는 중요하지 않다.
-        # 'CycleStop' 신호를 확실하게 전달하는 것이 핵심
-        packet = FANUCPose.create_signal_only_packet(cmd_signals)
-        self.write_command_packet(packet)
+
 
 
     # ==========================================================================

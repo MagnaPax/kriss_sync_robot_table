@@ -396,6 +396,17 @@ class PLCService(QObject):
         # 에러 리셋은 비교적 빠르지만, PLC 통신이 포함되므로 Worker로 실행
         self._start_worker('SERVO_RESET', log_msg="서보 에러 리셋 요청")
 
+    def trigger_emergency_stop(self):
+        """[비상 정지] 모든 장치 정지 요청"""
+        
+        # 1. 진행 중인 일반 스레드 중단 요청
+        if self._thread and self._thread.isRunning():
+            self._thread.requestInterruption()
+            EVENT_BUS.log.message.emit("진행 중인 작업을 강제 중단합니다.", "WARNING")
+
+        # 2. 긴급 워커로 비상 정지 명령 전송 (로봇 + 서보)
+        self._start_emergency_worker('EMERGENCY_STOP', log_msg="🚨 비상 정지 명령 전송!")
+
 
 
 
