@@ -243,7 +243,11 @@ class FanucOnlyExecutor(BaseExecutor):
             adapter.set_finish_signals()
             return True, "작업 완료"
         
+        except InterruptedError as e:
+            return False, str(e)  # "사용자에 의해 작업이 중단되었습니다." 메시지 그대로 반환
+
         except Exception as e:
+
             try:
                 adapter.set_emergency_stop()
             except:
@@ -427,6 +431,9 @@ class ServoOnlyExecutor(BaseExecutor):
                 EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.COMPLETED)
 
             return True, "모든 서보 시퀀스 작업이 완료되었습니다."
+
+        except InterruptedError as e:
+            return False, str(e)
 
         except Exception as e:
             try:
@@ -762,6 +769,7 @@ class IntegratedExecutor(BaseExecutor):
                 # 로봇이 현재 동작을 수행하는 도중에, "다음 동작을 미리 준비해달라"고 요청을 보낸다.
                 # 이 신호를 받으면 다음 스텝의 좌표를 계산해서 미리 메모리에 써둬야 한다
                 if not self._wait_event_with_safety(calculation_request_event, timeout=self.BUSY_TIMEOUT):
+                    if self._is_interrupted(): raise InterruptedError("사용자에 의해 작업이 중단되었습니다.")
                     raise TimeoutError(f"Step {step_idx}: DO45 (Calculation Request) Timeout")
                 calculation_request_event.clear()
 
@@ -793,6 +801,7 @@ class IntegratedExecutor(BaseExecutor):
                 self._timestamp_turntable_done = None 
                 
                 if not self._wait_event_with_safety(robot_motion_done_event, timeout=self.MOVE_TIMEOUT):
+                    if self._is_interrupted(): raise InterruptedError("사용자에 의해 작업이 중단되었습니다.")
                     raise TimeoutError(f"[Step {step_idx}] 로봇 이동 완료 대기 시간 초과 (DO46)")
                 
                 # -----------------------------------------------------------------
@@ -805,6 +814,7 @@ class IntegratedExecutor(BaseExecutor):
                     # 모터가 움직였던 경우에만 대기 (안 움직였으면 즉시 통과 -> 시간 절약)
                     if not self._wait_event_with_safety(motor_motion_done_event, timeout=self.MOVE_TIMEOUT):
                         # 타임아웃 발생 시, 동기화가 깨진 것으로 간주하고 멈춘다
+                        if self._is_interrupted(): raise InterruptedError("사용자에 의해 작업이 중단되었습니다.")
                         raise TimeoutError(f"[Step {step_idx}] 턴테이블 이동 완료 대기 시간 초과")
                 
                     # (디버깅용) 로봇과 턴테이블의 도착 시간 차이를 로그에 남김
