@@ -336,7 +336,13 @@ class PLCService(QObject):
     def _handle_worker_result(self, success: bool, msg: str):
         """워커 실행 결과 처리"""
         if not success:
-            # 에러 발생 시 사용자에게 팝업으로 알림 (제목, 내용)
+            # 사용자에 의한 중단인 경우 팝업 띄우지 않음 및 로그 레벨 조정
+            if "중단되었습니다" in msg or "User Stopped" in msg:
+                EVENT_BUS.log.message.emit(msg, "INFO")
+                # 팝업 알림 생략
+                return
+            
+            # 그 외 진짜 에러 발생 시 사용자에게 팝업으로 알림 (제목, 내용)
             EVENT_BUS.system.operation_error_alert.emit("작업 실행 실패", msg)
 
         level = "INFO" if success else "ERROR"
