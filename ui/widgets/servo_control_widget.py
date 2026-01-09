@@ -19,6 +19,7 @@ from config.data_formats import (
 from ui.widgets.base_widget import BaseWidget
 from typing import TYPE_CHECKING, Any, Optional
 from core.event_bus import EVENT_BUS
+from core.settings import SETTINGS
 
 if TYPE_CHECKING:
     from view_models.servo_control_viewmodel import ServoControlViewModel
@@ -94,15 +95,23 @@ class ServoControlWidget(BaseWidget):
 
         # 왼쪽: 공전/자전 (RPM)
         tool_layout = QFormLayout()
-        self.input_widgets[KEY_TOOL_REV_RPM] = self._create_spinbox(0, 3000, 10)
-        self.input_widgets[KEY_TOOL_ROT_RPM] = self._create_spinbox(0, 3000, 10)
+        self.input_widgets[KEY_TOOL_REV_RPM] = self._create_spinbox(
+            SETTINGS.servo.tool_rpm_min, SETTINGS.servo.tool_rpm_max, SETTINGS.servo.tool_rpm_default
+        )
+        self.input_widgets[KEY_TOOL_ROT_RPM] = self._create_spinbox(
+            SETTINGS.servo.tool_rpm_min, SETTINGS.servo.tool_rpm_max, SETTINGS.servo.tool_rpm_default
+        )
         tool_layout.addRow("공전 (rpm):", self.input_widgets[KEY_TOOL_REV_RPM])
         tool_layout.addRow("자전 (rpm):", self.input_widgets[KEY_TOOL_ROT_RPM])
 
         # 오른쪽: 턴테이블 (각도/RPM)
         tt_layout = QFormLayout()
-        self.input_widgets[KEY_TURNTABLE_DEG] = self._create_spinbox(-360, 360, 0)
-        self.input_widgets[KEY_TURNTABLE_FEED_RATE] = self._create_spinbox(0, 2000, 5)
+        self.input_widgets[KEY_TURNTABLE_DEG] = self._create_spinbox(
+            SETTINGS.servo.turntable_deg_min, SETTINGS.servo.turntable_deg_max, SETTINGS.servo.turntable_deg_default
+        )
+        self.input_widgets[KEY_TURNTABLE_FEED_RATE] = self._create_spinbox(
+            SETTINGS.servo.turntable_rpm_min, SETTINGS.servo.turntable_rpm_max, SETTINGS.servo.turntable_rpm_default
+        )
         tt_layout.addRow("턴테이블 각도 (deg):", self.input_widgets[KEY_TURNTABLE_DEG])
         tt_layout.addRow("턴테이블 속도 (rpm):", self.input_widgets[KEY_TURNTABLE_FEED_RATE])
 
@@ -183,8 +192,10 @@ class ServoControlWidget(BaseWidget):
         실제 UI 업데이트 로직 (safe_update_data에 의해 호출됨)
         """
         if not isinstance(data, dict): return
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} 화면 업데이트 할 데이터: {data}", "DEBUG")
 
-        # case 1: 상태 업데이트 (is_servo_moving)
+        # --- case 1 --- #
+        # 상태 업데이트 (is_servo_moving)
         if 'is_servo_moving' in data:
             is_busy = data['is_servo_moving']
 
@@ -202,7 +213,8 @@ class ServoControlWidget(BaseWidget):
             for spin in self.input_widgets.values():
                 spin.setEnabled(not is_busy)
 
-        # case 2: 서보 값 업데이트 (PLC 또는 테이블 선택으로부터 온 데이터)
+        # --- case 2 --- #
+        # 서보 값 업데이트 (PLC 또는 테이블 선택으로부터 온 데이터)
         target_keys = [
             KEY_TURNTABLE_DEG, 
             KEY_TURNTABLE_FEED_RATE, 
