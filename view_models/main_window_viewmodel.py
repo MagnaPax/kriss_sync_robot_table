@@ -11,6 +11,7 @@ from view_models.world_coordinates_viewmodel import WorldCoordinatesViewModel
 from view_models.servo_control_viewmodel import ServoControlViewModel
 from view_models.user_coordinates_viewmodel import UserCoordinatesViewModel
 from view_models.waypoints_viewmodel import WaypointsViewModel
+from view_models.progress_bar_viewmodel import ProgressBarViewModel
 
 
 
@@ -53,6 +54,8 @@ class MainViewModel(QObject):
         self.user_coordinates_vm = UserCoordinatesViewModel(self._service)
         # 웨이포인트(테이블): 독자적인 뷰모델
         self.waypoints_vm = WaypointsViewModel()
+        # 진행률 표시: 독자적인 뷰모델 (EventBus 구독)
+        self.progress_bar_vm = ProgressBarViewModel()
 
 
 
