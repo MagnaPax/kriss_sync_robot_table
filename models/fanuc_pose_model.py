@@ -178,6 +178,24 @@ class FANUCPose:
 
         return payload
 
+    @classmethod
+    def create_signal_only_packet(cls, signals: Dict[str, bool]) -> FanucCommandPacket:
+        """
+        좌표 이동 없이 '신호(Signal)'만 전송하기 위한 패킷 생성
+        
+        설명:
+            로봇의 이동이 목적이 아니라 Start/Stop/Reset 등의 제어 신호만 전송하고 싶을 때.
+            내부적으로 0.0 좌표를 가진 객체를 생성하여 to_struct를 호출한다.
+
+        Args:
+            signals (Dict[str, bool]): 전송할 제어 신호들
+
+        Returns:
+            FanucCommandPacket: 신호가 담긴 전송용 구조체
+        """
+        empty_pose = cls() # (0,0,0,0,0,0)
+        return empty_pose.to_struct(empty_pose, signals)
+
 
 # [변경] FanucUI1Struct -> FanucCommandPacket (더 직관적인 이름)
 class FanucCommandPacket(ctypes.Structure):

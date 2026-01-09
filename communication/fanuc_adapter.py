@@ -72,10 +72,11 @@ class FanucAdapter:
         """[초기화] 로봇 시작 신호 초기화 (RSR2=False, DI43=False 등)"""
         cmd_signals = {
             'IMSP': True, 'Hold': True, 'SFSP': True, 'Enable': True,
-            'CycleStop': False, 'Start': False, 'RSR2': False, 'DI43': False
+            'CycleStop': False, 'Start': False, 'RSR2': False, 'RSR3': False, 'DI43': False
         }
-        dummy_pose = FANUCPose()
-        packet = dummy_pose.to_struct(dummy_pose, cmd_signals)
+        # 로봇을 움직이려는 게 아니라 초기화 신호(Reset)만 보냄
+        # 따라서 좌표값은 의미가 없으므로 '신호 전송용 패킷'을 생성해서 보낸다
+        packet = FANUCPose.create_signal_only_packet(cmd_signals)
         self.write_command_packet(packet)
         time.sleep(0.05)
 
@@ -89,20 +90,15 @@ class FanucAdapter:
         self.set_initial_signals()
 
     def set_emergency_stop(self):
-        """
-        [비상 정지] CycleStop 신호 전송
-        
-        [Reference]
-        원본 파일: 260102.FANUC_FULL_THREADING.py
-        원본 코드: estop_signals['CycleStop'] = True ... (Line 236)
-        """
+        """[비상 정지] CycleStop 신호 전송"""
         cmd_signals = {
             'IMSP': True, 'Hold': True, 'SFSP': True, 'Enable': False, # Enable 꺼짐
             'CycleStop': True,  # CycleStop 켜짐
-            'Start': False, 'RSR2': False, 'DI43': False
+            'Start': False, 'RSR2': False, 'RSR3': False, 'DI43': False
         }
-        dummy_pose = FANUCPose()
-        packet = dummy_pose.to_struct(dummy_pose, cmd_signals)
+        # 비상 정지 신호를 보낼 때도 좌표는 중요하지 않다.
+        # 'CycleStop' 신호를 확실하게 전달하는 것이 핵심
+        packet = FANUCPose.create_signal_only_packet(cmd_signals)
         self.write_command_packet(packet)
 
 

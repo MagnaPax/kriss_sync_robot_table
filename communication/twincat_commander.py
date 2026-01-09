@@ -614,7 +614,8 @@ class IntegratedExecutor(BaseExecutor):
         signals = {
             FanucSignal.IMSP: True, FanucSignal.HOLD: True, FanucSignal.SFSP: True, FanucSignal.ENABLE: True,
             FanucSignal.CYCLE_STOP: False, FanucSignal.START: False, 
-            FanucSignal.RSR2: True,        # [SIGNAL] Always True for Auto Mode
+            FanucSignal.RSR2: False,       # [CHANGE] No RSR2
+            FanucSignal.RSR3: True,        # [CHANGE] Use RSR3 (Consistent with 260108)
             FanucSignal.DATA_READY_DI43: data_ready,   # [DATA READY]
             FanucSignal.SYNC_START_TRIGGER_DI44: start_trigger # [TRIGGER]
         }
@@ -720,15 +721,19 @@ class IntegratedExecutor(BaseExecutor):
                     prev_motor_active = False
 
                 # (C) 로봇 데이터 전송
-                # Step 1에서는 start_trigger=False로 보낸다
-                # 첫 스텝은 트리거 펄스 없이 데이터만 써두면 된다
+                # Step 1: (260108) 로직 반영 - DI44 트리거를 포함하여 시작
                 packet, velocity = self._calculate_and_pack(
                     current_pose, target_pose, 
                     current_turntable_angle, pose_turntable.angle, pose_turntable.velocity,
                     0.0, 
-                    data_ready=True, start_trigger=False
+                    data_ready=True,    # -> DI43 (Loop On)
+                    start_trigger=True  # -> DI44 (Start Trigger On)
                 )
                 robot.write_command_packet(packet)
+                
+                # (D) 펄스 리셋 (Trig bit Off)
+                # DI44 펄스 리셋 (Rising Edge를 위해 즉시 끔)
+                robot.write_digital_signal(FanucSignal.SYNC_START_TRIGGER_DI44, False)
 
                 # 2. Start Motor (동기화 됨)
                 servo.execute_synchronized_motion(
@@ -737,7 +742,7 @@ class IntegratedExecutor(BaseExecutor):
                     spindle_rotation_velocity=rpm_rot, 
                     spindle_revolution_velocity=rpm_rev
                 )
-                EVENT_BUS.log.message.emit("[Init] Step 1 Started.", "DEBUG")
+                EVENT_BUS.log.message.emit("[Init] Step 1 Started (DI44 Triggered).", "DEBUG")
                 
                 # Update State
                 current_pose = target_pose
@@ -764,7 +769,7 @@ class IntegratedExecutor(BaseExecutor):
                 if self._is_interrupted(): raise InterruptedError("User Stopped")
 
                 # -----------------------------------------------------------------
-                # 1. Wait calc req (DO45: 계산 요청 대기)
+                # 1. DO45 신호 대기 (Notification으로 받은 이벤트 wait)
                 # -----------------------------------------------------------------
                 # 로봇이 현재 동작을 수행하는 도중에, "다음 동작을 미리 준비해달라"고 요청을 보낸다.
                 # 이 신호를 받으면 다음 스텝의 좌표를 계산해서 미리 메모리에 써둬야 한다
@@ -786,7 +791,8 @@ class IntegratedExecutor(BaseExecutor):
                     current_pose, target_pose, 
                     current_turntable_angle, pose_turntable.angle, pose_turntable.velocity,
                     previous_robot_velocity, 
-                    data_ready=True, start_trigger=False
+                    data_ready=True,    # -> DI43 (계속 Loop)
+                    start_trigger=False # -> DI44 (아직 대기)
                 )
                 robot.write_command_packet(packet)
                 EVENT_BUS.log.message.emit(f"[Step {step_idx}] 데이터 미리 전송 완료 (Pre-loaded)", "DEBUG")
@@ -828,38 +834,58 @@ class IntegratedExecutor(BaseExecutor):
                 EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSING)
 
                 # -----------------------------------------------------------------
-                # 5. Trigger Next (DI44: 동시 출발 신호)
+                # 5. Trigger Next or Finish (Loop Termination Logic)
                 # -----------------------------------------------------------------
-                # 모든 준비가 끝났다. 이제 로봇과 턴테이블에게 "동시에 움직여!" 하고 신호를 준다
-                
-                # (A) 이번 스텝에서 모터가 움직여야 하는지 미리 계산 (다음 루프의 'Sync Check'를 위해)
-                if abs(pose_turntable.angle - current_turntable_angle) > 0.05:
-                    prev_motor_active = True
+                # (260108) 로봇 팀 요구사항:
+                # 마지막 스텝에서는 'Trigger(DI44)'를 보내지 않고, 'DI43(Data Loop)'를 꺼서
+                # 로봇이 루프를 빠져나오게 한다.
+
+                if step_idx == total_steps:
+                    # (1) 마지막 스텝 감지 -> DI43 끔 (Loop Exit)
+                    EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 마지막 스텝 감지: 루프 탈출 신호 전송 (DI43=False)", "INFO")
+                    
+                    # (A) 모터 이동 (Last Move)
+                    servo.move_turntable_atomic(ServoAxis.TURNTABLE, pose_turntable.angle, pose_turntable.velocity)
+                    
+                    # (B) 로봇 루프 탈출 신호 (DI43 OFF)
+                    robot.write_digital_signal(FanucSignal.DATA_READY_DI43, False)
+                    
+                    # (C) 루프 즉시 종료
+                    # 더 이상 Trigger(DI44)를 보내지 않고 루프 탈출
+                    EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.COMPLETED)   # 완료 방송
+                    break 
+
                 else:
-                    prev_motor_active = False # 움직임이 미미하면 안 움직인 것으로 간주 (Wait Motor 스킵)
-                
-                # (B) 로봇에게 트리거 전송 (DI44=True가 포함된 패킷)
-                packet_trig, _ = self._calculate_and_pack(
-                    current_pose, target_pose, 
-                    current_turntable_angle, pose_turntable.angle, pose_turntable.velocity,
-                    previous_robot_velocity, 
-                    data_ready=True, start_trigger=True
-                )
-                robot.write_command_packet(packet_trig)
-                
-                # (C) 턴테이블에게 트리거 전송 (Atomic Write)
-                servo.move_turntable_atomic(ServoAxis.TURNTABLE, pose_turntable.angle, pose_turntable.velocity)
-                
-                # (D) 펄스 리셋 (Trig bit Off)
-                # 트리거는 펄스 형태여야 하므로, 켜자마자 바로 꺼준다. (Rising Edge 감지용)
-                robot.write_digital_signal(FanucSignal.SYNC_START_TRIGGER_DI44, False)
-                
-                EVENT_BUS.log.message.emit(f" -> [Step {step_idx}] 동시 출발 트리거 완료", "DEBUG")
-                
-                # (E) 현재 위치 정보 갱신 (다음 계산을 위해)
-                current_pose = target_pose
-                current_turntable_angle = pose_turntable.angle
-                previous_robot_velocity = velocity
+                    # [Normal Trigger Sequence]
+                    
+                    # (A) 이번 스텝에서 모터가 움직여야 하는지 미리 계산 (다음 루프의 'Sync Check'를 위해)
+                    if abs(pose_turntable.angle - current_turntable_angle) > 0.05:
+                        prev_motor_active = True
+                    else:
+                        prev_motor_active = False # 움직임이 미미하면 안 움직인 것으로 간주 (Wait Motor 스킵)
+                    
+                    # (B) 로봇에게 트리거 전송 (DI44=True가 포함된 패킷)
+                    packet_trig, _ = self._calculate_and_pack(
+                        current_pose, target_pose, 
+                        current_turntable_angle, pose_turntable.angle, pose_turntable.velocity,
+                        previous_robot_velocity, 
+                        data_ready=True, start_trigger=True
+                    )
+                    robot.write_command_packet(packet_trig)
+                    
+                    # (C) 턴테이블에게 트리거 전송 (Atomic Write)
+                    servo.move_turntable_atomic(ServoAxis.TURNTABLE, pose_turntable.angle, pose_turntable.velocity)
+                    
+                    # (D) 펄스 리셋 (Trig bit Off)
+                    # 트리거는 펄스 형태여야 하므로, 켜자마자 바로 꺼준다. (Rising Edge 감지용)
+                    robot.write_digital_signal(FanucSignal.SYNC_START_TRIGGER_DI44, False)
+                    
+                    EVENT_BUS.log.message.emit(f" -> [Step {step_idx}] 동시 출발 트리거 완료", "DEBUG")
+                    
+                    # (E) 현재 위치 정보 갱신 (다음 계산을 위해)
+                    current_pose = target_pose
+                    current_turntable_angle = pose_turntable.angle
+                    previous_robot_velocity = velocity
 
             # 모든 스텝이 완료되었다는 방송 송출
             EVENT_BUS.data.progress_updated.emit(total_steps, total_steps, TaskStatus.COMPLETED)
