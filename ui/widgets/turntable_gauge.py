@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import (
     QPainter, QColor, QPen, QPolygonF
 )
-from PyQt6.QtCore import Qt, QPointF, QRectF, QSize, QTimer
+from PyQt6.QtCore import Qt, QPointF, QRectF, QSize, QTimer, pyqtProperty
 
 from .base_widget import BaseWidget
 from .status_indicator_box import StatusIndicatorBox
@@ -30,6 +30,35 @@ class _GaugePainter(QWidget):
         self._angle: float = 0.0                # 현재 테이블 각도
         self._robot_angle: float = 0.0          # 현재 로봇 각도
         self._robot_radius_percent: float = 0.9 # 로봇의 반지름 위치(기본값 90%)
+
+        # 기본 색상 (QSS에서 덮어씌울 변수들)
+        self._circle_color = QColor("#007BFF")
+        self._scale_line_color = QColor(Qt.GlobalColor.gray)
+        self._scale_text_color = QColor("#666666")
+        self._arrow_color = QColor("#3498db")
+        self._robot_dot_color = QColor("red")
+
+    # --- QProperty 정의 (Stylesheet 연동용) ---
+    def get_circle_color(self): return self._circle_color
+    def set_circle_color(self, c): self._circle_color = c; self.update()
+    circleColor = pyqtProperty(QColor, get_circle_color, set_circle_color)
+
+    def get_scale_line_color(self): return self._scale_line_color
+    def set_scale_line_color(self, c): self._scale_line_color = c; self.update()
+    scaleLineColor = pyqtProperty(QColor, get_scale_line_color, set_scale_line_color)
+
+    def get_scale_text_color(self): return self._scale_text_color
+    def set_scale_text_color(self, c): self._scale_text_color = c; self.update()
+    scaleTextColor = pyqtProperty(QColor, get_scale_text_color, set_scale_text_color)
+
+    def get_arrow_color(self): return self._arrow_color
+    def set_arrow_color(self, c): self._arrow_color = c; self.update()
+    arrowColor = pyqtProperty(QColor, get_arrow_color, set_arrow_color)
+
+    def get_robot_dot_color(self): return self._robot_dot_color
+    def set_robot_dot_color(self, c): self._robot_dot_color = c; self.update()
+    robotDotColor = pyqtProperty(QColor, get_robot_dot_color, set_robot_dot_color)
+
 
 
     def set_data(self, angle: float, robot_angle: float, robot_radius_percent: float):
@@ -69,16 +98,16 @@ class _GaugePainter(QWidget):
         """정적 배경 그리기 (원, 각도, 0도 기준선 등)"""
         
         # 1. 파란색 원
-        painter.setPen(QPen(QColor("#007BFF"), 3))
+        painter.setPen(QPen(self._circle_color, 3))
         painter.setBrush(Qt.BrushStyle.NoBrush)     # 색 채우기 없음(테두리만)
         painter.drawEllipse(center, radius, radius) # 원 그리기
         
         # 2. 0도 기준선 (회색 점선)
-        painter.setPen(QPen(QColor(Qt.GlobalColor.gray), 2, Qt.PenStyle.DashLine))
+        painter.setPen(QPen(self._scale_line_color, 2, Qt.PenStyle.DashLine))
         painter.drawLine(QPointF(center.x(), center.y()), QPointF(center.x(), center.y() - radius))
 
         # 3. 턴테이블 밖 각도 표시 (0°, 90°, 180°, 270°)
-        painter.setPen(QColor("#666666"))
+        painter.setPen(self._scale_text_color)
         font = painter.font()
         font.setPointSize(10)
         painter.setFont(font)
@@ -98,8 +127,8 @@ class _GaugePainter(QWidget):
         painter.translate(center)   # 원점을 원의 중심으로 이동
         painter.rotate(self._angle) # 도화지 전체를 '현재 각도(self._angle)'만큼 회전
         
-        arrow_color = QColor("#3498db")
-        painter.setPen(QPen(arrow_color, 4, Qt.PenStyle.SolidLine))
+        # arrow_color = QColor("#3498db")
+        painter.setPen(QPen(self._arrow_color, 4, Qt.PenStyle.SolidLine))
         # 회전된 도화지의 정중앙(0,0)에서 12시 방향(0, -반지름*0.85)으로 파란색 선(화살표 몸통) 그리기
         painter.drawLine(QPointF(0, 0), QPointF(0, -radius * 0.85)) 
 
@@ -109,7 +138,9 @@ class _GaugePainter(QWidget):
             QPointF(-6, -radius * 0.9 + 18),
             QPointF(6, -radius * 0.9 + 18)
         ])
-        painter.setBrush(arrow_color)
+
+        painter.setBrush(self._arrow_color)
+
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawPolygon(arrow_head)
         
@@ -132,7 +163,7 @@ class _GaugePainter(QWidget):
         # 12시 방향(위쪽)으로 dot_distance_from_center 만큼 떨어진 곳에 점을 그림
         dot_pos = QPointF(0, -dot_distance_from_center)        
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor("red"))
+        painter.setBrush(self._robot_dot_color)
         painter.drawEllipse(dot_pos, 4, 4)
         
         painter.restore()
@@ -175,6 +206,8 @@ class TurntableWidget(BaseWidget):
 
         # 원형 게이지 (커스텀 위젯)
         self.gauge_widget = _GaugePainter()     # 객체 생성
+        self.gauge_widget.setObjectName("turntable_gauge_painter") # QSS ID 설정 (커스텀 속성 적용용)
+
         # 1) 가로 중앙 정렬 위해 수평 레이아웃으로 감싸기
         gaugebox = QHBoxLayout()
         gaugebox.addStretch(1)                              # ← 왼쪽 빈공간
@@ -185,8 +218,10 @@ class TurntableWidget(BaseWidget):
 
         # 디지털 텍스트(회전횟수, 각도 표시)
         self.digital_readout = QLabel("00 rounds 0.0°")
+        self.digital_readout.setObjectName("turntable_readout")
         self.digital_readout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.digital_readout.setStyleSheet("font-size: 18px; font-weight: bold; margin-top: 5px;")
+        # self.digital_readout.setStyleSheet("font-size: 18px; font-weight: bold; margin-top: 5px;")
+
         layout.addWidget(self.digital_readout, stretch=0)
 
         # 상태 표시줄 (StatusIndicatorBox 위젯 사용)

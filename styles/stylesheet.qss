@@ -742,3 +742,18 @@ QProgressBar#main_progress_bar::chunk {
     background-color: #e0e0e0;
     color: #999999;
 }
+
+/* Turntable Widget Styling */
+#turntable_gauge_painter {
+    qproperty-circleColor: #007BFF;
+    qproperty-scaleLineColor: gray;
+    qproperty-scaleTextColor: #666666;
+    qproperty-arrowColor: #3498db;
+    qproperty-robotDotColor: red;
+}
+
+#turntable_readout {
+    font-size: 18px; 
+    font-weight: bold; 
+    margin-top: 5px;
+}
