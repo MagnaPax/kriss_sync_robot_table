@@ -122,6 +122,7 @@ class FANUCPose:
         b2 = 0
         if signals.get('RSR1', False): b2 |= (1 << 0)
         if signals.get('RSR2', False): b2 |= (1 << 1)
+        if signals.get('RSR3', False): b2 |= (1 << 2)
         payload.UI_Byte2 = b2
 
         # UI_Byte3 (하위 4비트: 신호 / 상위 4비트: Feed High)

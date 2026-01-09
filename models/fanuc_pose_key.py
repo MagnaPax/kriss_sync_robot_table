@@ -107,6 +107,7 @@ class FanucSignal(str, Enum):
     
     RSR1 =          "RSR1"          # Robot Service Request 1
     RSR2 =          "RSR2"          # Robot Service Request 2 (주로 시작 신호로 사용)
+    RSR3 =          "RSR3"          # Robot Service Request 3
     
     PNS_STROBE =    "PNSStrobe"     # PNS Strobe
     PROD_START =    "ProdStart"     # Production Start
