@@ -25,9 +25,17 @@ class TurntableGaugeViewModel(QObject):
         super().__init__()
         
         # 상태 저장소
-        self._current_angle: float = 0.0
         self._robot_x: float = 0.0
         self._robot_y: float = 0.0
+        self._robot_z: float = 0.0
+        self._robot_f: float = 0.0 # Feed Rate
+        
+        self._servo_revolution: float = 0.0 # Axis 1
+        self._servo_rotation: float = 0.0   # Axis 2
+        self._servo_turntable_degree: float = 0.0   # Axis 3 (Degree)
+        self._servo_turntable_velocity: float = 0.0 # Axis 3 (Velocity)
+
+        
         self._rounds: int = 0
         self._state: str = "waiting"
 
@@ -43,27 +51,68 @@ class TurntableGaugeViewModel(QObject):
         
         changed = False
 
-        # 1. 턴테이블 각도 처리 (ServoPose -> Angle)
+        # 1. 서보 모터 데이터 처리 (Axis 1, 2, 3)
         # ---------------------------------------------------------------------
+        # (A) 개별 ServoPose 객체 (단일 축 - 주로 턴테이블)
         servo_pose = data.get('servo_pose', data.get('turntable_pose'))
         if isinstance(servo_pose, ServoPose):
+            # 기본적으로 단일 객체 전달 시 턴테이블(Axis 3)로 가정
             new_angle = float(servo_pose.angle)
-            if self._current_angle != new_angle:
-                self._current_angle = new_angle
+            if self._servo_turntable_degree != new_angle:
+                self._servo_turntable_degree = new_angle
                 changed = True
-        elif 'angle' in data: # Fallback
+
+        # (B) 전체 서보 데이터 (Dict[int, ServoPose] or List)
+        # 예: {'servo_axes': {1: Pose(...), 2: Pose(...), 3: Pose(...)}}
+        servo_axes = data.get('servo_axes')
+        if isinstance(servo_axes, dict):
+            # Axis 1: Tool Revolution
+            if 1 in servo_axes and isinstance(servo_axes[1], ServoPose):
+                rev = float(servo_axes[1].velocity) # 보통 속도 제어
+                if self._servo_revolution != rev:
+                    self._servo_revolution = rev
+                    changed = True
+            
+            # Axis 2: Tool Rotation
+            if 2 in servo_axes and isinstance(servo_axes[2], ServoPose):
+                rot = float(servo_axes[2].velocity) # 보통 속도 제어
+                if self._servo_rotation != rot:
+                    self._servo_rotation = rot
+                    changed = True
+            
+            # Axis 3: Turntable
+            if 3 in servo_axes and isinstance(servo_axes[3], ServoPose):
+                angle = float(servo_axes[3].angle)
+                vel = float(servo_axes[3].velocity)
+                
+                if self._servo_turntable_degree != angle:
+                    self._servo_turntable_degree = angle
+                    changed = True
+                
+                if self._servo_turntable_velocity != vel:
+                    self._servo_turntable_velocity = vel
+                    changed = True
+        
+        # (C) Fallback (Legacy)
+        elif 'angle' in data: 
             new_angle = float(data['angle'])
-            if self._current_angle != new_angle:
-                self._current_angle = new_angle
+            if self._servo_turntable_degree != new_angle:
+                self._servo_turntable_degree = new_angle
                 changed = True
                 
         # 2. 로봇 위치 처리 (FANUCPose -> X, Y)
         # ---------------------------------------------------------------------
         robot_pose = data.get('pose')
         if isinstance(robot_pose, FANUCPose):
-            if self._robot_x != robot_pose.x or self._robot_y != robot_pose.y:
+            if (self._robot_x != robot_pose.x or 
+                self._robot_y != robot_pose.y or
+                self._robot_z != robot_pose.z or
+                self._robot_f != robot_pose.f):
+                
                 self._robot_x = robot_pose.x
                 self._robot_y = robot_pose.y
+                self._robot_z = robot_pose.z
+                self._robot_f = robot_pose.f
                 changed = True
         else: # Fallback (Keys)
             x_key = FANUCPoseKey.X.model_key
@@ -113,9 +162,18 @@ class TurntableGaugeViewModel(QObject):
         
         # View용 데이터 패킷 생성 (Primitive Types Only)
         view_data = {
-            'angle': self._current_angle,
+            'angle': self._servo_turntable_degree,
             'robot_angle': robot_display_angle,
             'robot_radius_percent': radius_percent,
+            
+            # 추가 정보 (View가 원하면 표시 가능)
+            'robot_z': self._robot_z,
+            'robot_f': self._robot_f,
+            'servo_rev_vel': self._servo_revolution,
+            'servo_rot_vel': self._servo_rotation,
+            'servo_turntable_vel': self._servo_turntable_velocity,
+
+            
             'rounds': self._rounds,
             'state': self._state
         }
