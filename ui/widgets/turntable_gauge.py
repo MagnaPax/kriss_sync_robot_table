@@ -25,8 +25,10 @@ class _GaugePainter(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         
         self._angle: float = 0.0                # 현재 테이블 각도
-        self._robot_angle: float = 0.0          # 현재 로봇 각도
-        self._robot_radius_percent: float = 0.9 # 로봇의 반지름 위치(기본값 90%)
+        # [시각화 전용 변수] 직교 좌표계(X,Y)를 원형 게이지에 그리기 위해 각도/거리로 변환한 값
+        self._robot_visual_angle: float = 0.0   # 중심 기준 로봇의 각도 (Direction)
+        self._robot_dist_percent: float = 0.9   # 중심으로부터 떨어진 거리 비율 (Distance %)
+        self._robot_z: float = 0.0              # 로봇 높이 (Z축)
 
         # 기본 색상 (QSS에서 덮어씌울 변수들 - 초기값은 검정/흰색 등 의미없는 색상)
         self._circle_color = QColor(Qt.GlobalColor.black)
@@ -34,11 +36,18 @@ class _GaugePainter(QWidget):
         self._scale_text_color = QColor(Qt.GlobalColor.black)
         self._arrow_color = QColor(Qt.GlobalColor.black)
         self._robot_dot_color = QColor(Qt.GlobalColor.black)
+        self._waypoint_color = QColor(Qt.GlobalColor.lightGray) # 웨이포인트(연한 회색)
+        
+        self._waypoints: list = [] # 웨이포인트 목록 [{'visual_angle': ..., 'dist_percent': ...}, ...]
 
     # --- QProperty 정의 (Stylesheet 연동용) ---
     def get_circle_color(self): return self._circle_color
     def set_circle_color(self, c): self._circle_color = c; self.update()
     circleColor = pyqtProperty(QColor, get_circle_color, set_circle_color)
+
+    def get_waypoint_color(self): return self._waypoint_color
+    def set_waypoint_color(self, c): self._waypoint_color = c; self.update()
+    waypointColor = pyqtProperty(QColor, get_waypoint_color, set_waypoint_color)
 
     def get_scale_line_color(self): return self._scale_line_color
     def set_scale_line_color(self, c): self._scale_line_color = c; self.update()
@@ -58,13 +67,19 @@ class _GaugePainter(QWidget):
 
 
 
-    def set_data(self, angle: float, robot_angle: float, robot_radius_percent: float):
+    def set_data(self, angle: float, robot_visual_angle: float, robot_dist_percent: float, robot_z: float):
         """외부(TurntableWidget)에서 각도 데이터를 받아 위젯 갱신"""
         self._angle = angle
-        self._robot_angle = robot_angle
+        self._robot_visual_angle = robot_visual_angle
         # 0.0 (중심) ~ 1.0 (테두리) 사이 값으로 제한
-        self._robot_radius_percent = max(0.0, min(1.0, robot_radius_percent))
+        self._robot_dist_percent = max(0.0, min(1.0, robot_dist_percent))
+        self._robot_z = robot_z # Z축 높이 (mm)
         self.update()  # -> Qt -> paintEvent() : Qt 에게 paintEvent()를 호출하도록 요청
+
+    def set_waypoints(self, waypoints: list):
+        """웨이포인트 목록 업데이트"""
+        self._waypoints = waypoints
+        self.update()
 
 
     def paintEvent(self, event) -> None:  # type: ignore[override]
@@ -87,7 +102,10 @@ class _GaugePainter(QWidget):
         # 2. 정적 요소 그리기 (원, 텍스트, 0도선)
         self._draw_static_background(painter, center, radius)
 
-        # 3. 동적 요소 그리기 (빨간 점, 파란 화살표)
+        # 3. 웨이포인트 그리기 (정적 배경 위에, 동적 요소 아래에)
+        self._draw_waypoints(painter, center, radius)
+
+        # 4. 동적 요소 그리기 (빨간 점, 파란 화살표)
         self._draw_dynamic_elements(painter, center, radius)
 
 
@@ -114,6 +132,36 @@ class _GaugePainter(QWidget):
         painter.drawText(QRectF(center.x() + text_radius - 10, center.y() - 10, 40, 20), Qt.AlignmentFlag.AlignLeft, "90")
         painter.drawText(QRectF(center.x() - 20, center.y() + text_radius - 10, 40, 20), Qt.AlignmentFlag.AlignCenter, "180")
         painter.drawText(QRectF(center.x() - text_radius - 30, center.y() - 10, 40, 20), Qt.AlignmentFlag.AlignRight, "270")
+
+    def _draw_waypoints(self, painter: QPainter, center: QPointF, radius: float):
+        """웨이포인트 목록 그리기"""
+        if not self._waypoints:
+            return
+
+        painter.save()
+        painter.translate(center)
+        
+        # 웨이포인트 스타일 (작고 연한 점)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(self._waypoint_color)
+        
+        for wp in self._waypoints:
+            visual_angle = wp.get('visual_angle', 0.0)
+            dist_percent = wp.get('dist_percent', 0.0)
+            
+            painter.save()
+            painter.rotate(visual_angle)
+            
+            # 위치 계산
+            dist = radius * dist_percent
+            pos = QPointF(0, -dist)
+            
+            # 작은 점 그리기
+            painter.drawEllipse(pos, 3, 3) # 반지름 3
+            
+            painter.restore()
+            
+        painter.restore()
 
 
     def _draw_dynamic_elements(self, painter: QPainter, center: QPointF, radius: float):
@@ -147,21 +195,45 @@ class _GaugePainter(QWidget):
         """
         위의 파란 화살표와 똑같은 구조
 
-        save(): 저장 ➔ translate(center): 중앙 이동 ➔ rotate(self._robot_angle): 로봇 각도만큼 회전 ➔ drawEllipse(...): 12시 방향에 빨간 점 그리기 ➔ restore(): 복원
+        save(): 저장 ➔ translate(center): 중앙 이동 ➔ rotate(self._robot_visual_angle): 로봇 각도만큼 회전 ➔ drawEllipse(...): 12시 방향에 빨간 점 그리기 ➔ restore(): 복원
         """
         painter.save()
         painter.translate(center)
-        painter.rotate(self._robot_angle) # 로봇 각도만큼 캔버스 회전
+        painter.rotate(self._robot_visual_angle) # 로봇 시각화 각도만큼 캔버스 회전
 
-        # 중심으로부터의 거리를 _robot_radius_percent로 계산
-        dot_distance_from_center = radius * self._robot_radius_percent
         
-        # dot_pos = QPointF(0, -radius * 0.9)
+        # [Z축 시각화 로직]
+        # Z값이 0(바닥)에 가까울수록 진하게(Opaque) + 작게(Small) (핀포인트 느낌)
+        # Z값이 클수록(위로 갈수록) 연하게(Transparent) + 크게(Large) (퍼지는 느낌)
+        
+        # 기준 높이 설정 (예: 0mm ~ 300mm)
+        MAX_Z = 300.0
+        z_clamped = max(0.0, min(float(self._robot_z), MAX_Z))
+        
+        # intensity: 1.0 (바닥/Close) ~ 0.0 (최대 높이/Far)
+        intensity = 1.0 - (z_clamped / MAX_Z) 
+        
+        # 크기 계산: intensity가 클수록(가까울수록) 작아야 함
+        # intensity 1.0 -> 4 (최소)
+        # intensity 0.0 -> 10 (최대)
+        dot_radius = 10 - (intensity * 6)
+        
+        # 색상 계산: intensity가 클수록(가까울수록) 진해야 함 (변경 없음)
+        dot_color = QColor(self._robot_dot_color)
+        alpha = int(50 + (intensity * 205)) # 최소 50 ~ 최대 255
+        dot_color.setAlpha(alpha)
+
+
+        # 중심으로부터의 거리를 _robot_dist_percent로 계산
+        dot_distance_from_center = radius * self._robot_dist_percent
+        
         # 12시 방향(위쪽)으로 dot_distance_from_center 만큼 떨어진 곳에 점을 그림
         dot_pos = QPointF(0, -dot_distance_from_center)        
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(self._robot_dot_color)
-        painter.drawEllipse(dot_pos, 4, 4)
+        painter.setBrush(dot_color)
+        
+        # 원 그리기 (반지름 적용)
+        painter.drawEllipse(dot_pos, dot_radius, dot_radius)
         
         painter.restore()
 
@@ -226,6 +298,11 @@ class TurntableGaugeWidget(BaseWidget):
         # ViewModel 생성 및 연결
         self.view_model = TurntableGaugeViewModel()
         self.view_model.ui_data_updated.connect(self.update_data)
+        self.view_model.waypoints_updated.connect(self.update_waypoints)
+
+    def update_waypoints(self, waypoints: list):
+        """ViewModel -> 웨이포인트 데이터 수신 -> GaugeWidget 전달"""
+        self.gauge_widget.set_waypoints(waypoints)
 
     def update_data(self, data: dict):
         """
@@ -238,10 +315,9 @@ class TurntableGaugeWidget(BaseWidget):
         """
         # 데이터 추출
         angle = float(data.get('angle', 0.0))
-        robot_angle = float(data.get('robot_angle', 0.0))
-
-        # 로봇 반지름 위치 추출 (기본값: 0.9 = 90% 테두리)
-        robot_radius_percent = float(data.get('robot_radius_percent', 0.9))
+        # 로봇 시각화 데이터 (ViewModel에서 계산됨)
+        robot_visual_angle = float(data.get('robot_angle', 0.0))
+        robot_dist_percent = float(data.get('robot_radius_percent', 0.9))
 
         rounds = int(data.get('rounds', 0))
         state = str(data.get('state', 'waiting'))
@@ -253,8 +329,8 @@ class TurntableGaugeWidget(BaseWidget):
 
 
         # 게이지 위젯에 값 전달
-        # self.gauge_widget.set_data(angle, robot_angle)
-        self.gauge_widget.set_data(angle, robot_angle, robot_radius_percent)
+        # self.gauge_widget.set_data(angle, robot_visual_angle)
+        self.gauge_widget.set_data(angle, robot_visual_angle, robot_dist_percent, robot_z)
 
         # 디지털 텍스트에 값 전달
         # 포맷: [회전수] [각도 / 속도] | [Z높이 / f속도]
