@@ -28,12 +28,12 @@ class _GaugePainter(QWidget):
         self._robot_angle: float = 0.0          # 현재 로봇 각도
         self._robot_radius_percent: float = 0.9 # 로봇의 반지름 위치(기본값 90%)
 
-        # 기본 색상 (QSS에서 덮어씌울 변수들)
-        self._circle_color = QColor("#007BFF")
-        self._scale_line_color = QColor(Qt.GlobalColor.gray)
-        self._scale_text_color = QColor("#666666")
-        self._arrow_color = QColor("#3498db")
-        self._robot_dot_color = QColor("red")
+        # 기본 색상 (QSS에서 덮어씌울 변수들 - 초기값은 검정/흰색 등 의미없는 색상)
+        self._circle_color = QColor(Qt.GlobalColor.black)
+        self._scale_line_color = QColor(Qt.GlobalColor.black)
+        self._scale_text_color = QColor(Qt.GlobalColor.black)
+        self._arrow_color = QColor(Qt.GlobalColor.black)
+        self._robot_dot_color = QColor(Qt.GlobalColor.black)
 
     # --- QProperty 정의 (Stylesheet 연동용) ---
     def get_circle_color(self): return self._circle_color

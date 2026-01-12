@@ -743,6 +743,9 @@ QProgressBar#main_progress_bar::chunk {
     color: #999999;
 }
 
+
+
+
 /* Turntable Widget Styling */
 #turntable_gauge_painter {
     qproperty-circleColor: #007BFF;
