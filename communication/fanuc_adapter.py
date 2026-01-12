@@ -227,21 +227,24 @@ class FanucAdapter:
         # 1. 상위 8비트 읽기 (High Byte: h0 ~ h7)
         top_val = 0
         for i in range(8):
-            # key.feedback_tag_high_bit(i) -> "MAIN.Robot1._UO1.Xh0" 등을 자동 생성
-            if plc.read_by_name(key.feedback_tag_high_bit(i), pyads.PLCTYPE_BOOL):
+            # key.feedback_tag_high_bit(i) -> Removed from model, constructing manual string
+            path = f"MAIN.Robot1._UO1.{key.value}h{i}"
+            if plc.read_by_name(path, pyads.PLCTYPE_BOOL):
                 top_val |= (1 << i)
 
         # 2. 하위 16비트 읽기 (Low Word: l0 ~ l15)
         low_val = 0
         for j in range(16):
-            if plc.read_by_name(key.feedback_tag_low_bit(j), pyads.PLCTYPE_BOOL):
+            path = f"MAIN.Robot1._UO1.{key.value}l{j}"
+            if plc.read_by_name(path, pyads.PLCTYPE_BOOL):
                 low_val |= (1 << j)
 
         # 3. 비트 합치기 (24비트)
         raw_val = (top_val << 16) | low_val
 
         # 4. 부호 확인
-        is_negative = plc.read_by_name(key.feedback_tag_check(), pyads.PLCTYPE_BOOL)
+        path_check = f"MAIN.Robot1._UO1.{key.value}_Check"
+        is_negative = plc.read_by_name(path_check, pyads.PLCTYPE_BOOL)
 
         # 5. 스케일링 (1/1000)
         scaled_val = raw_val / 1000.0
