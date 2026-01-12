@@ -193,14 +193,7 @@ class FanucAdapter:
 
     def has_fault(self) -> bool:
         """로봇 에러 상태 확인 (UO06_Fault)"""
-        try:
-            return bool(self._plc.read_by_name(FanucSignal.FAULT.path, pyads.PLCTYPE_BOOL))
-        except Exception as e:
-            # 로봇팀이 아직 변수를 만들지 않았거나(1808: Symbol not found), 
-            # 통신 에러가 나면 일단 에러가 없는 것으로 간주하고 진행 (개발/테스트 편의용)
-            if "1808" in str(e) or "symbol not found" in str(e).lower():
-                return False
-            raise e
+        return bool(self._plc.read_by_name(FanucSignal.FAULT.path, pyads.PLCTYPE_BOOL))
 
     def read_busy_signal(self) -> bool:
         """로봇이 움직이고 있는지 확인"""
