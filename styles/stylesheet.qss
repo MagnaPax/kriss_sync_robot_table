@@ -524,6 +524,75 @@ QLabel {
     border-right: 1px solid #d0d0d0; /* ID 컬럼 구분선 */
 }
 
+/* 
+    [Scrollbar Design for Perfect Alignment]
+    고정 테이블과 메인 테이블의 스크롤바 "높이"를 14px로 강제 통일하여
+    스크롤바 유무에 따른 행(Row) 어긋남을 방지한다.
+*/
+
+/* 1. 공통 스크롤바 스타일 (메인 테이블에 보일 디자인) */
+#waypoints_widget QScrollBar:horizontal {
+    background: #f1f3f5;
+    height: 14px; /* 높이 고정 중요 */
+    margin: 0;
+    border: none;
+    border-radius: 7px;
+}
+#waypoints_widget QScrollBar::handle:horizontal {
+    background: #c1c9d0;
+    min-width: 20px;
+    border-radius: 6px;
+    margin: 2px;
+}
+#waypoints_widget QScrollBar::handle:horizontal:hover {
+    background: #aab2bd;
+}
+#waypoints_widget QScrollBar::add-line:horizontal, 
+#waypoints_widget QScrollBar::sub-line:horizontal {
+    background: none;
+    border: none;
+    width: 0px;
+}
+#waypoints_widget QScrollBar::add-page:horizontal, 
+#waypoints_widget QScrollBar::sub-page:horizontal {
+    background: none;
+}
+
+
+/* 2. 고정 테이블 스크롤바 숨김 (Override) */
+/* 높이는 위에서 상속받아 14px로 유지되지만, 색상을 투명하게 변경 */
+#frozen_table QScrollBar:horizontal {
+    background: transparent;
+    height: 14px; /* 메인 테이블과 높이 일치 필수 (정렬 유지) */
+    border: none;
+}
+
+/* 핸들(Bar) 투명화 및 호버 효과 제거 */
+#frozen_table QScrollBar::handle:horizontal,
+#frozen_table QScrollBar::handle:horizontal:hover,
+#frozen_table QScrollBar::handle:horizontal:pressed {
+    background: transparent;
+    border: none;
+}
+
+/* 화살표 버튼 투명화 및 공간 제거 */
+#frozen_table QScrollBar::add-line:horizontal,
+#frozen_table QScrollBar::sub-line:horizontal,
+#frozen_table QScrollBar::add-line:horizontal:hover, 
+#frozen_table QScrollBar::sub-line:horizontal:hover {
+    background: transparent;
+    border: none;
+    width: 0px;
+}
+
+/* 빈 공간(Page) 투명화 */
+#frozen_table QScrollBar::add-page:horizontal, 
+#frozen_table QScrollBar::sub-page:horizontal {
+    background: transparent;
+    border: none;
+}
+
+
 #waypoints_widget QTableView::item:selected {
     background-color: #B0C4DE; /* 선택된 행 (위의 selection-background-color와 일치) */
     color: #000000;
