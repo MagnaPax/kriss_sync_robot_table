@@ -320,22 +320,20 @@ class ServoOnlyExecutor(BaseExecutor):
         total_steps = len(sequence_data)
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 서보 시퀀스 시작 (총 {total_steps}건)", "INFO")
         
-        try:
-            # 1. 초기화 (Setup) - 전원 ON
-            for axis in ServoAxis:
-                adapter.set_servo_state(axis, True)
+        # 1. 초기화 (Setup) - 전원 ON
+        for axis in ServoAxis:
+            adapter.set_servo_state(axis, True)
+            # [SAFETY CHECK] 실행 전 서보 에러 확인
+            if adapter.has_servo_error(axis):
+                raise RuntimeError(f"서보 축({axis.name})에 에러가 감지되었습니다. 작업을 중단합니다.")
 
+        try:
             # 2. 실행 루프 (Loop)
             for step_idx, row in enumerate(sequence_data, start=1):
 
                 # (A) 중단 요청 확인
                 if self._is_interrupted():
                     raise InterruptedError("사용자에 의해 작업이 중단되었습니다.")
-
-                # [SAFETY CHECK] 실행 전 서보 에러 확인
-                for axis in ServoAxis:
-                    if self.servo.has_servo_error(axis):
-                        raise RuntimeError(f"서보 축({axis.name})에 에러가 감지되었습니다. 작업을 중단합니다.")
 
                 # (B) UI 진행률 업데이트
                 EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSING)
@@ -686,9 +684,15 @@ class IntegratedExecutor(BaseExecutor):
         handle_turntable = servo.register_turntable_motion_done_callback(_on_turntable_motion_done)
 
         try:
-            # 2. 초기화 (Setup)
+            # 초기화
             for axis in ServoAxis:
                 servo.set_servo_state(axis, True)
+                # [SAFETY CHECK] 실행 전 서보 에러 확인
+                if servo.has_servo_error(axis):
+                    raise RuntimeError(f"서보 축({axis.name})에 에러가 감지되었습니다. 작업을 중단합니다.")
+
+            # [SAFETY CHECK] 로봇 에러 확인
+            robot.validate_robot_ready()
             
             # 상태 변수
             current_pose = FanucPoseModel(x=0, y=0, z=0, w=0, p=0, r=0)
@@ -762,29 +766,17 @@ class IntegratedExecutor(BaseExecutor):
             # =========================================================================
             # [Step 2+: Pipeline Loop]
             # =========================================================================
+            # 이 루프는 [PLC와 Python간의 4단계 핸드셰이크]를 통해 정밀하게 동기화 된다
+            #
+            # [원리: Pipeline Architecture]
+            # 1. Wait Calc Request (DO45): PLC가 "다음 데이터 내놔" 할 때까지 대기
+            # 2. Pre-load Data: 다음 로봇/모터 좌표를 미리 계산해서 쓰기 (DI43=True, DI44=False)
+            # 3. Wait Previous Done (DO46): 이전 동작이 '완전히' 끝날 때까지 대기 (Main Motion Done)
+            # 4. Trigger (DI44=True): 동시에 출발! (Hand-in-hand)
+            # =================================================================
             for i in range(1, total_steps):
                 step_idx = i + 1
                 row = sequence_data[i]
-                
-                # =================================================================
-                # [Step 2+: Pipeline Loop (Handshake)]
-                # =================================================================
-                # 이 루프는 [PLC와 Python간의 4단계 핸드셰이크]를 통해 정밀하게 동기화 된다
-                #
-                # [원리: Pipeline Architecture]
-                # 1. Wait Calc Request (DO45): PLC가 "다음 데이터 내놔" 할 때까지 대기
-                # 2. Pre-load Data: 다음 로봇/모터 좌표를 미리 계산해서 쓰기 (DI43=True, DI44=False)
-                # 3. Wait Previous Done (DO46): 이전 동작이 '완전히' 끝날 때까지 대기 (Main Motion Done)
-                # 4. Trigger (DI44=True): 동시에 출발! (Hand-in-hand)
-                # =================================================================
-
-                if self._is_interrupted(): raise InterruptedError("User Stopped")
-
-                # [SAFETY CHECK] 실행 전 장비 상태 검증
-                self.robot.validate_robot_ready() # 로봇 에러(Fault) 체크
-                for axis in ServoAxis:            # 서보 에러 체크
-                    if self.servo.has_servo_error(axis):
-                        raise RuntimeError(f"서보 축({axis.name})에 에러가 감지되었습니다. 작업을 중단합니다.")
 
                 # -----------------------------------------------------------------
                 # 1. DO45 신호 대기 (Notification으로 받은 이벤트 wait)
