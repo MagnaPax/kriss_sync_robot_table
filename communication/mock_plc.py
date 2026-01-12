@@ -244,23 +244,21 @@ class MockConnection:
             self._sim_time += 0.1
             t = self._sim_time
             
-            # 1. 로봇 좌표 (원 그리기 운동)
-            # Center(300, 0), Radius 100
-            self._robot_data['X'] = 300.0 + 100.0 * math.cos(t * 0.5)
-            self._robot_data['Y'] = 100.0 * math.sin(t * 0.5)
-            self._robot_data['Z'] = 150.0 + 50.0 * math.sin(t * 1.0) # 위아래 움직임
+            # [수정됨] 사용자의 요청으로 가짜 시뮬레이션 값 업데이트 중단
+            # 실제 값만 읽거나 정지 상태 유지
             
-            # W, P, R 은 대충 움직임
-            self._robot_data['W'] = 180.0 + 10.0 * math.sin(t * 0.3) # 180도 부근에서 흔들기
-            self._robot_data['P'] = 10.0 * math.cos(t * 0.7)         # 0도 부근에서 흔들기
-            self._robot_data['R'] = (t * 10) % 360 - 180
+            # 1. 로봇 좌표 (고정값 유지 or 0)
+            # self._robot_data['X'] = 300.0 + 100.0 * math.cos(t * 0.5)
+            # self._robot_data['Y'] = 100.0 * math.sin(t * 0.5)
+            # self._robot_data['Z'] = 150.0 + 50.0 * math.sin(t * 1.0)
             
-            # 2. 서보 모터 (계속 회전)
-            # Axis 3 (Turntable): 0~360 반복
-            self._servo_pos[3] = (self._servo_pos[3] + self._servo_vel[3] * 0.1) % 360.0
+            # self._robot_data['W'] = 180.0
+            # self._robot_data['P'] = 0.0
+            # self._robot_data['R'] = 0.0
             
-            # Axis 1 (Revolution), 2 (Rotation): 계속 증가
-            self._servo_pos[1] = (self._servo_pos[1] + self._servo_vel[1] * 0.1) % 360.0
-            self._servo_pos[2] = (self._servo_pos[2] + self._servo_vel[2] * 0.1) % 360.0
+            # 2. 서보 모터 (고정값 유지)
+            # self._servo_pos[3] = (self._servo_pos[3] + self._servo_vel[3] * 0.1) % 360.0
+            # self._servo_pos[1] = (self._servo_pos[1] + self._servo_vel[1] * 0.1) % 360.0
+            # self._servo_pos[2] = (self._servo_pos[2] + self._servo_vel[2] * 0.1) % 360.0
             
             time.sleep(0.1) # 10Hz 업데이트
