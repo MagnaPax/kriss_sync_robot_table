@@ -21,6 +21,7 @@ class TurntableGaugeViewModel(QObject):
 
     # 로컬 시그널 - View 가 구독
     ui_data_updated = pyqtSignal(dict)  # (dict: {'angle': float, 'robot_angle': float, ...})
+    waypoints_updated = pyqtSignal(list) # (list: [{'angle': float, 'dist_percent': float}, ...])
 
 
     def __init__(self):
@@ -50,6 +51,7 @@ class TurntableGaugeViewModel(QObject):
         """EventBus 시그널 구독"""
         EVENT_BUS.control.robot_current_pose.connect(self.update_robot_data)
         EVENT_BUS.control.servo_current_motion.connect(self.update_servo_data)
+        EVENT_BUS.data.sequence_data_loaded.connect(self._on_sequence_loaded)
 
     def update_robot_data(self, pose: FANUCPose):
         """EventBus -> 로봇 데이터 수신"""
@@ -176,3 +178,40 @@ class TurntableGaugeViewModel(QObject):
         }
         
         self.ui_data_updated.emit(view_data)
+
+    def _on_sequence_loaded(self, sequence_data: list):
+        """
+        EventBus -> 시퀀스 데이터 로드 완료
+        
+        웨이포인트들을 시각화용 데이터로 변환하여 View로 전송
+        """
+        visual_waypoints = []
+        
+        for step in sequence_data:
+            # X, Y 좌표 추출 (키 이름은 데이터 소스에 따라 다를 수 있음, 여기서는 소문자 'x', 'y' 가정)
+            # 만약 모델 키(FANUCPoseKey)를 쓴다면 step[FANUCPoseKey.X.value] 등일 수 있음
+            # SequenceWorker -> FanucPose.from_dict -> to_dict() 거쳤다면 키는 'x','y'...
+            
+            # 안전하게 가져오기 (문자열일 수 있으므로 float 변환)
+            try:
+                x = float(step.get('x', 0.0))
+                y = float(step.get('y', 0.0))
+                
+                # Cartesian -> Polar 변환 (Visual Angle)
+                math_angle_rad = math.atan2(y, x)
+                math_angle_deg = math.degrees(math_angle_rad)
+                visual_angle = (-math_angle_deg) % 360
+                
+                # Distance Percent
+                dist = math.sqrt(x**2 + y**2)
+                dist_percent = min(dist / self._max_reach_mm, 1.0)
+                
+                visual_waypoints.append({
+                    'visual_angle': visual_angle,
+                    'dist_percent': dist_percent
+                })
+                
+            except (ValueError, TypeError):
+                continue
+                
+        self.waypoints_updated.emit(visual_waypoints)
