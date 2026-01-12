@@ -753,6 +753,7 @@ QProgressBar#main_progress_bar::chunk {
     qproperty-scaleTextColor: #666666;
     qproperty-arrowColor: #3498db;
     qproperty-robotDotColor: red;
+    qproperty-waypointColor: #D3D3D3;
 }
 
 #turntable_readout {
