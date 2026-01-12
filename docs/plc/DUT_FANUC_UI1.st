@@ -1,3 +1,4 @@
+// FANUC UI1 구조체
 TYPE DUT_FANUC_UI1 :
 STRUCT
 	// 25~42(UI)
