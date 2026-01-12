@@ -64,7 +64,7 @@ class ServoSignal(str, Enum):
     DONE         = 'MAIN.bDone{}'       # 이동 완료 (BOOL) - Rising Edge
 
     # [피드백 (Read)]
-    BUSY         = 'MAIN.Busy{}'        # 이동 중 여부 (BOOL) - 명령 받아도 write ❌
+    BUSY         = 'MAIN.bBusy{}'       # 이동 중 여부 (BOOL) - 명령 받아도 write ❌
     ACT_POS      = 'MAIN.Act_pos{}'     # 현재 위치 (LREAL)
     ACT_VEL      = 'MAIN.Act_vel{}'     # 현재 속도 (LREAL)
 
