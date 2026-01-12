@@ -828,6 +828,10 @@ EtherNetIP/
 **/.DS_Store
 **/._.DS_Store
 
+# 사용자 설정값
+config/user_state.ini
+
+
 # 추적 안 할 폴더, 파일들
 _for_tests_on_the_field/
 services/README.md
