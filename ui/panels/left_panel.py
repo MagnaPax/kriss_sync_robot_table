@@ -1,8 +1,8 @@
 # ui/panels/left_panel.py
 from PyQt6.QtWidgets import QFrame, QVBoxLayout, QGroupBox, QWidget
 from typing import TYPE_CHECKING, Optional
-from ..widgets import LogoWidget
-from ..widgets import TurntableWidget
+from ui.widgets.logo_widget import LogoWidget
+from ui.widgets.turntable_gauge import TurntableGaugeWidget
 from ui.widgets.servo_control_widget import ServoControlWidget
 from ui.widgets.target_position_widget import TargetPositionWidget
 
@@ -28,6 +28,7 @@ class LeftPanel(QFrame):
 
         # 위젯들
         self.logo_widget = LogoWidget()
+        self.turntable_gauge = TurntableGaugeWidget()
         servo_control = ServoControlWidget()
         target_position = TargetPositionWidget()
 
@@ -40,18 +41,17 @@ class LeftPanel(QFrame):
 
         
         # --- TurntableWidget을 QGroupBox 안에 넣기 ---
-        turntable_group = QGroupBox("Turntable Angle")  # QGroupBox 생성
+        turntable_group = QGroupBox("Bird's-eye View")  # QGroupBox 생성
         turntable_layout = QVBoxLayout(turntable_group)     # GroupBox에 적용할 레이아웃 생성
-        turntable_widget = TurntableWidget()                # 실제 위젯 인스턴스 생성
+        self.turntable_gauge = TurntableGaugeWidget()                # 실제 위젯 인스턴스 생성
         # 위젯 위아래로 공간(stretch)을 추가하여 수직 중앙 정렬
         turntable_layout.addStretch(1)
-        turntable_layout.addWidget(turntable_widget)
+        turntable_layout.addWidget(self.turntable_gauge)
         turntable_layout.addStretch(1)
-        turntable_group.setStyleSheet("color: black; border: 1px solid red;")
 
 
         # 바탕 레이아웃에 위젯 추가
-        # main_layout.addWidget(turntable_group,   stretch=5)
-        main_layout.addWidget(self.logo_widget,  stretch=10)
-        main_layout.addWidget(target_position,   stretch=45)
-        main_layout.addWidget(servo_control,     stretch=45)
+        main_layout.addWidget(self.logo_widget,  stretch=5)
+        main_layout.addWidget(turntable_group,   stretch=20)
+        main_layout.addWidget(target_position,   stretch=40)
+        main_layout.addWidget(servo_control,     stretch=35)

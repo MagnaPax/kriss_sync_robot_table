@@ -21,7 +21,9 @@ from ui.splash_screen import SplashScreen
 from ui.widgets.base_widget import BaseWidget
 from view_models.main_window_viewmodel import MainViewModel
 from ui.widgets.status_indicator_box import StatusIndicatorBox
-from ui.panels import left_panel, center_panel, right_panel
+from ui.panels.left_panel import LeftPanel
+from ui.panels.center_panel import CenterPanel
+from ui.panels.right_panel import RightPanel
 
 
 class MainWindow(QMainWindow):
@@ -91,9 +93,9 @@ class MainWindow(QMainWindow):
 
         # 패널 생성 - 부모를 centralWidget로 명시
         # TODO: 나중에 패널 내부에서도 로직이 필요하면 self.vm을 전달하면 된다
-        self.left = left_panel.LeftPanel(self.vm, central_widget)
-        self.center = center_panel.CenterPanel(self.vm, central_widget)
-        self.right = right_panel.RightPanel(self.vm, central_widget)
+        self.left = LeftPanel(self.vm, central_widget)
+        self.center = CenterPanel(self.vm, central_widget)
+        self.right = RightPanel(self.vm, central_widget)
 
         self.mainLayout.addWidget(self.left)
         self.mainLayout.addWidget(self.center)
