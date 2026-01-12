@@ -158,8 +158,7 @@ class FanucOnlyExecutor(BaseExecutor):
                     w=row.get(KEY_ROBOT_W, 0.0), p=row.get(KEY_ROBOT_P, 0.0), r=row.get(KEY_ROBOT_R, 0.0),
                     f=feed_rate
                 )
-                # 현재 로봇 위치 방송
-                EVENT_BUS.control.robot_current_pose.emit(target_pose)
+                # 현재 로봇 위치 방송 : 모니터링 워커(PoseMonitorWorker)가 백그라운드에서 방송하고 있다
                 EVENT_BUS.log.message.emit(f"\n현재 로봇 위치: {target_pose}\n", "DEBUG")
 
                 # 5. 첫 번째 스텝 처리 (Delta=0)
