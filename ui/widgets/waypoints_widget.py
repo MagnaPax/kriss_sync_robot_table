@@ -1,7 +1,7 @@
 # ui/widgets/waypoints_widget.py
 
 from typing import Any, List, Dict, Optional, TYPE_CHECKING
-from PyQt6.QtCore import Qt, pyqtSlot
+from PyQt6.QtCore import Qt, pyqtSlot, QEvent
 from PyQt6.QtWidgets import (
     QApplication,
     QVBoxLayout, 
@@ -162,6 +162,9 @@ class WaypointsWidget(BaseWidget):
         self.frozen_table_view.verticalScrollBar().valueChanged.connect(
             self.table_view.verticalScrollBar().setValue
         )
+        
+        # 메인 테이블에 가로 스크롤바가 생기면, 고정 테이블의 하단에도 그만큼 여백을 줘서 줄 간격을 맞춤
+        self.table_view.horizontalScrollBar().installEventFilter(self)
 
         # 델리게이트 설정 (Result 컬럼 스타일링)
         # 주의: Result 컬럼이 항상 0번이라고 가정 (모델에서 insert(0) 했음)
@@ -339,6 +342,28 @@ class WaypointsWidget(BaseWidget):
 
 
 
+
+
+    def eventFilter(self, source, event):
+        """이벤트 필터: 가로 스크롤바의 표시/숨김 이벤트를 감지"""
+        if source == self.table_view.horizontalScrollBar():
+            if event.type() in [QEvent.Type.Show, QEvent.Type.Hide]:
+                self._sync_frozen_footer()
+                
+        return super().eventFilter(source, event)
+
+    def _sync_frozen_footer(self):
+        """메인 테이블의 가로 스크롤바가 생기면, 고정 테이블에도 가로 스크롤바를 켜서 높이를 맞춤"""
+        if not self.frozen_table_view or not self.table_view:
+            return
+            
+        h_bar = self.table_view.horizontalScrollBar()
+        if h_bar.isVisible():
+            # 메인 스크롤바가 보이면 -> 고정 테이블 스크롤바도 강제로 켜기 (공간 확보용)
+            self.frozen_table_view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        else:
+            # 메인 스크롤바가 꺼지면 -> 고정 테이블 스크롤바도 끄기
+            self.frozen_table_view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
 
 """
