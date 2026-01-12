@@ -25,12 +25,34 @@ class MockConnection:
         # [State] RSR2 신호 상태 추적 (Rising Edge 감지용)
         self._is_rsr2_active = False
 
+        # [Simulation Data]
+        self._sim_running = False
+        self._sim_thread = None
+        
+        # Robot Pose (X, Y, Z, W, P, R)
+        self._robot_data = {'X': 300.0, 'Y': 0.0, 'Z': 150.0, 'W': 180.0, 'P': 0.0, 'R': 0.0}
+        
+        # Servo Data (1: Revolution, 2: Rotation, 3: Turntable)
+        self._servo_pos = {1: 0.0, 2: 0.0, 3: 0.0}
+        self._servo_vel = {1: 10.0, 2: 100.0, 3: 300.0} # 속도 차이 확연하게 (10, 100, 300)
+        
+        # for sine wave animation
+        self._sim_time = 0.0
+
     def open(self):
         self._is_open = True
         self.logger.info(f"[MOCK] 가상 PLC 연결 열림 ({self.ams_net_id}:{self.port})")
+        
+        # 시뮬레이션 시작
+        self._sim_running = True
+        self._sim_thread = threading.Thread(target=self._simulation_loop, daemon=True)
+        self._sim_thread.start()
 
     def close(self):
         self._is_open = False
+        self._sim_running = False
+        if self._sim_thread:
+            self._sim_thread.join(timeout=1.0)
         self.logger.info("[MOCK] 가상 PLC 연결 닫힘")
 
     def read_state(self):
@@ -42,11 +64,61 @@ class MockConnection:
     # Read / Write
     # ==========================================================
     def read_by_name(self, name: str, plc_type: Any) -> Any:
-        # 서보 피드백 더미 값 (IntegratedExecutor 초기화 통과용)
-        if "Act_pos" in name: return 0.0
-        if "Act_vel" in name: return 0.0
+        # 1. 서보 피드백 (LREAL)
+        # MAIN.Act_pos1, MAIN.Act_vel2 등
+        if "Act_pos" in name:
+            try:
+                axis = int(name[-1]) # 마지막 글자가 숫자라고 가정 (1~3)
+                return float(self._servo_pos.get(axis, 0.0))
+            except:
+                return 0.0
+                
+        if "Act_vel" in name:
+            try:
+                axis = int(name[-1])
+                return float(self._servo_vel.get(axis, 0.0))
+            except:
+                return 0.0
+
         if "bError" in name: return False
         
+        # 2. 로봇 피드백 (Bit-wise)
+        # 예: "MAIN.Robot1._UO1.Xh0", "MAIN.Robot1._UO1.Xl15", "MAIN.Robot1._UO1.X_Check"
+        if "MAIN.Robot1._UO1." in name:
+            try:
+                # 파싱: "Xh0" -> axis="X", part="h", bit="0"
+                # "X_Check" -> axis="X", part="Check"
+                
+                suffix = name.split(".")[-1] # Xh0, Yl12, Z_Check
+                axis = suffix[0] # X, Y, Z, W, P, R
+                
+                val = self._robot_data.get(axis, 0.0)
+                int_val = int(abs(val * 1000)) # 스케일링
+                
+                if "_Check" in suffix:
+                    return (val < 0) # 음수이면 True
+                
+                # h0..h7 or l0..l15
+                part = suffix[1] # 'h' or 'l'
+                bit_idx = int(suffix[2:]) # 0, 15, ...
+                
+                if part == 'h':
+                    # 상위 8비트: 16~23비트 영역 (High Byte)
+                    # 원본 로직: top_val |= (1 << i) ... raw_val = (top_val << 16) | low_val
+                    # 즉, h0은 전체 24비트 중 16번째 비트
+                    # int_val >> 16 의 bit_idx 번째 비트
+                    byte_val = (int_val >> 16) & 0xFF
+                    return bool((byte_val >> bit_idx) & 1)
+                    
+                elif part == 'l':
+                    # 하위 16비트 (Low Word)
+                    # l0은 0번째 비트
+                    word_val = int_val & 0xFFFF
+                    return bool((word_val >> bit_idx) & 1)
+                    
+            except Exception:
+                pass
+
         # 기본값
         return 0
 
@@ -164,3 +236,31 @@ class MockConnection:
                     callback(handle, value)
                 except Exception as e:
                     self.logger.error(f"[MOCK] Callback Error: {e}")
+
+    def _simulation_loop(self):
+        """백그라운드에서 센서 데이터 변경 (애니메이션 효과)"""
+        import math
+        while self._sim_running:
+            self._sim_time += 0.1
+            t = self._sim_time
+            
+            # 1. 로봇 좌표 (원 그리기 운동)
+            # Center(300, 0), Radius 100
+            self._robot_data['X'] = 300.0 + 100.0 * math.cos(t * 0.5)
+            self._robot_data['Y'] = 100.0 * math.sin(t * 0.5)
+            self._robot_data['Z'] = 150.0 + 50.0 * math.sin(t * 1.0) # 위아래 움직임
+            
+            # W, P, R 은 대충 움직임
+            self._robot_data['W'] = 180.0 + 10.0 * math.sin(t * 0.3) # 180도 부근에서 흔들기
+            self._robot_data['P'] = 10.0 * math.cos(t * 0.7)         # 0도 부근에서 흔들기
+            self._robot_data['R'] = (t * 10) % 360 - 180
+            
+            # 2. 서보 모터 (계속 회전)
+            # Axis 3 (Turntable): 0~360 반복
+            self._servo_pos[3] = (self._servo_pos[3] + self._servo_vel[3] * 0.1) % 360.0
+            
+            # Axis 1 (Revolution), 2 (Rotation): 계속 증가
+            self._servo_pos[1] = (self._servo_pos[1] + self._servo_vel[1] * 0.1) % 360.0
+            self._servo_pos[2] = (self._servo_pos[2] + self._servo_vel[2] * 0.1) % 360.0
+            
+            time.sleep(0.1) # 10Hz 업데이트
