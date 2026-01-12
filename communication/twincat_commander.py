@@ -332,6 +332,11 @@ class ServoOnlyExecutor(BaseExecutor):
                 if self._is_interrupted():
                     raise InterruptedError("사용자에 의해 작업이 중단되었습니다.")
 
+                # [SAFETY CHECK] 실행 전 서보 에러 확인
+                for axis in ServoAxis:
+                    if self.servo.has_servo_error(axis):
+                        raise RuntimeError(f"서보 축({axis.name})에 에러가 감지되었습니다. 작업을 중단합니다.")
+
                 # (B) UI 진행률 업데이트
                 EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSING)
                 EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] {step_idx}/{total_steps} 진행 중", "DEBUG")
@@ -774,6 +779,12 @@ class IntegratedExecutor(BaseExecutor):
                 # =================================================================
 
                 if self._is_interrupted(): raise InterruptedError("User Stopped")
+
+                # [SAFETY CHECK] 실행 전 장비 상태 검증
+                self.robot.validate_robot_ready() # 로봇 에러(Fault) 체크
+                for axis in ServoAxis:            # 서보 에러 체크
+                    if self.servo.has_servo_error(axis):
+                        raise RuntimeError(f"서보 축({axis.name})에 에러가 감지되었습니다. 작업을 중단합니다.")
 
                 # -----------------------------------------------------------------
                 # 1. DO45 신호 대기 (Notification으로 받은 이벤트 wait)
