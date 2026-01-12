@@ -7,6 +7,7 @@ from models.fanuc_pose_model import FANUCPose
 from models.fanuc_pose_key import FANUCPoseKey
 from models.servo_pose_model import ServoPose
 from models.servo_pose_key import ServoAxis, ServoPoseKey
+from core.event_bus import EVENT_BUS
 
 class TurntableGaugeViewModel(QObject):
     """
@@ -18,22 +19,23 @@ class TurntableGaugeViewModel(QObject):
     3. Primitive Type으로 View에 전달 (Strict Decoupling)
     """
 
-    # View 업데이트용 시그널 (dict: {'angle': float, 'robot_angle': float, ...})
-    ui_data_updated = pyqtSignal(dict)
+    # 로컬 시그널 - View 가 구독
+    ui_data_updated = pyqtSignal(dict)  # (dict: {'angle': float, 'robot_angle': float, ...})
+
 
     def __init__(self):
         super().__init__()
         
         # 상태 저장소
-        self._robot_x: float = 0.0
-        self._robot_y: float = 0.0
-        self._robot_z: float = 0.0
-        self._robot_f: float = 0.0 # Feed Rate
-        
-        self._servo_revolution: float = 0.0 # Axis 1
-        self._servo_rotation: float = 0.0   # Axis 2
-        self._servo_turntable_degree: float = 0.0   # Axis 3 (Degree)
-        self._servo_turntable_velocity: float = 0.0 # Axis 3 (Velocity)
+        # 1. Robot Pose (FANUCPose)
+        self.robot_pose: FANUCPose = FANUCPose()
+
+        # 2. Servo Motion (Dict[ServoAxis, ServoPose])
+        self.servo_motions: Dict[ServoAxis, ServoPose] = {
+            ServoAxis.TOOL_REVOLUTION: ServoPose(0.0, 0.0),
+            ServoAxis.TOOL_ROTATION:   ServoPose(0.0, 0.0),
+            ServoAxis.TURNTABLE:       ServoPose(0.0, 0.0)
+        }
 
         
         self._rounds: int = 0
@@ -41,91 +43,86 @@ class TurntableGaugeViewModel(QObject):
 
         self._max_reach_mm: float = 2000.0  # 로봇 팔 길이 (반지름 정규화용)
 
+        # EventBus 연결
+        self._connect_signals()
+
+    def _connect_signals(self):
+        """EventBus 시그널 구독"""
+        EVENT_BUS.control.robot_current_pose.connect(self.update_robot_data)
+        EVENT_BUS.control.servo_current_motion.connect(self.update_servo_data)
+
+    def update_robot_data(self, pose: FANUCPose):
+        """EventBus -> 로봇 데이터 수신"""
+        self.update_model_data({'pose': pose})
+
+    def update_servo_data(self, servo_states: Dict[ServoAxis, ServoPose]):
+        """EventBus -> 서보 데이터 수신"""
+        # update_model_data가 'servo_axes' 키로 dict를 받도록 설계됨
+        self.update_model_data({'servo_axes': servo_states})
+
     def update_model_data(self, data: Dict[str, Any]):
         """
         외부(Service/Controller)에서 모델 데이터를 받아 상태를 갱신하고 View에 알림
-        
-        Args:
-            data (dict): Mixed data containing keys like 'pose', 'servo_pose', etc.
         """
         
         changed = False
 
         # 1. 서보 모터 데이터 처리 (Axis 1, 2, 3)
         # ---------------------------------------------------------------------
-        # (A) 개별 ServoPose 객체 (단일 축 - 주로 턴테이블)
-        servo_pose = data.get('servo_pose', data.get('turntable_pose'))
-        if isinstance(servo_pose, ServoPose):
-            # 기본적으로 단일 객체 전달 시 턴테이블(Axis 3)로 가정
-            new_angle = float(servo_pose.angle)
-            if self._servo_turntable_degree != new_angle:
-                self._servo_turntable_degree = new_angle
-                changed = True
-
-        # (B) 전체 서보 데이터 (Dict[int, ServoPose] or List)
-        # 예: {'servo_axes': {1: Pose(...), 2: Pose(...), 3: Pose(...)}}
+        # (A) 전체 서보 데이터 (Dict[ServoAxis, ServoPose])
         servo_axes = data.get('servo_axes')
         if isinstance(servo_axes, dict):
-            # Axis 1: Tool Revolution
-            if 1 in servo_axes and isinstance(servo_axes[1], ServoPose):
-                rev = float(servo_axes[1].velocity) # 보통 속도 제어
-                if self._servo_revolution != rev:
-                    self._servo_revolution = rev
-                    changed = True
-            
-            # Axis 2: Tool Rotation
-            if 2 in servo_axes and isinstance(servo_axes[2], ServoPose):
-                rot = float(servo_axes[2].velocity) # 보통 속도 제어
-                if self._servo_rotation != rot:
-                    self._servo_rotation = rot
-                    changed = True
-            
-            # Axis 3: Turntable
-            if 3 in servo_axes and isinstance(servo_axes[3], ServoPose):
-                angle = float(servo_axes[3].angle)
-                vel = float(servo_axes[3].velocity)
-                
-                if self._servo_turntable_degree != angle:
-                    self._servo_turntable_degree = angle
-                    changed = True
-                
-                if self._servo_turntable_velocity != vel:
-                    self._servo_turntable_velocity = vel
-                    changed = True
-        
-        # (C) Fallback (Legacy)
-        elif 'angle' in data: 
-            new_angle = float(data['angle'])
-            if self._servo_turntable_degree != new_angle:
-                self._servo_turntable_degree = new_angle
+            # 통째로 업데이트하거나, 개별 업데이트
+            # 여기서는 내부 딕셔너리를 갱신
+            for axis, pose in servo_axes.items():
+                if axis in self.servo_motions and isinstance(pose, ServoPose):
+                    # 값 비교
+                    current = self.servo_motions[axis]
+                    if current.angle != pose.angle or current.velocity != pose.velocity:
+                        self.servo_motions[axis] = pose
+                        changed = True
+
+        # (B) 개별 ServoPose (Legacy or single push) - 기본 Turntable로 간주
+        servo_pose = data.get('servo_pose', data.get('turntable_pose'))
+        if isinstance(servo_pose, ServoPose):
+            current = self.servo_motions[ServoAxis.TURNTABLE]
+            if current.angle != servo_pose.angle or current.velocity != servo_pose.velocity:
+                self.servo_motions[ServoAxis.TURNTABLE] = servo_pose
                 changed = True
-                
-        # 2. 로봇 위치 처리 (FANUCPose -> X, Y)
+        
+        # (C) Primitive Fallback (Legacy)
+        if 'angle' in data: 
+            new_angle = float(data['angle'])
+            current = self.servo_motions[ServoAxis.TURNTABLE]
+            if current.angle != new_angle:
+                self.servo_motions[ServoAxis.TURNTABLE] = ServoPose(new_angle, current.velocity)
+                changed = True
+
+        # 2. 로봇 위치 처리 (FANUCPose)
         # ---------------------------------------------------------------------
         robot_pose = data.get('pose')
         if isinstance(robot_pose, FANUCPose):
-            if (self._robot_x != robot_pose.x or 
-                self._robot_y != robot_pose.y or
-                self._robot_z != robot_pose.z or
-                self._robot_f != robot_pose.f):
-                
-                self._robot_x = robot_pose.x
-                self._robot_y = robot_pose.y
-                self._robot_z = robot_pose.z
-                self._robot_f = robot_pose.f
+            # dataclass 비교는 모든 필드 검사
+            if self.robot_pose != robot_pose:
+                self.robot_pose = robot_pose
                 changed = True
         else: # Fallback (Keys)
-            x_key = FANUCPoseKey.X.model_key
-            y_key = FANUCPoseKey.Y.model_key
+            # 수동 업데이트 (문자열 키 지원)
+            # (FANUCPose는 frozen이 아니라고 가정하고 필드 업데이트, 혹은 새로 생성)
+            # 여기서는 간단히 필드 확인. FANUCPose는 dataclass.
+            # 변경 여부 확인이 복잡하므로, 값이 들어오면 무조건 업데이트 시도
             
-            # get(key, default) -> default가 아니라 기존값 유지? 아니면 0.0?
-            # 여기서는 데이터가 있을 때만 갱신
-            if x_key in data:
-                self._robot_x = float(data[x_key])
+            x_val = data.get(FANUCPoseKey.X.model_key)
+            y_val = data.get(FANUCPoseKey.Y.model_key)
+            
+            if x_val is not None:
+                self.robot_pose.x = float(x_val) # type: ignore
                 changed = True
-            if y_key in data:
-                self._robot_y = float(data[y_key])
+            if y_val is not None:
+                self.robot_pose.y = float(y_val) # type: ignore
                 changed = True
+             # 필요한 다른 키들도 처리 가능하면 추가...
+
 
         # 3. 기타 상태 처리
         # ---------------------------------------------------------------------
@@ -137,8 +134,6 @@ class TurntableGaugeViewModel(QObject):
             self._state = str(data['state'])
             changed = True
 
-        # 변경사항이 있으면 View에 통지
-        # (최적화를 위해 매번 보내지 않고 변경시에만 보낼 수도 있음, 여기서는 단순화)
         if changed:
             self._notify_view()
             
@@ -150,30 +145,32 @@ class TurntableGaugeViewModel(QObject):
         # X축(12시) 기준, Y축(9시/270도) 가정을 적용
         # atan2(y, x) -> 수학적 각도 (X축 기준 반시계)
         
-        math_angle_rad = math.atan2(self._robot_y, self._robot_x)
+        robot_x = self.robot_pose.x
+        robot_y = self.robot_pose.y
+
+        math_angle_rad = math.atan2(robot_y, robot_x)
         math_angle_deg = math.degrees(math_angle_rad)
         
         # 변환 공식: -math_angle (12시=0, 시계방향)
         robot_display_angle = (-math_angle_deg) % 360
         
         # 거리 정규화
-        dist = math.sqrt(self._robot_x**2 + self._robot_y**2)
+        dist = math.sqrt(robot_x**2 + robot_y**2)
         radius_percent = min(dist / self._max_reach_mm, 1.0)
         
         # View용 데이터 패킷 생성 (Primitive Types Only)
         view_data = {
-            'angle': self._servo_turntable_degree,
+            'angle': self.servo_motions[ServoAxis.TURNTABLE].angle,
             'robot_angle': robot_display_angle,
             'robot_radius_percent': radius_percent,
             
             # 추가 정보 (View가 원하면 표시 가능)
-            'robot_z': self._robot_z,
-            'robot_f': self._robot_f,
-            'servo_rev_vel': self._servo_revolution,
-            'servo_rot_vel': self._servo_rotation,
-            'servo_turntable_vel': self._servo_turntable_velocity,
+            'robot_z': self.robot_pose.z,
+            'robot_f': self.robot_pose.f,
+            'servo_rev_vel': self.servo_motions[ServoAxis.TOOL_REVOLUTION].velocity,
+            'servo_rot_vel': self.servo_motions[ServoAxis.TOOL_ROTATION].velocity,
+            'servo_turntable_vel': self.servo_motions[ServoAxis.TURNTABLE].velocity,
 
-            
             'rounds': self._rounds,
             'state': self._state
         }
