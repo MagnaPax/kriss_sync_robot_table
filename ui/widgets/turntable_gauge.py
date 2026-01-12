@@ -8,6 +8,7 @@ from PyQt6.QtCore import Qt, QPointF, QRectF, QSize, QTimer, pyqtProperty
 
 from ui.widgets.base_widget import BaseWidget
 from ui.widgets.status_indicator_box import StatusIndicatorBox
+from view_models.turntable_gauge_viewmodel import TurntableGaugeViewModel
 
 
 
@@ -185,7 +186,7 @@ class _GaugePainter(QWidget):
 # ==========================================================
 # 2. 메인 턴테이블 위젯 (조립)
 # ==========================================================
-class TurntableWidget(BaseWidget):
+class TurntableGaugeWidget(BaseWidget):
     """
     턴테이블 게이지 메인 위젯
     - 게이지, 텍스트, 상태창을 조립
@@ -216,13 +217,15 @@ class TurntableWidget(BaseWidget):
         self.digital_readout = QLabel("00 rounds 0.0°")
         self.digital_readout.setObjectName("turntable_readout")
         self.digital_readout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        # self.digital_readout.setStyleSheet("font-size: 18px; font-weight: bold; margin-top: 5px;")
-
-        layout.addWidget(self.digital_readout, stretch=0)
+        # layout.addWidget(self.digital_readout, stretch=0)
 
         # 상태 표시줄 (StatusIndicatorBox 위젯 사용)
         self.state_indicator = StatusIndicatorBox("TurnTable State", led_size=10)
-        layout.addWidget(self.state_indicator, stretch=0)
+        # layout.addWidget(self.state_indicator, stretch=0)
+
+        # ViewModel 생성 및 연결
+        self.view_model = TurntableGaugeViewModel()
+        self.view_model.ui_data_updated.connect(self.update_data)
 
     def update_data(self, data: dict):
         """
@@ -243,12 +246,24 @@ class TurntableWidget(BaseWidget):
         rounds = int(data.get('rounds', 0))
         state = str(data.get('state', 'waiting'))
 
+        # 추가 데이터 추출 (View 표시용)
+        robot_z = float(data.get('robot_z', 0.0))
+        robot_f = float(data.get('robot_f', 0.0))
+        turntable_vel = float(data.get('servo_turntable_vel', 0.0))
+
+
         # 게이지 위젯에 값 전달
         # self.gauge_widget.set_data(angle, robot_angle)
         self.gauge_widget.set_data(angle, robot_angle, robot_radius_percent)
 
         # 디지털 텍스트에 값 전달
-        self.digital_readout.setText(f"{rounds:02d} rounds {angle:.1f}°")
+        # 포맷: [회전수] [각도 / 속도] | [Z높이 / f속도]
+        # 예: 05 rounds 120.5° (10.0°/s) | Z: 150.0mm F: 50.0%
+        text = (
+            f"{rounds:02d} rounds {angle:.1f}° ({turntable_vel:.1f}°/s)\n"
+            f"Z: {robot_z:.1f}mm  F: {robot_f:.1f}"
+        )
+        self.digital_readout.setText(text)
 
         # 상태 표시줄 갱신
         state_data = {
@@ -281,9 +296,9 @@ if __name__ == '__main__':
     main_window = QWidget()
     main_layout = QVBoxLayout(main_window)
     
-    test_widget = TurntableWidget()
+    test_widget = TurntableGaugeWidget()
     main_layout.addWidget(test_widget)
-    main_window.setWindowTitle("TurntableWidget 단독 테스트")
+    main_window.setWindowTitle("TurntableGaugeWidget 단독 테스트")
     main_window.resize(300, 450)
     main_window.show()
 
