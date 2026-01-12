@@ -1,17 +1,13 @@
 # ui/widgets/turntable_widget.py
 import sys
 
-from PyQt6.QtWidgets import (
-    QApplication, QWidget, QLabel, QVBoxLayout, QSizePolicy, QHBoxLayout
-)
-from PyQt6.QtGui import (
-    QPainter, QColor, QPen, QPolygonF
-)
+from typing import Optional
+from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QSizePolicy, QHBoxLayout
+from PyQt6.QtGui import QPainter, QColor, QPen, QPolygonF
 from PyQt6.QtCore import Qt, QPointF, QRectF, QSize, QTimer, pyqtProperty
 
-from .base_widget import BaseWidget
-from .status_indicator_box import StatusIndicatorBox
-from typing import Optional, Dict, Any
+from ui.widgets.base_widget import BaseWidget
+from ui.widgets.status_indicator_box import StatusIndicatorBox
 
 
 
