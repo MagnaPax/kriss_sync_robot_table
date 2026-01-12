@@ -1,5 +1,13 @@
-// FANUC UI1 구조체
-TYPE DUT_FANUC_UI1 :
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.14">
+  <DUT Name="DUT_FANUC_UI1" Id="{dee0d349-2c6a-4445-8c3c-f9f746f01b23}">
+    <Declaration><![CDATA[TYPE DUT_FANUC_UI1 :
+(* 
+    [PLC -> 로봇] 출력 명령 구조체 (PLC Output to Robot)
+    FANUC 로봇의 UI(User Input)로 명령을 보내는 데이터 구조입니다.
+    파이썬의 FanucAdapter.write_command_packet()이 이 구조를 사용합니다.
+	TcPOU = TwinCAT Program Organization Unit
+*)
 STRUCT
 	// 25~42(UI)
 	UI01_IMSP : BIT := 1;
@@ -67,3 +75,6 @@ STRUCT
 	
 END_STRUCT
 END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>
