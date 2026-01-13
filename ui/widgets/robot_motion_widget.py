@@ -1,4 +1,4 @@
-# ui/widgets/robot_position_widget.py
+# ui/widgets/robot_motion_widget.py
 import sys
 import math # 역기구학(Inverse Kinematics, IK) 계산을 위해
 
@@ -190,7 +190,7 @@ class _RobotVisualizer(QWidget):
 # ==========================================================
 # 2. 메인 로봇 위치 위젯 (조립)
 # ==========================================================
-class RobotPositionWidget(BaseWidget):
+class RobotMotionWidget(BaseWidget):
     """
     로봇 위치 메인 위젯
     - BaseWidget을 상속받아 update_data 인터페이스 구현
@@ -262,7 +262,7 @@ class RobotPositionWidget(BaseWidget):
 # ==========================================================
 # 3. 단독 실행 (테스트용)
 """
-python -m ui.widgets.robot_position_widget
+python -m ui.widgets.robot_motion_widget
 """
 # ==========================================================
 if __name__ == '__main__':
@@ -271,9 +271,9 @@ if __name__ == '__main__':
     main_window = QWidget()
     main_layout = QVBoxLayout(main_window)
     
-    test_widget = RobotPositionWidget()
+    test_widget = RobotMotionWidget()
     main_layout.addWidget(test_widget)
-    main_window.setWindowTitle("RobotPositionWidget 단독 테스트 (IK)")
+    main_window.setWindowTitle("RobotMotionWidget 단독 테스트 (IK)")
     main_window.resize(300, 350)
     main_window.show()
 

@@ -1,7 +1,7 @@
 # ui/panels/center_panel.py
 from typing import TYPE_CHECKING, Optional
 from PyQt6.QtWidgets import QFrame, QVBoxLayout, QWidget
-from ui.widgets.robot_position_widget import RobotPositionWidget
+from ui.widgets.robot_motion_widget import RobotMotionWidget
 from ui.widgets.robot_controller_widget import RobotControllerWidget
 from ui.widgets.world_coordinates_widget import WorldCoordinatesWidget
 from ui.widgets.user_coordinates_widget import UserCoordinatesWidget
@@ -25,7 +25,7 @@ class CenterPanel(QFrame):
         layout = QVBoxLayout(self)
 
         world_coordinates = WorldCoordinatesWidget()
-        robot_position = RobotPositionWidget()
+        robot_position = RobotMotionWidget()
         target_position = RobotControllerWidget()
         user_position = UserCoordinatesWidget()
 
