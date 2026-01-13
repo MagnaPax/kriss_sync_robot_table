@@ -42,7 +42,7 @@ class TurntableGaugeViewModel(QObject):
         self._rounds: int = 0
         self._state: str = "waiting"
 
-        self._max_reach_mm: float = 2000.0  # 로봇 팔 길이 (반지름 정규화용)
+        self._max_reach_mm: float = 200.0  # 로봇 팔 길이 (반지름 정규화용) -> 확대 효과를 위해 줄임
 
         # EventBus 연결
         self._connect_signals()
@@ -165,10 +165,11 @@ class TurntableGaugeViewModel(QObject):
         view_data = {
             'angle': self.servo_motions[ServoAxis.TURNTABLE].angle,
             
-            # 로봇 X Move (로봇 X축 이동) 시각화
-            # 사용자의 요청에 따라 'Robot X Move'라는 직관적인 명칭 사용
-            'robot_x_move_angle': robot_display_angle,       # Robot X Move Angle
-            'robot_x_move_radius_ratio': radius_percent,   # Robot X Move Radius Ratio
+            # Material Cut Trajectory (실제 가공 궤적) 시각화
+            # 회전하는 턴테이블 위에서의 상대적 위치
+            # 현재 시점(실시간)에서는 로봇의 World 위치가 곧 가공 위치임 (상대성 계산은 Waypoint에서 중요)
+            'material_cut_angle': robot_display_angle,       # Material Cut Angle
+            'material_cut_radius_ratio': radius_percent,     # Material Cut Radius Ratio
             
             # 추가 정보 (View가 원하면 표시 가능)
             'robot_z': self.robot_pose.z,
@@ -210,10 +211,15 @@ class TurntableGaugeViewModel(QObject):
                 dist = math.sqrt(x**2 + y**2)
                 dist_percent = min(dist / self._max_reach_mm, 1.0)
                 
-                # 로봇 X Move 반영
+                # Material Cut Path 계산 (Material Frame)
+                # 가공 궤적 = World Angle - Turntable Angle
+                # (턴테이블이 회전해도 궤적이 재료에 고정되어 같이 회전하도록 함)
+                step_turntable_deg = float(step.get('turntable_deg', 0.0))
+                material_cut_angle = (visual_angle - step_turntable_deg) % 360
+
                 visual_waypoints.append({
-                    'robot_x_move_angle': visual_angle,
-                    'robot_x_move_radius_ratio': dist_percent
+                    'material_cut_angle': material_cut_angle,
+                    'material_cut_radius_ratio': dist_percent
                 })
                 
             except (ValueError, TypeError):

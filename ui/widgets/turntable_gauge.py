@@ -26,9 +26,9 @@ class _GaugePainter(QWidget):
         
         self._angle: float = 0.0                # 현재 테이블 각도
         # [시각화 전용 변수] 직교 좌표계(X,Y)를 원형 게이지에 그리기 위해 각도/거리로 변환한 값
-        # (Bird's-eye View: 위에서 내려다본 Robot X Move (로봇 X축 이동) 평면상 위치)
-        self._robot_x_move_angle: float = 0.0          # Robot X Move Angle
-        self._robot_x_move_radius_ratio: float = 0.9   # Robot X Move Radius Ratio
+        # (Bird's-eye View: 턴테이블 위의 재료 가공 궤적 - Material Cut Trajectory)
+        self._material_cut_angle: float = 0.0          # Material Cut Angle
+        self._material_cut_radius_ratio: float = 0.9   # Material Cut Radius Ratio
         self._robot_z: float = 0.0                     # 로봇 높이 (Z축)
 
         # 기본 색상 (QSS에서 덮어씌울 변수들 - 초기값은 검정/흰색 등 의미없는 색상)
@@ -38,19 +38,19 @@ class _GaugePainter(QWidget):
         self._arrow_color = QColor(Qt.GlobalColor.black)
         # 로봇 툴 위치 (Tool Position) - 빨간 점
         self._tool_position_color = QColor(Qt.GlobalColor.black)
-        # 웨이포인트 -> Robot X Move Trajectory (로봇 X축 이동 궤적)
-        self._robot_x_move_trajectory_color = QColor(Qt.GlobalColor.lightGray) 
+        # Material Cut Trajectory (실제 소재 가공 궤적)
+        self._material_cut_trajectory_color = QColor(Qt.GlobalColor.lightGray) 
         
-        self._waypoints: list = [] # 웨이포인트 목록 [{'robot_x_move_angle': ..., 'robot_x_move_radius_ratio': ...}, ...]
+        self._waypoints: list = [] # 웨이포인트 목록 [{'material_cut_angle': ..., 'material_cut_radius_ratio': ...}, ...]
 
     # --- QProperty 정의 (Stylesheet 연동용) ---
     def get_circle_color(self): return self._circle_color
     def set_circle_color(self, c): self._circle_color = c; self.update()
     circleColor = pyqtProperty(QColor, get_circle_color, set_circle_color)
 
-    def get_robot_x_move_trajectory_color(self): return self._robot_x_move_trajectory_color
-    def set_robot_x_move_trajectory_color(self, c): self._robot_x_move_trajectory_color = c; self.update()
-    robotXMoveTrajectoryColor = pyqtProperty(QColor, get_robot_x_move_trajectory_color, set_robot_x_move_trajectory_color)
+    def get_material_cut_trajectory_color(self): return self._material_cut_trajectory_color
+    def set_material_cut_trajectory_color(self, c): self._material_cut_trajectory_color = c; self.update()
+    materialCutTrajectoryColor = pyqtProperty(QColor, get_material_cut_trajectory_color, set_material_cut_trajectory_color)
 
     def get_scale_line_color(self): return self._scale_line_color
     def set_scale_line_color(self, c): self._scale_line_color = c; self.update()
@@ -70,12 +70,12 @@ class _GaugePainter(QWidget):
 
 
 
-    def set_data(self, angle: float, robot_x_move_angle: float, robot_x_move_radius_ratio: float, robot_z: float):
+    def set_data(self, angle: float, material_cut_angle: float, material_cut_radius_ratio: float, robot_z: float):
         """외부(TurntableWidget)에서 각도 데이터를 받아 위젯 갱신"""
         self._angle = angle
-        self._robot_x_move_angle = robot_x_move_angle
+        self._material_cut_angle = material_cut_angle
         # 0.0 (중심) ~ 1.0 (테두리) 사이 값으로 제한
-        self._robot_x_move_radius_ratio = max(0.0, min(1.0, robot_x_move_radius_ratio))
+        self._material_cut_radius_ratio = max(0.0, min(1.0, material_cut_radius_ratio))
         self._robot_z = robot_z # Z축 높이 (mm)
         self.update()  # -> Qt -> paintEvent() : Qt 에게 paintEvent()를 호출하도록 요청
 
@@ -144,23 +144,26 @@ class _GaugePainter(QWidget):
         painter.save()
         painter.translate(center)
         
-        # Robot X Move Trajectory 스타일 (작고 연한 점)
+        # Material Cut Trajectory 스타일 (작고 연한 점)
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(self._robot_x_move_trajectory_color)
+        painter.setBrush(self._material_cut_trajectory_color)
         
+        # [핵심] 턴테이블과 함께 회전하도록 설정 (재료에 고정된 궤적)
+        painter.rotate(self._angle) 
+
         for wp in self._waypoints:
-            robot_x_move_angle = wp.get('robot_x_move_angle', 0.0)
-            robot_x_move_radius_ratio = wp.get('robot_x_move_radius_ratio', 0.0)
+            material_cut_angle = wp.get('material_cut_angle', 0.0)
+            material_cut_radius_ratio = wp.get('material_cut_radius_ratio', 0.0)
             
             painter.save()
-            painter.rotate(robot_x_move_angle)
+            painter.rotate(material_cut_angle)
             
             # 위치 계산
-            dist = radius * robot_x_move_radius_ratio
+            dist = radius * material_cut_radius_ratio
             pos = QPointF(0, -dist)
             
-            # 작은 점 그리기
-            painter.drawEllipse(pos, 3, 3) # 반지름 3
+            # 작은 점 그리기 (궤적이 뭉치지 않게 아주 작게 표현)
+            painter.drawEllipse(pos, 0.5, 0.5) # 반지름 0.5 (지름 1px)
             
             painter.restore()
             
@@ -175,7 +178,6 @@ class _GaugePainter(QWidget):
         painter.translate(center)   # 원점을 원의 중심으로 이동
         painter.rotate(self._angle) # 도화지 전체를 '현재 각도(self._angle)'만큼 회전
         
-        # arrow_color = QColor("#3498db")
         painter.setPen(QPen(self._arrow_color, 4, Qt.PenStyle.SolidLine))
         # 회전된 도화지의 정중앙(0,0)에서 12시 방향(0, -반지름*0.85)으로 파란색 선(화살표 몸통) 그리기
         painter.drawLine(QPointF(0, 0), QPointF(0, -radius * 0.85)) 
@@ -202,7 +204,12 @@ class _GaugePainter(QWidget):
         """
         painter.save()
         painter.translate(center)
-        painter.rotate(self._robot_x_move_angle) # Robot X Move Angle만큼 캔버스 회전
+        
+        # 빨간 점은 로봇의 World 위치이므로, 턴테이블 회전과 무관하게 독립적으로 움직임(처럼 보이지만 값은 상대적?)
+        # 아니요, 사용자는 "맞닿을 궤적" 즉 Relative Position을 원함?
+        # 아니요, 빨간점은 "현재 툴 위치" -> World 좌표계 -> 그냥 그려야 함.
+        # 즉 _material_cut_angle 변수는 현재 시점에서 World와 같음.
+        painter.rotate(self._material_cut_angle) # 캔버스 회전
 
         
         # [Z축 시각화 로직]
@@ -228,7 +235,7 @@ class _GaugePainter(QWidget):
 
 
         # 중심으로부터의 거리를 비율(ratio)로 계산
-        dot_distance_from_center = radius * self._robot_x_move_radius_ratio
+        dot_distance_from_center = radius * self._material_cut_radius_ratio
         
         # 12시 방향(위쪽)으로 dot_distance_from_center 만큼 떨어진 곳에 점을 그림
         dot_pos = QPointF(0, -dot_distance_from_center)        
@@ -319,9 +326,9 @@ class TurntableGaugeWidget(BaseWidget):
         # 데이터 추출
         angle = float(data.get('angle', 0.0))
         # 로봇 시각화 데이터 (ViewModel에서 계산됨)
-        # "Robot X Move" - 로봇 X축(및 평면) 이동 시각화
-        robot_x_move_angle = float(data.get('robot_x_move_angle', 0.0))
-        robot_x_move_radius_ratio = float(data.get('robot_x_move_radius_ratio', 0.9))
+        # "Material Cut" - 소재 가공 궤적
+        material_cut_angle = float(data.get('material_cut_angle', 0.0))
+        material_cut_radius_ratio = float(data.get('material_cut_radius_ratio', 0.9))
 
         rounds = int(data.get('rounds', 0))
         state = str(data.get('state', 'waiting'))
@@ -333,8 +340,7 @@ class TurntableGaugeWidget(BaseWidget):
 
 
         # 게이지 위젯에 값 전달
-        # self.gauge_widget.set_data(angle, robot_x_move_angle)
-        self.gauge_widget.set_data(angle, robot_x_move_angle, robot_x_move_radius_ratio, robot_z)
+        self.gauge_widget.set_data(angle, material_cut_angle, material_cut_radius_ratio, robot_z)
 
         # 디지털 텍스트에 값 전달
         # 포맷: [회전수] [각도 / 속도] | [Z높이 / f속도]
@@ -356,8 +362,8 @@ class TurntableGaugeWidget(BaseWidget):
         """위젯 초기화 -> 초기 상태값 딕셔너리 전달"""
         self.update_data({
             'angle': 0.0,
-            'robot_x_move_angle': 0.0,
-            'robot_x_move_radius_ratio': 0.0,
+            'material_cut_angle': 0.0,
+            'material_cut_radius_ratio': 0.0,
             'rounds': 0,
             'state': 'off'
         })
@@ -386,8 +392,8 @@ if __name__ == '__main__':
     test_data = {
         'angle': 0.0,
         'rounds': 0,
-        'robot_x_move_angle': 270.0, # 빨간 점 초기 위치
-        'robot_x_move_radius_ratio': 0.9, # 반지름 90%에서 시작
+        'material_cut_angle': 270.0, # 빨간 점 초기 위치
+        'material_cut_radius_ratio': 0.9, # 반지름 90%에서 시작
         'state': 'running'
     }
 
@@ -399,11 +405,11 @@ if __name__ == '__main__':
         global radius_direction
 
         test_data['angle'] = (float(test_data['angle']) + 1.5) % 360
-        test_data['robot_x_move_angle'] = (float(test_data['robot_x_move_angle']) - 0.5) % 360
+        test_data['material_cut_angle'] = (float(test_data['material_cut_angle']) - 0.5) % 360
 
 
         # 빨간 점이 안팎으로 움직이는 애니메이션
-        rad_perc = float(test_data['robot_x_move_radius_ratio'])
+        rad_perc = float(test_data['material_cut_radius_ratio'])
 
         if rad_perc <= 0.1: # 중심(10%)에 가까워지면
             radius_direction = 1 # 밖으로 이동
@@ -412,7 +418,7 @@ if __name__ == '__main__':
             
         # 0.01 (1%)씩 방향에 따라 증감
         rad_perc += (0.01 * radius_direction)
-        test_data['robot_x_move_radius_ratio'] = rad_perc        
+        test_data['material_cut_radius_ratio'] = rad_perc        
 
 
         # 90도 근처에서 'waiting' 상태로 변경
