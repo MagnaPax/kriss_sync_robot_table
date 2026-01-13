@@ -243,4 +243,5 @@ class TurntableGaugeViewModel(QObject):
 
     def _handle_processing_step(self, current: int, total: int, status: str):
         """진행중인 궤적 표시"""
-        self.progressing_step_changed.emit()
+        # TODO: 진행중인 궤적 색깔 다르게 표시
+        #       progressing_step_changed 시그널 사용하기
