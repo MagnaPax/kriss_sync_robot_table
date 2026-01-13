@@ -37,21 +37,11 @@ class LeftPanel(QFrame):
         # MainViewModel에서 뷰모델을 꺼내서 주입
         servo_control.set_view_model(self.vm.servo_control_vm)
         target_position.set_view_model(self.vm.target_position_vm)
-
-
-        
-        # --- TurntableWidget을 QGroupBox 안에 넣기 ---
-        turntable_group = QGroupBox("Bird's-eye View")  # QGroupBox 생성
-        turntable_layout = QVBoxLayout(turntable_group)     # GroupBox에 적용할 레이아웃 생성
-        self.turntable_gauge = TurntableGaugeWidget()                # 실제 위젯 인스턴스 생성
-        # 위젯 위아래로 공간(stretch)을 추가하여 수직 중앙 정렬
-        turntable_layout.addStretch(1)
-        turntable_layout.addWidget(self.turntable_gauge)
-        turntable_layout.addStretch(1)
+        self.turntable_gauge.set_view_model(self.vm.turntable_gauge_vm)
 
 
         # 바탕 레이아웃에 위젯 추가
-        main_layout.addWidget(self.logo_widget,  stretch=5)
-        main_layout.addWidget(turntable_group,   stretch=20)
+        main_layout.addWidget(self.logo_widget,      stretch=5)
+        main_layout.addWidget(self.turntable_gauge,  stretch=20)
         main_layout.addWidget(target_position,   stretch=40)
         main_layout.addWidget(servo_control,     stretch=35)

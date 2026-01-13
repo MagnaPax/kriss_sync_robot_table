@@ -2,7 +2,7 @@
 import sys
 
 from typing import Optional
-from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QSizePolicy, QHBoxLayout
+from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QSizePolicy, QHBoxLayout, QGroupBox
 from PyQt6.QtGui import QPainter, QColor, QPen, QPolygonF
 from PyQt6.QtCore import Qt, QPointF, QRectF, QSize, QTimer, pyqtProperty
 
@@ -29,7 +29,14 @@ class _GaugePainter(QWidget):
         # (Bird's-eye View: 턴테이블 위의 재료 가공 궤적 - Material Cut Trajectory)
         self._material_cut_angle: float = 0.0          # Material Cut Angle
         self._material_cut_radius_ratio: float = 0.9   # Material Cut Radius Ratio
+        self._material_cut_angle: float = 0.0          # Material Cut Angle
+        self._material_cut_radius_ratio: float = 0.9   # Material Cut Radius Ratio
         self._robot_z: float = 0.0                     # 로봇 높이 (Z축)
+        
+        # [Zoom 설정] Radius 기반 확대 (Center Zoom)
+        self._zoom_scale: float = 1.0 
+        self._min_zoom: float = 0.5
+        self._max_zoom: float = 20.0
 
         # 기본 색상 (QSS에서 덮어씌울 변수들 - 초기값은 검정/흰색 등 의미없는 색상)
         self._circle_color = QColor(Qt.GlobalColor.black)
@@ -84,6 +91,17 @@ class _GaugePainter(QWidget):
         self._waypoints = waypoints
         self.update()
 
+    def wheelEvent(self, event):
+        """마우스 휠로 줌 인/아웃 (Radius Scaling)"""
+        delta = event.angleDelta().y()
+        # 휠 올리면 확대(+), 내리면 축소(-)
+        if delta > 0:
+            self._zoom_scale = min(self._max_zoom, self._zoom_scale + 0.5)
+        else:
+            self._zoom_scale = max(self._min_zoom, self._zoom_scale - 0.5)
+        self.update()
+        event.accept()
+
 
     def paintEvent(self, event) -> None:  # type: ignore[override]
         """
@@ -100,7 +118,10 @@ class _GaugePainter(QWidget):
         # 1. 좌표계 설정 (정사각형 기준)
         side = min(self.width(), self.height())     # 창이 직사각형 되어도 게이지 찌그러지지 않게
         center = QPointF(self.width() / 2, self.height() / 2)
-        radius = side * 0.4  # 40% (텍스트를 위한 여백)
+        
+        # [핵심] Zoom 적용: 반지름 자체를 키운다. 
+        # 이렇게 하면 중심(center)은 그대로이고, 원의 크기만 커지거나 작아짐 = 완벽한 Center Zoom
+        radius = (side * 0.4) * self._zoom_scale
 
         # 2. 정적 요소 그리기 (원, 텍스트, 0도선)
         self._draw_static_background(painter, center, radius)
@@ -268,7 +289,7 @@ class _GaugePainter(QWidget):
 # ==========================================================
 # 2. 메인 턴테이블 위젯 (조립)
 # ==========================================================
-class TurntableGaugeWidget(BaseWidget):
+class TurntableGauge(BaseWidget):
     """
     턴테이블 게이지 메인 위젯
     - 게이지, 텍스트, 상태창을 조립
@@ -305,8 +326,12 @@ class TurntableGaugeWidget(BaseWidget):
         self.state_indicator = StatusIndicatorBox("TurnTable State", led_size=10)
         # layout.addWidget(self.state_indicator, stretch=0)
 
-        # ViewModel 생성 및 연결
-        self.view_model = TurntableGaugeViewModel()
+        # ViewModel은 외부(MainVeiwModel)에서 set_view_model()을 통해 주입받음
+        self.view_model: Optional[TurntableGaugeViewModel] = None
+
+    def set_view_model(self, vm: TurntableGaugeViewModel):
+        """외부에서 ViewModel 주입"""
+        self.view_model = vm
         self.view_model.ui_data_updated.connect(self.update_data)
         self.view_model.waypoints_updated.connect(self.update_waypoints)
 
@@ -371,6 +396,54 @@ class TurntableGaugeWidget(BaseWidget):
 
 
 # ==========================================================
+# 4. 외부 공개용 Wrapper Class (GroupBox 포함)
+#    : LeftPanel 등에서 이 클래스를 사용
+# ==========================================================
+class TurntableGaugeWidget(BaseWidget):
+    """
+    TurntableGauge를 'Bird's-eye View' GroupBox로 감싸서 제공하는 래퍼 위젯.
+    LeftPanel 등의 UI에서는 이 클래스를 인스턴스화하여 사용한다.
+    """
+    
+    def _init_ui(self):
+        # 1. 메인 레이아웃 (여백 제거)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # 2. GroupBox 생성 (로직 이동됨 - Encapsulation)
+        self.group_box = QGroupBox("Bird's-eye View")
+        group_layout = QVBoxLayout(self.group_box)
+        
+        # 3. 실제 기능 위젯(TurntableGauge) 생성 및 추가
+        self.gauge = TurntableGauge()
+        
+        # 4. Layout 배치 (위아래 Stretch로 중앙 정렬)
+        group_layout.addStretch(1)
+        group_layout.addWidget(self.gauge)
+        group_layout.addStretch(1)
+        
+        # 5. GroupBox를 메인 레이아웃에 추가
+        main_layout.addWidget(self.group_box)
+
+    def update_data(self, data: dict):
+        """데이터 업데이트 위임"""
+        # ViewModel이 내부 TurntableGauge에 직접 연결되어 있어 사실상 불필요할 수 있으나,
+        # 외부에서 명시적으로 update_data 호출 시 전달 역할.
+        if hasattr(self, 'gauge'):
+            self.gauge.update_data(data)
+
+    def set_view_model(self, vm: TurntableGaugeViewModel):
+        """ViewModel 주입 위임"""
+        if hasattr(self, 'gauge'):
+            self.gauge.set_view_model(vm)
+
+    def clear_widget(self):
+        """초기화 위임"""
+        if hasattr(self, 'gauge'):
+            self.gauge.clear_widget()
+
+
+# ==========================================================
 # 3. 단독 실행 (테스트용)
 """
 python -m ui.widgets.turntable_gauge
@@ -421,7 +494,6 @@ if __name__ == '__main__':
         test_data['material_cut_radius_ratio'] = rad_perc        
 
 
-        # 90도 근처에서 'waiting' 상태로 변경
         if int(test_data['angle']) % 90 < 2:
              test_data['state'] = 'waiting'
              # 0도 통과 시 라운드 증가
@@ -429,7 +501,8 @@ if __name__ == '__main__':
                  test_data['rounds'] = int(test_data['rounds']) + 1
         elif int(test_data['angle']) % 45 < 2: # 45도 근처에서 'running'
              test_data['state'] = 'running'
-
+        
+        # Wrapper의 경우 update_data가 내부 gauge로 전달되는지 테스트
         test_widget.safe_update_data(test_data)
 
     timer = QTimer()
