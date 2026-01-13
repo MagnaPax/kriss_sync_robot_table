@@ -323,7 +323,7 @@ class PLCService(QObject):
         sequence_data = [fanuc_pose_data]
 
         # Worker 호출
-        self._start_worker('MOVE', data=sequence_data, log_msg=f"단일 명령 이동: {fanuc_pose_obj}")
+        self._start_worker('MOVE', data=sequence_data, log_msg=f"FANUC 단독 명령 이동: {fanuc_pose_obj}")
 
     def process_sequence_data(self, csv_data: List[Dict[str, Any]]):
         """
