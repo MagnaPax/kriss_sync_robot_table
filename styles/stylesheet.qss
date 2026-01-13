@@ -689,13 +689,13 @@ QLabel[usage="waypoint_result"][status="pending"] {
 
 
 
-/* ServoControlWidget 전용 스타일 */
-#servo_control_widget QLabel {
+/* ServoControllerWidget 전용 스타일 */
+#servo_controller_widget QLabel {
     font-weight: bold;
     color: #333333;
 }
 
-#servo_control_widget QDoubleSpinBox {
+#servo_controller_widget QDoubleSpinBox {
     border: 1px solid #ced4da;
     border-radius: 4px;
     padding: 6px;
@@ -706,7 +706,7 @@ QLabel[usage="waypoint_result"][status="pending"] {
     selection-background-color: #5D9CEC;
 }
 
-#servo_control_widget QDoubleSpinBox:focus {
+#servo_controller_widget QDoubleSpinBox:focus {
     border: 2px solid #5D9CEC;
 }
 

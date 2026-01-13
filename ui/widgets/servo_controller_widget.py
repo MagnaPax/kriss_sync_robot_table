@@ -1,4 +1,4 @@
-# ui/widgets/servo_control_widget.py
+# ui/widgets/servo_controller_widget.py
 from PyQt6.QtCore import QTimer, pyqtSlot
 from PyQt6.QtWidgets import (
     QVBoxLayout, 
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 
 
-class ServoControlWidget(BaseWidget):
+class ServoControllerWidget(BaseWidget):
     """서보모터 제어용 위젯"""
     # ========================================
     # 초기화 및 설정 (Initialization)
@@ -79,7 +79,7 @@ class ServoControlWidget(BaseWidget):
         # 메인 레이아웃 및 그룹박스 설정
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
-        self.setObjectName("servo_control_widget")
+        self.setObjectName("servo_controller_widget")
 
         # 그룹박스 생성
         self.servo_group = QGroupBox("Servo Control")
@@ -378,7 +378,7 @@ if __name__ == "__main__":
         print(f"스타일 로드 실패: {e}")
 
     # 위젯 생성 및 테스트
-    window = ServoControlWidget()
+    window = ServoControllerWidget()
     window.set_view_model(vm)
     window.resize(400, 200)
     window.show()

@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import QFrame, QVBoxLayout, QGroupBox, QWidget
 from typing import TYPE_CHECKING, Optional
 from ui.widgets.logo_widget import LogoWidget
 from ui.widgets.turntable_gauge import TurntableGaugeWidget
-from ui.widgets.servo_control_widget import ServoControlWidget
+from ui.widgets.servo_controller_widget import ServoControllerWidget
 from ui.widgets.robot_controller_widget import RobotControllerWidget
 
 
@@ -29,7 +29,7 @@ class LeftPanel(QFrame):
         # 위젯들
         self.logo_widget = LogoWidget()
         self.turntable_gauge = TurntableGaugeWidget()
-        servo_control = ServoControlWidget()
+        servo_control = ServoControllerWidget()
         target_position = RobotControllerWidget()
 
 
