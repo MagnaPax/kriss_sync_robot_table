@@ -17,6 +17,7 @@ class TargetPositionViewModel(QObject):
     robot_poses_clear = pyqtSignal()                # 로봇 좌표 초기화 요청 시그널
     robot_poses_changed = pyqtSignal(FANUCPose)     # 로봇 좌표 변경됨
     macros_loaded = pyqtSignal(dict)                # 매크로 데이터 가져오기 완료
+    disable_buttons = pyqtSignal(bool)              # 버튼 비활성화
 
 
     def __init__(self, model: FANUCPoseModel, plc_service: "PLCService"):
@@ -36,11 +37,67 @@ class TargetPositionViewModel(QObject):
         self._plc_service = plc_service
         self._macro_service = MacroService()
 
-        # --- 이벤트 버스 시그널 구독 --- #
+
+        # EventBus 연결
+        self._bind_signals()
+
+
+    def _bind_signals(self):
         EVENT_BUS.control.clear_user_inputs.connect(self._on_clear_manual_inputs)   # 입력 필드 초기화
         EVENT_BUS.data.waypoints_selected.connect(self._on_replace_inputs_by_selected_sequence_on_waypoints_table)      # 웨이포인트에서 선택된 시퀀스
+        EVENT_BUS.data.sequence_running_changed.connect(self.disable_buttons)      # 시퀀스 실행중이면 로컬 시그널을 곧바로 재방송
 
 
+
+    # ===============================================
+    # 시그널 슬롯 [물리적 시그널 수신]
+    # ===============================================
+    @pyqtSlot(str)
+    def _on_clear_manual_inputs(self, type_: str):
+        """EventBus로부터 '입력 필드 초기화 요청'을 받았을 때 호출"""
+        self._handle_clear_inputs(type_)
+
+    @pyqtSlot(dict)
+    def _on_replace_inputs_by_selected_sequence_on_waypoints_table(self, row_data: dict):
+        """WaypointsTable에서 선택된 시퀀스를 View에게 전달하여 입력 필드를 채우게 함"""
+        self._handle_sequence_selection(row_data)
+
+
+    # ===============================================
+    # 핸들러 [논리적 흐름 담당]
+    # ===============================================
+    def _handle_clear_inputs(self, type_: str):
+        """입력 필드 초기화 로직"""
+        # "robot" 또는 "all"일 때 로봇/턴테이블 위젯(TargetPositionWidget) 초기화
+        # (TargetPositionWidget은 로봇, 턴테이블 좌표 모두를 담당하므로 이 둘에 반응해야 함)
+        if type_ in ["robot", "servo", "all"]:
+            # [주의] TargetPositionWidget은 로봇(XYZ), 턴테이블(WPR) 모두 포함하므로
+            # "servo" 요청 시에도 턴테이블(WPR) 부분 초기화를 위해 신호를 받아야 함.
+            # View에서 clear_widget 구현 시 type_에 따라 부분 초기화를 하거나 
+            # 여기서는 단순히 전체 초기화 요청만 보내고 View가 알아서 하도록 할 수 있음.
+            # 현재 계획은 "View의 clear_widget 호출"이므로 전체 초기화가 될 가능성이 큼.
+            # 만약 부분 초기화가 필요하다면 signal에 인자를 추가해야 함.
+            # -> 사용자 요청상 'TargetPositionWidget의 입력 필드가 초기화' 되어야 하므로
+            #    단순히 초기화 신호를 보냄.
+            self.robot_poses_clear.emit()
+
+    def _handle_sequence_selection(self, row_data: dict):
+        """시퀀스 선택 시 입력 필드 업데이트 로직"""
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} 선택된 시퀀스 값: {row_data}", "DEBUG")
+        
+        # 딕셔너리 -> 도메인 모델(FANUCPose) 변환
+        try:
+            fanuc_pose = FANUCPose.from_dict(row_data)
+            self.robot_poses_changed.emit(fanuc_pose)
+            EVENT_BUS.log.message.emit(f"{self.log_prefix} 선택된 시퀀스에서 FANUCPose로 변환된 값:{fanuc_pose}", "DEBUG")
+        except Exception as e:
+            EVENT_BUS.log.message.emit(f"{self.log_prefix} 데이터 파싱 실패: {e}", "WARNING")
+
+
+
+    # ===============================================
+    # View -> ViewModel 호출 메서드 (Commands)
+    # ===============================================
     @pyqtSlot()
     def load_macro_data(self):
         """매크로 데이터 읽어서 뷰에게 전달"""
@@ -91,34 +148,6 @@ class TargetPositionViewModel(QObject):
         EVENT_BUS.log.message.emit(f"FEED RATE 스핀박스 값 변경됨\n사용자 입력값:{feed_rate}", "DEBUG")
 
         self._plc_service.set_robot_speed(feed_rate)
-        
-    @pyqtSlot(str)
-    def _on_clear_manual_inputs(self, type_: str):
-        """
-        EventBus로부터 '입력 필드 초기화 요청'을 받았을 때 호출
-        """
-        # "robot" 또는 "all"일 때 로봇/턴테이블 위젯(TargetPositionWidget) 초기화
-        # (TargetPositionWidget은 로봇, 턴테이블 좌표 모두를 담당하므로 이 둘에 반응해야 함)
-        if type_ in ["robot", "servo", "all"]:
-            # [주의] TargetPositionWidget은 로봇(XYZ), 턴테이블(WPR) 모두 포함하므로
-            # "servo" 요청 시에도 턴테이블(WPR) 부분 초기화를 위해 신호를 받아야 함.
-            # View에서 clear_widget 구현 시 type_에 따라 부분 초기화를 하거나 
-            # 여기서는 단순히 전체 초기화 요청만 보내고 View가 알아서 하도록 할 수 있음.
-            # 현재 계획은 "View의 clear_widget 호출"이므로 전체 초기화가 될 가능성이 큼.
-            # 만약 부분 초기화가 필요하다면 signal에 인자를 추가해야 함.
-            # -> 사용자 요청상 'TargetPositionWidget의 입력 필드가 초기화' 되어야 하므로
-            #    단순히 초기화 신호를 보냄.
-            self.robot_poses_clear.emit()
 
-    @pyqtSlot(dict)
-    def _on_replace_inputs_by_selected_sequence_on_waypoints_table(self, row_data: dict):
-        """WaypointsTable에서 선택된 시퀀스를 View에게 전달하여 입력 필드를 채우게 함"""
-        EVENT_BUS.log.message.emit(f"{self.log_prefix} 선택된 시퀀스 값: {row_data}", "DEBUG")
-        
-        # 딕셔너리 -> 도메인 모델(FANUCPose) 변환
-        try:
-            fanuc_pose = FANUCPose.from_dict(row_data)
-            self.robot_poses_changed.emit(fanuc_pose)
-            EVENT_BUS.log.message.emit(f"{self.log_prefix} 선택된 시퀀스에서 FANUCPose로 변환된 값:{fanuc_pose}", "DEBUG")
-        except Exception as e:
-            EVENT_BUS.log.message.emit(f"{self.log_prefix} 데이터 파싱 실패: {e}", "WARNING")
+
+
