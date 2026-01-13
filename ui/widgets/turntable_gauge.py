@@ -3,7 +3,7 @@ import sys
 
 from typing import Optional
 from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QSizePolicy, QHBoxLayout, QGroupBox, QScrollBar
-from PyQt6.QtGui import QPainter, QColor, QPen, QPolygonF
+from PyQt6.QtGui import QPainter, QColor, QPen, QPolygonF, QCursor, QAction
 from PyQt6.QtCore import Qt, QPointF, QRectF, QSize, QTimer, pyqtProperty, pyqtSignal
 
 from ui.widgets.base_widget import BaseWidget
@@ -23,6 +23,9 @@ class _GaugePainter(QWidget):
         # 위젯의 크기가 변할 때 가로/세로 비율을 유지하며 확장되도록 설정
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         
+        # [UX] 클릭 가능하다는 힌트 제공
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
         self._angle: float = 0.0                # 현재 테이블 각도
         # [시각화 전용 변수] 직교 좌표계(X,Y)를 원형 게이지에 그리기 위해 각도/거리로 변환한 값
         # (Bird's-eye View: 턴테이블 위의 재료 가공 궤적 - Material Cut Trajectory)
@@ -39,6 +42,7 @@ class _GaugePainter(QWidget):
 
         # 기본 색상 (QSS에서 덮어씌울 변수들 - 초기값은 검정/흰색 등 의미없는 색상)
         self._circle_color = QColor(Qt.GlobalColor.black)
+        self._circle_bg_color = QColor(Qt.GlobalColor.transparent) # 초기값은 투명
         self._scale_line_color = QColor(Qt.GlobalColor.black)
         self._scale_text_color = QColor(Qt.GlobalColor.black)
         self._arrow_color = QColor(Qt.GlobalColor.black)
@@ -68,6 +72,10 @@ class _GaugePainter(QWidget):
     def get_circle_color(self): return self._circle_color
     def set_circle_color(self, c): self._circle_color = c; self.update()
     circleColor = pyqtProperty(QColor, get_circle_color, set_circle_color)
+
+    def get_circle_bg_color(self): return self._circle_bg_color
+    def set_circle_bg_color(self, c): self._circle_bg_color = c; self.update()
+    circleBgColor = pyqtProperty(QColor, get_circle_bg_color, set_circle_bg_color)
 
     def get_material_cut_trajectory_color(self): return self._material_cut_trajectory_color
     def set_material_cut_trajectory_color(self, c): self._material_cut_trajectory_color = c; self.update()
@@ -156,12 +164,13 @@ class _GaugePainter(QWidget):
         self._draw_dynamic_elements(painter, center, radius)
 
 
+
     def _draw_static_background(self, painter: QPainter, center: QPointF, radius: float):
         """정적 배경 그리기 (원, 각도, 0도 기준선 등)"""
         
-        # 1. 파란색 원
-        painter.setPen(QPen(self._circle_color, 3))
-        painter.setBrush(Qt.BrushStyle.NoBrush)     # 색 채우기 없음(테두리만)
+        # 1. 파란색 원 (및 배경 채우기)
+        painter.setPen(QPen(self._circle_color, 1)) # 두께를 얇게(1) 변경
+        painter.setBrush(self._circle_bg_color)     # 배경색 채우기
         painter.drawEllipse(center, radius, radius) # 원 그리기
         
         # 2. 0도 기준선 (회색 점선)
@@ -206,8 +215,10 @@ class _GaugePainter(QWidget):
             dist = radius * material_cut_radius_ratio
             pos = QPointF(0, -dist)
             
-            # 작은 점 그리기 (궤적이 뭉치지 않게 아주 작게 표현)
-            painter.drawEllipse(pos, 0.5, 0.5) # 반지름 0.5 (지름 1px)
+            # 작은 점 그리기 (궤적이 뭉치지 않게 아주 작게 표현하되, 줌에 비례하여 커지게 함)
+            # 기본 반지름 0.5 * 줌 스케일 (최소 크기 보장)
+            dot_r = max(0.5, 0.5 * self._zoom_scale)
+            painter.drawEllipse(pos, dot_r, dot_r) 
             
             painter.restore()
             
@@ -290,6 +301,7 @@ class _GaugePainter(QWidget):
         painter.drawEllipse(dot_pos, dot_radius, dot_radius)
         
         painter.restore()
+
 
     def sizeHint(self):
         """레이아웃에 적절한 크기 힌트 제공"""

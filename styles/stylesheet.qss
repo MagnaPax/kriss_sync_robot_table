@@ -800,27 +800,20 @@ QProgressBar#main_progress_bar::chunk {
 }
 
 
-/* 
-----------------------------------------
-    Turntable Gauge Zoom Scrollbar (Subtle Style)
----------------------------------------- 
-*/
+/* Turntable Gauge Zoom Scrollbar (Subtle Style) */
 QScrollBar#zoom_scrollbar:vertical {
     background: transparent; /* 배경 투명 (패널 배경과 조화) */
     width: 6px;              /* 아주 얇게 설정 */
     margin: 0px 0px 0px 0px;
 }
-
 QScrollBar#zoom_scrollbar::handle:vertical {
     background: #d4d4d4;     /* 은은한 회색 핸들 */
     min-height: 20px;
     border-radius: 3px;      /* 둥근 모서리 */
 }
-
 QScrollBar#zoom_scrollbar::handle:vertical:hover {
     background: #b0b0b0;     /* 호버 시 약간 진하게 */
 }
-
 /* 화살표 버튼 제거 (심플하게) */
 QScrollBar#zoom_scrollbar::add-line:vertical,
 QScrollBar#zoom_scrollbar::sub-line:vertical {
@@ -828,13 +821,14 @@ QScrollBar#zoom_scrollbar::sub-line:vertical {
     background: none;
     border: none;
 }
-
 /* 빈 공간 투명 */
 QScrollBar#zoom_scrollbar::add-page:vertical,
 QScrollBar#zoom_scrollbar::sub-page:vertical {
     background: none;
 }
 
+
+/* MacroSettingsDialog Button Styles */
 #macro_settings_dialog QPushButton#macro_save_btn:hover {
     background-color: #4A89DC;
 }
@@ -850,21 +844,29 @@ QScrollBar#zoom_scrollbar::sub-page:vertical {
 
 
 
-
 /* Turntable Widget Styling */
 #turntable_gauge_painter {
-    qproperty-circleColor: #007BFF;
-    qproperty-scaleLineColor: gray;
-    qproperty-scaleTextColor: #666666;
-    qproperty-arrowColor: #3498db;
+    /* 턴테이블 */
+    qproperty-circleColor: #7e7e7e;     /* 테두리 */
+    qproperty-circleBgColor: #939eb3;   /* 배경 */
+    qproperty-scaleLineColor: #7f8c8d;  /* 눈금 */
+    qproperty-scaleTextColor: #aab2bd;  /* 텍스트 */
+    qproperty-arrowColor: #5f7fa6;      /* 화살표 */
     /* 툴의 위치 (Tool Position) */
-    qproperty-toolPositionColor: red;
+    qproperty-toolPositionColor: #FF6B6B; /* 툴: 파스텔 레드 */
     /* Material Cut Trajectory (실제 소재 가공 궤적) 시각화 색상 */
-    qproperty-materialCutTrajectoryColor: #D3D3D3;
+    qproperty-materialCutTrajectoryColor: #00E5FF; /* 궤적: 선명한 시안(Cyan)으로 도드라지게 */
 }
 
 #turntable_readout {
     font-size: 18px; 
     font-weight: bold; 
     margin-top: 5px;
+}
+
+
+
+/* Turntable Gauge Popup Window */
+QWidget#turntable_gauge_popup {
+    background-color: #ffffff;
 }
