@@ -4,7 +4,7 @@ import sys
 from typing import Optional
 from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QSizePolicy, QHBoxLayout, QGroupBox, QScrollBar
 from PyQt6.QtGui import QPainter, QColor, QPen, QPolygonF, QCursor, QAction
-from PyQt6.QtCore import Qt, QPointF, QRectF, QSize, QTimer, pyqtProperty, pyqtSignal
+from PyQt6.QtCore import Qt, QPointF, QPoint, QRectF, QSize, QTimer, pyqtProperty, pyqtSignal
 
 from ui.widgets.base_widget import BaseWidget
 from view_models.turntable_gauge_viewmodel import TurntableGaugeViewModel
@@ -40,6 +40,11 @@ class _GaugePainter(QWidget):
         self._min_zoom: float = 0.5
         self._max_zoom: float = 20.0
 
+        # [Panning] 화면 이동을 위한 오프셋
+        self._view_offset: QPointF = QPointF(0.0, 0.0)
+        self._last_mouse_pos: QPoint = QPoint()
+        self._is_dragging: bool = False
+
         # 기본 색상 (QSS에서 덮어씌울 변수들 - 초기값은 검정/흰색 등 의미없는 색상)
         self._circle_color = QColor(Qt.GlobalColor.black)
         self._circle_bg_color = QColor(Qt.GlobalColor.transparent) # 초기값은 투명
@@ -50,6 +55,7 @@ class _GaugePainter(QWidget):
         self._tool_position_color = QColor(Qt.GlobalColor.black)
         # Material Cut Trajectory (실제 소재 가공 궤적)
         self._material_cut_trajectory_color = QColor(Qt.GlobalColor.lightGray) 
+        self._material_cut_trajectory_border_color = QColor(Qt.GlobalColor.transparent) # 테두리 색상 (기본 투명)
         
         self._waypoints: list = [] # 웨이포인트 목록 [{'material_cut_angle': ..., 'material_cut_radius_ratio': ...}, ...]
     
@@ -80,6 +86,10 @@ class _GaugePainter(QWidget):
     def get_material_cut_trajectory_color(self): return self._material_cut_trajectory_color
     def set_material_cut_trajectory_color(self, c): self._material_cut_trajectory_color = c; self.update()
     materialCutTrajectoryColor = pyqtProperty(QColor, get_material_cut_trajectory_color, set_material_cut_trajectory_color)
+
+    def get_material_cut_trajectory_border_color(self): return self._material_cut_trajectory_border_color
+    def set_material_cut_trajectory_border_color(self, c): self._material_cut_trajectory_border_color = c; self.update()
+    materialCutTrajectoryBorderColor = pyqtProperty(QColor, get_material_cut_trajectory_border_color, set_material_cut_trajectory_border_color)
 
     def get_scale_line_color(self): return self._scale_line_color
     def set_scale_line_color(self, c): self._scale_line_color = c; self.update()
@@ -121,15 +131,56 @@ class _GaugePainter(QWidget):
             self._zoom_scale = min(self._max_zoom, self._zoom_scale + 0.5)
         else:
             self._zoom_scale = max(self._min_zoom, self._zoom_scale - 0.5)
+            
+            # [Auto-Center] 줌을 최소로 줄이면(축소하면) 화면을 중앙으로 초기화
+            if self._zoom_scale <= self._min_zoom + 0.1: # 여유분 포함
+                self._view_offset = QPointF(0.0, 0.0)
+
         self.update()
         self.zoom_changed_signal.emit(self._zoom_scale) # 시그널 발생
         event.accept()
 
+    def reset_view(self):
+        """뷰 초기화 (줌 1.0, 오프셋 0,0)"""
+        self._zoom_scale = 1.0
+        self._view_offset = QPointF(0.0, 0.0)
+        self.update()
+        self.zoom_changed_signal.emit(self._zoom_scale)
+
     def mousePressEvent(self, event):
-        """마우스 클릭 이벤트"""
+        """마우스 클릭/드래그 시작"""
         if event.button() == Qt.MouseButton.LeftButton:
-            self.clicked.emit()
+            self._last_mouse_pos = event.pos()
+            self._is_dragging = False
         super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        """마우스 드래그로 화면 이동 (Panning)"""
+        # 버튼이 눌린 상태에서만 처리 (LeftButton)
+        if event.buttons() & Qt.MouseButton.LeftButton:
+            # 이동 거리 계산
+            delta = event.pos() - self._last_mouse_pos
+            self._last_mouse_pos = event.pos()
+            
+            # 드래그 감지 (약간의 움직임은 클릭으로 허용할 수도 있으나 여기선 즉시 반영)
+            # 단, 클릭과 구분을 위해 플래그 설정
+            if delta.manhattanLength() > 0: # 조금이라도 움직였으면
+                 self._is_dragging = True
+                 self._view_offset += QPointF(delta)
+                 self.update()
+
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        """마우스 놓았을 때: 드래그가 아니었으면 클릭 시그널 발생"""
+        if event.button() == Qt.MouseButton.LeftButton:
+            if not self._is_dragging:
+                self.clicked.emit()
+            
+            # 드래그 상태 초기화
+            self._is_dragging = False
+        
+        super().mouseReleaseEvent(event)
 
 
 
@@ -150,6 +201,9 @@ class _GaugePainter(QWidget):
         side = min(self.width(), self.height())     # 창이 직사각형 되어도 게이지 찌그러지지 않게
         center = QPointF(self.width() / 2, self.height() / 2)
         
+        # [Panning] 뷰 오프셋 적용 (중심점 이동)
+        center += self._view_offset
+
         # [핵심] Zoom 적용: 반지름 자체를 키운다. 
         # 이렇게 하면 중심(center)은 그대로이고, 원의 크기만 커지거나 작아짐 = 완벽한 Center Zoom
         radius = (side * 0.4) * self._zoom_scale
@@ -198,7 +252,12 @@ class _GaugePainter(QWidget):
         painter.translate(center)
         
         # Material Cut Trajectory 스타일 (작고 연한 점)
-        painter.setPen(Qt.PenStyle.NoPen)
+        # 테두리 설정 (시인성 향상)
+        if self._material_cut_trajectory_border_color.alpha() > 0:
+            painter.setPen(QPen(self._material_cut_trajectory_border_color, 1)) # 1px 테두리
+        else:
+            painter.setPen(Qt.PenStyle.NoPen)
+            
         painter.setBrush(self._material_cut_trajectory_color)
         
         # [핵심] 턴테이블과 함께 회전하도록 설정 (재료에 고정된 궤적)
@@ -521,16 +580,41 @@ class TurntableGaugeWidget(BaseWidget):
             # ViewModel이 이미 설정되어 있다면 팝업에도 연결
             if self.view_model:
                 self.popup.set_view_model(self.view_model)
-            # 현재 데이터 동기화 (ViewModel 미사용 시 대비)
-            # 하지만 TurntableGauge에는 현재 데이터를 저장하는 필드가 명시적으로 드러나있지 않음.
-            # _GaugePainter의 내부 변수를 가져오거나, ViewModel 의존성을 활용해야 함.
-            # BaseWidget 구조상 update_data로 밀어넣는 방식이므로, 
-            # 팝업 생성 시점의 최신 데이터는 ViewModel이 있다면 거기서 오고,
-            # 없다면 다음 update_data 호출을 기다려야 함.
+        
+        # [데이터 동기화]
+        # 1. 팝업이 열릴 때, 메인 게이지가 가지고 있던 웨이포인트를 복사해서 넣어줌
+        current_waypoints = self.gauge.gauge_widget._waypoints
+        self.popup.gauge.update_waypoints(current_waypoints)
+        
+        # 2. 뷰 초기화 (항상 가운데, 기본 줌으로 시작)
+        self.popup.gauge.gauge_widget.reset_view()
+
+        # 3. 팝업 창 크기 고정 (적당한 크기로 리셋 - 500x500)
+        # 만약 이전 실행에서 최대화 시켰다면 resize가 안 먹힐 수 있으므로 일반 상태로 복구
+        if self.popup.isMaximized():
+            self.popup.showNormal()
+        self.popup.resize(500, 500)
+
+        # [수동 데이터 동기화] (ViewModel이 없는 경우 대비)
+        # 현재 메인 위젯이 가지고 있는 데이터로 한 번 업데이트
+        # (ViewModel이 있다면 중복일 수 있으나 안전장치임)
+        # TurntableGauge 위젯 자체는 데이터를 저장하고 있지 않음(_GaugePainter는 가지고 있음).
+        # 따라서 _GaugePainter의 데이터를 가져와서 넣어주는게 좋겠지만,
+        # 구조상 _GaugePainter가 public getter를 다 가지고 있지 않음.
+        # 여기서는 ViewModel에 의존하거나, 다음 업데이트를 기다려야 함.
+        # 단, 웨이포인트는 위에서 처리했음.
             
         self.popup.show()
         self.popup.raise_()
         self.popup.activateWindow()
+
+    def update_waypoints(self, waypoints: list):
+        """웨이포인트 업데이트 위임 + 팝업 동기화"""
+        self.gauge.update_waypoints(waypoints)
+        
+        # 팝업이 열려있다면 팝업에도 전달
+        if self.popup is not None and self.popup.isVisible():
+            self.popup.gauge.update_waypoints(waypoints)
 
     def update_data(self, data: dict):
         """데이터 업데이트 위임 + 팝업 동기화"""

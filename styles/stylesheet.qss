@@ -855,7 +855,8 @@ QScrollBar#zoom_scrollbar::sub-page:vertical {
     /* 툴의 위치 (Tool Position) */
     qproperty-toolPositionColor: #FF6B6B; /* 툴: 파스텔 레드 */
     /* Material Cut Trajectory (실제 소재 가공 궤적) 시각화 색상 */
-    qproperty-materialCutTrajectoryColor: #00E5FF; /* 궤적: 선명한 시안(Cyan)으로 도드라지게 */
+    qproperty-materialCutTrajectoryColor: #f2c94c; /* 궤적 */
+    qproperty-materialCutTrajectoryBorderColor: #FFFFFF; /* 테두리: 흰색으로 선명하게 */
 }
 
 #turntable_readout {
