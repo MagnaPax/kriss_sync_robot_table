@@ -90,8 +90,9 @@ class TaskManagerViewModel(QObject):
         # 런타임 시작
         self._runtime_timer.start()
 
-        # 시퀀스 실행 상태 알림 (True -> START 버튼 비활성화 등)
+        # 시퀀스 실행 상태 알림 (True -> START 버튼 비활성화 등에 사용)
         self.sequence_running_changed.emit(True)
+        EVENT_BUS.data.sequence_running_changed.emit(True)
 
         # PLC 서비스가 준비되지 않았는데 시작 명령을 내리면 에러가 날 수 있으므로 try-except로 처리
         try:
