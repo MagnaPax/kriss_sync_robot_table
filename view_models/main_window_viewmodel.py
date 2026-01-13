@@ -6,7 +6,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from models.fanuc_pose_model import FANUCPoseModel
 from services.sequence_service import SequenceService
 from view_models.task_manager_viewmodel import TaskManagerViewModel
-from view_models.target_position_viewmodel import TargetPositionViewModel
+from view_models.robot_controller_viewmodel import RobotControllerViewModel
 from view_models.world_coordinates_viewmodel import WorldCoordinatesViewModel
 from view_models.servo_control_viewmodel import ServoControlViewModel
 from view_models.user_coordinates_viewmodel import UserCoordinatesViewModel
@@ -49,7 +49,7 @@ class MainViewModel(QObject):
         # 좌표 표시: 읽기 전용 UI TODO: 추후 필요시 자원 주입
         self.world_coordinates_vm = WorldCoordinatesViewModel()
         # 목표 위치 설정: 위치 모델 & 전체 PLC 서비스 전달(비동기 처리 권한)
-        self.target_position_vm = TargetPositionViewModel(self.positon_model, self._service)
+        self.target_position_vm = RobotControllerViewModel(self.positon_model, self._service)
         # 작업 관리: 시퀀스 파일 서비스 & 전체 PLC 서비스 전달(비동기 처리 권한)
         self.task_manager_vm = TaskManagerViewModel(self.sequence_service, self._service)
         # 사용자 좌표계: 전체 PLC 서비스 전달(비동기 처리 권한)

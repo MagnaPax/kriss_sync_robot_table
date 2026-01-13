@@ -28,7 +28,7 @@ from PyQt6.QtWidgets import QWidget
 
 # 런타임에는 import 하지 않음
 if TYPE_CHECKING:
-    from view_models.target_position_viewmodel import TargetPositionViewModel
+    from view_models.robot_controller_viewmodel import RobotControllerViewModel
 
 
 
@@ -48,7 +48,7 @@ class RobotControllerWidget(BaseWidget):
     def __init__(self, parent: Optional[QWidget] = None):
         # ViewModel 인스턴스를 클래스 속성으로 저장
         # super().__init__() 전에 저장
-        self.vm: Optional["TargetPositionViewModel"] = None
+        self.vm: Optional["RobotControllerViewModel"] = None
 
         # 좌표값 입력 위젯들을 저장할 보관함
         self.coord_widgets: Dict[str, Union[QLineEdit, QDoubleSpinBox]] = {}
@@ -70,7 +70,7 @@ class RobotControllerWidget(BaseWidget):
         # 클릭 이벤트 처리 (UI 생성 후)
         self._bind_events()
 
-    def set_view_model(self, view_model: "TargetPositionViewModel"):
+    def set_view_model(self, view_model: "RobotControllerViewModel"):
         """외부에서 뷰모델을 꽂아주는 함수(Setter)"""
         self.vm = view_model
         
@@ -639,7 +639,7 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"⚠️ DLL 로드 실패: {e}")
 
-    from view_models.target_position_viewmodel import TargetPositionViewModel
+    from view_models.robot_controller_viewmodel import RobotControllerViewModel
     from services.plc_service import PLCService
 
     app = QApplication(sys.argv)
@@ -660,7 +660,7 @@ if __name__ == '__main__':
         print(f"❌ 연결 실패: {e}")
 
     # 3. ViewModel 생성
-    view_model = TargetPositionViewModel(model, plc_service)
+    view_model = RobotControllerViewModel(model, plc_service)
 
     # 4. Widget 생성
     main_win = QMainWindow()

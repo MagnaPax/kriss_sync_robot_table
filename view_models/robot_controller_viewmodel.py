@@ -1,4 +1,4 @@
-# view_models/target_position_viewmodel.py
+# view_models/robot_controller_viewmodel.py
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 from models.fanuc_pose_model import FANUCPoseModel, FANUCPose
 from services.macro_service import MacroService
@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from services.plc_service import PLCService
 
 
-class TargetPositionViewModel(QObject):
+class RobotControllerViewModel(QObject):
 
     # 로컬 시그널 - View 가 구독
     state_changed = pyqtSignal(str)
