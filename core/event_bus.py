@@ -239,6 +239,14 @@ class DataSignals(QObject):
     sequence_job_finished = pyqtSignal()
     """모든 시퀀스 작업(Job)이 종료됨을 알림 (성공/실패/중단 여부 상관 없이)"""
 
+    sequence_execution_active = pyqtSignal(bool)
+    """
+    시퀀스 파일 실행 중 상태 알림
+    
+    Args:
+        bool: True(실행 중), False(실행 종료)
+    """
+
 
 class ControlSignals(QObject):
     """
