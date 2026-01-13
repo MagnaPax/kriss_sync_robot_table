@@ -26,9 +26,10 @@ class _GaugePainter(QWidget):
         
         self._angle: float = 0.0                # 현재 테이블 각도
         # [시각화 전용 변수] 직교 좌표계(X,Y)를 원형 게이지에 그리기 위해 각도/거리로 변환한 값
-        self._robot_visual_angle: float = 0.0   # 중심 기준 로봇의 각도 (Direction)
-        self._robot_dist_percent: float = 0.9   # 중심으로부터 떨어진 거리 비율 (Distance %)
-        self._robot_z: float = 0.0              # 로봇 높이 (Z축)
+        # (Bird's-eye View: 위에서 내려다본 Robot X Move (로봇 X축 이동) 평면상 위치)
+        self._robot_x_move_angle: float = 0.0          # Robot X Move Angle
+        self._robot_x_move_radius_ratio: float = 0.9   # Robot X Move Radius Ratio
+        self._robot_z: float = 0.0                     # 로봇 높이 (Z축)
 
         # 기본 색상 (QSS에서 덮어씌울 변수들 - 초기값은 검정/흰색 등 의미없는 색상)
         self._circle_color = QColor(Qt.GlobalColor.black)
@@ -36,18 +37,19 @@ class _GaugePainter(QWidget):
         self._scale_text_color = QColor(Qt.GlobalColor.black)
         self._arrow_color = QColor(Qt.GlobalColor.black)
         self._robot_dot_color = QColor(Qt.GlobalColor.black)
-        self._waypoint_color = QColor(Qt.GlobalColor.lightGray) # 웨이포인트(연한 회색)
+        # 웨이포인트 -> Robot X Move Trajectory (로봇 X축 이동 궤적)
+        self._robot_x_move_trajectory_color = QColor(Qt.GlobalColor.lightGray) 
         
-        self._waypoints: list = [] # 웨이포인트 목록 [{'visual_angle': ..., 'dist_percent': ...}, ...]
+        self._waypoints: list = [] # 웨이포인트 목록 [{'robot_x_move_angle': ..., 'robot_x_move_radius_ratio': ...}, ...]
 
     # --- QProperty 정의 (Stylesheet 연동용) ---
     def get_circle_color(self): return self._circle_color
     def set_circle_color(self, c): self._circle_color = c; self.update()
     circleColor = pyqtProperty(QColor, get_circle_color, set_circle_color)
 
-    def get_waypoint_color(self): return self._waypoint_color
-    def set_waypoint_color(self, c): self._waypoint_color = c; self.update()
-    waypointColor = pyqtProperty(QColor, get_waypoint_color, set_waypoint_color)
+    def get_robot_x_move_trajectory_color(self): return self._robot_x_move_trajectory_color
+    def set_robot_x_move_trajectory_color(self, c): self._robot_x_move_trajectory_color = c; self.update()
+    robotXMoveTrajectoryColor = pyqtProperty(QColor, get_robot_x_move_trajectory_color, set_robot_x_move_trajectory_color)
 
     def get_scale_line_color(self): return self._scale_line_color
     def set_scale_line_color(self, c): self._scale_line_color = c; self.update()
@@ -67,12 +69,12 @@ class _GaugePainter(QWidget):
 
 
 
-    def set_data(self, angle: float, robot_visual_angle: float, robot_dist_percent: float, robot_z: float):
+    def set_data(self, angle: float, robot_x_move_angle: float, robot_x_move_radius_ratio: float, robot_z: float):
         """외부(TurntableWidget)에서 각도 데이터를 받아 위젯 갱신"""
         self._angle = angle
-        self._robot_visual_angle = robot_visual_angle
+        self._robot_x_move_angle = robot_x_move_angle
         # 0.0 (중심) ~ 1.0 (테두리) 사이 값으로 제한
-        self._robot_dist_percent = max(0.0, min(1.0, robot_dist_percent))
+        self._robot_x_move_radius_ratio = max(0.0, min(1.0, robot_x_move_radius_ratio))
         self._robot_z = robot_z # Z축 높이 (mm)
         self.update()  # -> Qt -> paintEvent() : Qt 에게 paintEvent()를 호출하도록 요청
 
@@ -141,19 +143,19 @@ class _GaugePainter(QWidget):
         painter.save()
         painter.translate(center)
         
-        # 웨이포인트 스타일 (작고 연한 점)
+        # Robot X Move Trajectory 스타일 (작고 연한 점)
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(self._waypoint_color)
+        painter.setBrush(self._robot_x_move_trajectory_color)
         
         for wp in self._waypoints:
-            visual_angle = wp.get('visual_angle', 0.0)
-            dist_percent = wp.get('dist_percent', 0.0)
+            robot_x_move_angle = wp.get('robot_x_move_angle', 0.0)
+            robot_x_move_radius_ratio = wp.get('robot_x_move_radius_ratio', 0.0)
             
             painter.save()
-            painter.rotate(visual_angle)
+            painter.rotate(robot_x_move_angle)
             
             # 위치 계산
-            dist = radius * dist_percent
+            dist = radius * robot_x_move_radius_ratio
             pos = QPointF(0, -dist)
             
             # 작은 점 그리기
@@ -199,7 +201,7 @@ class _GaugePainter(QWidget):
         """
         painter.save()
         painter.translate(center)
-        painter.rotate(self._robot_visual_angle) # 로봇 시각화 각도만큼 캔버스 회전
+        painter.rotate(self._robot_x_move_angle) # Robot X Move Angle만큼 캔버스 회전
 
         
         # [Z축 시각화 로직]
@@ -224,8 +226,8 @@ class _GaugePainter(QWidget):
         dot_color.setAlpha(alpha)
 
 
-        # 중심으로부터의 거리를 _robot_dist_percent로 계산
-        dot_distance_from_center = radius * self._robot_dist_percent
+        # 중심으로부터의 거리를 비율(ratio)로 계산
+        dot_distance_from_center = radius * self._robot_x_move_radius_ratio
         
         # 12시 방향(위쪽)으로 dot_distance_from_center 만큼 떨어진 곳에 점을 그림
         dot_pos = QPointF(0, -dot_distance_from_center)        
@@ -316,8 +318,9 @@ class TurntableGaugeWidget(BaseWidget):
         # 데이터 추출
         angle = float(data.get('angle', 0.0))
         # 로봇 시각화 데이터 (ViewModel에서 계산됨)
-        robot_visual_angle = float(data.get('robot_angle', 0.0))
-        robot_dist_percent = float(data.get('robot_radius_percent', 0.9))
+        # "Robot X Move" - 로봇 X축(및 평면) 이동 시각화
+        robot_x_move_angle = float(data.get('robot_x_move_angle', 0.0))
+        robot_x_move_radius_ratio = float(data.get('robot_x_move_radius_ratio', 0.9))
 
         rounds = int(data.get('rounds', 0))
         state = str(data.get('state', 'waiting'))
@@ -329,8 +332,8 @@ class TurntableGaugeWidget(BaseWidget):
 
 
         # 게이지 위젯에 값 전달
-        # self.gauge_widget.set_data(angle, robot_visual_angle)
-        self.gauge_widget.set_data(angle, robot_visual_angle, robot_dist_percent, robot_z)
+        # self.gauge_widget.set_data(angle, robot_x_move_angle)
+        self.gauge_widget.set_data(angle, robot_x_move_angle, robot_x_move_radius_ratio, robot_z)
 
         # 디지털 텍스트에 값 전달
         # 포맷: [회전수] [각도 / 속도] | [Z높이 / f속도]
@@ -352,8 +355,8 @@ class TurntableGaugeWidget(BaseWidget):
         """위젯 초기화 -> 초기 상태값 딕셔너리 전달"""
         self.update_data({
             'angle': 0.0,
-            'robot_angle': 0.0,
-            'robot_radius_percent': 0.0,
+            'robot_x_move_angle': 0.0,
+            'robot_x_move_radius_ratio': 0.0,
             'rounds': 0,
             'state': 'off'
         })
@@ -382,8 +385,8 @@ if __name__ == '__main__':
     test_data = {
         'angle': 0.0,
         'rounds': 0,
-        'robot_angle': 270.0, # 빨간 점 초기 위치
-        'robot_radius_percent': 0.9, # 반지름 90%에서 시작
+        'robot_x_move_angle': 270.0, # 빨간 점 초기 위치
+        'robot_x_move_radius_ratio': 0.9, # 반지름 90%에서 시작
         'state': 'running'
     }
 
@@ -395,11 +398,11 @@ if __name__ == '__main__':
         global radius_direction
 
         test_data['angle'] = (float(test_data['angle']) + 1.5) % 360
-        test_data['robot_angle'] = (float(test_data['robot_angle']) - 0.5) % 360
+        test_data['robot_x_move_angle'] = (float(test_data['robot_x_move_angle']) - 0.5) % 360
 
 
         # 빨간 점이 안팎으로 움직이는 애니메이션
-        rad_perc = float(test_data['robot_radius_percent'])
+        rad_perc = float(test_data['robot_x_move_radius_ratio'])
 
         if rad_perc <= 0.1: # 중심(10%)에 가까워지면
             radius_direction = 1 # 밖으로 이동
@@ -408,7 +411,7 @@ if __name__ == '__main__':
             
         # 0.01 (1%)씩 방향에 따라 증감
         rad_perc += (0.01 * radius_direction)
-        test_data['robot_radius_percent'] = rad_perc        
+        test_data['robot_x_move_radius_ratio'] = rad_perc        
 
 
         # 90도 근처에서 'waiting' 상태로 변경

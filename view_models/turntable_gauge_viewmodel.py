@@ -123,7 +123,8 @@ class TurntableGaugeViewModel(QObject):
             if y_val is not None:
                 self.robot_pose.y = float(y_val) # type: ignore
                 changed = True
-             # 필요한 다른 키들도 처리 가능하면 추가...
+
+            # TODO: 필요에 따라 다른 키들도 처리 가능하면 추가
 
 
         # 3. 기타 상태 처리
@@ -163,8 +164,11 @@ class TurntableGaugeViewModel(QObject):
         # View용 데이터 패킷 생성 (Primitive Types Only)
         view_data = {
             'angle': self.servo_motions[ServoAxis.TURNTABLE].angle,
-            'robot_angle': robot_display_angle,
-            'robot_radius_percent': radius_percent,
+            
+            # 로봇 X Move (로봇 X축 이동) 시각화
+            # 사용자의 요청에 따라 'Robot X Move'라는 직관적인 명칭 사용
+            'robot_x_move_angle': robot_display_angle,       # Robot X Move Angle
+            'robot_x_move_radius_ratio': radius_percent,   # Robot X Move Radius Ratio
             
             # 추가 정보 (View가 원하면 표시 가능)
             'robot_z': self.robot_pose.z,
@@ -206,9 +210,10 @@ class TurntableGaugeViewModel(QObject):
                 dist = math.sqrt(x**2 + y**2)
                 dist_percent = min(dist / self._max_reach_mm, 1.0)
                 
+                # 로봇 X Move 반영
                 visual_waypoints.append({
-                    'visual_angle': visual_angle,
-                    'dist_percent': dist_percent
+                    'robot_x_move_angle': visual_angle,
+                    'robot_x_move_radius_ratio': dist_percent
                 })
                 
             except (ValueError, TypeError):
