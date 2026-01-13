@@ -20,8 +20,9 @@ class TurntableGaugeViewModel(QObject):
     """
 
     # 로컬 시그널 - View 가 구독
-    ui_data_updated = pyqtSignal(dict)  # (dict: {'angle': float, 'robot_angle': float, ...})
-    waypoints_updated = pyqtSignal(list) # (list: [{'angle': float, 'dist_percent': float}, ...])
+    ui_data_updated = pyqtSignal(dict)                      # UI 데이터
+    waypoints_changed = pyqtSignal(list)                    # 시퀀스 데이터 전체
+    progressing_step_changed = pyqtSignal(int, int, str)    # 현재 진행중인 시퀀스 스탭
 
 
     def __init__(self):
@@ -42,27 +43,44 @@ class TurntableGaugeViewModel(QObject):
         self._rounds: int = 0
         self._state: str = "waiting"
 
-        self._max_reach_mm: float = 200.0  # 로봇 팔 길이 (반지름 정규화용) -> 확대 효과를 위해 줄임
+        self._max_reach_mm: float = 200.0  # 로봇 팔 길이 (반지름 정규화용)
 
         # EventBus 연결
-        self._connect_signals()
+        self._bind_signals()
 
-    def _connect_signals(self):
-        """EventBus 시그널 구독"""
-        EVENT_BUS.control.robot_current_pose.connect(self.update_robot_data)
-        EVENT_BUS.control.servo_current_motion.connect(self.update_servo_data)
-        EVENT_BUS.data.sequence_data_loaded.connect(self._on_sequence_loaded)
+    def _bind_signals(self):
+        EVENT_BUS.control.robot_current_pose.connect(self.on_update_current_robot_pose)
+        EVENT_BUS.control.servo_current_motion.connect(self.on_update_current_servo_motion)
+        EVENT_BUS.data.sequence_data_loaded.connect(self.on_sequence_data_loaded)
+        EVENT_BUS.data.progress_updated.connect(self._on_progress_updated)          # 현재 실행 중인 시퀀스 단계와 상태
 
-    def update_robot_data(self, pose: FANUCPose):
-        """EventBus -> 로봇 데이터 수신"""
-        self.update_model_data({'pose': pose})
 
-    def update_servo_data(self, servo_states: Dict[ServoAxis, ServoPose]):
-        """EventBus -> 서보 데이터 수신"""
-        # update_model_data가 'servo_axes' 키로 dict를 받도록 설계됨
-        self.update_model_data({'servo_axes': servo_states})
 
-    def update_model_data(self, data: Dict[str, Any]):
+    # ===============================================
+    # 시그널 슬롯 [물리적 시그널 처리]
+    # ===============================================
+    def on_update_current_robot_pose(self, pose: FANUCPose):
+        """현재 로봇 위치 업데이트"""
+        self._handle_robot_servo_data({'pose': pose})
+
+    def on_update_current_servo_motion(self, servo_states: Dict[ServoAxis, ServoPose]):
+        """현재 서보 모터 상태 업데이트"""
+        # _handle_robot_servo_data가 'servo_axes' 키로 dict를 받도록 설계됨
+        self._handle_robot_servo_data({'servo_axes': servo_states})
+
+    def on_sequence_data_loaded(self, sequence_data: list):
+        """시퀀스 데이터 읽기 완료"""
+        self._handle_trajectory(sequence_data)
+
+    def _on_progress_updated(self, current: int, total: int, status: str):
+        """현재 진행중인 시퀀스 단계 업데이트"""
+        self.progressing_step_changed.emit(current, total, status)
+
+
+    # ===============================================
+    # 핸들러 [논리적 흐름 담당]
+    # ===============================================
+    def _handle_robot_servo_data(self, data: Dict[str, Any]):
         """
         외부(Service/Controller)에서 모델 데이터를 받아 상태를 갱신하고 View에 알림
         """
@@ -184,12 +202,8 @@ class TurntableGaugeViewModel(QObject):
         
         self.ui_data_updated.emit(view_data)
 
-    def _on_sequence_loaded(self, sequence_data: list):
-        """
-        EventBus -> 시퀀스 데이터 로드 완료
-        
-        웨이포인트들을 시각화용 데이터로 변환하여 View로 전송
-        """
+    def _handle_trajectory(self, sequence_data: list):
+        """웨이포인트들을 시각화용 데이터로 변환하여 로컬 시그널로 emit"""
         visual_waypoints = []
         
         for step in sequence_data:
@@ -225,4 +239,8 @@ class TurntableGaugeViewModel(QObject):
             except (ValueError, TypeError):
                 continue
                 
-        self.waypoints_updated.emit(visual_waypoints)
+        self.waypoints_changed.emit(visual_waypoints)
+
+    def _handle_processing_step(self, current: int, total: int, status: str):
+        """진행중인 궤적 표시"""
+        self.progressing_step_changed.emit()

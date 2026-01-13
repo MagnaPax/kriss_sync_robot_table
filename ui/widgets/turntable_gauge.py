@@ -445,7 +445,7 @@ class TurntableGauge(BaseWidget):
         """외부에서 ViewModel 주입"""
         self.view_model = vm
         self.view_model.ui_data_updated.connect(self.update_data)
-        self.view_model.waypoints_updated.connect(self.update_waypoints)
+        self.view_model.waypoints_changed.connect(self.update_waypoints)
 
     def update_waypoints(self, waypoints: list):
         """ViewModel -> 웨이포인트 데이터 수신 -> GaugeWidget 전달"""
