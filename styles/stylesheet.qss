@@ -799,6 +799,42 @@ QProgressBar#main_progress_bar::chunk {
     min-width: 80px;
 }
 
+
+/* 
+----------------------------------------
+    Turntable Gauge Zoom Scrollbar (Subtle Style)
+---------------------------------------- 
+*/
+QScrollBar#zoom_scrollbar:vertical {
+    background: transparent; /* 배경 투명 (패널 배경과 조화) */
+    width: 6px;              /* 아주 얇게 설정 */
+    margin: 0px 0px 0px 0px;
+}
+
+QScrollBar#zoom_scrollbar::handle:vertical {
+    background: #d4d4d4;     /* 은은한 회색 핸들 */
+    min-height: 20px;
+    border-radius: 3px;      /* 둥근 모서리 */
+}
+
+QScrollBar#zoom_scrollbar::handle:vertical:hover {
+    background: #b0b0b0;     /* 호버 시 약간 진하게 */
+}
+
+/* 화살표 버튼 제거 (심플하게) */
+QScrollBar#zoom_scrollbar::add-line:vertical,
+QScrollBar#zoom_scrollbar::sub-line:vertical {
+    height: 0px;
+    background: none;
+    border: none;
+}
+
+/* 빈 공간 투명 */
+QScrollBar#zoom_scrollbar::add-page:vertical,
+QScrollBar#zoom_scrollbar::sub-page:vertical {
+    background: none;
+}
+
 #macro_settings_dialog QPushButton#macro_save_btn:hover {
     background-color: #4A89DC;
 }

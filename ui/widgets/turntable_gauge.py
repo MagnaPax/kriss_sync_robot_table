@@ -2,12 +2,11 @@
 import sys
 
 from typing import Optional
-from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QSizePolicy, QHBoxLayout, QGroupBox
+from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QSizePolicy, QHBoxLayout, QGroupBox, QScrollBar
 from PyQt6.QtGui import QPainter, QColor, QPen, QPolygonF
-from PyQt6.QtCore import Qt, QPointF, QRectF, QSize, QTimer, pyqtProperty
+from PyQt6.QtCore import Qt, QPointF, QRectF, QSize, QTimer, pyqtProperty, pyqtSignal
 
 from ui.widgets.base_widget import BaseWidget
-from ui.widgets.status_indicator_box import StatusIndicatorBox
 from view_models.turntable_gauge_viewmodel import TurntableGaugeViewModel
 
 
@@ -49,6 +48,20 @@ class _GaugePainter(QWidget):
         self._material_cut_trajectory_color = QColor(Qt.GlobalColor.lightGray) 
         
         self._waypoints: list = [] # 웨이포인트 목록 [{'material_cut_angle': ..., 'material_cut_radius_ratio': ...}, ...]
+    
+    # --- Signals ---
+    # 먼저 시그널 정의
+    zoom_changed_signal = pyqtSignal(float) 
+    
+    # 그 다음 Property 정의에서 notify에 시그널 전달
+    def get_zoom_scale(self): return self._zoom_scale
+    def set_zoom_scale(self, scale: float):
+        self._zoom_scale = max(self._min_zoom, min(self._max_zoom, scale))
+        self.update()
+        self.zoom_changed_signal.emit(self._zoom_scale)
+
+    zoomInfo = pyqtProperty(float, get_zoom_scale, set_zoom_scale, notify=zoom_changed_signal)
+
 
     # --- QProperty 정의 (Stylesheet 연동용) ---
     def get_circle_color(self): return self._circle_color
@@ -100,7 +113,10 @@ class _GaugePainter(QWidget):
         else:
             self._zoom_scale = max(self._min_zoom, self._zoom_scale - 0.5)
         self.update()
+        self.zoom_changed_signal.emit(self._zoom_scale) # 시그널 발생
         event.accept()
+
+
 
 
     def paintEvent(self, event) -> None:  # type: ignore[override]
@@ -301,33 +317,63 @@ class TurntableGauge(BaseWidget):
         BaseWidget의 _init_ui를 override(재정의)
         BaseWidget의 __init__이 실행될 때 자동으로 호출 됨
         """
-        layout = QVBoxLayout(self)  # 수직 레이아웃
-        layout.setAlignment(Qt.AlignmentFlag.AlignTop)  # 위에 붙어있게 정렬
+        # --- 레이아웃 설정: ScrollBar 추가를 위해 구조 변경 ---
+        # 기존: QVBoxLayout -> QHBoxLayout(Gauge)
+        # 변경: QVBoxLayout -> QHBoxLayout(Gauge + ScrollBar)
+        
+        layout = QVBoxLayout(self)  # 메인 수직 레이아웃
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        # 원형 게이지 (커스텀 위젯)
-        self.gauge_widget = _GaugePainter()     # 객체 생성
-        self.gauge_widget.setObjectName("turntable_gauge_painter") # QSS ID 설정 (커스텀 속성 적용용)
+        # 수평 컨테이너 (게이지 + 스크롤바)
+        container_layout = QHBoxLayout()
+        
+        # 1. 왼쪽 빈공간 (중앙 정렬용)
+        container_layout.addStretch(1)
 
-        # 1) 가로 중앙 정렬 위해 수평 레이아웃으로 감싸기
-        gaugebox = QHBoxLayout()
-        gaugebox.addStretch(1)                              # ← 왼쪽 빈공간
-        gaugebox.addWidget(self.gauge_widget, stretch=1)    # ← 가운데 게이지(늘어남)
-        gaugebox.addStretch(1)                              # ← 오른쪽 빈공간
-        # 2) 이 HBox를 VBox에 stretch=1 로 추가
-        layout.addLayout(gaugebox, stretch=1)
+        # 2. 원형 게이지 (커스텀 위젯)
+        self.gauge_widget = _GaugePainter()
+        self.gauge_widget.setObjectName("turntable_gauge_painter")
+        container_layout.addWidget(self.gauge_widget, stretch=0) # stretch 0으로 고정 크기 유지 시도
 
-        # 디지털 텍스트(회전횟수, 각도 표시)
-        self.digital_readout = QLabel("00 rounds 0.0°")
-        self.digital_readout.setObjectName("turntable_readout")
-        self.digital_readout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        # layout.addWidget(self.digital_readout, stretch=0)
+        # 3. 줌 조절 스크롤바 (Vertical)
+        self.scroll_bar = QScrollBar(Qt.Orientation.Vertical)
+        self.scroll_bar.setObjectName("zoom_scrollbar") # QSS ID 설정
+        self.scroll_bar.setRange(5, 200) # 0.5x ~ 20.0x (x10 scaling)
+        self.scroll_bar.setValue(10)     # Default 1.0x
+        self.scroll_bar.setInvertedAppearance(True) # 위로 갈수록 커지게 (일반적 Zoom UI)
+        self.scroll_bar.setFixedWidth(15)
+        self.scroll_bar.setToolTip("Zoom In/Out")
+        
+        # 스크롤바 시그널 연결
+        self.scroll_bar.valueChanged.connect(self._on_scrollbar_value_changed)
+        # 게이지 휠 이벤트 시그널 연결
+        self.gauge_widget.zoom_changed_signal.connect(self._on_gauge_zoom_changed)
 
-        # 상태 표시줄 (StatusIndicatorBox 위젯 사용)
-        self.state_indicator = StatusIndicatorBox("TurnTable State", led_size=10)
-        # layout.addWidget(self.state_indicator, stretch=0)
+        container_layout.addWidget(self.scroll_bar)
+
+        # 4. 오른쪽 빈공간
+        container_layout.addStretch(1)
+
+        layout.addLayout(container_layout)
 
         # ViewModel은 외부(MainVeiwModel)에서 set_view_model()을 통해 주입받음
         self.view_model: Optional[TurntableGaugeViewModel] = None
+
+    def _on_scrollbar_value_changed(self, value):
+        """스크롤바 값 변경 -> 게이지 줌 변경"""
+        # 스크롤바 값(5~200) -> 줌 스케일(0.5 ~ 20.0)
+        scale = value / 10.0
+        # 시그널 루프 방지를 위해 blockSignals 할 수도 있으나,
+        # set_zoom_scale 내부에서 값을 체크하거나, 단방향 흐름이므로 괜찮음.
+        # 하지만 무한 루프 방지를 위해 값 비교
+        if abs(self.gauge_widget._zoom_scale - scale) > 0.01:
+             self.gauge_widget.set_zoom_scale(scale)
+
+    def _on_gauge_zoom_changed(self, scale):
+        """게이지 휠 줌 변경 -> 스크롤바 값 동기화"""
+        val = int(scale * 10)
+        if self.scroll_bar.value() != val:
+            self.scroll_bar.setValue(val)
 
     def set_view_model(self, vm: TurntableGaugeViewModel):
         """외부에서 ViewModel 주입"""
@@ -367,22 +413,6 @@ class TurntableGauge(BaseWidget):
         # 게이지 위젯에 값 전달
         self.gauge_widget.set_data(angle, material_cut_angle, material_cut_radius_ratio, robot_z)
 
-        # 디지털 텍스트에 값 전달
-        # 포맷: [회전수] [각도 / 속도] | [Z높이 / f속도]
-        # 예: 05 rounds 120.5° (10.0°/s) | Z: 150.0mm F: 50.0%
-        text = (
-            f"{rounds:02d} rounds {angle:.1f}° ({turntable_vel:.1f}°/s)\n"
-            f"Z: {robot_z:.1f}mm  F: {robot_f:.1f}"
-        )
-        self.digital_readout.setText(text)
-
-        # 상태 표시줄 갱신
-        state_data = {
-            'state': state, # type: ignore
-            'title': self.state_indicator._title_text # type: ignore # 기존 제목 유지
-        }
-        self.state_indicator.safe_update_data(state_data)
-
     def clear_widget(self):
         """위젯 초기화 -> 초기 상태값 딕셔너리 전달"""
         self.update_data({
@@ -401,7 +431,7 @@ class TurntableGauge(BaseWidget):
 # ==========================================================
 class TurntableGaugeWidget(BaseWidget):
     """
-    TurntableGauge를 'Bird's-eye View' GroupBox로 감싸서 제공하는 래퍼 위젯.
+    TurntableGauge를 Bird's-eye View GroupBox로 감싸서 제공하는 래퍼 위젯.
     LeftPanel 등의 UI에서는 이 클래스를 인스턴스화하여 사용한다.
     """
     
