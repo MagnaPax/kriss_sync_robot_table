@@ -52,6 +52,7 @@ class _GaugePainter(QWidget):
     # --- Signals ---
     # 먼저 시그널 정의
     zoom_changed_signal = pyqtSignal(float) 
+    clicked = pyqtSignal() # 클릭 시그널 추가
     
     # 그 다음 Property 정의에서 notify에 시그널 전달
     def get_zoom_scale(self): return self._zoom_scale
@@ -115,6 +116,12 @@ class _GaugePainter(QWidget):
         self.update()
         self.zoom_changed_signal.emit(self._zoom_scale) # 시그널 발생
         event.accept()
+
+    def mousePressEvent(self, event):
+        """마우스 클릭 이벤트"""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
 
 
 
@@ -284,19 +291,6 @@ class _GaugePainter(QWidget):
         
         painter.restore()
 
-    def resizeEvent(self, event): # type: ignore[override]
-        """
-        위젯 크기가 변해도 정사각형 모양이 찌그러지지 않게 비율을 유지하도록 강제
-        Qt의 윈도우 시스템(이벤트 루프)에 의해 자동으로 호출 되는 콜백함수
-        PySide6.QtWidgets.QGraphicsWidget.resizeEvent
-        """
-
-        # 가로/세로 중 작은 사이즈 저장
-        new_size = int(min(event.size().width(), event.size().height()))
-        # 작은 길이에 맞게 위젯 크기 재설정(게이지 찌그러지지 않는 비결)
-        self.resize(new_size, new_size)     
-        super().resizeEvent(event)
-
     def sizeHint(self):
         """레이아웃에 적절한 크기 힌트 제공"""
         return QSize(220, 220)
@@ -327,13 +321,14 @@ class TurntableGauge(BaseWidget):
         # 수평 컨테이너 (게이지 + 스크롤바)
         container_layout = QHBoxLayout()
         
-        # 1. 왼쪽 빈공간 (중앙 정렬용)
-        container_layout.addStretch(1)
+        # 1. 왼쪽 빈공간 제거 (확장성 확보)
+        # container_layout.addStretch(1)
 
         # 2. 원형 게이지 (커스텀 위젯)
         self.gauge_widget = _GaugePainter()
         self.gauge_widget.setObjectName("turntable_gauge_painter")
-        container_layout.addWidget(self.gauge_widget, stretch=0) # stretch 0으로 고정 크기 유지 시도
+        # stretch=1로 설정하여 남은 공간을 모두 차지하도록 함
+        container_layout.addWidget(self.gauge_widget, stretch=1) 
 
         # 3. 줌 조절 스크롤바 (Vertical)
         self.scroll_bar = QScrollBar(Qt.Orientation.Vertical)
@@ -351,8 +346,8 @@ class TurntableGauge(BaseWidget):
 
         container_layout.addWidget(self.scroll_bar)
 
-        # 4. 오른쪽 빈공간
-        container_layout.addStretch(1)
+        # 4. 오른쪽 빈공간 제거 (확장성 확보)
+        # container_layout.addStretch(1)
 
         layout.addLayout(container_layout)
 
@@ -425,14 +420,55 @@ class TurntableGauge(BaseWidget):
         super().clear_widget()
 
 
+
+
+
 # ==========================================================
-# 4. 외부 공개용 Wrapper Class (GroupBox 포함)
-#    : LeftPanel 등에서 이 클래스를 사용
+# 5. 팝업 게이지 윈도우
+# ==========================================================
+class TurntableGaugePopup(QWidget):
+    """
+    TurntableGauge를 팝업 창으로 띄우기 위한 위젯
+    메인 위젯과 동일한 화면을 독립된 창에서 보여줌
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Turntable Gauge Detail")
+        self.setObjectName("turntable_gauge_popup") # QSS ID 설정
+        self.resize(400, 400)
+        
+        # UI 구성
+        layout = QVBoxLayout(self)
+        self.gauge = TurntableGauge()
+        layout.addWidget(self.gauge)
+        
+        # 데이터 저장용
+        self._current_data = {}
+        self._view_model: Optional[TurntableGaugeViewModel] = None
+
+    def set_view_model(self, vm: TurntableGaugeViewModel):
+        """ViewModel 연결 (데이터 동기화)"""
+        self._view_model = vm
+        self.gauge.set_view_model(vm)
+        
+    def update_data(self, data: dict):
+        """수동 데이터 업데이트"""
+        self._current_data = data
+        self.gauge.update_data(data)
+    
+    def set_waypoints(self, waypoints: list):
+        """웨이포인트 업데이트"""
+        self.gauge.update_waypoints(waypoints)
+
+
+# ==========================================================
+# 4. 외부 공개용 Wrapper Class
+#    : Popup 기능 통합
 # ==========================================================
 class TurntableGaugeWidget(BaseWidget):
     """
     TurntableGauge를 Bird's-eye View GroupBox로 감싸서 제공하는 래퍼 위젯.
-    LeftPanel 등의 UI에서는 이 클래스를 인스턴스화하여 사용한다.
+    Pop-up 기능이 추가됨.
     """
     
     def _init_ui(self):
@@ -440,37 +476,80 @@ class TurntableGaugeWidget(BaseWidget):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         
-        # 2. GroupBox 생성 (로직 이동됨 - Encapsulation)
+        # 2. GroupBox 생성
         self.group_box = QGroupBox("Bird's-eye View")
         group_layout = QVBoxLayout(self.group_box)
         
         # 3. 실제 기능 위젯(TurntableGauge) 생성 및 추가
         self.gauge = TurntableGauge()
         
-        # 4. Layout 배치 (위아래 Stretch로 중앙 정렬)
+        # 팝업 연결을 위해 clicked 시그널 사용
+        # TurntableGauge 내부의 _GaugePainter가 clicked를 emit해야 함
+        # 하지만 TurntableGauge는 _GaugePainter를 감싸고 있음.
+        # 따라서 _GaugePainter의 시그널을 TurntableGauge 밖으로 노출하거나 직접 접근해야 함.
+        # 여기서는 직접 접근 방식 사용 (접근성 고려)
+        self.gauge.gauge_widget.clicked.connect(self.open_popup)
+        
+        # 4. Layout 배치
         group_layout.addStretch(1)
         group_layout.addWidget(self.gauge)
         group_layout.addStretch(1)
         
         # 5. GroupBox를 메인 레이아웃에 추가
         main_layout.addWidget(self.group_box)
+        
+        # 팝업 인스턴스 (Lazy Loading 또는 유지)
+        self.popup: Optional[TurntableGaugePopup] = None
+        self.view_model: Optional[TurntableGaugeViewModel] = None
+
+    def open_popup(self):
+        """팝업 창 열기"""
+        if self.popup is None:
+            self.popup = TurntableGaugePopup()
+            # ViewModel이 이미 설정되어 있다면 팝업에도 연결
+            if self.view_model:
+                self.popup.set_view_model(self.view_model)
+            # 현재 데이터 동기화 (ViewModel 미사용 시 대비)
+            # 하지만 TurntableGauge에는 현재 데이터를 저장하는 필드가 명시적으로 드러나있지 않음.
+            # _GaugePainter의 내부 변수를 가져오거나, ViewModel 의존성을 활용해야 함.
+            # BaseWidget 구조상 update_data로 밀어넣는 방식이므로, 
+            # 팝업 생성 시점의 최신 데이터는 ViewModel이 있다면 거기서 오고,
+            # 없다면 다음 update_data 호출을 기다려야 함.
+            
+        self.popup.show()
+        self.popup.raise_()
+        self.popup.activateWindow()
 
     def update_data(self, data: dict):
-        """데이터 업데이트 위임"""
-        # ViewModel이 내부 TurntableGauge에 직접 연결되어 있어 사실상 불필요할 수 있으나,
-        # 외부에서 명시적으로 update_data 호출 시 전달 역할.
+        """데이터 업데이트 위임 + 팝업 동기화"""
         if hasattr(self, 'gauge'):
             self.gauge.update_data(data)
+        
+        # 팝업이 열려있다면 데이터 전달 (ViewModel을 안 쓰는 경우를 대비)
+        if self.popup is not None and self.popup.isVisible():
+            # ViewModel을 쓰고 있다면 set_view_model로 이미 연결되었겠지만,
+            # ViewModel 없이 수동 update_data를 쓰는 경우도 있을 수 있으므로 안전장치
+            if not self.view_model: 
+                self.popup.update_data(data)
 
     def set_view_model(self, vm: TurntableGaugeViewModel):
-        """ViewModel 주입 위임"""
+        """ViewModel 주입 위임 + 팝업 동기화"""
+        self.view_model = vm
         if hasattr(self, 'gauge'):
             self.gauge.set_view_model(vm)
+            
+        if self.popup:
+            self.popup.set_view_model(vm)
 
     def clear_widget(self):
         """초기화 위임"""
         if hasattr(self, 'gauge'):
             self.gauge.clear_widget()
+        if self.popup:
+            # 팝업도 초기화 할지는 선택사항이나, 닫거나 초기화하는게 맞음
+            # 여기서는 데이터만 초기화
+            self.popup.gauge.clear_widget()
+
 
 
 # ==========================================================

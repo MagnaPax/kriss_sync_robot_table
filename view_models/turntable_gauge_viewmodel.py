@@ -1,7 +1,7 @@
 # view_models/turntable_gauge_viewmodel.py
 import math
 from PyQt6.QtCore import QObject, pyqtSignal
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 from models.fanuc_pose_model import FANUCPose
 from models.fanuc_pose_key import FANUCPoseKey
