@@ -36,7 +36,8 @@ class _GaugePainter(QWidget):
         self._scale_line_color = QColor(Qt.GlobalColor.black)
         self._scale_text_color = QColor(Qt.GlobalColor.black)
         self._arrow_color = QColor(Qt.GlobalColor.black)
-        self._robot_dot_color = QColor(Qt.GlobalColor.black)
+        # 로봇 툴 위치 (Tool Position) - 빨간 점
+        self._tool_position_color = QColor(Qt.GlobalColor.black)
         # 웨이포인트 -> Robot X Move Trajectory (로봇 X축 이동 궤적)
         self._robot_x_move_trajectory_color = QColor(Qt.GlobalColor.lightGray) 
         
@@ -63,9 +64,9 @@ class _GaugePainter(QWidget):
     def set_arrow_color(self, c): self._arrow_color = c; self.update()
     arrowColor = pyqtProperty(QColor, get_arrow_color, set_arrow_color)
 
-    def get_robot_dot_color(self): return self._robot_dot_color
-    def set_robot_dot_color(self, c): self._robot_dot_color = c; self.update()
-    robotDotColor = pyqtProperty(QColor, get_robot_dot_color, set_robot_dot_color)
+    def get_tool_position_color(self): return self._tool_position_color
+    def set_tool_position_color(self, c): self._tool_position_color = c; self.update()
+    toolPositionColor = pyqtProperty(QColor, get_tool_position_color, set_tool_position_color)
 
 
 
@@ -221,7 +222,7 @@ class _GaugePainter(QWidget):
         dot_radius = 10 - (intensity * 6)
         
         # 색상 계산: intensity가 클수록(가까울수록) 진해야 함 (변경 없음)
-        dot_color = QColor(self._robot_dot_color)
+        dot_color = QColor(self._tool_position_color)
         alpha = int(50 + (intensity * 205)) # 최소 50 ~ 최대 255
         dot_color.setAlpha(alpha)
 

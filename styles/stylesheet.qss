@@ -821,7 +821,8 @@ QProgressBar#main_progress_bar::chunk {
     qproperty-scaleLineColor: gray;
     qproperty-scaleTextColor: #666666;
     qproperty-arrowColor: #3498db;
-    qproperty-robotDotColor: red;
+    /* 툴의 위치 (Tool Position) */
+    qproperty-toolPositionColor: red;
     /* 로봇 X축(및 평면) 이동 궤적 시각화 색상 (Robot X Move Trajectory) */
     qproperty-robotXMoveTrajectoryColor: #D3D3D3;
 }
