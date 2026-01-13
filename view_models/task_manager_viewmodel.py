@@ -22,7 +22,7 @@ class TaskManagerViewModel(QObject):
     sequence_data_loaded_failed = pyqtSignal(str)       # 파일 읽기 실패
     busy_state_changed = pyqtSignal(dict)               # 로봇과 턴테이블의 busy 상태
     runtime_updated = pyqtSignal(str)                   # 런타임 시간 업데이트
-    sequence_running_changed = pyqtSignal(bool)         # 시퀀스가 실행 중인지 아닌지
+    sequence_execution_active = pyqtSignal(bool)         # 시퀀스가 실행 중인지 아닌지
 
 
     def __init__(self, sequence_service: "SequenceService", plc_service: "PLCService"):
@@ -91,8 +91,8 @@ class TaskManagerViewModel(QObject):
         self._runtime_timer.start()
 
         # 시퀀스 실행 상태 알림 (True -> START 버튼 비활성화 등에 사용)
-        self.sequence_running_changed.emit(True)
-        EVENT_BUS.data.sequence_running_changed.emit(True)
+        self.sequence_execution_active.emit(True)
+        EVENT_BUS.data.sequence_execution_active.emit(True)
 
         # PLC 서비스가 준비되지 않았는데 시작 명령을 내리면 에러가 날 수 있으므로 try-except로 처리
         try:
@@ -102,7 +102,7 @@ class TaskManagerViewModel(QObject):
             self._plc_service.process_sequence_data(self._cached_sequence_data)
         except Exception as e:
             self._runtime_timer.stop() # 에러 나면 타이머도 멈춤
-            self.sequence_running_changed.emit(False) # 실행중 상태 알림
+            self.sequence_execution_active.emit(False) # 실행중 상태 알림
             EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 시작 실패: {e}", "ERROR")
 
     def stop_sequence(self):
@@ -113,7 +113,7 @@ class TaskManagerViewModel(QObject):
         self._runtime_timer.stop()
         
         # 실행 상태 해제 (False -> START 버튼 활성화)
-        self.sequence_running_changed.emit(False)
+        self.sequence_execution_active.emit(False)
 
         # PLCService 한테도 멈추라고 명령
         self._plc_service.stop_process()
@@ -156,6 +156,6 @@ class TaskManagerViewModel(QObject):
             self._runtime_timer.stop()
         
         # 실행 모드 해제 (START 버튼 활성화 등)
-        self.sequence_running_changed.emit(False)
+        self.sequence_execution_active.emit(False)
         total_count = len(self._cached_sequence_data) if self._cached_sequence_data else 0
         EVENT_BUS.log.message.emit(f"{self._log_prefix} 모든 시퀀스 작업 완료 (총 {total_count}개의 데이터)", "INFO")

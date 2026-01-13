@@ -63,7 +63,7 @@ class TaskManagerWidget(BaseWidget):
         self.vm.busy_state_changed.connect(self.update_data)
         
         # 시퀀스가 실행되고 있는지 아닌지 상태 변경 연결
-        self.vm.sequence_running_changed.connect(self._update_running_state)
+        self.vm.sequence_execution_active.connect(self._update_running_state)
 
         # 런타임 시간 업데이트 연결
         # 뷰모델이 "00:00:01" 보내면 -> 라벨 setText 실행

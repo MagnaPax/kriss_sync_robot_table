@@ -45,7 +45,7 @@ class TargetPositionViewModel(QObject):
     def _bind_signals(self):
         EVENT_BUS.control.clear_user_inputs.connect(self._on_clear_manual_inputs)   # 입력 필드 초기화
         EVENT_BUS.data.waypoints_selected.connect(self._on_replace_inputs_by_selected_sequence_on_waypoints_table)      # 웨이포인트에서 선택된 시퀀스
-        EVENT_BUS.data.sequence_running_changed.connect(self.disable_buttons)      # 시퀀스 실행중이면 로컬 시그널을 곧바로 재방송
+        EVENT_BUS.data.sequence_execution_active.connect(self.disable_buttons)      # 시퀀스 실행중이면 로컬 시그널을 곧바로 재방송
 
 
 
