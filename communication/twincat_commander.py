@@ -635,7 +635,6 @@ class IntegratedExecutor(BaseExecutor):
 
     def execute(self, sequence_data: List[Dict[str, Any]]) -> tuple[bool, str]:
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] CSV 통합 동기화 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
-        EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
 
         robot = self.robot
         servo = self.servo
@@ -1000,9 +999,6 @@ class LegacyIntegratedExecutor(BaseExecutor):
 
     def execute(self, sequence_data: List[Dict[str, Any]]) -> tuple[bool, str]:
         EVENT_BUS.log.message.emit(f"[{self.__class__.__name__}] 레거시 파일 모드로 실행 (데이터 {len(sequence_data)}건)", "INFO")
-
-        # 처리할 전체 시퀀스 데이터 방송
-        EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)        
 
         return True, "레거시 파일 모드 실행 완료 -> TODO: 로직 만들어야 된다"
 
