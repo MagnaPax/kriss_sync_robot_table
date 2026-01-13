@@ -323,7 +323,7 @@ class PLCService(QObject):
         sequence_data = [fanuc_pose_data]
 
         # Worker 호출
-        self._start_worker('MOVE', data=sequence_data, log_msg=f"FANUC 단독 명령 이동: {fanuc_pose_obj}")
+        self._start_worker('MOVE', data=sequence_data, log_msg=f"FANUC 단독 이동 위한 워커 호출: {fanuc_pose_obj}")
 
     def process_sequence_data(self, csv_data: List[Dict[str, Any]]):
         """
@@ -332,7 +332,7 @@ class PLCService(QObject):
             sequence_data (list): 실행할 시퀀스 리스트 (List[Dict])
         """
         # Worker 호출
-        self._start_worker('MOVE', data=csv_data, log_msg=f"csv 시퀀스 명령: {len(csv_data)}건")
+        self._start_worker('MOVE', data=csv_data, log_msg=f"csv 시퀀스 처리 위한 워커 호출: {len(csv_data)}건")
 
     def set_robot_speed(self, feed_rate: float):
         self._start_worker('SET_SPEED', data=feed_rate, log_msg=f"로봇 속도 설정 변경 요청: {feed_rate} mm/sec")
@@ -371,7 +371,7 @@ class PLCService(QObject):
         # Commander는 list[dict] 형태를 기대하므로 리스트로 포장
         sequence_data = [data]
         # 이동하는건 'MOVE' 명령으로 통일 (Commander가 알아서 Executor를 찾음)
-        self._start_worker('MOVE', data=sequence_data, log_msg=f"서보 구동 요청: {data}")
+        self._start_worker('MOVE', data=sequence_data, log_msg=f"서보 단독 구동 위한 워커 호출: {data}")
 
     def stop_servo_all(self):
         """서보 모터 비상 정지"""
