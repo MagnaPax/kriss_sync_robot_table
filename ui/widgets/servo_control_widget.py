@@ -170,7 +170,7 @@ class ServoControlWidget(BaseWidget):
             
             spin.lineEdit().textChanged.connect(validate_no_minus)
 
-        # TargetPositionWidget 스타일 참고: 포커스 시 전체 선택
+        # RobotControllerWidget 스타일 참고: 포커스 시 전체 선택
         spin.focusInEvent = lambda e: QTimer.singleShot(0, spin.selectAll)
         return spin
 

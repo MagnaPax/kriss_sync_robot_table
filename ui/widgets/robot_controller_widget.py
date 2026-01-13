@@ -1,4 +1,4 @@
-# ui/widgets/target_position_widget.py
+# ui/widgets/robot_controller_widget.py
 from PyQt6.QtCore import pyqtSlot, QTimer
 from PyQt6.QtWidgets import (
     QVBoxLayout, 
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
 
 
-class TargetPositionWidget(BaseWidget):
+class RobotControllerWidget(BaseWidget):
     """
     로봇팔, 턴테이블의 이동 명령과 매크로를 관리하는 위젯
 
@@ -122,7 +122,7 @@ class TargetPositionWidget(BaseWidget):
         여기서 실제 UI를 구성한다
         """
 
-        self.setObjectName("target_position_widget")
+        self.setObjectName("robot_controller_widget")
 
         # BaseWidget이 레이아웃을 설정했는지 확인
         # BaseWidget이 이미 layout을 설정했을 수 있으므로 가져온다
@@ -158,7 +158,7 @@ class TargetPositionWidget(BaseWidget):
         ##########################
 
         # 모든 부속 위젯을 담을 그룹박스 생성
-        base_group_box = QGroupBox("Robot Control")
+        base_group_box = QGroupBox("Robot Controller")
 
 
         widgets_layout = QVBoxLayout()
@@ -422,7 +422,7 @@ class TargetPositionWidget(BaseWidget):
         - 로봇 좌표 (X,Y,Z,W,P,R)
         - Feed Rate
         """
-        EVENT_BUS.log.message.emit("TargetPositionWidget 입력 필드 초기화", "DEBUG")
+        EVENT_BUS.log.message.emit("RobotControllerWidget 입력 필드 초기화", "DEBUG")
 
         # 1. 좌표 입력창 초기화
         for axis, widget in self.coord_widgets.items():
@@ -620,7 +620,7 @@ class TargetPositionWidget(BaseWidget):
 # ==========================================================
 # Smoke Test
 """
-python -m ui.widgets.target_position_widget
+python -m ui.widgets.robot_controller_widget
 """
 # ==========================================================
 if __name__ == '__main__':
@@ -664,9 +664,9 @@ if __name__ == '__main__':
 
     # 4. Widget 생성
     main_win = QMainWindow()
-    widget = TargetPositionWidget(view_model)
+    widget = RobotControllerWidget(view_model)
     main_win.setCentralWidget(widget)
-    main_win.setWindowTitle("TargetPositionWidget 테스트")
+    main_win.setWindowTitle("RobotControllerWidget 테스트")
     main_win.resize(400, 300)
     main_win.show()
 

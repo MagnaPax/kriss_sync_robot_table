@@ -381,21 +381,21 @@ QLabel {
 ---------------------------------------- 
 */
 
-/* TargetPositionWidget */
+/* RobotControllerWidget */
 /* 내부 섹션 테두리 제거 */
-#target_position_widget QFrame#section_edit_macro, 
-#target_position_widget QFrame#section_coordinate, 
-#target_position_widget QFrame#section_robot_coordinate, 
-#target_position_widget QFrame#section_turtable_coordinate, 
-#target_position_widget QFrame#section_macro_buttons, 
-#target_position_widget QFrame#section_go_to, 
-#target_position_widget QFrame#section_feed_rate {
+#robot_controller_widget QFrame#section_edit_macro, 
+#robot_controller_widget QFrame#section_coordinate, 
+#robot_controller_widget QFrame#section_robot_coordinate, 
+#robot_controller_widget QFrame#section_turtable_coordinate, 
+#robot_controller_widget QFrame#section_macro_buttons, 
+#robot_controller_widget QFrame#section_go_to, 
+#robot_controller_widget QFrame#section_feed_rate {
     border: none;
     background: transparent;
 }
 
 /* 라벨 (X, Y, Z, Feed Rate 등) 스타일 강화 (가독성 확보) */
-#target_position_widget QLabel {
+#robot_controller_widget QLabel {
     font-weight: bold;
     color: #333333; /* 어두운 회색 (가독성) */
     padding-bottom: 10px; /* 그룹박스 내부 하단에 여백 추가 */
@@ -404,7 +404,7 @@ QLabel {
 }
 
 /* 입력창 (QLineEdit, QDoubleSpinBox) 스타일 */
-#target_position_widget QLineEdit {
+#robot_controller_widget QLineEdit {
     border: 1px solid #ced4da;
     border-radius: 4px;
     padding: 6px;
@@ -416,7 +416,7 @@ QLabel {
     min-height: 20px; /* 최소 높이 */
 }
 
-#target_position_widget QDoubleSpinBox {
+#robot_controller_widget QDoubleSpinBox {
     border: 1px solid #ced4da;
     border-radius: 4px;
     padding: 6px;
@@ -429,7 +429,7 @@ QLabel {
     min-height: 20px; /* 최소 높이 */
 }
 
-#target_position_widget QDoubleSpinBox:focus {
+#robot_controller_widget QDoubleSpinBox:focus {
     border: 2px solid #5D9CEC; /* 포커스 시 파란 테두리 */
 }
 

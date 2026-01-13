@@ -1092,7 +1092,7 @@ class TwinCATCommander(QObject):
     # --- 로봇에게 내리는 명령들 --- #
     # ================================= #
     def apply_user_feed_rate_when_moving_robot(self, feed_rate: float) -> str | None:
-        """TargetPositionWidget 에서 사용자가 입력한 Feed Rate 값을 FANUC에 적용"""
+        """RobotControllerWidget 에서 사용자가 입력한 Feed Rate 값을 FANUC에 적용"""
 
         # 로봇이 움직이고 있는지 확인
         is_robot_moving = self.robot.read_busy_signal()

@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Optional
 from ui.widgets.logo_widget import LogoWidget
 from ui.widgets.turntable_gauge import TurntableGaugeWidget
 from ui.widgets.servo_control_widget import ServoControlWidget
-from ui.widgets.target_position_widget import TargetPositionWidget
+from ui.widgets.robot_controller_widget import RobotControllerWidget
 
 
 if TYPE_CHECKING:
@@ -30,7 +30,7 @@ class LeftPanel(QFrame):
         self.logo_widget = LogoWidget()
         self.turntable_gauge = TurntableGaugeWidget()
         servo_control = ServoControlWidget()
-        target_position = TargetPositionWidget()
+        target_position = RobotControllerWidget()
 
 
         # --- 뷰모델 주입 --- #

@@ -68,7 +68,7 @@ class TargetPositionViewModel(QObject):
     # ===============================================
     def _handle_clear_inputs(self, type_: str):
         """입력 필드 초기화 로직"""
-        # "robot" 또는 "all"일 때 로봇/턴테이블 위젯(TargetPositionWidget) 초기화
+        # "robot" 또는 "all"일 때 로봇/턴테이블 위젯(RobotControllerWidget) 초기화
         # (TargetPositionWidget은 로봇, 턴테이블 좌표 모두를 담당하므로 이 둘에 반응해야 함)
         if type_ in ["robot", "servo", "all"]:
             # [주의] TargetPositionWidget은 로봇(XYZ), 턴테이블(WPR) 모두 포함하므로
