@@ -44,7 +44,7 @@ class ServoControlViewModel(QObject):
         EVENT_BUS.control.clear_user_inputs.connect(self._on_clear_manual_inputs)
         # [EventBus 구독] 웨이포인트 선택됨
         EVENT_BUS.data.waypoints_selected.connect(self._on_replace_inputs_by_selected_sequence_on_waypoints_table)
-        # '시퀀스 실행중' 방송이 오면 -> 내 로컬 시그널로 그대로 재방송
+        # '시퀀스 실행중' 방송 청취 -> 내 로컬 시그널로 바로 재방송
         EVENT_BUS.data.sequence_in_progress.connect(self.disable_buttons.emit)
 
 
