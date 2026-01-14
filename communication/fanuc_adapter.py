@@ -55,7 +55,6 @@ class FanucAdapter:
     # ==========================================================================
     # 1. 쓰기 (Write): 구조체 전송
     # ==========================================================================
-
     def write_command_packet(self, packet: FanucCommandPacket):
         """
         [핵심] 명령 패킷(구조체)을 PLC에 전송
@@ -70,13 +69,13 @@ class FanucAdapter:
 
     def set_emergency_stop(self):
         """[비상 정지] IMSP 신호 전송"""
-        cmd_signals = {
-            FanucSignal.IMSP: True, FanucSignal.HOLD: True, FanucSignal.SFSP: True, FanucSignal.ENABLE: False,
-            FanucSignal.CYCLE_STOP: True, FanucSignal.START: False, FanucSignal.RSR2: False, FanucSignal.RSR3: False, FanucSignal.DATA_READY_DI43: False
+        emergency_stop_cmd_signals = {
+            FanucSignal.IMSP: False, FanucSignal.HOLD: True, FanucSignal.SFSP: True, FanucSignal.ENABLE: True,
+            FanucSignal.CYCLE_STOP: False, FanucSignal.START: False, FanucSignal.RSR2: False, FanucSignal.RSR3: False, FanucSignal.DATA_READY_DI43: False
         }
-        # 비상 정지 신호를 보낼 때도 로봇 좌표는 필요 없다.
+        # 비상 정지 시 로봇 좌표는 의미가 없으므로 '신호 전송용 패킷'을 생성해서 보낸다
         # 'IMSP' 신호를 확실하게 전달하는 것이 핵심
-        packet = FANUCPose.create_signal_only_packet(cmd_signals)
+        packet = FANUCPose.create_signal_only_packet(emergency_stop_cmd_signals)
         self.write_command_packet(packet)        
 
     def set_initial_signals(self):
