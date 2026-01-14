@@ -96,7 +96,7 @@ class TaskManagerViewModel(QObject):
 
         # PLC 서비스가 준비되지 않았는데 시작 명령을 내리면 에러가 날 수 있으므로 try-except로 처리
         try:
-            EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 시작 (데이터 {len(self._cached_sequence_data)}건)", "INFO")
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 사용자가 START 버튼을 눌렀습니다. 시퀀스를 시작합니다. (데이터 {len(self._cached_sequence_data)}건)", "INFO")
             
             # 전체 데이터 전송 (시퀀스 처음부터 실행) - PLC 서비스 호출
             self._plc_service.process_sequence_data(self._cached_sequence_data)

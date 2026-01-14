@@ -310,7 +310,7 @@ class ServoAdapter:
 
     def is_servo_moving_physically(self, axis_index: int, threshold: float = 0.1) -> bool:
         """
-        [상태 확인] 해당 축이 물리적으로 움직이고 있는가? (속도 기준)
+        [상태 확인] 해당 축이 물리적으로 움직이고 있는가? (현재 속도를 측정해서 판단)
         
         Args:
             axis_index: 축 번호
