@@ -492,7 +492,7 @@ class RobotControllerWidget(BaseWidget):
     # =============================================== 
     @pyqtSlot(bool)
     def _on_disable_buttons(self, disable: bool):
-        """버튼 비활성화 시그널 처리"""
+        """버튼 활성화/비활성화 처리"""
         if self.goto_button:
             self.goto_button.setDisabled(disable)
 
