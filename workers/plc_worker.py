@@ -77,7 +77,7 @@ class PLCWorker(QObject):
 
                 # --- 비상 정지 (전체) --- #
                 case 'EMERGENCY_STOP':
-                    is_success, msg = self.commander.emergency_stop()
+                    is_success, msg = self.commander.emergency_stop_servo_and_robot()
 
 
                 # --- 이동 명령 (Commander 사용) --- #

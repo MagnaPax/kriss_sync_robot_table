@@ -1057,7 +1057,7 @@ class TwinCATCommander(QObject):
     # ================================= #
     # --- 비상 정지 명령 (로봇&서보)--- #
     # ================================= #
-    def emergency_stop(self) -> tuple[bool, str]:
+    def emergency_stop_servo_and_robot(self) -> tuple[bool, str]:
         """
         [비상 정지] 로봇과 서보를 즉시 정지시킴
         """
