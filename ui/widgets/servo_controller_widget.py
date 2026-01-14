@@ -56,10 +56,11 @@ class ServoControllerWidget(BaseWidget):
         """외부에서 뷰모델을 주입하는 함수"""
         self.vm = view_model
 
-        # 로봇과 턴테이블의 바쁨 상태 연결
+        # VM의 로컬 시그널 연결
         self.vm.busy_state_changed.connect(self.safe_update_data)
         self.vm.servo_inputs_clear.connect(self.clear_widget)
         self.vm.servo_axis_motion_changed.connect(self.safe_update_data)
+        self.vm.disable_buttons.connect(lambda tag, val: self.safe_update_data({tag: val}))
 
     def _bind_events(self):
         """UI 이벤트 바인딩"""
@@ -195,26 +196,43 @@ class ServoControllerWidget(BaseWidget):
         EVENT_BUS.log.message.emit(f"{self.log_prefix} 화면 업데이트 할 데이터: {data}", "DEBUG")
 
         # --- case 1 --- #
-        # 상태 업데이트 (is_servo_moving)
+        # 버튼 활성화/비활성화
+        is_busy = False
+
+        # 서보가 움직일 때
         if 'is_servo_moving' in data:
             is_busy = data['is_servo_moving']
+        # 시퀀스 실행 중일 때
+        elif 'is_sequence_in_progress' in data:
+            is_busy = data['is_sequence_in_progress']
 
+        if 'is_servo_moving' in data or 'is_sequence_in_progress' in data:
             # BaseWidget 내부 변수 업데이트
             self._is_enabled = not is_busy
 
-            # 로봇/서보가 바쁘면 START, HOME, RESET 비활성화, STOP 활성화
+            # 로봇/서보가 바쁘면 START, HOME, RESET 비활성화
             if self.btn_start: self.btn_start.setEnabled(not is_busy)
             if self.btn_tt_start: self.btn_tt_start.setEnabled(not is_busy)
             if self.btn_home:  self.btn_home.setEnabled(not is_busy)
             if self.btn_reset: self.btn_reset.setEnabled(not is_busy)
-            if self.btn_stop:  self.btn_stop.setEnabled(is_busy)
+            
+            # STOP 버튼 처리 로직 분기
+            # 1. 시퀀스 실행 중이면 -> STOP 버튼도 비활성화 (TaskManager가 담당)
+            # 2. 단순 서보 구동 중이면 -> STOP 버튼 활성화 (수동 정지 가능)
+            if self.btn_stop:
+                if 'is_sequence_in_progress' in data and data['is_sequence_in_progress']:
+                    self.btn_stop.setEnabled(False) 
+                else:
+                    # 시퀀스가 아닐 때는 '바쁠 때만' 활성화 (유휴 상태에선 비활성화 or 항상 활성화 정책에 따름)
+                    # 여기서는 기존 로직대로 '바쁠 때 활성화'로 유지
+                    self.btn_stop.setEnabled(is_busy)
             
             # 입력창들도 비활성화하여 오작동 방지
             for spin in self.input_widgets.values():
                 spin.setEnabled(not is_busy)
 
         # --- case 2 --- #
-        # 서보 값 업데이트 (PLC 또는 테이블 선택으로부터 온 데이터)
+        # 사용자 입력창에 서보 값 업데이트 (PLC 또는 테이블 선택으로부터 온 데이터)
         target_keys = [
             KEY_TURNTABLE_DEG, 
             KEY_TURNTABLE_FEED_RATE, 
@@ -222,15 +240,19 @@ class ServoControllerWidget(BaseWidget):
             KEY_TOOL_ROT_RPM
         ]
 
-        for key in target_keys:
-            # 데이터 딕셔너리에 키가 존재하는지 확인 (None이 아니면 0이어도 진행)
-            if (val := data.get(key)) is not None:
-                # 해당 값을 표시할 UI 위젯(SpinBox)이 등록되어 있는지 확인
-                if widget := self.input_widgets.get(key):
-                    # 값이 바뀌었다는 시그널 잠시 차단 - 안 하면 무한 루프 발생
-                    blocker = widget.blockSignals(True)
-                    widget.setValue(float(val))         # 실제 위젯에 값 적용 (0.0 포함)
-                    widget.blockSignals(blocker)        # 업데이트 후 차단 해제
+        # 데이터에 target_keys 중 하나라도 포함되어 있는지 확인
+        if any(key in data for key in target_keys):
+            EVENT_BUS.log.message.emit(f"{self.log_prefix} 서보 값 업데이트 할 데이터: {data}", "DEBUG")
+
+            for key in target_keys:
+                # 데이터 딕셔너리에 키가 존재하는지 확인 (None이 아니면 0이어도 진행)
+                if (val := data.get(key)) is not None:
+                    # 해당 값을 표시할 UI 위젯(SpinBox)이 등록되어 있는지 확인
+                    if widget := self.input_widgets.get(key):
+                        # 값이 바뀌었다는 시그널 잠시 차단 - 안 하면 무한 루프 발생
+                        blocker = widget.blockSignals(True)
+                        widget.setValue(float(val))         # 실제 위젯에 값 적용 (0.0 포함)
+                        widget.blockSignals(blocker)        # 업데이트 후 차단 해제
 
     def clear_widget(self):
         """위젯 상태 초기화"""
