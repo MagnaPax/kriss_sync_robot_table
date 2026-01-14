@@ -233,9 +233,6 @@ class DataSignals(QObject):
         dict: 선택된 행의 전체 데이터 (예: {'id': 1, 'x': 100.0, ...})
     """
 
-    servo_physical_moving_status_changed = pyqtSignal(dict)
-    """장비의 물리적인 이동 상태 변경 알림"""
-
     sequence_job_finished = pyqtSignal()
     """모든 시퀀스 작업(Job)이 종료됨을 알림 (성공/실패/중단 여부 상관 없이)"""
 
@@ -252,13 +249,14 @@ class DataSignals(QObject):
 class ControlSignals(QObject):
     """
     [제어 및 모니터링 이벤트 그룹]
-    로봇이나 턴테이블의 실시간 위치 정보나 목표값 등 고빈도(약 0.1초마다) 호출 데이터를 처리
+    로봇이나 턴테이블의 실시간 위치 정보나 목표값 등 데이터를 처리
     """
     
     robot_current_pose = pyqtSignal(object)
     """
     FANUC 현재 World 좌표 정보
         바닥(베이스 좌표계) 기준 TCP(Tool Center Point) 위치
+        고빈도(약 0.1초마다) 호출
 
     Args:
         - .x, .y, .z, .w, .p, .r 속성을 가진 FANUCPose 객체
@@ -267,6 +265,7 @@ class ControlSignals(QObject):
     servo_current_motion = pyqtSignal(object)
     """
     서보모터의 현재 각도/속도 정보 (ServoPose)
+        고빈도(약 0.1초마다) 호출
 
     Args:
         - .angle (float): 현재 각도
@@ -274,7 +273,10 @@ class ControlSignals(QObject):
     """
 
     tool_current_pose = pyqtSignal(object)
-    """FANUC 현재 Tool 좌표 정보"""
+    """
+    FANUC 현재 Tool 좌표 정보
+        고빈도(약 0.1초마다) 호출
+    """
 
     clear_user_inputs = pyqtSignal(str)
     """
@@ -291,6 +293,9 @@ class ControlSignals(QObject):
     Args:
         str (type): "waypoints", "logs", "inputs", "all"
     """
+
+    servo_physical_moving_status_changed = pyqtSignal(dict)
+    """서보모터의 물리적인 이동 상태 변경 알림"""
 
 # =============================================================================
 # 2. 실제 QObject
