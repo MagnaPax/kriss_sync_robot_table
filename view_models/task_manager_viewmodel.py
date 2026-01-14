@@ -90,9 +90,9 @@ class TaskManagerViewModel(QObject):
         # 런타임 시작
         self._runtime_timer.start()
 
-        # 시퀀스 실행 상태 알림 (버튼 비활성화 등에 사용)
+        # 시퀀스 실행 중 상태 알림 (버튼 비활성화 등에 사용)
         self.sequence_execution_active.emit(True)
-        EVENT_BUS.data.sequence_execution_active.emit(True)
+        EVENT_BUS.data.sequence_in_progress.emit("is_sequence_in_progress", True)
 
         # PLC 서비스가 준비되지 않았는데 시작 명령을 내리면 에러가 날 수 있으므로 try-except로 처리
         try:
@@ -103,6 +103,7 @@ class TaskManagerViewModel(QObject):
         except Exception as e:
             self._runtime_timer.stop() # 에러 나면 타이머도 멈춤
             self.sequence_execution_active.emit(False) # 실행중 상태 알림
+            EVENT_BUS.data.sequence_in_progress.emit("is_sequence_in_progress", False)
             EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 시작 실패: {e}", "ERROR")
 
     def stop_sequence(self):
@@ -114,7 +115,7 @@ class TaskManagerViewModel(QObject):
         
         # 실행 상태 해제 (버튼 활성화에 사용)
         self.sequence_execution_active.emit(False)
-        EVENT_BUS.data.sequence_execution_active.emit(False)
+        EVENT_BUS.data.sequence_in_progress.emit("is_sequence_in_progress", False)
 
         # PLCService 한테도 멈추라고 명령
         self._plc_service.stop_process()
@@ -158,6 +159,6 @@ class TaskManagerViewModel(QObject):
         
         # 실행 모드 해제 (버튼 활성화 등에 사용)
         self.sequence_execution_active.emit(False)
-        EVENT_BUS.data.sequence_execution_active.emit(False)
+        EVENT_BUS.data.sequence_in_progress.emit("is_sequence_in_progress", False)
         total_count = len(self._cached_sequence_data) if self._cached_sequence_data else 0
         EVENT_BUS.log.message.emit(f"{self._log_prefix} 모든 시퀀스 작업 완료 (총 {total_count}개의 데이터)", "INFO")
