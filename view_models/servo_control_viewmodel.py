@@ -38,8 +38,8 @@ class ServoControlViewModel(QObject):
 
 
     def _bind_signals(self):
-        # '바쁨 상태' 방송이 오면 -> 내 로컬 시그널로 그대로 재방송
-        EVENT_BUS.data.servo_busy_status.connect(self.busy_state_changed.emit)
+        # '움직이고 있다'는 방송이 오면 -> 내 로컬 시그널로 그대로 재방송
+        EVENT_BUS.control.servo_physical_moving_status_changed.connect(self.busy_state_changed.emit)
         # [EventBus 구독] 수동 입력 필드 초기화 요청
         EVENT_BUS.control.clear_user_inputs.connect(self._on_clear_manual_inputs)
         # [EventBus 구독] 웨이포인트 선택됨
