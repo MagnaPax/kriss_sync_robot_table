@@ -1135,7 +1135,7 @@ class TwinCATCommander(QObject):
         # 둘 중 하나라도 바쁘면 시스템은 바쁜 것
         return robot_busy or servo_busy
 
-    def start_sequence_plc_signals(self) -> tuple[bool, str]:
+    def start_robot_plc_signals(self) -> tuple[bool, str]:
         """로봇에게 시작 신호(RSR, Loop 등) 전송"""
         if self.robot:
             try:
@@ -1150,7 +1150,7 @@ class TwinCATCommander(QObject):
                 return False, f"시작 신호 전송 실패: {e}"
         return False, "로봇이 연결되지 않았습니다."
 
-    def end_sequence_plc_signals(self) -> tuple[bool, str]:
+    def stop_robot_plc_signals(self) -> tuple[bool, str]:
         """로봇에게 종료/정지 신호 전송"""
         if self.robot:
             try:

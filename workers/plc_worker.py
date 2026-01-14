@@ -93,9 +93,9 @@ class PLCWorker(QObject):
 
                 # --- 제어 명령 (Commander 사용) --- #
                 case 'START':
-                    is_success, msg = self.commander.start_sequence_plc_signals()
+                    is_success, msg = self.commander.start_robot_plc_signals()
                 case 'STOP':
-                    is_success, msg = self.commander.end_sequence_plc_signals()
+                    is_success, msg = self.commander.stop_robot_plc_signals()
 
 
                 # --- 서보 전용 제어 명령 (Commander 사용) --- #
