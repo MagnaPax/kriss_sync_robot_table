@@ -490,8 +490,8 @@ class RobotControllerWidget(BaseWidget):
     # ===============================================
     # ViewModel 시그널 수신 (상태 업데이트)
     # =============================================== 
-    @pyqtSlot(bool)
-    def _on_disable_buttons(self, disable: bool):
+    @pyqtSlot(str, bool)
+    def _on_disable_buttons(self, _: str, disable: bool):
         """버튼 활성화/비활성화 처리"""
         if self.goto_button:
             self.goto_button.setDisabled(disable)
