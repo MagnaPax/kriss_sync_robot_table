@@ -49,9 +49,9 @@ class TaskManagerViewModel(QObject):
         # --- 시그널 구독 --- #
         # 시퀀스 데이터 읽기 완료
         EVENT_BUS.data.sequence_data_loaded.connect(self._on_sequence_data_updated)
-        # '바쁨 상태' 방송이 오면 -> 내 로컬 시그널(busy_state_changed)로 바로 재방송
+        # '서보 모터가 움직이고 있다'는 방송이 오면 -> 내 로컬 시그널(busy_state_changed)로 바로 재방송
         #   TaskManagerWidget.update_data와 연결
-        EVENT_BUS.data.servo_busy_status.connect(self.busy_state_changed.emit)
+        EVENT_BUS.control.servo_physical_moving_status_changed.connect(self.busy_state_changed.emit)
         # 전체 시퀀스 작업(Job) 종료 시그널 연결
         EVENT_BUS.data.sequence_job_finished.connect(self._on_sequence_job_finished)
 
