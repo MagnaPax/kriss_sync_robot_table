@@ -233,8 +233,8 @@ class DataSignals(QObject):
         dict: 선택된 행의 전체 데이터 (예: {'id': 1, 'x': 100.0, ...})
     """
 
-    servo_busy_status = pyqtSignal(dict)
-    """장비 바쁨 상태 방송용"""
+    servo_physical_moving_status_changed = pyqtSignal(dict)
+    """장비의 물리적인 이동 상태 변경 알림"""
 
     sequence_job_finished = pyqtSignal()
     """모든 시퀀스 작업(Job)이 종료됨을 알림 (성공/실패/중단 여부 상관 없이)"""
