@@ -193,7 +193,7 @@ class ServoControllerWidget(BaseWidget):
         실제 UI 업데이트 로직 (safe_update_data에 의해 호출됨)
         """
         if not isinstance(data, dict): return
-        EVENT_BUS.log.message.emit(f"{self.log_prefix} 화면 업데이트 할 데이터: {data}", "DEBUG")
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} update_data 메서드로 들어온 데이터: {data}", "DEBUG")
 
         # --- case 1 --- #
         # 버튼 활성화/비활성화
@@ -207,8 +207,9 @@ class ServoControllerWidget(BaseWidget):
             is_busy = data['is_sequence_in_progress']
 
         if 'is_servo_moving' in data or 'is_sequence_in_progress' in data:
-            # BaseWidget 내부 변수 업데이트
-            self._is_enabled = not is_busy
+            # BaseWidget._is_enabled를 건드리면 safe_update_data가 막히므로
+            # 여기서는 개별 컨트롤만 비활성화하고, _is_enabled는 True로 유지한다.
+            # self._is_enabled = not is_busy 
 
             # 로봇/서보가 바쁘면 START, HOME, RESET 비활성화
             if self.btn_start: self.btn_start.setEnabled(not is_busy)
@@ -233,6 +234,7 @@ class ServoControllerWidget(BaseWidget):
 
         # --- case 2 --- #
         # 사용자 입력창에 서보 값 업데이트 (PLC 또는 테이블 선택으로부터 온 데이터)
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} 웨이포인트 테이블 중 실행중이거나 사용자가 선택한 데이터: {data}", "DEBUG")
         target_keys = [
             KEY_TURNTABLE_DEG, 
             KEY_TURNTABLE_FEED_RATE, 
