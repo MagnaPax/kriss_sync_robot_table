@@ -489,7 +489,7 @@ class ServoOnlyExecutor(BaseExecutor):
                 
                 if moving:
                     busy_detected = True
-                    EVENT_BUS.data.servo_busy_status.emit({'is_servo_moving': True})
+                    EVENT_BUS.data.servo_physical_moving_status_changed({'is_servo_moving': True})
                 else:
                     # 이미 목표 위치 부근이라면, 이동 명령이 무시된(No-op) 것으로 간주하고 성공 반환
                     if target_pos is not None:
@@ -549,7 +549,7 @@ class ServoOnlyExecutor(BaseExecutor):
         
         finally:
             # 성공/실패 여부에 상관없이 마지막에는 바쁨 신호를 해제
-            EVENT_BUS.data.servo_busy_status.emit({'is_servo_moving': False})
+            EVENT_BUS.data.servo_physical_moving_status_changed({'is_servo_moving': False})
 
     def _is_interrupted(self) -> bool:
         """
@@ -1204,7 +1204,7 @@ class TwinCATCommander(QObject):
             return False, "서보 어댑터가 연결되지 않았습니다."
 
         # 원점 복귀 시작 전 바쁨 상태 방송
-        EVENT_BUS.data.servo_busy_status.emit({'is_servo_moving': True})
+        EVENT_BUS.data.servo_physical_moving_status_changed({'is_servo_moving': True})
 
         try:
             # Adapter에게 원점 복귀 절차 위임
@@ -1215,7 +1215,7 @@ class TwinCATCommander(QObject):
             return False, f"서보 원점 복귀 중 예외 발생: {e}"
         finally:
             # 성공/실패 여부에 상관없이 마지막에는 바쁨 상태 해제
-            EVENT_BUS.data.servo_busy_status.emit({'is_servo_moving': False})
+            EVENT_BUS.data.servo_physical_moving_status_changed({'is_servo_moving': False})
 
 
     def reset_servos_safely(self) -> tuple[bool, str]:
