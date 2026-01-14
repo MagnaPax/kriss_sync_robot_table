@@ -21,7 +21,7 @@ class ServoControlViewModel(QObject):
     busy_state_changed = pyqtSignal(dict)
     servo_inputs_clear = pyqtSignal()                   # 서보 입력 필드 초기화 요청 시그널
     servo_axis_motion_changed = pyqtSignal(dict)        # 서보 축 값 바꾸기
-    disable_buttons = pyqtSignal(bool)                  # 버튼 비활성화
+    disable_buttons = pyqtSignal(str, bool)             # 버튼 비활성화
 
 
     def __init__(self, plc_service: "PLCService"):
@@ -45,7 +45,7 @@ class ServoControlViewModel(QObject):
         # [EventBus 구독] 웨이포인트 선택됨
         EVENT_BUS.data.waypoints_selected.connect(self._on_replace_inputs_by_selected_sequence_on_waypoints_table)
         # '시퀀스 실행중' 방송이 오면 -> 내 로컬 시그널로 그대로 재방송
-        EVENT_BUS.data.sequence_execution_active.connect(self.disable_buttons)
+        EVENT_BUS.data.sequence_in_progress.connect(self.disable_buttons.emit)
 
 
 
