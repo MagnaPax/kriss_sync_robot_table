@@ -99,6 +99,14 @@ class FanucAdapter:
         """(Legacy Alias)"""
         self.set_initial_signals()
 
+    def stop_fanuc_normally(self):
+        stop_cmd_signals = {
+            FanucSignal.IMSP: True, FanucSignal.HOLD: True, FanucSignal.SFSP: True, FanucSignal.ENABLE: True,
+            FanucSignal.CYCLE_STOP: True, FanucSignal.START: False, FanucSignal.RSR2: False, FanucSignal.RSR3: False, FanucSignal.DATA_READY_DI43: False
+        }
+        # 정지할 때 로봇 좌표는 의미가 없으므로 '신호 전송용 패킷'을 생성해서 보낸다
+        packet = FANUCPose.create_signal_only_packet(stop_cmd_signals)
+        self.write_command_packet(packet)
 
 
 
@@ -106,7 +114,6 @@ class FanucAdapter:
     # 2. 알림 (Notification): 완료 신호 감지
     # [원본] 96: def add_device_notification(self, symbol, callback)
     # ==========================================================================
-
     def register_calculation_request_callback(self, callback: Callable) -> int:
         """
         [Sync Step 1: Calculation Request] 로봇의 계산 요청(DO45) 신호를 감지하기 위한 이벤트를 등록한다.
