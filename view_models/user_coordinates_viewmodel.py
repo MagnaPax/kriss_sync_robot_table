@@ -16,10 +16,12 @@ if TYPE_CHECKING:
 class UserCoordinatesViewModel(QObject):
     
     # 로컬 시그널
-    user_robot_pose_changed = pyqtSignal(FANUCPose)      # 로봇의 위치 - 사용자 좌표계
-    user_tool_revolution_changed = pyqtSignal(ServoPose) # 툴의 회전 상태 - 사용자 좌표계
-    user_tool_rotation_changed = pyqtSignal(ServoPose)   # 툴의 자전 상태 - 사용자 좌표계
-    user_turntable_pose_changed = pyqtSignal(ServoPose)  # 턴테이블의 상태 - 사용자 좌표계
+    user_robot_pose_changed = pyqtSignal(FANUCPose)         # 로봇의 위치       - 사용자 좌표계
+    user_tool_revolution_changed = pyqtSignal(ServoPose)    # 툴의 회전 상태    - 사용자 좌표계
+    user_tool_rotation_changed = pyqtSignal(ServoPose)      # 툴의 자전 상태    - 사용자 좌표계
+    user_turntable_pose_changed = pyqtSignal(ServoPose)     # 턴테이블의 상태   - 사용자 좌표계
+    origin_buttons_disabled = pyqtSignal(str, bool)         # 위젯 활성화/비활성화
+
 
 
     def __init__(self, plc_service: "PLCService"):
@@ -39,6 +41,9 @@ class UserCoordinatesViewModel(QObject):
         # [2] EVENT_BUS 시그널 연결
         EVENT_BUS.control.robot_current_pose.connect(self._on_robot_pose_received)
         EVENT_BUS.control.servo_current_motion.connect(self._on_servo_data_received)
+        # '시퀀스 실행중' 방송 청취 -> 내 로컬 시그널로 바로 재방송
+        EVENT_BUS.data.sequence_in_progress.connect(self.origin_buttons_disabled.emit)
+
 
 
     # [3] 데이터 저장 및 상대 좌표 계산 로직
