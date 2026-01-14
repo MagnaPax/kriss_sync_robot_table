@@ -37,7 +37,7 @@ class PLCWorker(QObject):
         Args:
             connector: '연결' 관리를 위한 객체
             commander: 로봇 '제어' 명령을 위한 객체
-            command: 실행할 명령 종류 ('CONNECT', 'MOVE', 'START' 등)
+            command: 실행할 명령 종류 ('CONNECT', 'MOVE', 'ROBOT_START' 등)
             data: 명령 실행에 필요한 데이터 (좌표 등)
         """
         super().__init__()
@@ -91,10 +91,10 @@ class PLCWorker(QObject):
                     if result_msg: self.result.emit(True, result_msg)
 
 
-                # --- 제어 명령 (Commander 사용) --- #
-                case 'START':
+                # --- 로봇 제어 명령 (Commander 사용) --- #
+                case 'ROBOT_START':
                     is_success, msg = self.commander.start_robot_plc_signals()
-                case 'STOP':
+                case 'ROBOT_STOP':
                     is_success, msg = self.commander.stop_robot_plc_signals()
 
 
