@@ -90,7 +90,7 @@ class TaskManagerViewModel(QObject):
         # 런타임 시작
         self._runtime_timer.start()
 
-        # 시퀀스 실행 상태 알림 (True -> START 버튼 비활성화 등에 사용)
+        # 시퀀스 실행 상태 알림 (버튼 비활성화 등에 사용)
         self.sequence_execution_active.emit(True)
         EVENT_BUS.data.sequence_execution_active.emit(True)
 
@@ -112,8 +112,9 @@ class TaskManagerViewModel(QObject):
         # 타이머 일시정지
         self._runtime_timer.stop()
         
-        # 실행 상태 해제 (False -> START 버튼 활성화)
+        # 실행 상태 해제 (버튼 활성화에 사용)
         self.sequence_execution_active.emit(False)
+        EVENT_BUS.data.sequence_execution_active.emit(False)
 
         # PLCService 한테도 멈추라고 명령
         self._plc_service.stop_process()
@@ -155,7 +156,8 @@ class TaskManagerViewModel(QObject):
         if self._runtime_timer.isActive():
             self._runtime_timer.stop()
         
-        # 실행 모드 해제 (START 버튼 활성화 등)
+        # 실행 모드 해제 (버튼 활성화 등에 사용)
         self.sequence_execution_active.emit(False)
+        EVENT_BUS.data.sequence_execution_active.emit(False)
         total_count = len(self._cached_sequence_data) if self._cached_sequence_data else 0
         EVENT_BUS.log.message.emit(f"{self._log_prefix} 모든 시퀀스 작업 완료 (총 {total_count}개의 데이터)", "INFO")
