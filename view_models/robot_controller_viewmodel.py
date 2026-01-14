@@ -17,7 +17,7 @@ class RobotControllerViewModel(QObject):
     robot_poses_clear = pyqtSignal()                # 로봇 좌표 초기화 요청 시그널
     robot_poses_changed = pyqtSignal(FANUCPose)     # 로봇 좌표 변경됨
     macros_loaded = pyqtSignal(dict)                # 매크로 데이터 가져오기 완료
-    disable_buttons = pyqtSignal(bool)              # 버튼 비활성화
+    disable_buttons = pyqtSignal(str, bool)         # 버튼 비활성화
 
 
     def __init__(self, model: FANUCPoseModel, plc_service: "PLCService"):
@@ -45,7 +45,7 @@ class RobotControllerViewModel(QObject):
     def _bind_signals(self):
         EVENT_BUS.control.clear_user_inputs.connect(self._on_clear_manual_inputs)   # 입력 필드 초기화
         EVENT_BUS.data.waypoints_selected.connect(self._on_replace_inputs_by_selected_sequence_on_waypoints_table)      # 웨이포인트에서 선택된 시퀀스
-        EVENT_BUS.data.sequence_in_progress.connect(self.disable_buttons)      # 시퀀스 실행중이면 로컬 시그널을 곧바로 재방송
+        EVENT_BUS.data.sequence_in_progress.connect(self.disable_buttons.emit)      # 시퀀스 실행중이면 로컬 시그널을 곧바로 재방송
 
 
 
