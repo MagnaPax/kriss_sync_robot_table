@@ -108,7 +108,12 @@ class TaskManagerViewModel(QObject):
 
     def stop_sequence(self):
         """STOP 버튼 클릭 시"""
-        EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 중지 요청", "INFO")
+        # 실행 중이 아니면 무시 (방어 코드)
+        if not self._runtime_timer.isActive():
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스가 실행 중이 아니므로 사용자의 STOP 버튼을 무시합니다.", "DEBUG")
+            return
+
+        EVENT_BUS.log.message.emit(f"{self._log_prefix} 사용자가 STOP 버튼을 눌렀습니다. 시퀀스를 중지합니다.", "INFO")
 
         # 타이머 일시정지
         self._runtime_timer.stop()
