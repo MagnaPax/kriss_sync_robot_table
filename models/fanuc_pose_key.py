@@ -95,14 +95,17 @@ class FanucSignal(str, Enum):
     # [입력] Robot <- PLC (보내는 신호: Trigger/DataReady)
     # 키 이름은 FANUCPose.to_struct() 메서드 내부 로직과 일치해야 함
     # =========================================================
-    IMSP =          "IMSP"          # Immediate Stop
-    HOLD =          "Hold"          # Hold
-    SFSP =          "SFSP"          # Safety Speed
-    CYCLE_STOP =    "CycleStop"     # Cycle Stop
+    IMSP =          "IMSP"          # Immediate Stop    즉시 멈춰라(OFF)
+    HOLD =          "Hold"          # Hold              일시정지
+    SFSP =          "SFSP"          # Safety Speed      안전 속도
+    ENABLE =        "Enable"        # Enable            동작 실행 가능 여부 확인
+    """
+    ⬆️ 기본적으로 이 위의 신호가 켜져야 로봇이 동작한다 ⬆️
+    """
+    CYCLE_STOP =    "CycleStop"     #                   하던일을 끝마친 뒤 멈춰라
     FAULT_RESET =   "FaultReset"    # Fault Reset
     START =         "Start"         # Start
-    HOME =          "Home"          # Home
-    ENABLE =        "Enable"        # Enable
+    HOME =          "Home"          # Home              (아마도) Homing
     
     RSR1 =          "RSR1"          # Robot Service Request 1
     RSR2 =          "RSR2"          # Robot Service Request 2 (주로 시작 신호로 사용)
@@ -126,14 +129,13 @@ class FanucSignal(str, Enum):
     # [출력] Robot -> PLC (읽는 신호: Handshake/Status)
     # =========================================================
     
-    # 계산 요청 신호 (CALCULATION_REQUEST / 구 COMPLETE)
+    # 계산 요청 신호
     # "다음 스텝 계산해서 데이터 보내라"는 요청 신호.
     #   이 신호가 오면 파이썬은 다음 좌표를 계산해서 'Data Ready(DI43)' 상태로 만듦.
     CALCULATION_REQUEST =  "MAIN.Robot1._UO1.DO45"
     
-    # 이동 완료 신호
-    # 로봇이 물리적으로 이동을 완전히 멈췄을 때 발생하는 신호.
-    # 이 신호와 턴테이블의 완료 신호(bDone3)가 모두 확인되어야 '동시 출발 트리거(DI44)'를 쏠 수 있음.
+    # 이전에 내린 명령의 실행이 끝났다.
+    # 이제 사용되지 않는다!!!!
     ROBOT_MOTION_DONE = "MAIN.Robot1._UO1.DO46"
 
     BUSY =      "MAIN.Robot1._UO1.UO10_Busy"        # 바쁨 신호
