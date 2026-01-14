@@ -83,7 +83,7 @@ class RobotControllerViewModel(QObject):
 
     def _handle_sequence_selection(self, row_data: dict):
         """시퀀스 선택 시 입력 필드 업데이트 로직"""
-        EVENT_BUS.log.message.emit(f"{self.log_prefix} 선택된 시퀀스 값: {row_data}", "DEBUG")
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} 선택된 시퀀스 값 전체: {row_data}", "DEBUG")
         
         # 딕셔너리 -> 도메인 모델(FANUCPose) 변환
         try:
