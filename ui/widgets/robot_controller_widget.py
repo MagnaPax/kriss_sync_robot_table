@@ -78,6 +78,7 @@ class RobotControllerWidget(BaseWidget):
         self.vm.macros_loaded.connect(self._on_macro_data_loaded)
         self.vm.robot_poses_clear.connect(self.clear_widget)
         self.vm.robot_poses_changed.connect(self.safe_update_data)
+        self.vm.disable_buttons.connect(self._on_disable_buttons)
         
         # 매크로 데이터에서 버튼 제목을 읽어 와야 되기 때문에 UI가 생성된 후에 바로 호출
         self.vm.load_macro_data()
@@ -418,7 +419,7 @@ class RobotControllerWidget(BaseWidget):
 
     def clear_widget(self):
         """
-        [새로 구현] 입력 데이터 모두 초기화
+        입력 데이터 모두 초기화
         - 로봇 좌표 (X,Y,Z,W,P,R)
         - Feed Rate
         """
@@ -487,12 +488,17 @@ class RobotControllerWidget(BaseWidget):
 
 
     # ===============================================
-    # 이벤트 슬롯 [물리적 신호 처리]
-    #   - 사용자 입력(클릭, 선택)에 대한 신호 처리
+    # ViewModel 시그널 수신 (상태 업데이트)
     # =============================================== 
+    @pyqtSlot(bool)
+    def _on_disable_buttons(self, disable: bool):
+        """버튼 비활성화 시그널 처리"""
+        if self.goto_button:
+            self.goto_button.setDisabled(disable)
+
     @pyqtSlot(dict)
     def _on_macro_data_loaded(self, data: Dict[str, Any]):
-        """"""
+        """매크로 데이터 로드 시그널 처리"""
         EVENT_BUS.log.message.emit(
             f"매크로 데이터 로드 완료 (총 {len(data)}개 항목)", 
             "INFO"
@@ -521,6 +527,10 @@ class RobotControllerWidget(BaseWidget):
 
                     btn.setText(new_name)
 
+
+    # ===============================================
+    # 사용자 인터랙션 처리 (UI 이벤트)
+    # =============================================== 
     @pyqtSlot()
     def _on_edit_macro_button_clicked(self):
         """
