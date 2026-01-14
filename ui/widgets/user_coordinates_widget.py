@@ -2,7 +2,7 @@
 from PyQt6.QtCore import pyqtSlot
 from PyQt6.QtWidgets import QGroupBox, QPushButton, QWidget
 from ui.widgets.world_coordinates_widget import WorldCoordinatesWidget
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Any
 
 if TYPE_CHECKING:
     from view_models.user_coordinates_viewmodel import UserCoordinatesViewModel
@@ -46,6 +46,9 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
         self.viewmodel.user_tool_revolution_changed.connect(self._update_tool_revolution_ui)
         self.viewmodel.user_tool_rotation_changed.connect(self._update_tool_rotation_ui)
         self.viewmodel.user_turntable_pose_changed.connect(self._update_turntable_ui)
+        
+        # 버튼 활성화/비활성화 (시퀀스 실행 중일 때)
+        self.viewmodel.origin_buttons_disabled.connect(lambda tag, val: self.safe_update_data({tag: val}))
 
 
     # ========================================
@@ -86,6 +89,28 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
     # ===============================================
     # 데이터 처리
     # ===============================================
+    def update_data(self, data: Any):
+        """
+        데이터 업데이트 (Override)
+        - FANUCPose: 좌표 업데이트 (부모 메서드 호출)
+        - dict: 제어 명령 처리
+            {'is_sequence_in_progress': True/False}
+        """
+        # --- case 1: 로봇 좌표(FANUCPose)인 경우 -> 부모 메서드에게 위임 --- #
+        super().update_data(data)
+
+        # --- case 2: 제어 명령(dict)인 경우 --- #
+        if isinstance(data, dict) and 'is_sequence_in_progress' in data:
+            should_disable = data['is_sequence_in_progress']  # True면 비활성화
+            should_enable = not should_disable
+            
+            if self.btn_robot_origin: self.btn_robot_origin.setEnabled(should_enable)
+            if self.btn_servo_origin: self.btn_servo_origin.setEnabled(should_enable)
+            if self.btn_reset: self.btn_reset.setEnabled(should_enable)
+            return
+
+
+
     def clear_widget(self):
         """위젯 상태 초기화"""
         # 레이블 텍스트 초기화
