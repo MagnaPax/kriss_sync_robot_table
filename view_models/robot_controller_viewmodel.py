@@ -145,9 +145,6 @@ class RobotControllerViewModel(QObject):
 
     def update_feed_rate(self, feed_rate: float):
         """"""
-        EVENT_BUS.log.message.emit(f"FEED RATE 스핀박스 값 변경됨\n사용자 입력값:{feed_rate}", "DEBUG")
+        EVENT_BUS.log.message.emit(f"FEED RATE 스핀박스 사용자 입력값:{feed_rate}", "DEBUG")
 
         self._plc_service.set_robot_speed(feed_rate)
-
-
-
