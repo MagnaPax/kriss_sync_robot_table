@@ -46,7 +46,11 @@ class TaskManagerViewModel(QObject):
         self._runtime_timer.setInterval(1000)  # 1초
         self._runtime_timer.timeout.connect(self._on_runtime_tick)
 
-        # --- 시그널 구독 --- #
+        # EVENT_BUS 시그널 연결
+        self._bind_signals()
+
+
+    def _bind_signals(self):
         # 시퀀스 데이터 읽기 완료
         EVENT_BUS.data.sequence_data_loaded.connect(self._on_sequence_data_updated)
         # '서보 모터가 움직이고 있다'는 방송이 오면 -> 내 로컬 시그널(busy_state_changed)로 바로 재방송
@@ -56,6 +60,9 @@ class TaskManagerViewModel(QObject):
         EVENT_BUS.data.sequence_job_finished.connect(self._on_sequence_job_finished)
 
 
+    # ===============================================
+    # View -> ViewModel 호출 메서드 (Commands)
+    # ===============================================
     def load_sequence_data(self, file_path: Path):
         """View의 LOAD 버튼 클릭 이벤트 처리"""
         EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 데이터 읽기 시작", "DEBUG")
@@ -77,8 +84,6 @@ class TaskManagerViewModel(QObject):
             EVENT_BUS.log.message.emit(f"{self._log_prefix} 파일 로드 실패: {e}", "ERROR")
             self.sequence_data_loaded_failed.emit(str(e))
 
-
-    @pyqtSlot()
     def start_sequence(self):
         """
         START 버튼 클릭 시
@@ -115,7 +120,6 @@ class TaskManagerViewModel(QObject):
             EVENT_BUS.data.sequence_in_progress.emit("is_sequence_in_progress", False)
             EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 시작 실패: {e}", "ERROR")
 
-    @pyqtSlot()
     def stop_sequence(self):
         """STOP 버튼 클릭 시"""
         # 실행 중이 아니면 무시 (방어 코드)
@@ -135,19 +139,41 @@ class TaskManagerViewModel(QObject):
         # PLCService 한테도 멈추라고 명령 (스레드 중단 + 장비 정지)
         self._plc_service.stop_processing_job()
 
+
+
+    # ===============================================
+    # 헬퍼 메서드
+    # ===============================================
     def _reset_runtime_timer(self):
         self._elapsed_seconds = 0
         self.runtime_updated.emit("00 : 00 : 00")
 
 
-    # --- 슬롯 메서드 --- #
+    # ===============================================
+    # 시그널 슬롯 [물리적 시그널 수신]
+    # ===============================================
     @pyqtSlot(list)
     def _on_sequence_data_updated(self, data: List[Dict[str, Any]]):
-        """Event Bus를 통해 온 시퀀스 데이터를 캐싱"""
-        self._cached_sequence_data = data
+        self._handle_caching_sequence_data(data)
 
     @pyqtSlot()
     def _on_runtime_tick(self):
+        self._handle_display_runtime()
+
+    @pyqtSlot()
+    def _on_sequence_job_finished(self):
+        """시퀀스 작업이 종료되었을 때"""
+        self._handle_runtime_stop()
+
+
+    # ===============================================
+    # 핸들러 [논리적 흐름 담당]
+    # ===============================================
+    def _handle_caching_sequence_data(self, data: List[Dict[str, Any]]):
+        """Event Bus를 통해 온 시퀀스 데이터를 캐싱"""
+        self._cached_sequence_data = data
+
+    def _handle_display_runtime(self):
         """
         시간을 1씩 늘리고 방송
             단순히 눈에 보이는 타이머 역할이기 때문에 VM에서 구현
@@ -164,15 +190,13 @@ class TaskManagerViewModel(QObject):
         # 방송 - UI야, 이 글자로 바꿔라
         self.runtime_updated.emit(runtime_str)
 
-
-    @pyqtSlot()
-    def _on_sequence_job_finished(self):
-        """[중요] 시퀀스 작업(Job)이 실제 종료되었을 때 (성공/실패/중단)"""
+    def _handle_runtime_stop(self):
+        """타이머 정지 / 실행 중 상태 해제"""
         # 타이머 정지
         if self._runtime_timer.isActive():
             self._runtime_timer.stop()
         
-        # 실행 모드 해제 (버튼 활성화 등에 사용)
+        # 실행 중 상태 해제 (버튼 활성화 등에 사용)
         self.sequence_execution_active.emit(False)
         EVENT_BUS.data.sequence_in_progress.emit("is_sequence_in_progress", False)
         total_count = len(self._cached_sequence_data) if self._cached_sequence_data else 0
