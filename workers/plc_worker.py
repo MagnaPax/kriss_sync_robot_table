@@ -55,13 +55,15 @@ class PLCWorker(QObject):
     def run(self):
         """스레드가 시작되면 호출되는 진입점"""
 
+        # ================================================================================
         # QThread에서 브레이크포인트가 안 잡히는 문제 해결을 위해 디버거 강제 연결
-        try:
-            import debugpy
-            debugpy.debug_this_thread()
-        except (ImportError, Exception):
-            # 디버거가 없거나 연결 불가 시 조용히 넘어감
-            pass
+        # try:
+        #     import debugpy
+        #     debugpy.debug_this_thread()
+        # except (ImportError, Exception):
+        #     # 디버거가 없거나 연결 불가 시 조용히 넘어감
+        #     pass
+        # ================================================================================
 
         is_success = False
         msg = "알 수 없는 명령입니다."
@@ -84,8 +86,8 @@ class PLCWorker(QObject):
                     is_success, msg = self.commander.stop_robot_plc_signals()
                 case 'SET_SPEED':
                     EVENT_BUS.log.message.emit(f"{self._log_prefix} 이동속도:{self.data}\n데이터 타입: {type(self.data)}", "DEBUG")
-                    result_msg = self.commander.apply_user_feed_rate_when_moving_robot(float(self.data))
-                    if result_msg: self.result.emit(True, result_msg)
+                    msg = self.commander.apply_user_feed_rate_when_moving_robot(float(self.data))
+                    is_success = True
 
 
                 # --- 서보 전용 제어 명령 (Commander 사용) --- #
