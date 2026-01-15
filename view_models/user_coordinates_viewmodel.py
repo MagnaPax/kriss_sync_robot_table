@@ -47,6 +47,8 @@ class UserCoordinatesViewModel(QObject):
         EVENT_BUS.control.servo_current_motion.connect(self._on_servo_data_received)
         # '시퀀스 실행중' 방송 청취 -> 내 로컬 시그널로 바로 재방송
         EVENT_BUS.data.sequence_in_progress.connect(self.origin_buttons_disabled.emit)
+        # 파일을 읽으면 모든 사용자 좌표를 0으로 설정
+        EVENT_BUS.data.sequence_data_loaded.connect(self.origin_all_pose)
 
 
     # ===============================================
@@ -68,7 +70,7 @@ class UserCoordinatesViewModel(QObject):
         """실제 로봇 좌표를 받아서 오프셋을 뺀 '사용자 좌표'를 계산하여 방송"""
         self._raw_robot_pose = pose
         
-        # 상대 좌표 계산 (Raw - Offset)
+        # 사용자 좌표 계산 (현재 World 좌표 - 기준점)
         user_pose = FANUCPose(
             x=pose.x - self._robot_offset.x,
             y=pose.y - self._robot_offset.y,
@@ -111,7 +113,7 @@ class UserCoordinatesViewModel(QObject):
     # ===============================================
     def origin_robot_pose(self):
         """현재 로봇 위치를 0으로 설정 (오프셋 업데이트)"""
-        self._robot_offset = self._raw_robot_pose
+        self._robot_offset = self._raw_robot_pose   # 현재 World 좌표를 기준점으로 설정
         # 입력 필드 초기화 요청 방송
         EVENT_BUS.control.clear_user_inputs.emit("robot")
         EVENT_BUS.log.message.emit(f"{self._log_prefix} 로봇 사용자 좌표계 원점 설정 완료", "INFO")
