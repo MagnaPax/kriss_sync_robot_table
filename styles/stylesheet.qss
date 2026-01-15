@@ -871,3 +871,39 @@ QScrollBar#zoom_scrollbar::sub-page:vertical {
 QWidget#turntable_gauge_popup {
     background-color: #ffffff;
 }
+
+
+/* 
+----------------------------------------------------------------------------
+        메시지 박스 (QMessageBox) 작업 에러 발생 시 모달 다이얼로그 표시
+----------------------------------------------------------------------------
+*/
+QMessageBox#error_message_box {
+    background-color: #2D2D2D;
+    border: 2px solid #DC3545; /* 에러 강조형 테두리 (빨강) */
+    border-radius: 10px;
+}
+
+QMessageBox#error_message_box QLabel {
+    color: white;
+    font-size: 14px;
+    background-color: transparent;
+}
+
+/* 메시지 박스 내 버튼 스타일 */
+QMessageBox#error_message_box QPushButton {
+    background-color: #54585d;
+    color: white;
+    border: 1px solid #4a4e53;
+    border-radius: 4px;
+    min-width: 60px;
+    padding: 6px 12px;
+}
+
+QMessageBox#error_message_box QPushButton:hover {
+    background-color: #6c757d;
+}
+
+QMessageBox#error_message_box QPushButton:pressed {
+    background-color: #343a40;
+}

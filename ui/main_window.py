@@ -191,7 +191,12 @@ class MainWindow(QMainWindow):
     @pyqtSlot(str, str)
     def _on_operation_error_dialog(self, title: str, message: str):
         """작업 에러 발생 시 모달 다이얼로그 표시"""
-        QMessageBox.critical(self, title, message)
+        msg_box = QMessageBox(self)
+        msg_box.setIcon(QMessageBox.Icon.Critical)
+        msg_box.setWindowTitle(title)
+        msg_box.setText(message)
+        msg_box.setObjectName("error_message_box") # QSS 스타일 적용을 위한 ID
+        msg_box.exec()
 
     @pyqtSlot(str)
     def show_error_popup(self, error_message: str):
