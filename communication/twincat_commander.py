@@ -92,7 +92,7 @@ class FanucOnlyExecutor(BaseExecutor):
         EVENT_BUS.log.message.emit(f"{self._log_prefix} FANUC 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
         EVENT_BUS.log.message.emit(f"{self._log_prefix} 에서 처리될 전체 데이터\n{(sequence_data)}\n", "DEBUG")
 
-        # 처리할 전체 시퀀스 데이터 방송
+        # 처리할 전체 시퀀스 데이터 방송 - execute 가 실행될 때 마다 이 시그널을 구독하는 ui가 갱신된다
         EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
 
         adapter = self.robot
@@ -309,7 +309,7 @@ class ServoOnlyExecutor(BaseExecutor):
         EVENT_BUS.log.message.emit(f"{self._log_prefix} 서보 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
         EVENT_BUS.log.message.emit(f"{self._log_prefix} 에서 처리될 전체 데이터\n{(sequence_data)}\n", "DEBUG")
 
-        # 처리할 전체 시퀀스 데이터 방송
+        # 처리할 전체 시퀀스 데이터 방송 - execute 가 실행될 때 마다 이 시그널을 구독하는 ui가 갱신된다
         EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
 
         # 설정값 최신화 (실행 시점의 Settings 값 적용)
@@ -637,8 +637,7 @@ class IntegratedExecutor(BaseExecutor):
     def execute(self, sequence_data: List[Dict[str, Any]]) -> tuple[bool, str]:
         EVENT_BUS.log.message.emit(f"{self._log_prefix} CSV 통합 동기화 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
 
-        # 처리할 전체 시퀀스 데이터 방송
-        #   Task Manager 에서 시퀀스 실행 도중 정지한 뒤 다시 실행했을 때 WaypointsWidget 에 있던 이전 값에 덮어쓰게 하기 위함
+        # 처리할 전체 시퀀스 데이터 방송 - execute 가 실행될 때 마다 이 시그널을 구독하는 ui가 갱신된다
         EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
 
         robot = self.robot
