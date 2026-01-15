@@ -94,7 +94,7 @@ class PLCService(QObject):
         if self.connector.is_connected:
             self.connector.disconnect()
             EVENT_BUS.conn.status_changed.emit(False)
-            EVENT_BUS.log.message.emit("PLC 연결이 안전하게 해제되었습니다.", "INFO")
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} PLC 연결이 안전하게 해제되었습니다.", "INFO")
 
     def connect_with_retry(self, ui_callback: Optional[Callable[[str, int], None]] = None) -> bool:
         """
@@ -124,12 +124,12 @@ class PLCService(QObject):
                 self.connector.connect()
 
                 # 성공 처리
-                success_msg = "TwinCAT 연결 성공! 시스템을 시작합니다."
+                success_msg = f"{self._log_prefix} TwinCAT 연결 성공! 시스템을 시작합니다."
                 if ui_callback:
                     ui_callback(success_msg, 100)
 
                 # 통신 상태 성공 시그널 방송
-                EVENT_BUS.system.info.emit("TwinCAT 연결 성공")
+                EVENT_BUS.system.info.emit(f"{self._log_prefix} TwinCAT 연결 성공")
                 EVENT_BUS.conn.status_changed.emit(True)
                 EVENT_BUS.log.message.emit(success_msg, "INFO")
 
@@ -138,9 +138,9 @@ class PLCService(QObject):
 
                 # 4. [NEW] Run Mode 보장
                 if self.connector.ensure_run_mode():
-                    EVENT_BUS.log.message.emit("TwinCAT Run Mode 확인 완료.", "INFO")
+                    EVENT_BUS.log.message.emit(f"{self._log_prefix} TwinCAT Run Mode 확인 완료.", "INFO")
                 else:
-                    EVENT_BUS.log.message.emit("TwinCAT Run Mode 전환 실패! PLC 로직이 동작하지 않을 수 있습니다.", "CRITICAL")
+                    EVENT_BUS.log.message.emit(f"{self._log_prefix} TwinCAT Run Mode 전환 실패! PLC 로직이 동작하지 않을 수 있습니다.", "CRITICAL")
                     # 실패 시 어떻게 할지 결정 (여기선 Critical 로그만 남기고 일단 진행 or 실패 처리)
                     # 현재 요구사항은 "켜지게 하려면" 이므로 실패하면 큰 문제임. 하지만 접속 자체는 성공했으니... 
                     # 사용자 알림을 위해 팝업을 띄우는게 좋겠지만, 일단 CRITICAL 로그로 충분
@@ -150,7 +150,7 @@ class PLCService(QObject):
                 return True
 
             except Exception as e:
-                EVENT_BUS.log.message.emit(f"TwinCAT 접속 시도({i}) 실패: {e}", "ERROR")
+                EVENT_BUS.log.message.emit(f"{self._log_prefix} TwinCAT 접속 시도({i}) 실패: {e}", "ERROR")
 
                 if i < max_retries:
                     if ui_callback:
@@ -161,7 +161,7 @@ class PLCService(QObject):
                     while time.time() < end_time:
                         QApplication.processEvents()
                 else:
-                    EVENT_BUS.log.message.emit("TwinCAT 연결 실패", "CRITICAL")
+                    EVENT_BUS.log.message.emit(f"{self._log_prefix} TwinCAT 연결 실패", "CRITICAL")
                     return False
 
         return False
@@ -249,13 +249,15 @@ class PLCService(QObject):
         실행 중인 스레드(사무실)와 워커(비서)를
         우아하게 종료하고 메모리 누수 없이 안전하게 폐기하는 함수
         """
-                
+        EVENT_BUS.log.message.emit(f"{self._log_prefix} 클린업 시작: Thread={thread}, Worker={worker}, ID={worker_id}", "INFO")
+
         # 1. worker_id가 있으면 딕셔너리에서 객체를 찾아옴 (없으면 None)
         active_thread = None
         active_worker = None
         
         if worker_id and worker_id in self._active_workers:
             active_thread, active_worker = self._active_workers[worker_id]
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} ID({worker_id})로 활성 작업 조회 성공: {active_thread}, {active_worker}", "DEBUG")
             
             # 파라미터로 thread/worker를 안 넘겨줬으면 딕셔너리에 있는걸 정리 대상으로 삼음
             if thread is None: thread = active_thread
@@ -264,16 +266,19 @@ class PLCService(QObject):
             # [중요] 만약 파라미터로 받은 thread와 딕셔너리에 있는 thread가 다르면?
             # -> 이미 다른 새 작업이 그 ID로 시작됐다는 뜻이므로, 딕셔너리(self._active_workers)를 건드리면 안 됨!
             if thread != active_thread:
+                EVENT_BUS.log.message.emit(f"{self._log_prefix} 경고: 정리하려는 스레드와 현재 활성 스레드가 다릅니다. (Race Condition 방지)", "WARNING")
                 worker_id = None 
     
         # 2. 정리 작업 수행
         if thread and thread.isRunning():
             thread.quit()     # Thread의 이벤트 루프 종료 요청 - 남아 있는 이벤트 처리 후 종료
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 작업 중인 스레드 종료 요청 (quit)", "DEBUG")
             # thread.wait(2000) # [제거] UI 스레드에서 wait을 호출하면 화면이 멈춤 (Freezing)
             
         # 해당 ID의 워커를 딕셔너리에서 제거
         if worker_id:
             self._active_workers.pop(worker_id, None)
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 활성 워커 목록에서 ID={worker_id} 제거", "DEBUG")
             
         # [Legacy] 멤버 변수 초기화 (동적 처리 - 비상 정지용)
         # cleanup_attrs에 지정된 멤버 변수들이 현재 정리 중인 객체와 같다면 None으로 초기화
@@ -285,6 +290,7 @@ class PLCService(QObject):
                     # (이미 다른 작업이 시작되어 변수가 바뀌었을 수 있으므로 안전장치)
                     if current_obj == thread or current_obj == worker:
                         setattr(self, attr_name, None)
+                        EVENT_BUS.log.message.emit(f"{self._log_prefix} 레거시 속성 초기화: {attr_name}", "DEBUG")
 
     def _start_worker(self, command: str, worker_id: str, data: Any = None, log_msg: str = ""):
         """일반 작업 시작 (Wrapper) - Dictionary Mode 필수"""
@@ -404,21 +410,21 @@ class PLCService(QObject):
         Args:
             data (dict): {'axis': 1, 'velocity': 10.0, 'target': ...} 등의 제어 정보
         """
-        EVENT_BUS.log.message.emit(f"서보 구동 요청: {data}", "DEBUG")
+        EVENT_BUS.log.message.emit(f"{self._log_prefix} 서보 구동 요청: {data}", "DEBUG")
         # Commander는 list[dict] 형태를 기대하므로 리스트로 포장
         sequence_data = [data]
         # 이동하는건 'MOVE' 명령으로 통일 (Commander가 알아서 Executor를 찾음)
-        self._start_worker('MOVE', worker_id=WorkerID.SERVO_ONLY, data=sequence_data, log_msg=f"서보 단독 구동 위한 워커 호출: {data}")
+        self._start_worker('MOVE', worker_id=WorkerID.SERVO_ONLY, data=sequence_data, log_msg=f"{self._log_prefix} 서보 단독 구동 위한 워커 호출: {data}")
 
     def home_servo_all(self):
         """서보 원점 복귀"""
         # 원점 복귀는 시간이 걸리는 작업이므로 Worker로 실행
-        self._start_worker('SERVO_HOME', worker_id=WorkerID.SERVO_HOME, log_msg="서보 원점 복귀 요청 (Axis 1,2,3)")
+        self._start_worker('SERVO_HOME', worker_id=WorkerID.SERVO_HOME, log_msg=f"{self._log_prefix} 서보 원점 복귀 요청 (Axis 1,2,3)")
 
     def reset_servo_all(self):
         """서보 에러 리셋"""
         # 에러 리셋은 비교적 빠르지만, PLC 통신이 포함되므로 Worker로 실행
-        self._start_worker('SERVO_RESET', worker_id=WorkerID.SERVO_RESET, log_msg="서보 에러 리셋 요청")
+        self._start_worker('SERVO_RESET', worker_id=WorkerID.SERVO_RESET, log_msg=f"{self._log_prefix} 서보 에러 리셋 요청")
 
     def stop_servo_all(self):
         """서보 모터 정지"""
@@ -438,9 +444,9 @@ class PLCService(QObject):
                     thread.requestInterruption()
 
         # 정지 명령 전송
-        self._stop_worker('SERVO_STOP', worker_id=WorkerID.SERVO_STOP, log_msg="모든 서보모터 정지")
+        self._stop_worker('SERVO_STOP', worker_id=WorkerID.SERVO_STOP, log_msg=f"{self._log_prefix} 모든 서보모터 정지")
         
-        EVENT_BUS.log.message.emit("진행 중인 서보 작업을 중단합니다.", "WARNING")
+        EVENT_BUS.log.message.emit(f"{self._log_prefix} 진행 중인 서보 작업을 중단합니다.", "WARNING")
 
 
     # ==========================================================
@@ -453,12 +459,12 @@ class PLCService(QObject):
             sequence_data (list): 실행할 시퀀스 리스트 (List[Dict])
         """
         # Worker 호출
-        self._start_worker('MOVE', worker_id=WorkerID.SEQUENCE, data=csv_data, log_msg=f"csv 시퀀스 처리 위한 워커 호출: {len(csv_data)}건")
+        self._start_worker('MOVE', worker_id=WorkerID.SEQUENCE, data=csv_data, log_msg=f"{self._log_prefix} csv 시퀀스 처리 위한 워커 호출: {len(csv_data)}건")
 
     def trigger_emergency_stop(self):
         """[비상 정지] 모든 장치 및 작업 강제 중단 요청"""
         
-        EVENT_BUS.log.message.emit("🚨 비상 정지 발동! 모든 작업을 강제 중단합니다.", "CRITICAL")
+        EVENT_BUS.log.message.emit(f"{self._log_prefix} 🚨 비상 정지 발동! 모든 작업을 강제 중단합니다.", "CRITICAL")
         
         # 1. [최우선] 긴급 워커로 물리적 장비 비상 정지 명령 전송 (로봇 + 서보)
         #    S/W적으로 스레드 정리하는 시간조차 아까우므로 일단 정지 신호부터 보냄
@@ -530,7 +536,7 @@ class PLCService(QObject):
         thread.finished.connect(self._clear_monitor_refs)
 
         thread.start()
-        EVENT_BUS.log.message.emit("모니터링 스레드가 시작되었습니다.", "INFO")
+        EVENT_BUS.log.message.emit(f"{self._log_prefix} 모니터링 스레드가 시작되었습니다.", "INFO")
 
     def _stop_monitoring(self):
         """모니터링 중지"""
@@ -594,5 +600,5 @@ class PLCService(QObject):
 
         # UI 및 시스템 알림 방송
         EVENT_BUS.conn.status_changed.emit(False)
-        EVENT_BUS.log.message.emit("⚠️ TwinCAT 연결 끊김 감지! (Heartbeat Lost)", "ERROR")
-        EVENT_BUS.system.error.emit("TwinCAT_DISCONNECTED")
+        EVENT_BUS.log.message.emit(f"{self._log_prefix} ⚠️ TwinCAT 연결 끊김 감지! (Heartbeat Lost)", "ERROR")
+        EVENT_BUS.system.error.emit(f"{self._log_prefix} TwinCAT_DISCONNECTED")
