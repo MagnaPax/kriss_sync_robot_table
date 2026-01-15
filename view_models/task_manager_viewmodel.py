@@ -78,14 +78,23 @@ class TaskManagerViewModel(QObject):
             self.sequence_data_loaded_failed.emit(str(e))
 
 
+    @pyqtSlot()
     def start_sequence(self):
         """
         START 버튼 클릭 시
             작업 시작 (전체 시퀀스 데이터를 실어서 보냄)
         """
 
-        # 방어코드
+        # 방어코드 1: 데이터 없음
         if not self._cached_sequence_data: return
+
+        # 방어코드 2: 이전 작업 실행 중 (재시작 방지)
+        if hasattr(self._plc_service, 'is_runnable') and not self._plc_service.is_runnable():
+            EVENT_BUS.system.operation_error_alert.emit(
+                "작업 정리 중",
+                "진행중인 작업 정리 중입니다. 잠시만 기다려주세요."
+            )
+            return
 
         # 런타임 시작
         self._runtime_timer.start()
@@ -106,6 +115,7 @@ class TaskManagerViewModel(QObject):
             EVENT_BUS.data.sequence_in_progress.emit("is_sequence_in_progress", False)
             EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 시작 실패: {e}", "ERROR")
 
+    @pyqtSlot()
     def stop_sequence(self):
         """STOP 버튼 클릭 시"""
         # 실행 중이 아니면 무시 (방어 코드)
@@ -122,8 +132,8 @@ class TaskManagerViewModel(QObject):
         self.sequence_execution_active.emit(False)
         EVENT_BUS.data.sequence_in_progress.emit("is_sequence_in_progress", False)
 
-        # PLCService 한테도 멈추라고 명령
-        self._plc_service.stop_process()
+        # PLCService 한테도 멈추라고 명령 (스레드 중단 + 장비 정지)
+        self._plc_service.stop_processing_job()
 
     def _reset_runtime_timer(self):
         self._elapsed_seconds = 0
