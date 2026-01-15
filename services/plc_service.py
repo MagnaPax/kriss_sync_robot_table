@@ -24,6 +24,9 @@ class WorkerID:
     SERVO_HOME = "home_servo_all"
     SERVO_RESET = "reset_servo_all"
     SET_SPEED = "set_speed"
+    EMERGENCY = "emergency_stop"
+    ROBOT_STOP = "robot_stop"
+    SERVO_STOP = "servo_stop"
 
 
 class PLCService(QObject):
@@ -57,12 +60,6 @@ class PLCService(QObject):
         # Key: WorkerID (str), Value: (QThread, PLCWorker)
         self._active_workers: Dict[str, tuple[QThread, PLCWorker]] = {}
 
-        # 긴급 명령 전용 임시 스레드/워커
-        # 이유: 원점 복귀 중일 때 STOP 명령을 보내려면, 원점 복귀 스레드(self._thread)와 별개로 
-        #       동시에 실행되어야 하므로 별도의 스레드 변수가 필요함.
-        self._emergency_thread: QThread | None = None
-        self._emergency_worker: PLCWorker | None = None
-
         # 기기들의 현재 위치 모니터링 전용 스레드/워커
         self._pose_monitor_thread: QThread | None = None
         self._pose_monitor_worker: PoseMonitorWorker | None = None
@@ -88,13 +85,10 @@ class PLCService(QObject):
     def disconnect_plc(self):
         """연결 해제 (앱 종료 시 or 수동 끊기)"""
 
-        # 1. 모니터링 하는 애들 먼저 퇴근시킴
-        self._stop_heartbeat_worker()
-        self._stop_monitoring()
-
-        # 2. 스레드 정리 및 대기
-        self._cleanup(self._heartbeat_thread, self._heartbeat_worker, ['_heartbeat_thread', '_heartbeat_worker'])
-        self._cleanup(self._pose_monitor_thread, self._pose_monitor_worker, ['_pose_monitor_thread', '_pose_monitor_worker'])
+        # 1. 모든 워커 및 모니터링 스레드 종료 및 정리
+        # (disconnect 시에는 Emergency 워커도 포함해서 모두 끔)
+        self._stop_all_working_threads_and_workers_on_background()
+        self._stop_all_monitoring_threads()
 
         # 3. 실제 연결 끊기
         if self.connector.is_connected:
@@ -175,7 +169,7 @@ class PLCService(QObject):
 
 
     # ==========================================================
-    # Worker
+    # Thread & Worker
     # ==========================================================
     def _create_worker(self, current_thread: QThread | None, command: str, data: Any = None, log_msg: str = "", force_interrupt: bool = False, cleanup_attrs: list[str] | None = None, worker_id: str | None = None) -> tuple[QThread, PLCWorker] | None:
         """
@@ -210,15 +204,9 @@ class PLCService(QObject):
                 # 기존 작업이 있어도 덮어쓰고 즉시 실행 (방어코드)
                 target_thread.requestInterruption()
                 target_thread.wait(100)
-            # 긴급 작업이 아니면
             else:
-                # 정지 관련 명령일 경우 기존 작업 중단
-                if command in ['ROBOT_STOP', 'SERVO_STOP', 'STOP_ROBOT_SERVO']:
-                    target_thread.requestInterruption()
-                # 긴급 작업도 아니고 정지 명령도 아니라면
-                else:
-                    EVENT_BUS.log.message.emit("이전 작업이 아직 진행중입니다", "WARNING")
-                    return None
+                EVENT_BUS.log.message.emit("이전 작업이 아직 진행중입니다", "WARNING")
+                return None
 
         # 2. 로그
         if log_msg:
@@ -234,12 +222,14 @@ class PLCService(QObject):
         worker.moveToThread(thread)
 
         # --- 작업 처리 예약 --- #
-        # 비서의 전화보고(emit)를 받고 어떻게 처리(Slot)할지 미리 정해놓기(connect)
+        # 비서의 보고(emit)를 받으면 어떻게 처리(Slot)할지 미리 정해놓기(connect)
         worker.result.connect(self._handle_worker_result)
         
         # --- 정리 예약 --- #
         # 작업이 정상적으로 끝나면 워커의 로컬시그널 finished가 실행된다.
-        # 람다 함수를 통해 _cleanup이 호출되어 사용됐던 스레드와 워커를 정리한다
+        # 1. 워커 객체 자동 삭제 예약
+        worker.finished.connect(worker.deleteLater)
+        # 2. _cleanup 호출하여 딕셔너리 정리 및 스레드 종료
         worker.finished.connect(lambda: self._cleanup(thread, worker, cleanup_attrs, worker_id))
         
         # --- 사무실(Thread)에서 벌어질 이벤트 예약(connect) --- #
@@ -279,27 +269,7 @@ class PLCService(QObject):
         # 2. 정리 작업 수행
         if thread and thread.isRunning():
             thread.quit()     # Thread의 이벤트 루프 종료 요청 - 남아 있는 이벤트 처리 후 종료
-            thread.wait(2000) # 사무실이 안전하게 문 닫을 때까지 2초동안 기다림
-
-        # 비서(Worker) 정리
-        #   Qt의 메모리 관리 시스템에 맡겨서 안전하게 폐기
-        #   파이썬 레퍼런스 해제는 아래 멤버변수 초기화에서 처리
-        #   이미 삭제된 객체라면 안전하게 무시하도록 try-except 로 처리
-        if worker:
-            try:
-                worker.deleteLater()    # Qt에게 삭제 요청
-            except RuntimeError:
-                pass
-
-        # 사무실(Thread) 정리
-        #   deleteLater는 '나중에' 지우라는 예약어이므로 즉시 None이 되지 않음.
-        #   하지만 더 이상 이 변수를 쓰면 안 되므로, 파이썬 쪽 레퍼런스를 끊어야 함.
-        #   이미 삭제된 객체라면 안전하게 무시하도록 try-except 로 처리
-        if thread:
-            try:
-                thread.deleteLater()  # Qt에게 삭제 요청
-            except RuntimeError:
-                pass
+            # thread.wait(2000) # [제거] UI 스레드에서 wait을 호출하면 화면이 멈춤 (Freezing)
             
         # 해당 ID의 워커를 딕셔너리에서 제거
         if worker_id:
@@ -316,28 +286,73 @@ class PLCService(QObject):
                     if current_obj == thread or current_obj == worker:
                         setattr(self, attr_name, None)
 
-
     def _start_worker(self, command: str, worker_id: str, data: Any = None, log_msg: str = ""):
         """일반 작업 시작 (Wrapper) - Dictionary Mode 필수"""
         if result := self._create_worker(None, command, data, log_msg, force_interrupt=False, worker_id=worker_id):
             # 생성된 스레드와 워커를 딕셔너리에 저장
             self._active_workers[worker_id] = result
 
-
-    def _start_stop_worker(self, command: str, data: Any = None, log_msg: str = ""):
+    def _stop_worker(self, command: str, worker_id: str, data: Any = None, log_msg: str = ""):
         """정지 작업 시작 (Wrapper)"""
-        # 결과가 있을 때만 멤버 변수 업데이트
-        if result := self._create_worker(self._emergency_thread, command, data, log_msg, force_interrupt=True, cleanup_attrs=['_emergency_thread', '_emergency_worker']):
-            self._emergency_thread, self._emergency_worker = result
+        # 일반적인 정지 후 곧바로 비상정지를 눌러도 마지막 비상정지 명령이 실행될 수 있게(= 실행중 스레드를 무시) force_interrupt=True로 설정
+        if result := self._create_worker(None, command, data, log_msg, force_interrupt=True, worker_id=worker_id):
+            self._active_workers[worker_id] = result
+
+    def _stop_all_working_threads_and_workers_on_background(self, exclude_emergency: bool = False):
+        """실행 중인 모든 백그라운드 워커 중지 및 정리"""
+        EVENT_BUS.log.message.emit(f"{self._log_prefix} 모든 백그라운드 작업 정지 및 정리 시작...", "INFO")
+
+        # 딕셔너리에 있는 워커들 정리
+        for w_id in list(self._active_workers.keys()):
+            if exclude_emergency and w_id == WorkerID.EMERGENCY:
+                continue
+            
+            thread, worker = self._active_workers[w_id]
+            if thread.isRunning():
+                thread.requestInterruption()
+            
+            # _cleanup 호출하여 스레드 종료 대기 및 메모리 정리
+            self._cleanup(thread, worker, worker_id=w_id)
+
+    def _stop_all_monitoring_threads(self):
+        """실행 중인 모든 모니터링/감시 스레드 중지 및 정리"""
+        # 모니터링/감시 스레드 중지 및 정리
+        self._stop_monitoring()
+        self._stop_heartbeat_worker()
+        
+        self._cleanup(self._pose_monitor_thread, self._pose_monitor_worker, ['_pose_monitor_thread', '_pose_monitor_worker'])
+        self._cleanup(self._heartbeat_thread, self._heartbeat_worker, ['_heartbeat_thread', '_heartbeat_worker'])
+
 
 
     # ==========================================================
-    # [비동기] 로봇 제어 명령 (Worker 사용)
+    # [슬롯] 시그널 핸들링
+    # ==========================================================
+    @pyqtSlot(bool, str) # type: ignore
+    def _handle_worker_result(self, success: bool, msg: str):
+        """워커 실행 결과 처리"""
+        if not success:
+            # 사용자에 의한 중단인 경우 팝업 띄우지 않음 및 로그 레벨 조정
+            if "중단되었습니다" in msg or "User Stopped" in msg:
+                EVENT_BUS.log.message.emit(msg, "INFO")
+                # 팝업 알림 생략
+                return
+            
+            # 그 외 진짜 에러 발생 시 사용자에게 팝업으로 알림 (제목, 내용)
+            EVENT_BUS.system.operation_error_alert.emit("작업 실행 실패", msg)
+
+        level = "INFO" if success else "ERROR"
+        EVENT_BUS.log.message.emit(msg, level)
+
+
+    # ==========================================================
+    # 상태 쿼리
+    #    현재 시스템이 특정 작업을 할 수 있는지, 상태가 어떤지 확인
     # ==========================================================
     def is_runnable(self) -> bool:
         """
-        [상태 확인] 새로운 작업을 시작할 수 있는가?
-        - '메인 시퀀스(csv 파일 내용을 순차적으로 실행하는 작업)' 워커가 살아있으면 False (정지 중이거나 작업 중)
+        새로운 작업을 시작할 수 있는지 확인
+        - 이전의 시퀀스 작업이 살아있으면 False (정지 중이거나 작업 중)
         """
         if WorkerID.SEQUENCE in self._active_workers:
             thread, _ = self._active_workers[WorkerID.SEQUENCE]
@@ -345,6 +360,15 @@ class PLCService(QObject):
                 return False
         return True
 
+    def is_connected(self):
+        """"""
+        # TODO: PLC 연결 상태 확인
+        return True
+
+
+    # ==========================================================
+    # [비동기] 로봇 제어 명령 (Worker 사용)
+    # ==========================================================
     def move_robot_by_pose(self, fanuc_pose_obj:FANUCPose):
         """
         좌표로 이동
@@ -366,29 +390,9 @@ class PLCService(QObject):
         # Worker 호출
         self._start_worker('MOVE', worker_id=WorkerID.FANUC_ONLY, data=sequence_data, log_msg=f"FANUC 단독 이동 위한 워커 호출: {fanuc_pose_obj}")
 
-
-
     def set_robot_speed(self, feed_rate: float):
         self._start_worker('SET_SPEED', worker_id=WorkerID.SET_SPEED, data=feed_rate, log_msg=f"로봇 속도 설정 변경 요청: {feed_rate} mm/sec")
 
-    # ==========================================================
-    # [슬롯] Worker 시그널에 대한 처리
-    # ==========================================================
-    @pyqtSlot(bool, str) # type: ignore
-    def _handle_worker_result(self, success: bool, msg: str):
-        """워커 실행 결과 처리"""
-        if not success:
-            # 사용자에 의한 중단인 경우 팝업 띄우지 않음 및 로그 레벨 조정
-            if "중단되었습니다" in msg or "User Stopped" in msg:
-                EVENT_BUS.log.message.emit(msg, "INFO")
-                # 팝업 알림 생략
-                return
-            
-            # 그 외 진짜 에러 발생 시 사용자에게 팝업으로 알림 (제목, 내용)
-            EVENT_BUS.system.operation_error_alert.emit("작업 실행 실패", msg)
-
-        level = "INFO" if success else "ERROR"
-        EVENT_BUS.log.message.emit(msg, level)
 
     # ==========================================================
     # [비동기] 서보 모터 제어 (Worker 사용)
@@ -417,22 +421,30 @@ class PLCService(QObject):
         self._start_worker('SERVO_RESET', worker_id=WorkerID.SERVO_RESET, log_msg="서보 에러 리셋 요청")
 
     def stop_servo_all(self):
-        """서보 모터 비상 정지"""
+        """서보 모터 정지"""
         
-        # 만약 시퀀스 작업이 실행 중이라면 강제 중단 요청
-        if WorkerID.SEQUENCE in self._active_workers:
-            thread, _ = self._active_workers[WorkerID.SEQUENCE]
-            if thread.isRunning():
-                thread.requestInterruption()
-                EVENT_BUS.log.message.emit("진행 중인 작업을 중단하고 서보 정지를 시도합니다.", "WARNING")
+        # 관련 워커(시퀀스, 서보 이동/원점/리셋) 중단 요청
+        targets = [WorkerID.SEQUENCE, WorkerID.SERVO_ONLY, WorkerID.SERVO_HOME, WorkerID.SERVO_RESET]
+        
+        for w_id in targets:
+            if w_id in self._active_workers:
+                thread, _ = self._active_workers[w_id]
+                if thread.isRunning():
+                    # thread.requestInterruption()을 호출하면 ->
+                    # 워커 내부 루프(while not isInterruptionRequested())가 깨지고 ->
+                    # process_... 메서드가 리턴(종료)되면 ->
+                    # PLCWorker.run() 메서드가 끝나면서 finished 시그널 방출 ->
+                    # _create_worker를 통해 스레드를 만들 때 연결해둔 _cleanup이 자동으로 호출됨
+                    thread.requestInterruption()
 
-        # 정지 명령 Worker 실행 (긴급 스레드 사용)
-        self._start_stop_worker('SERVO_STOP', log_msg="서보 전체 정지 요청")
-
+        # 정지 명령 전송
+        self._stop_worker('SERVO_STOP', worker_id=WorkerID.SERVO_STOP, log_msg="모든 서보모터 정지")
+        
+        EVENT_BUS.log.message.emit("진행 중인 서보 작업을 중단합니다.", "WARNING")
 
 
     # ==========================================================
-    # 로봇 / 서보 제어
+    # [비동기] 로봇 & 서보 제어
     # ==========================================================
     def process_sequence_data(self, csv_data: List[Dict[str, Any]]):
         """
@@ -444,15 +456,17 @@ class PLCService(QObject):
         self._start_worker('MOVE', worker_id=WorkerID.SEQUENCE, data=csv_data, log_msg=f"csv 시퀀스 처리 위한 워커 호출: {len(csv_data)}건")
 
     def trigger_emergency_stop(self):
-        """[비상 정지] 모든 장치 정지 요청"""
+        """[비상 정지] 모든 장치 및 작업 강제 중단 요청"""
         
-        # 1. 진행 중인 일반 스레드 중단 요청
-        if self._thread and self._thread.isRunning():
-            self._thread.requestInterruption()
-            EVENT_BUS.log.message.emit("진행 중인 작업을 강제 중단합니다.", "WARNING")
+        EVENT_BUS.log.message.emit("🚨 비상 정지 발동! 모든 작업을 강제 중단합니다.", "CRITICAL")
+        
+        # 1. [최우선] 긴급 워커로 물리적 장비 비상 정지 명령 전송 (로봇 + 서보)
+        #    S/W적으로 스레드 정리하는 시간조차 아까우므로 일단 정지 신호부터 보냄
+        self._stop_worker('EMERGENCY_STOP', worker_id=WorkerID.EMERGENCY)
 
-        # 2. 긴급 워커로 비상 정지 명령 전송 (로봇 + 서보)
-        self._start_stop_worker('EMERGENCY_STOP', log_msg="🚨 비상 정지 명령 전송!")
+        # 2. 모든 일반 워커 중지 (비상 정지 워커는 제외)
+        #    이미 실행된 비상 정지 워커를 끄지 않도록 exclude_emergency=True
+        self._stop_all_working_threads_and_workers_on_background(exclude_emergency=True)
 
     def stop_processing_job(self):
         """
@@ -462,39 +476,23 @@ class PLCService(QObject):
         """
         # 1. 시퀀스 워커가 진행 중이라면
         if WorkerID.SEQUENCE in self._active_workers:
+            # 현재 돌고있는 스레드 중에서 `WorkerID.SEQUENCE` 이름으로 돌고 있는 스레드와 워커 객체만 뽑아오기
             thread, worker = self._active_workers[WorkerID.SEQUENCE]
             
             if thread.isRunning():
+                # 여기서 requestInterruption()을 호출하면 -> 
+                # 워커 내부 루프 종료 -> 
+                # run() 리턴 ->
+                # finished 시그널 방출 -> 
+                # 스레드를 만들 때(_create_worker) 연결을 예약해둔 _cleanup 자동 호출 ->
+                # 딕셔너리(self._active_workers)에서 해당 스레드/워커 제거 및 메모리 해제
+                # 즉, 여기서 명시적으로 _cleanup을 부르지 않아도 알아서 정리됨. (오히려 부르면 충돌남)
                 thread.requestInterruption()
-                
-                # 명시적으로 Cleanup 호출(Worker ID 전달)하여 안전하게 메모리 및 스레드 정리
-                # (워커가 루프를 탈출하면 finished 시그널에 의해 또 불릴 수 있지만, _cleanup 내부 방어코드가 처리함)
-                self._cleanup(thread, worker, worker_id=WorkerID.SEQUENCE)
                 
                 EVENT_BUS.log.message.emit(f"{self._log_prefix} 진행 중인 작업 루프 중단 요청 및 정리 완료", "INFO")
 
         # 2. 물리적 장비 정지 명령 전송
-        self._start_stop_worker('STOP_ROBOT_SERVO', log_msg="서보와 로봇 정지 명령 전송")
-
-
-
-    # ==========================================================
-    # 상태 확인
-    # ==========================================================
-    @property
-    def is_running(self) -> bool:
-        """로봇이나 서보 모터가 현재 작업 중인지 확인"""
-
-        # 연결이 끊겼는가? (연결 없으면 상태 확인 불가)
-        if not self.connector.is_connected:
-            return False
-
-        # 스레드(Python)가 일하고 있는가?
-        if self._thread is not None and self._thread.isRunning():
-            return True
-
-        # Gadgets(로봇과 서보모터)가 움직이고 있는가?
-        return self.commander.are_gagets_busy()
+        self._stop_worker('STOP_ROBOT_SERVO', worker_id=WorkerID.SEQUENCE, log_msg="서보와 로봇 정지 명령 전송")
 
 
 
