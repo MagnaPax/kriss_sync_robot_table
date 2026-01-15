@@ -75,27 +75,17 @@ class PLCWorker(QObject):
                     is_success = True
                     msg = f"TwinCAT 연결 성공 ({self.connector.ams_net_id})"
 
-                # --- 비상 정지 (전체) --- #
-                case 'EMERGENCY_STOP':
-                    is_success, msg = self.commander.emergency_stop_servo_and_robot()
 
 
-                # --- 이동 명령 (Commander 사용) --- #
-                case 'MOVE':
-                    if self.data is None: raise ValueError("MOVE 명령에 필요한 데이터가 없습니다.")
-                    is_success, msg = self.commander.execute_sequence_with_executor(self.data)  # 넘겨주는 데이터 형식에 맞는 Executor를 찾아서 실행
-
-                case 'SET_SPEED':
-                    EVENT_BUS.log.message.emit(f"{self._log_prefix} 이동속도:{self.data}\n데이터 타입: {type(self.data)}", "DEBUG")
-                    result_msg = self.commander.apply_user_feed_rate_when_moving_robot(float(self.data))
-                    if result_msg: self.result.emit(True, result_msg)
-
-
-                # --- 로봇 제어 명령 (Commander 사용) --- #
+                # --- 로봇 전용 제어 명령 (Commander 사용) --- #
                 case 'ROBOT_START':
                     is_success, msg = self.commander.start_robot_plc_signals()
                 case 'ROBOT_STOP':
                     is_success, msg = self.commander.stop_robot_plc_signals()
+                case 'SET_SPEED':
+                    EVENT_BUS.log.message.emit(f"{self._log_prefix} 이동속도:{self.data}\n데이터 타입: {type(self.data)}", "DEBUG")
+                    result_msg = self.commander.apply_user_feed_rate_when_moving_robot(float(self.data))
+                    if result_msg: self.result.emit(True, result_msg)
 
 
                 # --- 서보 전용 제어 명령 (Commander 사용) --- #
@@ -105,7 +95,20 @@ class PLCWorker(QObject):
                     is_success, msg = self.commander.home_servos_safely()        # 안전 원점 복귀
                 case 'SERVO_RESET':
                     is_success, msg = self.commander.reset_servos_safely()      # 서보모터 축의 에러 해제
-                
+
+
+                # --- 공통 명령 (Commander 사용) --- #
+                # 이동
+                case 'MOVE':
+                    if self.data is None: raise ValueError("MOVE 명령에 필요한 데이터가 없습니다.")
+                    is_success, msg = self.commander.execute_sequence_with_executor(self.data)  # 넘겨주는 데이터 형식에 맞는 Executor를 찾아서 실행
+                # 비상 정지
+                case 'EMERGENCY_STOP':
+                    is_success, msg = self.commander.emergency_stop_servo_and_robot()
+                # 일반 정지
+                case 'STOP_ROBOT_SERVO':
+                    is_success, msg = self.commander.stop_robot_servo_normally()
+
                 case _:
                     msg = "알 수 없는 명령입니다."
 
