@@ -205,7 +205,7 @@ class PLCService(QObject):
                 target_thread.requestInterruption()
                 target_thread.wait(100)
             else:
-                EVENT_BUS.log.message.emit("이전 작업이 아직 진행중입니다", "WARNING")
+                EVENT_BUS.log.message.emit(f"{self._log_prefix} 이전 작업이 아직 진행중입니다", "WARNING")
                 return None
 
         # 2. 로그

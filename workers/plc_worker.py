@@ -110,7 +110,7 @@ class PLCWorker(QObject):
                     is_success, msg = self.commander.stop_robot_servo_normally()
 
                 case _:
-                    msg = "알 수 없는 명령입니다."
+                    msg = f"{self._log_prefix} 알 수 없는 명령입니다."
 
         # -----------------------------------------------------------
         # 예외 처리 (로그는 Service가 남기므로 여기선 실패 사유만 전달)

@@ -37,7 +37,7 @@ class SequenceService(QObject):
         """
 
         if self._thread and self._thread.isRunning():
-            EVENT_BUS.log.message.emit("이전 작업이 아직 진행중입니다", "WARNING")
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 이전 작업이 아직 진행중입니다", "WARNING")
             return # 이전 작업이 있다면 중복 실행 방지
 
         # csv 파일이 맞는지 확인
