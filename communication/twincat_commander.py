@@ -140,7 +140,7 @@ class FanucOnlyExecutor(BaseExecutor):
                 # 데이터에 'id'가 있으면 가져오고, 없다면 루프 인덱스(idx)를 id로 사용
                 current_id = row.get('id') or idx
 
-                # 현재 시퀀스 진행상태 방송: 진행중
+                # 현재 시퀀스 스탭 상태: 처리 중
                 EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, TaskStatus.PROCESSING)
                 EVENT_BUS.log.message.emit(f"{self._log_prefix} 현재 시퀀스 진행상태: {(current_id)}", "DEBUG")
 
@@ -235,7 +235,7 @@ class FanucOnlyExecutor(BaseExecutor):
                     adapter.write_command_packet(packet)
 
 
-                # 현재 시퀀스 진행상태 방송: 완료
+                # 현재 시퀀스 스탭 상태: 완료
                 EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, TaskStatus.COMPLETED)
 
             # 3. 종료 신호
@@ -336,6 +336,7 @@ class ServoOnlyExecutor(BaseExecutor):
                     raise InterruptedError("사용자에 의해 작업이 중단되었습니다.")
 
                 # (B) UI 진행률 업데이트
+                # 현재 시퀀스 스탭 상태: 처리 중
                 EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSING)
                 EVENT_BUS.log.message.emit(f"{self._log_prefix} {step_idx}/{total_steps} 진행 중", "DEBUG")
 
@@ -435,7 +436,7 @@ class ServoOnlyExecutor(BaseExecutor):
                     f"{self._log_prefix} 턴테이블 (deg & RPM) 완료: 목표={pose_turntable.angle:.1f} & {pose_turntable.velocity:.1f}, 현재={feedback_turntable['position']:.1f} & {feedback_turntable['velocity']:.1f}", "DEBUG"
                 )
 
-                # (E) 스텝 완료 방송
+                # (E) 현재 시퀀스 스탭 상태: 완료
                 EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.COMPLETED)
 
             return True, "모든 서보 시퀀스 작업이 완료되었습니다."
@@ -715,6 +716,7 @@ class IntegratedExecutor(BaseExecutor):
             # =========================================================================
             if sequence_data:
                 row = sequence_data[0]
+                # 현재 시퀀스 스탭 상태: 처리 중
                 EVENT_BUS.data.progress_updated.emit(1, total_steps, TaskStatus.PROCESSING)
 
                 # -----------------------------------------------------------------
@@ -864,7 +866,8 @@ class IntegratedExecutor(BaseExecutor):
                     
                     # (C) 루프 즉시 종료
                     # 더 이상 Trigger(DI44)를 보내지 않고 루프 탈출
-                    EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.COMPLETED)   # 완료 방송
+                    # 현재 시퀀스 스탭 상태: 완료
+                    EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.COMPLETED)
                     break 
 
                 else:
@@ -899,7 +902,7 @@ class IntegratedExecutor(BaseExecutor):
                     current_turntable_angle = pose_turntable.angle
                     previous_robot_velocity = velocity
 
-            # 모든 스텝이 완료되었다는 방송 송출
+            # 현재 시퀀스 스탭 상태: 완료
             EVENT_BUS.data.progress_updated.emit(total_steps, total_steps, TaskStatus.COMPLETED)
             # [Loop End] 모든 시퀀스 수행 완료
             return True, "작업 완료"
