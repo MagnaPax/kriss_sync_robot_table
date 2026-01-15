@@ -1055,6 +1055,39 @@ class TwinCATCommander(QObject):
 
 
     # ================================= #
+    # --- 일반 정지 (로봇&서보) --- #
+    # ================================= #
+    def stop_robot_servo_normally(self) -> tuple[bool, str]:
+        """
+        [일반 정지] 로봇과 서보를 정상적으로 정지시킴 (작업 중단 시 사용)
+            - 로봇: CYCLE_STOP 등 부드러운 정지 신호
+            - 서보: 감속 정지
+        """
+        results = []
+        
+        # 1. 로봇 정지
+        if self.robot:
+            try:
+                self.robot.stop_fanuc_normally()
+                results.append("로봇 정지 신호 전송")
+            except Exception as e:
+                results.append(f"로봇 정지 실패: {e}")
+        
+        # 2. 서보 정지 (즉시 정지 요청 활용)
+        if self.servo:
+            try:
+                self.servo.request_immediate_stop()
+                results.append("서보 정지 요청 전송")
+            except Exception as e:
+                results.append(f"서보 정지 실패: {e}")
+
+        # 서보 바쁨 상태 해제
+        EVENT_BUS.control.servo_physical_moving_status_changed.emit({'is_servo_moving': False})
+        
+        return True, ", ".join(results)
+
+
+    # ================================= #
     # --- 비상 정지 명령 (로봇&서보)--- #
     # ================================= #
     def emergency_stop_servo_and_robot(self) -> tuple[bool, str]:
@@ -1109,31 +1142,6 @@ class TwinCATCommander(QObject):
             return msg
         else:
             return None
-
-    def are_gagets_busy(self) -> bool:
-        """로봇이나 턴테이블 중 하나라도 움직이고 있다면 True(바쁨) 반환"""
-
-        # 로봇 상태 확인
-        robot_busy = False
-        if self.robot:
-            try:
-                robot_busy = self.robot.read_busy_signal()
-            except Exception:
-                # 로봇 연결이 없거나 변수가 없을 때 에러 무시 (False 반환)
-                robot_busy = False
-
-        # 서보모터 상태 확인 (모든 3축 확인)
-        servo_busy = False
-        if self.servo:
-            try:
-                servo_busy = any(self.servo.is_servo_moving_physically(axis) for axis in ServoAxis)
-            except Exception as e:
-                # 반복 호출되므로 로그 레벨을 DEBUG로 낮춤
-                EVENT_BUS.log.message.emit(f"서보모터 상태 확인 중 오류: {e}", "DEBUG")
-                servo_busy = False
-
-        # 둘 중 하나라도 바쁘면 시스템은 바쁜 것
-        return robot_busy or servo_busy
 
     def start_robot_plc_signals(self) -> tuple[bool, str]:
         """로봇에게 시작 신호(RSR, Loop 등) 전송"""
@@ -1237,3 +1245,34 @@ class TwinCATCommander(QObject):
                 return False, "일부 축의 에러 리셋에 실패했습니다."
         except Exception as e:
             return False, f"서보 리셋 중 오류 발생: {e}"
+
+
+
+    # ================================= #
+    # --- 로봇&서보 공통 명령 --- #
+    # ================================= #
+    def are_gagets_busy(self) -> bool:
+        """로봇이나 턴테이블 중 하나라도 움직이고 있다면 True(바쁨) 반환"""
+
+        # 로봇 상태 확인
+        robot_busy = False
+        if self.robot:
+            try:
+                robot_busy = self.robot.read_busy_signal()
+            except Exception:
+                # 로봇 연결이 없거나 변수가 없을 때 에러 무시 (False 반환)
+                robot_busy = False
+
+        # 서보모터 상태 확인 (모든 3축 확인)
+        servo_busy = False
+        if self.servo:
+            try:
+                servo_busy = any(self.servo.is_servo_moving_physically(axis) for axis in ServoAxis)
+            except Exception as e:
+                # 반복 호출되므로 로그 레벨을 DEBUG로 낮춤
+                EVENT_BUS.log.message.emit(f"서보모터 상태 확인 중 오류: {e}", "DEBUG")
+                servo_busy = False
+
+        # 둘 중 하나라도 바쁘면 시스템은 바쁜 것
+        return robot_busy or servo_busy
+
