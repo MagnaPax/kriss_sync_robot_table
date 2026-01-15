@@ -97,7 +97,7 @@ class TaskManagerViewModel(QObject):
         if hasattr(self._plc_service, 'is_runnable') and not self._plc_service.is_runnable():
             EVENT_BUS.system.operation_error_alert.emit(
                 "작업 정리 중",
-                "진행중인 작업 정리 중입니다. 잠시만 기다려주세요."
+                "진행중인 작업을 정리하고 있습니다. 잠시만 기다려주세요."
             )
             return
 
