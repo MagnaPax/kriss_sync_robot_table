@@ -21,7 +21,7 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
     def __init__(self, parent: Optional[QWidget] = None):
         # ViewModel 타입 힌트 재정의를 위해 초기화
         self.btn_robot_origin = None
-        self.btn_servo_origin = None
+        self.btn_turntable_origin = None
         self.btn_reset = None
         self.viewmodel: Optional["UserCoordinatesViewModel"] = None
         super().__init__(parent)
@@ -36,7 +36,7 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
         if not self.viewmodel: return
         
         if btn := self.btn_robot_origin: btn.clicked.connect(self._on_robot_origin_clicked)
-        if btn := self.btn_servo_origin: btn.clicked.connect(self._on_servo_origin_clicked)
+        if btn := self.btn_turntable_origin: btn.clicked.connect(self._on_turntable_origin_clicked)
         if btn := self.btn_reset: btn.clicked.connect(self._on_origin_all_clicked)
 
         # 데이터 바인딩 - WorldCoordinatesWidget(부모클래스)의 메서드 재사용
@@ -72,17 +72,17 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
                 if gb_layout := widget.layout():
                     # 버튼 생성
                     self.btn_robot_origin = QPushButton("Set Robot Origin")
-                    self.btn_servo_origin = QPushButton("Set Servo Origin")
+                    self.btn_turntable_origin = QPushButton("Set Turntable Origin")
                     self.btn_reset = QPushButton("Set Origin All")
 
                     # 스타일 적용
                     self.btn_robot_origin.setProperty("type", "general")
-                    self.btn_servo_origin.setProperty("type", "general")
+                    self.btn_turntable_origin.setProperty("type", "general")
                     self.btn_reset.setProperty("type", "special")
 
                     # 레이아웃에 추가 (WorldCoordinatesWidget의 addStretch() 뒤에 추가됨 -> 하단 배치)
                     gb_layout.addWidget(self.btn_robot_origin)
-                    gb_layout.addWidget(self.btn_servo_origin)
+                    gb_layout.addWidget(self.btn_turntable_origin)
                     gb_layout.addWidget(self.btn_reset)
 
 
@@ -105,7 +105,7 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
             should_enable = not should_disable
             
             if self.btn_robot_origin: self.btn_robot_origin.setEnabled(should_enable)
-            if self.btn_servo_origin: self.btn_servo_origin.setEnabled(should_enable)
+            if self.btn_turntable_origin: self.btn_turntable_origin.setEnabled(should_enable)
             if self.btn_reset: self.btn_reset.setEnabled(should_enable)
             return
 
@@ -139,8 +139,8 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
         self._handle_robot_origin()
 
     @pyqtSlot()
-    def _on_servo_origin_clicked(self):
-        self._handle_servo_origin()
+    def _on_turntable_origin_clicked(self):
+        self._handle_turntable_origin()
 
     @pyqtSlot()
     def _on_origin_all_clicked(self):
@@ -156,9 +156,9 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
         if self.viewmodel:
             self.viewmodel.origin_robot_pose()
 
-    def _handle_servo_origin(self):
+    def _handle_turntable_origin(self):
         if self.viewmodel:
-            self.viewmodel.origin_servo_pose()
+            self.viewmodel.origin_turntable_pose()
 
     def _handle_origin_all(self):
         if self.viewmodel:
