@@ -298,9 +298,10 @@ class PLCService(QObject):
             # 생성된 스레드와 워커를 딕셔너리에 저장
             self._active_workers[worker_id] = result
 
-    def _stop_worker(self, command: str, worker_id: str, data: Any = None, log_msg: str = ""):
+    def _stop_worker(self, command: str, worker_id: str = "", data: Any = None, log_msg: str = ""):
         """정지 작업 시작 (Wrapper)"""
-        # 일반적인 정지 후 곧바로 비상정지를 눌러도 마지막 비상정지 명령이 실행될 수 있게(= 실행중 스레드를 무시) force_interrupt=True로 설정
+        # 일반적인 정지 명령을 실행한 뒤 잇따라 비상정지를 눌러도 이전 정지 명령을 무시하고 
+        # 뒤따른 비상정지 명령이 실행될 수 있도록 force_interrupt 를 True로 설정
         if result := self._create_worker(None, command, data, log_msg, force_interrupt=True, worker_id=worker_id):
             self._active_workers[worker_id] = result
 
@@ -429,10 +430,11 @@ class PLCService(QObject):
     def stop_servo_all(self):
         """서보 모터 정지"""
         
-        # 관련 워커(시퀀스, 서보 이동/원점/리셋) 중단 요청
+        # 중단 요청을 할 관련 워커(시퀀스, 서보 이동/원점/리셋)들
         targets = [WorkerID.SEQUENCE, WorkerID.SERVO_ONLY, WorkerID.SERVO_HOME, WorkerID.SERVO_RESET]
         
         for w_id in targets:
+            # 1. 소프트웨어 루프 중단 - 다음 동작을 하지 않도록(하고 있는 동작은 계속 진행됨)
             if w_id in self._active_workers:
                 thread, _ = self._active_workers[w_id]
                 if thread.isRunning():
@@ -442,11 +444,14 @@ class PLCService(QObject):
                     # PLCWorker.run() 메서드가 끝나면서 finished 시그널 방출 ->
                     # _create_worker를 통해 스레드를 만들 때 연결해둔 _cleanup이 자동으로 호출됨
                     thread.requestInterruption()
+                    EVENT_BUS.log.message.emit(f"{self._log_prefix} 진행 중인 서보 모터 작업 루프 종료", "INFO")
 
-        # 정지 명령 전송
-        self._stop_worker('SERVO_STOP', worker_id=WorkerID.SERVO_STOP, log_msg=f"{self._log_prefix} 모든 서보모터 정지")
+
+        # 2. 물리적 장비 정지 명령 전송 - PLC에게 정지 신호 보내기
+        # _stop_worker 는 _create_worker를 사용해서 워커를 생성하고 정지 신호를 보낸다.
+        # worker_id를 지정하지 않으면 기본값인 id="" 임시 워커를 하나 만들어서 정지 신호만 보내고 끝낸다.
+        self._stop_worker('SERVO_STOP', log_msg="모든 서보모터 정지 명령 전송")
         
-        EVENT_BUS.log.message.emit(f"{self._log_prefix} 진행 중인 서보 작업을 중단합니다.", "WARNING")
 
 
     # ==========================================================
@@ -480,7 +485,7 @@ class PLCService(QObject):
         1. 논리적 중단: 작업 스레드에게 Interruption 요청
         2. 물리적 정지: 로봇/서보에게 정지 신호 전송 (별도 워커 사용)
         """
-        # 1. 시퀀스 워커가 진행 중이라면
+        # 1. 소프트웨어 루프 중단 - 다음 동작을 하지 않도록(하고 있는 동작은 계속 진행됨)
         if WorkerID.SEQUENCE in self._active_workers:
             # 현재 돌고있는 스레드 중에서 `WorkerID.SEQUENCE` 이름으로 돌고 있는 스레드와 워커 객체만 뽑아오기
             thread, worker = self._active_workers[WorkerID.SEQUENCE]
@@ -495,10 +500,13 @@ class PLCService(QObject):
                 # 즉, 여기서 명시적으로 _cleanup을 부르지 않아도 알아서 정리됨. (오히려 부르면 충돌남)
                 thread.requestInterruption()
                 
-                EVENT_BUS.log.message.emit(f"{self._log_prefix} 진행 중인 작업 루프 중단 요청 및 정리 완료", "INFO")
+                EVENT_BUS.log.message.emit(f"{self._log_prefix} 진행 중인 시퀀스 작업 루프 종료", "INFO")
 
-        # 2. 물리적 장비 정지 명령 전송
-        self._stop_worker('STOP_ROBOT_SERVO', worker_id=WorkerID.SEQUENCE, log_msg="서보와 로봇 정지 명령 전송")
+        # 2. 물리적 장비 정지 명령 전송 - PLC에게 정지 신호 보내기
+        # _stop_worker 는 _create_worker를 사용해서 워커를 생성하고 정지 신호를 보낸다.
+        # worker_id를 지정하지 않으면 기본값인 id="" 임시 워커를 하나 만들어서 정지 신호만 보내고 끝낸다.
+        self._stop_worker('STOP_ROBOT_SERVO', log_msg="서보와 로봇 정지 명령 전송")
+
 
 
 
