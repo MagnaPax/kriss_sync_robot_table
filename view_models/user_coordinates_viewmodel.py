@@ -29,7 +29,7 @@ class UserCoordinatesViewModel(QObject):
         self._log_prefix = f"[{self.__class__.__name__}]"
         self._plc_service = plc_service
 
-        # [1] 값 저장 변수 생성 (Raw: 실제 위치, Offset: 사용자가 잡은 0점)
+        # 값 저장 변수 생성 (Raw: 실제 위치, Offset: 사용자가 잡은 0점)
         self._raw_robot_pose = FANUCPose()
         self._robot_offset = FANUCPose()
 
@@ -38,17 +38,33 @@ class UserCoordinatesViewModel(QObject):
             axis: ServoPose(0.0, 0.0) for axis in ServoAxis
         }
 
-        # [2] EVENT_BUS 시그널 연결
+        # EVENT_BUS 시그널 연결
+        self._bind_signals()
+
+
+    def _bind_signals(self):
         EVENT_BUS.control.robot_current_pose.connect(self._on_robot_pose_received)
         EVENT_BUS.control.servo_current_motion.connect(self._on_servo_data_received)
         # '시퀀스 실행중' 방송 청취 -> 내 로컬 시그널로 바로 재방송
         EVENT_BUS.data.sequence_in_progress.connect(self.origin_buttons_disabled.emit)
 
 
-
-    # [3] 데이터 저장 및 상대 좌표 계산 로직
+    # ===============================================
+    # 시그널 슬롯 [물리적 시그널 수신]
+    # ===============================================
     @pyqtSlot(object)
     def _on_robot_pose_received(self, pose: FANUCPose):
+        self._handle_make_robot_user_coordinates(pose)
+
+    @pyqtSlot(dict)
+    def _on_servo_data_received(self, servo_states: Dict[ServoAxis, ServoPose]):
+        self._handle_make_servo_user_coordinates(servo_states)
+
+
+    # ===============================================
+    # 핸들러 [논리적 흐름 담당]
+    # ===============================================
+    def _handle_make_robot_user_coordinates(self, pose: FANUCPose):
         """실제 로봇 좌표를 받아서 오프셋을 뺀 '사용자 좌표'를 계산하여 방송"""
         self._raw_robot_pose = pose
         
@@ -63,8 +79,7 @@ class UserCoordinatesViewModel(QObject):
         )
         self.user_robot_pose_changed.emit(user_pose)
 
-    @pyqtSlot(dict)
-    def _on_servo_data_received(self, servo_states: Dict[ServoAxis, ServoPose]):
+    def _handle_make_servo_user_coordinates(self, servo_states: Dict[ServoAxis, ServoPose]):
         """실제 서보 상태를 받아서 오프셋을 뺀 '사용자 좌표'를 계산하여 방송"""
         self._raw_servo_states = servo_states
 
@@ -89,11 +104,11 @@ class UserCoordinatesViewModel(QObject):
             raw = servo_states[ServoAxis.TURNTABLE]
             off = self._servo_offsets[ServoAxis.TURNTABLE]
             self.user_turntable_pose_changed.emit(ServoPose(raw.angle - off.angle, raw.velocity - off.velocity))
+        
 
-
-    # ================================
-    # [3.1 ~ 3.3] 원점 설정 (Origin) 로직
-    # ================================
+    # ===============================================
+    # View -> ViewModel 호출 메서드 (Commands)
+    # ===============================================
     def origin_robot_pose(self):
         """현재 로봇 위치를 0으로 설정 (오프셋 업데이트)"""
         self._robot_offset = self._raw_robot_pose
