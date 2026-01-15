@@ -637,6 +637,10 @@ class IntegratedExecutor(BaseExecutor):
     def execute(self, sequence_data: List[Dict[str, Any]]) -> tuple[bool, str]:
         EVENT_BUS.log.message.emit(f"{self._log_prefix} CSV 통합 동기화 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
 
+        # 처리할 전체 시퀀스 데이터 방송
+        #   Task Manager 에서 시퀀스 실행 도중 정지한 뒤 다시 실행했을 때 WaypointsWidget 에 있던 이전 값에 덮어쓰게 하기 위함
+        EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
+
         robot = self.robot
         servo = self.servo
         
