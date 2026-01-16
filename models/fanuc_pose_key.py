@@ -129,13 +129,13 @@ class FanucSignal(str, Enum):
     # [출력] Robot -> PLC (읽는 신호: Handshake/Status)
     # =========================================================
     
-    # 계산 요청 신호
-    # "다음 스텝 계산해서 데이터 보내라"는 요청 신호.
-    #   이 신호가 오면 파이썬은 다음 좌표를 계산해서 'Data Ready(DI43)' 상태로 만듦.
+    # 계산 요청 신호 (DO45)
+    # 현재 로직에서는 사용하지 않음 (대신 DO46 Motion Done 확인)
     CALCULATION_REQUEST =  "MAIN.Robot1._UO1.DO45"
     
-    # 이전에 내린 명령의 실행이 끝났다.
-    # 이제 사용되지 않는다!!!!
+    # 로봇 이동 완료 (Motion Done, DO46)
+    # [Sync Signal] 이전 동작이 완료되었음을 알리는 핵심 신호.
+    # 이 신호가 오면 파이썬은 다음 데이터를 전송하고 DI43을 트리거한다.
     ROBOT_MOTION_DONE = "MAIN.Robot1._UO1.DO46"
 
     BUSY =      "MAIN.Robot1._UO1.UO10_Busy"        # 바쁨 신호
