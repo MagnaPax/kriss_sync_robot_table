@@ -41,27 +41,27 @@ class ServoSignal(str, Enum):
 
     # [설정] - 나중에 1,2,3을 끼워넣을 수 있게
     SERVO_ON     = 'MAIN.bServoOn{}'    # 서보 전원 (BOOL)
-    READ_POS_ON  = 'MAIN.bReadPos{}'    # 위치 읽기 활성화 (BOOL)
-    READ_VEL_ON  = 'MAIN.bReadVel{}'    # 속도 읽기 활성화 (BOOL)
+    READ_POS_ON  = 'MAIN.bReadPos{}'    # 위치 읽기 활성화 (BOOL)       켜지면 위치가 표시됨
+    READ_VEL_ON  = 'MAIN.bReadVel{}'    # 속도 읽기 활성화 (BOOL)       켜지면 속도가 표시됨
 
     # [명령]
     STOP         = 'MAIN.bStop{}'       # 정지 (BOOL)
     
     # [이동 - 위치 제어 (턴테이블용)]
     MOVE_ABS     = 'MAIN.bMoveAbs{}'    # 절대 위치 이동 시작 (BOOL)
-    TARGET_POS   = 'MAIN.pos{}'         # 목표 위치 입력 (LREAL)
+    TARGET_POS   = 'MAIN.pos{}'         # 목표 위치 입력 (LREAL)        이 값에 입력된 위치로 이동(속도도 있어야 됨)
 
     # [이동 - 속도 제어 (툴 모터용)]
-    MOVE_VEL     = 'MAIN.bMoveVel{}'    # 속도 제어 이동 시작 (BOOL)
+    MOVE_VEL     = 'MAIN.bMoveVel{}'    # 속도 제어 이동 시작 (BOOL)    
     
     # [원점 복구]
     HOME         = 'MAIN.bHome{}'       # 원점 복귀 시작 (Rising Edge) (BOOL)
     
     # [공통 입력]
-    TARGET_VEL   = 'MAIN.vel{}'         # 목표 속도 입력 (LREAL) - 위치/속도 모드 공용
+    TARGET_VEL   = 'MAIN.vel{}'         # 목표 속도 입력 (LREAL)        이 값에 입력된 속도로 돌아라 (위치/속도 모드 공용)
     
     # [상태 확인]
-    DONE         = 'MAIN.bDone{}'       # 이동 완료 (BOOL) - Rising Edge
+    DONE         = 'MAIN.bDone{}'       # 이동 완료 (Rising Edge) (BOOL)
 
     # [피드백 (Read)]
     BUSY         = 'MAIN.bBusy{}'       # 이동 중 여부 (BOOL) - 명령 받아도 write ❌
