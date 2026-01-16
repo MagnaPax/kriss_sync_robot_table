@@ -71,7 +71,7 @@ class FanucAdapter:
         """[비상 정지] IMSP 신호 전송"""
         emergency_stop_cmd_signals = {
             FanucSignal.IMSP: False, FanucSignal.HOLD: True, FanucSignal.SFSP: True, FanucSignal.ENABLE: True,
-            FanucSignal.CYCLE_STOP: False, FanucSignal.START: False, FanucSignal.RSR2: False, FanucSignal.RSR3: False, FanucSignal.DATA_READY_DI43: False
+            FanucSignal.CYCLE_STOP: False, FanucSignal.START: False, FanucSignal.RSR2: False, FanucSignal.RSR3: False, FanucSignal.TRIGGER_DI43: False
         }
         # 비상 정지 시 로봇 좌표는 의미가 없으므로 '신호 전송용 패킷'을 생성해서 보낸다
         # 'IMSP' 신호를 확실하게 전달하는 것이 핵심
@@ -82,7 +82,7 @@ class FanucAdapter:
         """[초기화] 로봇 시작 신호 초기화 (RSR2=False, DI43=False 등)"""
         cmd_signals = {
             FanucSignal.IMSP: True, FanucSignal.HOLD: True, FanucSignal.SFSP: True, FanucSignal.ENABLE: True,
-            FanucSignal.CYCLE_STOP: False, FanucSignal.START: False, FanucSignal.RSR2: False, FanucSignal.RSR3: False, FanucSignal.DATA_READY_DI43: False
+            FanucSignal.CYCLE_STOP: False, FanucSignal.START: False, FanucSignal.RSR2: False, FanucSignal.RSR3: False, FanucSignal.TRIGGER_DI43: False
         }
         # 로봇을 움직이려는 게 아니라 초기화 신호(Reset)만 보냄
         # 따라서 좌표값은 의미가 없으므로 '신호 전송용 패킷'을 생성해서 보낸다
@@ -102,7 +102,7 @@ class FanucAdapter:
     def stop_fanuc_normally(self):
         stop_cmd_signals = {
             FanucSignal.IMSP: True, FanucSignal.HOLD: True, FanucSignal.SFSP: True, FanucSignal.ENABLE: True,
-            FanucSignal.CYCLE_STOP: True, FanucSignal.START: False, FanucSignal.RSR2: False, FanucSignal.RSR3: False, FanucSignal.DATA_READY_DI43: False
+            FanucSignal.CYCLE_STOP: True, FanucSignal.START: False, FanucSignal.RSR2: False, FanucSignal.RSR3: False, FanucSignal.TRIGGER_DI43: False
         }
         # 정지할 때 로봇 좌표는 의미가 없으므로 '신호 전송용 패킷'을 생성해서 보낸다
         packet = FANUCPose.create_signal_only_packet(stop_cmd_signals)
@@ -172,7 +172,7 @@ class FanucAdapter:
         """
         [Sync Step 4: Sync Start Trigger] 로봇과 서보의 동시 출발을 위한 트리거(DI44)를 전송한다.
         """
-        self.write_digital_signal(FanucSignal.SYNC_START_TRIGGER_DI44, state)
+        self.write_digital_signal(FanucSignal.LOOP_DI44, state)
 
     def write_digital_signal(self, signal: Union[FanucSignal, str], value: bool):
         """
@@ -208,7 +208,7 @@ class FanucAdapter:
     # (주의) read_complete_signal은 이제 Notification(Callback) 방식으로 대체되므로
     # 직접 폴링(Polling)할 일은 줄어들겠지만, 상태 확인용으로 남겨둠.
     def read_complete_signal(self) -> bool:
-        return bool(self._plc.read_by_name(FanucSignal.COMPLETE.path, pyads.PLCTYPE_BOOL))
+        return bool(self._plc.read_by_name(FanucSignal.ROBOT_MOTION_DONE.path, pyads.PLCTYPE_BOOL))
 
 
     # WORLD 좌표: 로봇 발바닥(Base) 기준 절대 좌표
@@ -371,7 +371,7 @@ if __name__ == '__main__':
     # Verify: add_device_notification called
     args, _ = mock_plc.add_device_notification.call_args
     print(f"   Call args: {args}")
-    assert args[0] == FanucSignal.COMPLETE.value # "MAIN.Robot1._UO1.DO45"
+    assert args[0] == FanucSignal.CALCULATION_REQUEST.value # "MAIN.Robot1._UO1.DO45"
     assert args[2] == my_callback
     print("✅ register_handshake_callback 호출 검증 성공")
 
