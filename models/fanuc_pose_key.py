@@ -114,15 +114,15 @@ class FanucSignal(str, Enum):
     PNS_STROBE =    "PNSStrobe"     # PNS Strobe
     PROD_START =    "ProdStart"     # Production Start
     
-    # DI43: 데이터 준비 완료 (Data Ready)
-    #       파이썬이 PLC에 구조체를 다 쓴 후 "데이터 가져가세요"라고 알리는 신호.
-    #       이때 DI44는 False여야 함 (데이터만 읽고 이동은 대기).
-    DATA_READY_DI43 = "DI43"          
+    # DI43: 이동 시작 트리거 (Start Trigger)
+    #       매 스텝마다 데이터 전송 후, Low -> High (Rising Edge)로 펄스를 주어
+    #       로봇에게 "이동 시작!" 명령을 내린다. (데이터는 이미 PLC 메모리에 있음)
+    TRIGGER_DI43 = "DI43"          
     
-    # DI44: 시작 트리거 (Start Trigger)
-    #       로봇와 턴테이블이 동시에 움직여야 할 타이밍에 펄스(Pulse)로 줌.
-    #       Rising Edge(0->1) 시 로봇이 동작 시작.
-    SYNC_START_TRIGGER_DI44 = "DI44"
+    # DI44: 루프 상태 신호 (Loop Signal)
+    #       시퀀스가 시작되면 High로 켜지고, 전체 작업이 끝날 때까지 유지된다.
+    #       로봇은 이 신호가 켜져 있어야 Handshake 루프를 계속 돈다.
+    LOOP_DI44 = "DI44"
     
 
     # =========================================================
