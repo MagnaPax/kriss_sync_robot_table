@@ -41,7 +41,6 @@ QLabel#status_label[status="connected"] {
 
 
 
-
 /* --------------------------------------------------
         스플래시 스크린 (Splash Screen) 스타일
 ------------------------------------------------------ 
@@ -873,25 +872,34 @@ QWidget#turntable_gauge_popup {
 }
 
 
+
+
+
+
+
+
+
 /* 
-----------------------------------------------------------------------------
-        메시지 박스 (QMessageBox) 작업 에러 발생 시 모달 다이얼로그 표시
-----------------------------------------------------------------------------
+---------------------------------------------------------
+        메시지 박스 (QMessageBox) 공통 스타일
+        (QDialog 다음에 선언되어야 스타일이 적용된다)
+---------------------------------------------------------
 */
-QMessageBox#error_message_box {
+QMessageBox {
     background-color: #2D2D2D;
-    border: 2px solid #DC3545; /* 에러 강조형 테두리 (빨강) */
+    border: 2px solid #4CAF50; /* 기본 테두리 (녹색 - Info 느낌) */
     border-radius: 10px;
 }
 
-QMessageBox#error_message_box QLabel {
-    color: white;
+/* 중요: QDialog 보다 뒤에 와야 함 */
+QMessageBox QLabel {
+    color: #F0F0F0; /* 글자 색깔 */
     font-size: 14px;
     background-color: transparent;
 }
 
-/* 메시지 박스 내 버튼 스타일 */
-QMessageBox#error_message_box QPushButton {
+/* 메시지 박스 내 버튼 공통 스타일 */
+QMessageBox QPushButton {
     background-color: #54585d;
     color: white;
     border: 1px solid #4a4e53;
@@ -900,10 +908,20 @@ QMessageBox#error_message_box QPushButton {
     padding: 6px 12px;
 }
 
-QMessageBox#error_message_box QPushButton:hover {
+QMessageBox QPushButton:hover {
     background-color: #6c757d;
 }
 
-QMessageBox#error_message_box QPushButton:pressed {
+QMessageBox QPushButton:pressed {
     background-color: #343a40;
 }
+
+/* 
+---------------------------------------------------
+    작업 에러 발생 시 (ID: error_message_box)
+---------------------------------------------------
+*/
+QMessageBox#error_message_box {
+    border: 2px solid #DC3545; /* 에러 강조형 테두리 (빨강) */
+}
+
