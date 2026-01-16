@@ -102,21 +102,27 @@ class FanucSignal(str, Enum):
     """
     ⬆️ 기본적으로 이 위의 신호가 켜져야 로봇이 동작한다 ⬆️
     """
-    CYCLE_STOP =    "CycleStop"     #                   하던일을 끝마친 뒤 멈춰라
-    FAULT_RESET =   "FaultReset"    # Fault Reset
-    START =         "Start"         # Start
-    HOME =          "Home"          # Home              (아마도) Homing
+    CYCLE_STOP =    "CycleStop"     #                   테스트 중
+    FAULT_RESET =   "FaultReset"    # Fault Reset       (Fault 원인 제거 후) -> 이 신호를 Falling Edge가 되면 정상 상태가 된다. (원인 제거를 안 하면 계속 FAULT 신호가 유지됨)
+    START =         "Start"         # Start             (아마도) 일시 정지 후 재시작 할 때
+    HOME =          "Home"          # Home              (아마도) Home 위치로 이동할 때
     
-    RSR1 =          "RSR1"          # Robot Service Request 1
-    RSR2 =          "RSR2"          # Robot Service Request 2 (주로 시작 신호로 사용)
-    RSR3 =          "RSR3"          # Robot Service Request 3
+    RSR1 =          "RSR1"          # Robot Service Request 1   원격으로 로봇의 TP 프로그램 실행하고 싶을때 사용 (최종적으로 어떤 신호를 사용할지는 미정)
+    RSR2 =          "RSR2"          # Robot Service Request 2   원격으로 로봇의 TP 프로그램 실행하고 싶을때 사용
+    RSR3 =          "RSR3"          # Robot Service Request 3   원격으로 로봇의 TP 프로그램 실행하고 싶을때 사용
+    RSR4 =          "RSR4"          # Robot Service Request 4   원격으로 로봇의 TP 프로그램 실행하고 싶을때 사용
+    RSR5 =          "RSR5"          # Robot Service Request 5   원격으로 로봇의 TP 프로그램 실행하고 싶을때 사용
+    RSR6 =          "RSR6"          # Robot Service Request 6   원격으로 로봇의 TP 프로그램 실행하고 싶을때 사용
+    RSR7 =          "RSR7"          # Robot Service Request 7   원격으로 로봇의 TP 프로그램 실행하고 싶을때 사용
+    RSR8 =          "RSR8"          # Robot Service Request 8   원격으로 로봇의 TP 프로그램 실행하고 싶을때 사용
     
-    PNS_STROBE =    "PNSStrobe"     # PNS Strobe
-    PROD_START =    "ProdStart"     # Production Start
+    
+    # PNS_STROBE =    "PNSStrobe"     # PNS Strobe        사용 X
+    # PROD_START =    "ProdStart"     # Production Start  사용 X
     
     # DI43: 이동 시작 트리거 (Start Trigger)
     #       매 스텝마다 데이터 전송 후, Low -> High (Rising Edge)로 펄스를 주어
-    #       로봇에게 "이동 시작!" 명령을 내린다. (데이터는 이미 PLC 메모리에 있음)
+    #       로봇에게 시퀀스를 보낸다는 신호
     TRIGGER_DI43 = "DI43"          
     
     # DI44: 루프 상태 신호 (Loop Signal)
@@ -129,13 +135,11 @@ class FanucSignal(str, Enum):
     # [출력] Robot -> PLC (읽는 신호: Handshake/Status)
     # =========================================================
     
-    # 계산 요청 신호 (DO45)
-    # 현재 로직에서는 사용하지 않음 (대신 DO46 Motion Done 확인)
+    # 현재 로직에서는 사용하지 않음
     CALCULATION_REQUEST =  "MAIN.Robot1._UO1.DO45"
     
-    # 로봇 이동 완료 (Motion Done, DO46)
-    # [Sync Signal] 이전 동작이 완료되었음을 알리는 핵심 신호.
-    # 이 신호가 오면 파이썬은 다음 데이터를 전송하고 DI43을 트리거한다.
+    # 로봇이 시퀀스(한 줄)을 받았다는 확인 신호
+    # 이 신호가 TRUE 되면 다음 데이터를 전송하고 DI43을 트리거한다.
     ROBOT_MOTION_DONE = "MAIN.Robot1._UO1.DO46"
 
     BUSY =      "MAIN.Robot1._UO1.UO10_Busy"        # 바쁨 신호
