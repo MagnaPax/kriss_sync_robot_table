@@ -945,7 +945,7 @@ class IntegratedExecutor(BaseExecutor):
                 robot_motion_done_event.clear()
 
                 # 서보 이동 (Step 1)
-                servo.move_turntable_atomic(pose_turntable.angle, m3_deg_per_s)
+                servo.move_turntable_atomic(ServoAxis.TURNTABLE, pose_turntable.angle, m3_deg_per_s)
                 
                 # 2. 트리거 패킷 전송 (DI43=True) -> Start!
                 #    (주의: 데이터 패킷과 동일하되 DI43 비트만 킴)
@@ -1012,9 +1012,9 @@ class IntegratedExecutor(BaseExecutor):
                 # (C) 로봇 트리거 (Packet DI43=True)
                 # -----------------------------------------------------------------
                 
-                # 서보 이동 (Step 2+)
-                servo.move_turntable_atomic(pose_turntable.angle, m3_deg_per_s)
-
+                # 서보 이동 (Step 1)
+                servo.move_turntable_atomic(ServoAxis.TURNTABLE, pose_turntable.angle, m3_deg_per_s)
+                
                 # 2. 트리거 패킷 전송 (DI43=True) -> Start!
                 #    (Load 패킷 후 짧은 대기 -> Trigger 패킷)
                 time.sleep(0.3) # [Legacy Timing] 0.05 -> 0.3
@@ -1061,7 +1061,7 @@ class IntegratedExecutor(BaseExecutor):
 
             # 최종 완료 방송
             EVENT_BUS.data.progress_updated.emit(total_steps, total_steps, TaskStatus.COMPLETED)
-            return True, "모든 작업이 성공적으로 완료됨."
+            return True, f"{self._log_prefix} 모든 작업이 성공적으로 완료됨."
 
         except InterruptedError as e:
             EVENT_BUS.log.message.emit(f"{self._log_prefix} 사용자가 중단했음. 장비 정지 신호 보냄...", "WARNING")
@@ -1075,12 +1075,12 @@ class IntegratedExecutor(BaseExecutor):
             return False, str(e)
 
         except Exception as e:
-            EVENT_BUS.log.message.emit(f"{self._log_prefix} 오류 발생함. 장비 정지 시도...", "ERROR")
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 오류 발생함: {e}. 장비 정지 시도...", "ERROR")
             try: robot.set_emergency_stop() 
             except: pass
             try: servo.request_immediate_stop() 
             except: pass
-            return False, f"오류 발생: {e}"
+            return False, f"{self._log_prefix} 오류 발생: {e}"
             
         finally:
             EVENT_BUS.data.sequence_job_finished.emit()
