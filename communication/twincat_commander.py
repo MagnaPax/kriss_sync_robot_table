@@ -66,216 +66,177 @@ class FanucOnlyExecutor(BaseExecutor):
 
     def execute(self, sequence_data: List[Dict[str, Any]]) -> tuple[bool, str]:
         """
-        FANUC 로봇에게 연속적인 이동 경로를 명령하며 각 스텝마다 정확한 동기화를 보장
+        FANUC 로봇 단독 제어 (Field Logic Applied)
         
-        1. 초기화:
-            - Handshake용 Event와 Callback을 준비
-            - `write_initial_signals()`로 로봇을 깨운다
-        
-        2. 시퀀스 루프 (Step-by-Step):
-            a. Delta 계산 (Pre-calculation): 
-                - 현재 위치와 목표 위치의 차이(Delta)를 계산한다 (모델 내부 `to_struct`에서 수행).
-            b. 패킷 전송 (Trigger): 
-                - `write_command_packet()`으로 데이터를 한 방에 보낸다.
-            c. 완료 대기 (Handshake):
-                - 로봇이 이동을 완료하고 DO45 신호를 Rising Edge(0->1)로 띄울 때까지 기다린다.
-                - `_move_complete_event.wait()`로 효율적으로 대기하며, 폴링(무한루프)을 사용하지 않는다.
-                - 안전장치: 0.1초마다 `QThread` 중단 요청(Stop 버튼)을 체크하여 즉각 반응한다.
-            
-        3. 종료:
-            - 모든 이동이 끝나면 `set_finish_signals()`로 정리한다.
-            - `finally` 블록에서 Notification 리소스를 반드시 해제한다.
-        
-        Returns:
-            (성공여부, 메시지)
+        [동기화 프로토콜]
+        현장 테스트(0115_retest.py)에서 검증된 로직을 적용함.
+        1. Loop State (DI44): 전체 시퀀스 동안 High 유지
+        2. Data Trigger (DI43): 매 스텝마다 Low -> High (Pulse Edge)
+        3. Handshake: DO45(요청) 대기 -> 데이터 전송 -> DO46(완료) 대기 -> DI43(출발)
         """
         EVENT_BUS.log.message.emit(f"{self._log_prefix} FANUC 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
-        EVENT_BUS.log.message.emit(f"{self._log_prefix} 에서 처리될 전체 데이터\n{(sequence_data)}\n", "DEBUG")
-
-        # 처리할 전체 시퀀스 데이터 방송 - execute 가 실행될 때 마다 이 시그널을 구독하는 ui가 갱신된다
         EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
 
-        adapter = self.robot
+        robot = self.robot
+        total_steps = len(sequence_data)
 
-        # 사용자 입력 feed rate 초기화 (새 작업 시작이기 때문)
-        adapter.override_feed_rate = None
-
-        num_sequences = len(sequence_data)  # 전체 시퀀스 갯수
-        
-        # Event 객체 생성 (Handshake용)
-        # 원본 파일: 260102.FANUC_FULL_THREADING.py
+        # -------------------------------------------------------------------------
+        # 1. 이벤트 및 콜백 설정
+        # -------------------------------------------------------------------------
         import threading
-        _move_complete_event = threading.Event()
+        calculation_request_event = threading.Event()   # DO45
+        robot_motion_done_event = threading.Event()     # DO46
         
-        # 콜백 함수 정의
-        def _on_robot_move_complete_signal(notification, data):
-            # 원본 라인 127: move_next_event.set()
-            _move_complete_event.set()
+        def _on_calculation_request(n, d): 
+            calculation_request_event.set()
+        def _on_robot_motion_done(n, d): 
+            robot_motion_done_event.set()
 
-        # 알림(Notification) 등록 핸들
-        notify_handle = None
+        # 알림 등록
+        handle_calc = robot.register_calculation_request_callback(_on_calculation_request)
+        handle_motion = robot.register_robot_motion_done_callback(_on_robot_motion_done)
 
         try:
-            # 1. 시작 전 로봇 상태 검증
-            adapter.validate_robot_ready()
+            robot.validate_robot_ready()
             
-            # Notification 등록
-            notify_handle = adapter.register_handshake_callback(_on_robot_move_complete_signal)
-            EVENT_BUS.log.message.emit(f"{self._log_prefix} Handshake 알림 등록 완료 (Handle: {notify_handle})", "DEBUG")
-
-            previous_pose = None  # 이전 명령 (Delta 계산용)
+            # 상태 변수
+            current_pose = FanucPoseModel(x=0, y=0, z=0, w=0, p=0, r=0)
             
-            # 2. 초기 신호 전송
-            # 원본 라인 185: plc.write_by_name(STRUCT_SYMBOL, init_payload, FanucUI1Struct)
-            adapter.write_initial_signals()
+            # ---------------------------------------------------------------------
+            # [Step 1: 즉시 시작]
+            # ---------------------------------------------------------------------
+            if sequence_data:
+                row = sequence_data[0]
+                EVENT_BUS.data.progress_updated.emit(1, total_steps, TaskStatus.PROCESSING)
 
-            # 3. 시퀀스 루프
-            for idx, row in enumerate(sequence_data, 1):
-                # (A) 중단 요청 확인 (안전장치)
-                if (thread := QThread.currentThread()) and thread.isInterruptionRequested():
-                    raise InterruptedError("사용자에 의해 작업이 중단되었습니다.")
-
-                adapter.validate_robot_ready() # 매 스텝 시작 전 체크
-
-                # 데이터에 'id'가 있으면 가져오고, 없다면 루프 인덱스(idx)를 id로 사용
-                current_id = row.get('id') or idx
-
-                # 현재 시퀀스 스탭 상태: 처리 중
-                EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, TaskStatus.PROCESSING)
-                EVENT_BUS.log.message.emit(f"{self._log_prefix} 현재 시퀀스 진행상태: {(current_id)}", "DEBUG")
-
-                # 이동 속도 결정
-                if adapter.override_feed_rate is not None:
-                    # 사용자가 '지금' 바꾼 FEED RATE
-                    feed_rate = adapter.override_feed_rate
-                else:
-                    # GO TO 버튼 눌렀을 때 입력한 FEED RATE 
-                    # (또는 데이터에 있는 F값)
-                    feed_rate = row.get(KEY_ROBOT_FEED_RATE, 10.0)
-
-                # 4. 목표 포즈 생성 (데이터 매핑)
-                target_pose = FANUCPose(
-                    x=row.get(KEY_ROBOT_X, 0.0), y=row.get(KEY_ROBOT_Y, 0.0), z=row.get(KEY_ROBOT_Z, 0.0),
-                    w=row.get(KEY_ROBOT_W, 0.0), p=row.get(KEY_ROBOT_P, 0.0), r=row.get(KEY_ROBOT_R, 0.0),
-                    f=feed_rate
-                )
-                # 현재 로봇 위치 방송 : 모니터링 워커(PoseMonitorWorker)가 백그라운드에서 방송하고 있다
-                EVENT_BUS.log.message.emit(f"\n현재 로봇 위치: {target_pose}\n", "DEBUG")
-
-                # 5. 첫 번째 스텝 처리 (Delta=0)
-                if previous_pose is None:
-                    # 원본 로직: "if prev_coords is None: move_deltas = zero_deltas.copy()"
-                    # to_struct 내부에서 prev_pose와 target_pose가 같으면 Delta 0으로 처리됨
-                    # 따라서 첫 번째는 자기 자신을 prev로 넘겨줌
-                    previous_pose = target_pose
+                target_pose = FanucPoseModel.from_dict(row)
                 
-                # 6. 신호(Signal) 준비
-                # 원본 라인 177: base_signals = {'IMSP': True, ...}
+                # (1) 펄스 준비 (DI43 Low)
+                robot.write_digital_signal(FanucSignal.TRIGGER_DI43, False)
+
+                # (2) 패킷 전송 (DI44=True: Loop Start)
+                
+                # 신호 조합
+                # RSR2는 이제 사용하지 않고 DI44/DI43만 사용합니다.
                 signals = {
                     'IMSP': True, 'Hold': True, 'SFSP': True, 'Enable': True,
-                    'CycleStop': False, 'Start': False, 'RSR2': False, 'DI43': True # DI43=True (이동 명령)
+                    'CycleStop': False, 'Start': False, 
+                    'RSR2': False, 'RSR3': True,
+                    FanucSignal.TRIGGER_DI43: False,      # Trigger 대기
+                    FanucSignal.LOOP_DI44: True        # Loop Start
                 }
                 
-                # 원본 라인 208: if i == 1: signals['RSR2'] = True
-                # (첫 번째 무브먼트일 때 RSR2를 켜주는 로직 복원)
-                if idx == 1:
-                    signals['RSR2'] = True
+                # 속도 정보 (override 확인)
+                feed_rate = robot.override_feed_rate if robot.override_feed_rate else row.get(KEY_ROBOT_FEED_RATE, 10.0)
+                # 타겟 포즈에 속도 반영
+                target_pose_with_speed = FanucPoseModel(
+                    x=target_pose.x, y=target_pose.y, z=target_pose.z,
+                    w=target_pose.w, p=target_pose.p, r=target_pose.r,
+                    f=feed_rate
+                )
+                
+                # 구조체 생성
+                # Note: execute() 진입 시 current_pose는 (0,0,0)입니다.
+                # 로봇이 실제 어디에 있는지는 모르지만, Delta 계산을 위해 current_pose를 사용합니다.
+                # (현장 정책: 첫 스텝은 Abs Move가 아니라 "현재 위치 기준 Delta"라면 사실 0 이동?)
+                # -> IntegratedExecutor에서는 첫 스텝도 current_pose(0,0,0) -> target_pose 차이를 보냅니다.
+                packet = target_pose_with_speed.to_struct(current_pose, signals)
+                robot.write_command_packet(packet)
+                
+                # (3) Trigger (DI43 High)
+                time.sleep(0.05)
+                robot.write_digital_signal(FanucSignal.TRIGGER_DI43, True)
+                
+                # 이벤트 클리어 (명령 직후)
+                robot_motion_done_event.clear()
+                
+                # 상태 갱신
+                current_pose = target_pose_with_speed # 속도 포함된 객체로 갱신
+                
+            # ---------------------------------------------------------------------
+            # [Step 2+: 파이프라인 루프]
+            # ---------------------------------------------------------------------
+            for i in range(1, total_steps):
+                step_idx = i + 1
+                row = sequence_data[i]
 
-                # 7. 패킷 생성 (Delta 계산은 모델 내부 위임)
-                # 원본 라인 210: payload = pack_fanuc_payload(...)
-                packet = target_pose.to_struct(previous_pose, signals)
+                # (0) 펄스 준비 (DI43 Low)
+                robot.write_digital_signal(FanucSignal.TRIGGER_DI43, False)
 
-                # 8. 전송 (Write)
-                # 원본 라인 213: plc.write_by_name(STRUCT_SYMBOL, payload, FanucUI1Struct)
-                adapter.write_command_packet(packet)
+                # (1) Wait DO45 (Calc Request)
+                if not self._wait_event_with_safety(calculation_request_event, timeout=self.BUSY_TIMEOUT):
+                    if self._is_interrupted(): raise InterruptedError("중단됨")
+                    # 로봇 전용 모드에서도 DO45를 기다립니다.
+                    raise TimeoutError(f"Step {step_idx}: DO45(요청) 타임아웃")
+                calculation_request_event.clear()
+
+                # (2) Pre-load Data
+                target_pose = FanucPoseModel.from_dict(row)
                 
-                EVENT_BUS.log.message.emit(f"{self._log_prefix} #{idx} 명령 전송 완료. Rising Edge 대기 중...", "DEBUG")
+                # 속도
+                feed_rate = robot.override_feed_rate if robot.override_feed_rate else row.get(KEY_ROBOT_FEED_RATE, 10.0)
+                target_pose_with_speed = FanucPoseModel(
+                    x=target_pose.x, y=target_pose.y, z=target_pose.z,
+                    w=target_pose.w, p=target_pose.p, r=target_pose.r,
+                    f=feed_rate
+                )
                 
-                # 9. Handshake 대기 (Wait for Rising Edge)
-                # 원본 라인 219: if move_next_event.wait(timeout=20.0): ...
-                # QThread 중단을 감지하기 위해 루프 사용 (사용자 요청 시 즉시 반응)
+                # 신호: Loop(DI44)=True, Trigger(DI43)=False
+                signals[FanucSignal.TRIGGER_DI43] = False
+                signals[FanucSignal.LOOP_DI44] = True
                 
-                _move_complete_event.clear() # 확실하게 클리어
+                packet = target_pose_with_speed.to_struct(current_pose, signals)
+                robot.write_command_packet(packet)
+
+                # (3) Wait Previous DO46
+                if not self._wait_event_with_safety(robot_motion_done_event, timeout=self.MOVE_TIMEOUT):
+                    if self._is_interrupted(): raise InterruptedError("중단됨")
+                    raise TimeoutError(f"Step {step_idx}: DO46(이동완료) 타임아웃")
                 
-                wait_start = time.time()
-                timeout = 20.0 # 20초 타임아웃
-                success = False
-                
-                while time.time() - wait_start < timeout:
-                    # (A) 중단 요청 확인
-                    if (thread := QThread.currentThread()) and thread.isInterruptionRequested():
-                        EVENT_BUS.log.message.emit("대기 중 사용자 중단 요청 감지", "WARNING")
-                        raise InterruptedError("사용자에 의해 작업이 중단되었습니다.")
+                EVENT_BUS.data.progress_updated.emit(i, total_steps, TaskStatus.COMPLETED)
+                EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSING)
+
+                # (4) Trigger (DI43 High) or Exit
+                if step_idx == total_steps:
+                    # 마지막 스텝: Loop 종료 신호 (DI43=False)
+                    robot.write_digital_signal(FanucSignal.TRIGGER_DI43, False)
+                    EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.COMPLETED)
+                    break
+                else:
+                    # 일반 스텝: Trigger
+                    robot.write_digital_signal(FanucSignal.TRIGGER_DI43, True)
                     
-                    # (B) 이벤트 확인 (0.1초씩 끊어서 대기)
-                    if _move_complete_event.wait(timeout=0.1):
-                        success = True
-                        break
-                        
-                if not success:
-                    # 타임아웃인지 중단인지 확인
-                    if (thread := QThread.currentThread()) and thread.isInterruptionRequested():
-                        raise InterruptedError("사용자에 의해 작업이 중단되었습니다.")
-                    else:
-                        raise TimeoutError(f"{self._log_prefix} 로봇 응답 시간 초과 (Timeout 20s)")
-                
-                EVENT_BUS.log.message.emit(" -> OK (Rising Edge Detected)", "DEBUG")
+                    robot_motion_done_event.clear()
+                    current_pose = target_pose_with_speed
 
-                # 10. 기준점 업데이트
-                # 원본 라인 226: prev_coords = target_coords
-                previous_pose = target_pose
+            # 마지막 이동 대기
+            EVENT_BUS.log.message.emit("마지막 이동 완료 대기...", "INFO")
+            if not self._wait_event_with_safety(robot_motion_done_event, timeout=self.MOVE_TIMEOUT):
+                EVENT_BUS.log.message.emit("마지막 이동 대기 시간 초과", "WARNING")
 
-                # 11. 첫 번째 스텝 이후 RSR2 끄기 (옵션)
-                # 원본 라인 228: if i == 1: signals['RSR2'] = False ...
-                if idx == 1:
-                    signals['RSR2'] = False
-                    # 신호만 끄고 다시 전송 (Delta는 그대로 둬야 함? 원본은 그대로 둠)
-                    # 원본은 target_coords, move_deltas 그대로 사용
-                    packet = target_pose.to_struct(previous_pose, signals) # previous_pose가 갱신되었으므로 Delta는 0이 됨
-                    adapter.write_command_packet(packet)
-
-
-                # 현재 시퀀스 스탭 상태: 완료
-                EVENT_BUS.data.progress_updated.emit(current_id, num_sequences, TaskStatus.COMPLETED)
-
-            # 3. 종료 신호
-            # 원본의 finally 블록 혹은 루프 종료 후 정리
-            adapter.set_finish_signals()
+            EVENT_BUS.data.progress_updated.emit(total_steps, total_steps, TaskStatus.COMPLETED)
             return True, "작업 완료"
-        
+
         except InterruptedError as e:
-            EVENT_BUS.log.message.emit(f"{self._log_prefix} 작업이 사용자에 의해 중단되었습니다. 로봇 정지 신호 전송...", "WARNING")
-            try:
-                adapter.set_emergency_stop() # 명시적 정지 신호
-            except Exception as stop_err:
-                EVENT_BUS.log.message.emit(f"정지 신호 전송 실패: {stop_err}", "ERROR")
+            EVENT_BUS.log.message.emit(f"작업 중단: {e}", "WARNING")
+            try: robot.set_emergency_stop()
+            except: pass
             return False, str(e)
-
-
+            
         except Exception as e:
-            EVENT_BUS.log.message.emit(f"{self._log_prefix} 예외 발생. 로봇 정지 시도...", "ERROR")
-            try:
-                adapter.set_emergency_stop()
-            except:
-                pass
-            
-            # 사용자 친화적 메시지 변환
-            msg = str(e)
-            if "Robot Fault" in msg:
-                msg = "로봇 하드웨어 결함이 감지되었습니다. 비상 정지 버튼이 눌려있거나 컨트롤러에 알람이 있는지 확인 후 리셋해 주세요."
-            elif "symbol not found" in msg.lower():
-                msg = "로봇 통신 변수를 찾을 수 없습니다. PLC 프로그램이 실행 중인지 확인해 주세요."
+            EVENT_BUS.log.message.emit(f"오류 발생: {e}", "ERROR")
+            try: robot.set_emergency_stop() 
+            except: pass
+            return False, f"Error: {e}"
 
-            return False, f"{self._log_prefix} {msg}"
-            
         finally:
-            # 시퀀스 실행 종료 방송
             EVENT_BUS.data.sequence_job_finished.emit()
-
-            # 리소스 정리 (콜백 해제)
-            if notify_handle is not None:
-                adapter.remove_notification(notify_handle)
-                EVENT_BUS.log.message.emit(f"{self._log_prefix} 계산 요청 알림 해제 완료", "DEBUG")
+            robot.remove_notification(handle_calc)
+            robot.remove_notification(handle_motion)
+            try:
+                robot.write_digital_signal(FanucSignal.TRIGGER_DI43, False)
+                robot.write_digital_signal(FanucSignal.LOOP_DI44, False)
+            except: pass
 
     def _is_interrupted(self) -> bool:
         """안전장치: 현재 실행 중인 스레드가 정지 요청을 받았는지 확인한다."""
@@ -627,8 +588,8 @@ class IntegratedExecutor(BaseExecutor):
             FanucSignal.CYCLE_STOP: False, FanucSignal.START: False, 
             FanucSignal.RSR2: False,       # [CHANGE] No RSR2
             FanucSignal.RSR3: True,        # [CHANGE] Use RSR3 (Consistent with 260108)
-            FanucSignal.DATA_READY_DI43: data_ready,   # [DATA READY]
-            FanucSignal.SYNC_START_TRIGGER_DI44: start_trigger # [TRIGGER]
+            FanucSignal.TRIGGER_DI43: data_ready,   # [DATA READY]
+            FanucSignal.LOOP_DI44: start_trigger # [TRIGGER]
         }
         
         # 6. 패킷 생성
@@ -712,200 +673,226 @@ class IntegratedExecutor(BaseExecutor):
             total_steps = len(sequence_data)
             
             # =========================================================================
-            # [Step 1: Immediate Start]
+            # [Step 1: 즉시 시작 (Immediate Start)]
             # =========================================================================
+            # 이 단계는 "시동을 거는 단계"입니다.
+            # 로봇이 아직 아무런 요청(DO45)을 하지 않았더라도, 우리가 먼저 첫 데이터를 밀어 넣고
+            # "시작해!"(DI44, DI43)라고 소리쳐서 전체 공정을 깨워야 합니다.
             if sequence_data:
                 row = sequence_data[0]
                 # 현재 시퀀스 스탭 상태: 처리 중
                 EVENT_BUS.data.progress_updated.emit(1, total_steps, TaskStatus.PROCESSING)
 
-                # -----------------------------------------------------------------
-                # 1. Start Motor (3축 동시 제어)
-                # -----------------------------------------------------------------
-                # 첫 번째 스텝은 로봇과의 핸드셰이크(Handshake) 없이 즉시 시작한다
-                # 로봇이 이미 초기 위치에 도착해 있다고 가정하거나
-                # 첫 이동은 별도의 트리거 없이 RSR 신호만으로 시작하기 때문
-                
-                # (A) 데이터 파싱 (Parse Data)
+                # (A) 데이터 파싱 & 초기화
+                # 이번 스텝에서 로봇이 어디로 가고, 턴테이블은 몇 도로 돌지 파일에서 읽어옵니다.
                 target_pose = FanucPoseModel.from_dict(row)
                 pose_turntable = ServoPoseModel.create_for_axis(row, KEY_TURNTABLE_DEG)
                 rpm_rev = row.get(KEY_TOOL_REV_RPM, 0.0)
                 rpm_rot = row.get(KEY_TOOL_ROT_RPM, 0.0)
                 
-                # (B) 모터 이동 여부 판단 (Optimization)
-                # 이번 스텝에서 턴테이블이 움직이는지 미리 체크하여
-                # 다음 스텝(Step 2)에서 '모터 완료 대기'를 할지 말지 결정
+                # (B) 모터 이동 여부 판단 (최적화)
+                # 만약 이번에 턴테이블이 거의 안 움직인다면(0.05도 미만), 
+                # 다음 스텝에서 굳이 "턴테이블 다 돌았나?" 하고 기다릴 필요가 없습니다. (시간 절약)
                 if abs(pose_turntable.angle - current_turntable_angle) > 0.05:
                     prev_motor_active = True
                 else:
                     prev_motor_active = False
 
-                # (C) 로봇 데이터 전송
-                # Step 1: (260108) 로직 반영 - DI44 트리거를 포함하여 시작
+                # (C) 로봇 데이터 전송 (Step 1)
+                # -------------------------------------------------------------
+                # [신호 프로토콜 설명]
+                # 1. DI43 (Data Ready): "데이터 다 썼어, 가져가!" (매 스텝마다 껐다 켬)
+                # 2. DI44 (Loop State): "작업 중이야, 계속해!" (시작할 때 켜고, 끝날 때 끔)
+                # -------------------------------------------------------------
+                
+                # 1. 펄스 준비 (DI43 Low)
+                # 로봇이 상승 엣지(Rising Edge, 0->1)를 인식할 수 있도록 먼저 0으로 내립니다.
+                robot.write_digital_signal(FanucSignal.TRIGGER_DI43, False)
+
+                # 2. 패킷 생성 및 전송
+                # - data_ready=False: 구조체 안에는 '아직 아님'으로 표시 (나중에 DI43 핀으로 Trigger 함)
+                # - start_trigger=True: DI44를 켜서 "이제 루프 시작이다"라고 알림
                 packet, velocity = self._calculate_and_pack(
                     current_pose, target_pose, 
                     current_turntable_angle, pose_turntable.angle, pose_turntable.velocity,
                     0.0, 
-                    data_ready=True,    # -> DI43 (Loop On)
-                    start_trigger=True  # -> DI44 (Start Trigger On)
+                    data_ready=False,   
+                    start_trigger=True  # [중요] 루프 시작 신호 (ON)
                 )
                 robot.write_command_packet(packet)
                 
-                # (D) 펄스 리셋 (Trig bit Off)
-                # DI44 펄스 리셋 (Rising Edge를 위해 즉시 끔)
-                robot.write_digital_signal(FanucSignal.SYNC_START_TRIGGER_DI44, False)
+                # 3. Trigger 발사! (DI43 High)
+                # 이제 로봇에게 "데이터 준비 끝! 움직여!" 신호를 보냅니다.
+                time.sleep(0.05) # 전기적 신호가 안정될 때까지 아주 잠깐 대기
+                robot.write_digital_signal(FanucSignal.TRIGGER_DI43, True)
+                
+                # [중요] 이벤트 클리어 (Race Condition 방지)
+                # 명령을 내리자마자 바로 이벤트를 지워야 합니다.
+                # 만약 로봇이 너무 빨라서 우리가 이 줄을 실행하기도 전에 도착 신호(DO46)를 보내버리면,
+                # 나중에 wait 할 때 영원히 기다리게 될 수도 있습니다. (이미 지나갔으니까)
+                robot_motion_done_event.clear()
+                motor_motion_done_event.clear()
 
-                # 2. Start Motor (동기화 됨)
+                # 4. 턴테이블/스핀들 모터 시작
+                # 로봇과 동시에 움직이도록 합니다.
                 servo.execute_synchronized_motion(
                     turntable_moving_velocity=pose_turntable.velocity, 
                     turntable_target_position=pose_turntable.angle, 
                     spindle_rotation_velocity=rpm_rot, 
                     spindle_revolution_velocity=rpm_rev
                 )
-                EVENT_BUS.log.message.emit("[Init] Step 1 Started (DI44 Triggered).", "DEBUG")
+                EVENT_BUS.log.message.emit("[Init] Step 1 시작됨 (자동 트리거).", "DEBUG")
                 
-                # Update State
+                # 상태 업데이트 (다음 계산을 위해 현재 위치 저장)
                 current_pose = target_pose
                 current_turntable_angle = pose_turntable.angle
+                
             # =========================================================================
-            # [Step 2+: Pipeline Loop]
+            # [Step 2+: 파이프라인 루프 (Pipeline Loop)]
             # =========================================================================
-            # 이 루프는 [PLC와 Python간의 4단계 핸드셰이크]를 통해 정밀하게 동기화 된다
-            #
-            # [원리: Pipeline Architecture]
-            # 1. Wait Calc Request (DO45): PLC가 "다음 데이터 내놔" 할 때까지 대기
-            # 2. Pre-load Data: 다음 로봇/모터 좌표를 미리 계산해서 쓰기 (DI43=True, DI44=False)
-            # 3. Wait Previous Done (DO46): 이전 동작이 '완전히' 끝날 때까지 대기 (Main Motion Done)
-            # 4. Trigger (DI44=True): 동시에 출발! (Hand-in-hand)
-            # =================================================================
+            # 이제부터는 로봇과 우리가 손발을 맞춰서 착착 진행합니다.
+            # 로봇: "나 도착했어! 다음 데이터 줘! (DO45)"
+            # 우리: "오케이, 계산해서 넣어줄게. 다 넣었으니 가져가! (DI43)"
+            # -------------------------------------------------------------------------
             for i in range(1, total_steps):
                 step_idx = i + 1
                 row = sequence_data[i]
 
+                # (0) 펄스 준비: 다음 트리거를 위해 DI43을 미리 내려둡니다.
+                robot.write_digital_signal(FanucSignal.TRIGGER_DI43, False)
+
                 # -----------------------------------------------------------------
-                # 1. DO45 신호 대기 (Notification으로 받은 이벤트 wait)
+                # 1. 로봇 요청 대기 (DO45: Calculation Request)
                 # -----------------------------------------------------------------
-                # 로봇이 현재 동작을 수행하는 도중에, "다음 동작을 미리 준비해달라"고 요청을 보낸다.
-                # 이 신호를 받으면 다음 스텝의 좌표를 계산해서 미리 메모리에 써둬야 한다
+                # 로봇이 현재 동작을 수행하는 도중에, "나 거의 다 왔으니 다음 거 미리 줘"라고 할 때까지 기다립니다.
+                # [핵심] 이 신호를 기다려야 로봇과 속도를 맞출 수 있습니다. (데드락 방지)
                 if not self._wait_event_with_safety(calculation_request_event, timeout=self.BUSY_TIMEOUT):
                     if self._is_interrupted(): raise InterruptedError("사용자에 의해 작업이 중단되었습니다.")
-                    raise TimeoutError(f"Step {step_idx}: DO45 (Calculation Request) Timeout")
+                    
+                    # 만약 로봇이 요청을 안 보내면 뭔가 꼬인 겁니다. 로그를 남기고 멈춥니다.
+                    raise TimeoutError(f"Step {step_idx}: 로봇의 데이터 요청(DO45)이 오지 않습니다. (타임아웃)")
+                
+                # 신호를 받았으니 깃발을 내립니다. (다음 번을 위해 리셋)
                 calculation_request_event.clear()
 
                 # -----------------------------------------------------------------
-                # 2. Pre-load (데이터 미리 채우기)
+                # 2. 데이터 미리 채우기 (Pre-load)
                 # -----------------------------------------------------------------
-                # PLC 메모리(UI1 구조체)에 다음 좌표와 속도를 기록한다
-                # 아직 '출발(StartTrigger)' 신호는 주지 않는다 (DI44=False)
-                # 단지 '데이터가 준비되었다(DataReady)' 신호만 준다 (DI43=True)
+                # 로봇이 요청했으니, 다음 좌표를 계산해서 PLC 메모리에 적어줍니다.
+                # 하지만 아직 "가져가라(DI43 High)"고는 안 합니다. 
+                # 왜? 이전 동작이 완전히 끝났는지(DO46) 확인하고 안전하게 보내기 위해서입니다.
                 target_pose = FanucPoseModel.from_dict(row)
                 pose_turntable = ServoPoseModel.create_for_axis(row, KEY_TURNTABLE_DEG)
                 
+                # 패킷 생성 
+                # - DI44=True: 계속 루프 상태 유지
+                # - DI43=False: 아직 트리거 안 함
                 packet, velocity = self._calculate_and_pack(
                     current_pose, target_pose, 
                     current_turntable_angle, pose_turntable.angle, pose_turntable.velocity,
                     previous_robot_velocity, 
-                    data_ready=True,    # -> DI43 (계속 Loop)
-                    start_trigger=False # -> DI44 (아직 대기)
+                    data_ready=False,   
+                    start_trigger=True  
                 )
                 robot.write_command_packet(packet)
-                EVENT_BUS.log.message.emit(f"[Step {step_idx}] 데이터 미리 전송 완료 (Pre-loaded)", "DEBUG")
 
                 # -----------------------------------------------------------------
-                # 3. Wait Previous Robot step done (DO46: 이전 동작 완료 대기)
+                # 3. 이전 동작 완료 확인 (DO46 & Servo Done)
                 # -----------------------------------------------------------------
-                # 로봇이 이전 목표 지점에 '물리적으로' 도착했는지 확인한다
-                # 도착하지 않았다면 다음 명령을 바로 내리면 안 된다. (충돌 방지)
-                robot_motion_done_event.clear()
-                motor_motion_done_event.clear() # 모터 완료 이벤트도 초기화
-                self._timestamp_turntable_done = None 
+                # 로봇이 요청(DO45)은 했지만, 아직 이전 동작이 물리적으로 안 끝났을 수도 있습니다.
+                # 충돌을 막기 위해 확실히 "도착" 했는지 확인합니다.
                 
+                # (A) 로봇 도착 확인
                 if not self._wait_event_with_safety(robot_motion_done_event, timeout=self.MOVE_TIMEOUT):
                     if self._is_interrupted(): raise InterruptedError("사용자에 의해 작업이 중단되었습니다.")
-                    raise TimeoutError(f"[Step {step_idx}] 로봇 이동 완료 대기 시간 초과 (DO46)")
-                
-                # -----------------------------------------------------------------
-                # 4. Wait Motor (Optimization: 모터 완료 대기)
-                # -----------------------------------------------------------------
-                # [스마트 동기화]
-                # 만약 이전 스텝에서 모터(턴테이블)가 움직였다면, 모터도 다 돌았는지 확인해야 한다
-                # 로봇만 도착하고 모터는 아직 돌고 있는데 다음 명령을 내리면 축이 꼬인다
+                    raise TimeoutError(f"[Step {step_idx}] 로봇이 이전 위치에 도착하지 않았습니다. (DO46 타임아웃)")
+
+                # (B) 턴테이블 도착 확인 (만약 움직였다면)
                 if prev_motor_active:
-                    # 모터가 움직였던 경우에만 대기 (안 움직였으면 즉시 통과 -> 시간 절약)
                     if not self._wait_event_with_safety(motor_motion_done_event, timeout=self.MOVE_TIMEOUT):
-                        # 타임아웃 발생 시, 동기화가 깨진 것으로 간주하고 멈춘다
                         if self._is_interrupted(): raise InterruptedError("사용자에 의해 작업이 중단되었습니다.")
-                        raise TimeoutError(f"[Step {step_idx}] 턴테이블 이동 완료 대기 시간 초과")
+                        raise TimeoutError(f"[Step {step_idx}] 턴테이블이 회전을 완료하지 못했습니다. (타임아웃)")
                 
-                    # (디버깅용) 로봇과 턴테이블의 도착 시간 차이를 로그에 남김
+                    # (TMI) 로봇과 턴테이블 중 누가 더 빨리 왔는지 궁금하면 로그를 봅니다.
                     if self._timestamp_robot_done and self._timestamp_turntable_done:
                         diff = (self._timestamp_turntable_done - self._timestamp_robot_done) * 1000
-                        EVENT_BUS.log.message.emit(f"동기화 오차 확인: {diff:.1f}ms", "DEBUG")
+                        EVENT_BUS.log.message.emit(f"동기화 체크: 두 장비 도착 시간차 {diff:.1f}ms", "DEBUG")
                 
-                # 이전 스텝이 완전히 끝났다는 방송 송출
-                EVENT_BUS.data.progress_updated.emit(i, total_steps, TaskStatus.COMPLETED)
-                # 다음 스텝이 '진행 중' 상태로 진입했다는 방송 송출
-                EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSING)
+                # 진행 상황 UI 업데이트
+                EVENT_BUS.data.progress_updated.emit(i, total_steps, TaskStatus.COMPLETED) # 이전 꺼 완료
+                EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSING) # 이번 꺼 시작
 
                 # -----------------------------------------------------------------
-                # 5. Trigger Next or Finish (Loop Termination Logic)
+                # 4. 다음 동작 트리거 (DI43 High)
                 # -----------------------------------------------------------------
-                # (260108) 로봇 팀 요구사항:
-                # 마지막 스텝에서는 'Trigger(DI44)'를 보내지 않고, 'DI43(Data Loop)'를 꺼서
-                # 로봇이 루프를 빠져나오게 한다.
+                # 모든 조건(데이터 전송 완료, 이전 동작 완료)이 충족되었습니다.
+                # 이제 "다음 단계로 가!" 라고 명령을 내립니다.
 
                 if step_idx == total_steps:
-                    # (1) 마지막 스텝 감지 -> DI43 끔 (Loop Exit)
-                    EVENT_BUS.log.message.emit(f"{self._log_prefix} 마지막 스텝 감지: 루프 탈출 신호 전송 (DI43=False)", "INFO")
+                    # [마지막 스텝일 경우]
+                    # 로봇에게 "이제 루프 끝이야, 나가!" 라고 알려주기 위해 DI43을 끕니다.
+                    # 현장 로직상, 마지막에는 DI43을 끄는 것이 종료 신호가 됩니다.
+                    EVENT_BUS.log.message.emit(f"{self._log_prefix} 마지막 스텝입니다. 루프를 종료합니다.", "INFO")
                     
-                    # (A) 모터 이동 (Last Move)
+                    # (A) 마지막 모터 이동
                     servo.move_turntable_atomic(ServoAxis.TURNTABLE, pose_turntable.angle, pose_turntable.velocity)
                     
-                    # (B) 로봇 루프 탈출 신호 (DI43 OFF)
-                    robot.write_digital_signal(FanucSignal.DATA_READY_DI43, False)
+                    # (B) 로봇 루프 탈출 신호 (DI43 False)
+                    robot.write_digital_signal(FanucSignal.TRIGGER_DI43, False)
                     
-                    # (C) 루프 즉시 종료
-                    # 더 이상 Trigger(DI44)를 보내지 않고 루프 탈출
-                    # 현재 시퀀스 스탭 상태: 완료
+                    # (C) 루프 탈출
                     EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.COMPLETED)
                     break 
-
-                else:
-                    # [Normal Trigger Sequence]
                     
-                    # (A) 이번 스텝에서 모터가 움직여야 하는지 미리 계산 (다음 루프의 'Sync Check'를 위해)
+                else:
+                    # [일반 스텝일 경우]
+                    
+                    # (A) 이번 스텝에서 모터가 많이 움직이나? (다음 루프 최적화용)
                     if abs(pose_turntable.angle - current_turntable_angle) > 0.05:
                         prev_motor_active = True
                     else:
-                        prev_motor_active = False # 움직임이 미미하면 안 움직인 것으로 간주 (Wait Motor 스킵)
+                        prev_motor_active = False 
                     
-                    # (B) 로봇에게 트리거 전송 (DI44=True가 포함된 패킷)
+                    # (B) 로봇 트리거 (DI44=True 포함)
+                    # 데이터는 아까(Pre-load) 보냈지만, 트리거를 위해 한 번 더 확실하게 보냅니다.
                     packet_trig, _ = self._calculate_and_pack(
                         current_pose, target_pose, 
                         current_turntable_angle, pose_turntable.angle, pose_turntable.velocity,
                         previous_robot_velocity, 
-                        data_ready=True, start_trigger=True
+                        data_ready=True,    # [Trigger] DI43 High
+                        start_trigger=True  # [Loop]   DI44 High
                     )
                     robot.write_command_packet(packet_trig)
                     
-                    # (C) 턴테이블에게 트리거 전송 (Atomic Write)
+                    # (C) 턴테이블 이동 시작
                     servo.move_turntable_atomic(ServoAxis.TURNTABLE, pose_turntable.angle, pose_turntable.velocity)
                     
-                    # (D) 펄스 리셋 (Trig bit Off)
-                    # 트리거는 펄스 형태여야 하므로, 켜자마자 바로 꺼준다. (Rising Edge 감지용)
-                    robot.write_digital_signal(FanucSignal.SYNC_START_TRIGGER_DI44, False)
+                    # (D) 순수 디지털 신호로도 한 번 더 쏴줍니다 (확실하게)
+                    robot.write_digital_signal(FanucSignal.TRIGGER_DI43, True)
                     
-                    EVENT_BUS.log.message.emit(f" -> [Step {step_idx}] 동시 출발 트리거 완료", "DEBUG")
+                    EVENT_BUS.log.message.emit(f" -> [Step {step_idx}] 출발! (DI43 Trigger)", "DEBUG")
                     
-                    # (E) 현재 위치 정보 갱신 (다음 계산을 위해)
+                    # (E) 다음 이벤트를 잡기 위해 깃발 리셋 (Race Condition 방지)
+                    robot_motion_done_event.clear()
+                    motor_motion_done_event.clear()
+
+                    # (F) 현재 위치 정보 갱신
                     current_pose = target_pose
                     current_turntable_angle = pose_turntable.angle
                     previous_robot_velocity = velocity
 
-            # 현재 시퀀스 스탭 상태: 완료
+            # [종료 처리]
+            # 마지막 스텝의 이동이 끝날 때까지 기다려줍니다. 안 그러면 다 돌기도 전에 "끝!" 이 뜹니다.
+            EVENT_BUS.log.message.emit("마지막 이동이 완료되길 기다리는 중...", "INFO")
+            if not self._wait_event_with_safety(robot_motion_done_event, timeout=self.MOVE_TIMEOUT):
+                EVENT_BUS.log.message.emit("마지막 로봇 이동 대기 시간 초과 (무시하고 종료)", "WARNING")
+            
+            if prev_motor_active:
+                self._wait_event_with_safety(motor_motion_done_event, timeout=self.MOVE_TIMEOUT)
+
+            # 최종 완료 방송
             EVENT_BUS.data.progress_updated.emit(total_steps, total_steps, TaskStatus.COMPLETED)
-            # [Loop End] 모든 시퀀스 수행 완료
-            return True, "작업 완료"
+            return True, "모든 작업이 성공적으로 완료되었습니다."
 
         except InterruptedError as e:
             EVENT_BUS.log.message.emit(f"{self._log_prefix} 작업이 사용자에 의해 중단되었습니다. 장비 정지 신호 전송...", "WARNING")
@@ -918,7 +905,7 @@ class IntegratedExecutor(BaseExecutor):
 
             # 2. 로봇 트리거 리셋 (혹시 켜져 있을 경우)
             try:
-                robot.write_digital_signal(FanucSignal.SYNC_START_TRIGGER_DI44, False)
+                robot.write_digital_signal(FanucSignal.LOOP_DI44, False)
             except: pass
 
             # 3. 서보 비상 정지 (Stop All)
@@ -949,8 +936,8 @@ class IntegratedExecutor(BaseExecutor):
             
             try:
                 # 사용했던 신호(DI43, DI44)는 반드시 끈다. 안 끄면 다음 실행 때 오작동한다
-                robot.write_digital_signal(FanucSignal.DATA_READY_DI43, False)
-                robot.write_digital_signal(FanucSignal.SYNC_START_TRIGGER_DI44, False)
+                robot.write_digital_signal(FanucSignal.TRIGGER_DI43, False)
+                robot.write_digital_signal(FanucSignal.LOOP_DI44, False)
                 
                 # Homing 수행 (항상 원점으로 복귀하여 안전 확보)
                 servo.home_all_safely(timeout=30.0)
