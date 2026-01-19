@@ -106,7 +106,7 @@ class UserCoordinatesViewModel(QObject):
             raw = servo_states[ServoAxis.TURNTABLE]
             off = self._servo_offsets[ServoAxis.TURNTABLE]
             self.user_turntable_pose_changed.emit(ServoPose(raw.angle - off.angle, raw.velocity - off.velocity))
-        
+
 
     # ===============================================
     # View -> ViewModel 호출 메서드 (Commands)
@@ -117,6 +117,7 @@ class UserCoordinatesViewModel(QObject):
         # 입력 필드 초기화 요청 방송
         EVENT_BUS.control.clear_user_inputs.emit("robot")
         EVENT_BUS.log.message.emit(f"{self._log_prefix} 로봇 사용자 좌표계 원점 설정 완료", "INFO")
+
 
     def origin_turntable_pose(self):
         """현재 턴테이블(Axis 3) 위치를 0으로 설정"""
