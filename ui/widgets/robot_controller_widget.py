@@ -59,9 +59,8 @@ class RobotControllerWidget(BaseWidget):
         # 매크로 데이터를 저장해둘 보관함
         self.cached_macro_data: Dict[str, Any] = {}
 
-        # 버튼 참조 변수 미리 초기화
-        self.edit_macro_button = None
-        self.goto_button = None
+        # 버튼 참조 변수를 담을 딕셔너리
+        self.other_buttons: Dict[str, QPushButton] = {}
         self.macro_buttons = []
 
         # BaseWidget의 __init__()이 _init_ui() 호출 → 실제 UI 생성
@@ -73,8 +72,9 @@ class RobotControllerWidget(BaseWidget):
     def set_view_model(self, view_model: "RobotControllerViewModel"):
         """외부에서 뷰모델을 꽂아주는 함수(Setter)"""
         self.vm = view_model
-        
-        # VM의 로컬 시그널 연결
+        if self.vm is None: return
+
+        # VM의 로컬 시그널 연결 
         self.vm.macros_loaded.connect(self._on_macro_data_loaded)
         self.vm.robot_poses_clear.connect(self.clear_widget)
         self.vm.robot_poses_changed.connect(self.safe_update_data)
@@ -91,27 +91,31 @@ class RobotControllerWidget(BaseWidget):
         시그널-슬롯(_on으로 시작하는 메서드) connect를 모아놓음 - 버튼 눌리면 어떤 일을 할 지 약속
         """
 
-        # self.edit_macro_button이 None이 아님을 명시적으로 확인 (Pylance 경고 해결 및 런타임 안정성)
-        assert self.edit_macro_button is not None, "Edit Macro 버튼이 생성되지 않았습니다."
-        self.edit_macro_button.clicked.connect(self._on_edit_macro_button_clicked)
+        # 1. Edit Macro 버튼 연결
+        if btn := self.other_buttons.get("edit_macro"):
+            btn.clicked.connect(self._on_edit_macro_button_clicked)
 
-        # self.goto_button이 None이 아님을 명시적으로 확인 (Pylance 경고 해결 및 런타임 안정성)
-        assert self.goto_button is not None, "GoTo 버튼이 생성되지 않았습니다."
-        self.goto_button.clicked.connect(self._on_goto_btn_clicked) # type: ignore
-
-        # 매크로 버튼 클릭 이벤트 연결
-        # 보관함에 저장된 모든 매크로 버튼에 대해 연결을 수행
+        # 2. 매크로 버튼 클릭 이벤트 연결
         for macro_id, btn in self.macro_btn_map.items():
-            assert btn is not None, f"매크로 버튼 '{macro_id}'이 생성되지 않았습니다."
             # partial을 사용하여 어떤 버튼이 눌렸는지(macro_id)를 함께 넘김
-            btn.clicked.connect(partial(self._on_macro_btn_clicked, macro_id)) # type: ignore
+            btn.clicked.connect(partial(self._on_macro_btn_clicked, macro_id))
+
+        # 3. 기타 제어 버튼 연결 (Home, Stop, Go_To)
+        # 람다나 partial을 쓰지 않고, 명시적 메서드 매핑
+        if btn := self.other_buttons.get("home"):
+            btn.clicked.connect(self._on_home_btn_clicked)
+            
+        if btn := self.other_buttons.get("stop"):
+            btn.clicked.connect(self._on_stop_btn_clicked)
+
+        if btn := self.other_buttons.get("go_to"):
+            btn.clicked.connect(self._on_goto_btn_clicked)
 
         # Feed Rate 값 변경 이벤트 연결
         feed_widget = self.coord_widgets.get('FEED RATE')
         if feed_widget and isinstance(feed_widget, QDoubleSpinBox):
-            # valueChanged는 값이 변경될 때(버튼 클릭 포함) 발생합니다.
-            feed_widget.valueChanged.connect(self._on_feed_rate_changed)            
-
+            # valueChanged는 값이 변경될 때(버튼 클릭 포함) 발생한다.
+            feed_widget.valueChanged.connect(self._on_feed_rate_changed)
 
 
     # ========================================
@@ -179,7 +183,12 @@ class RobotControllerWidget(BaseWidget):
         layout_edit_macro.addStretch(1)
 
         # 레이아웃에 Edit Macro 버튼 영역 넣기
-        layout_edit_macro.addWidget(self._create_edit_macro_button())
+        # 레이아웃에 Edit Macro 버튼 영역 넣기
+        layout_edit_macro.addWidget(self._create_button(
+            title="Edit Macro", 
+            type="special", 
+            target_dict=self.other_buttons
+        ))
 
 
         ################
@@ -224,11 +233,12 @@ class RobotControllerWidget(BaseWidget):
         laytout_macro_buttons.setSpacing(5)
 
         # 매크로 버튼 추가
-        # Arguments: 매크로ID, 기본제목
-        laytout_macro_buttons.addWidget(self._create_macro_button("Macro_1"), 0, 0)
-        laytout_macro_buttons.addWidget(self._create_macro_button("Macro_2"), 0, 1)
-        laytout_macro_buttons.addWidget(self._create_macro_button("Macro_3"), 1, 0)
-        laytout_macro_buttons.addWidget(self._create_macro_button("Macro_4"), 1, 1)
+        # Arguments: 매크로ID, 기본제목, 버튼 저장 딕셔너리, 버튼 키, 추가속성
+        # 매크로 버튼은 별도의 딕셔너리(self.macro_btn_map)에 저장되고, 속성(macro_id)도 추가됨
+        laytout_macro_buttons.addWidget(self._create_button("Macro_1", "general", self.macro_btn_map, key="Macro_1", extra_props={"macro_id": "Macro_1"}), 0, 0)
+        laytout_macro_buttons.addWidget(self._create_button("Macro_2", "general", self.macro_btn_map, key="Macro_2", extra_props={"macro_id": "Macro_2"}), 0, 1)
+        laytout_macro_buttons.addWidget(self._create_button("Macro_3", "general", self.macro_btn_map, key="Macro_3", extra_props={"macro_id": "Macro_3"}), 1, 0)
+        laytout_macro_buttons.addWidget(self._create_button("Macro_4", "general", self.macro_btn_map, key="Macro_4", extra_props={"macro_id": "Macro_4"}), 1, 1)
 
 
         ################
@@ -245,17 +255,21 @@ class RobotControllerWidget(BaseWidget):
         # 레이아웃에 Feed Rate 입력 영역 넣기
         layout_feed.addLayout(self._create_coordinate_input_fields(["FEED RATE",]))
 
-        # Go To 버튼 영역
-        section_go_to = QFrame()
-        section_go_to.setObjectName("section_go_to")
+        # 버튼 영역
+        section_buttons = QFrame()
+        section_buttons.setObjectName("section_robot_execution_buttons")
+        section_buttons.setContentsMargins(5, 5, 5, 5)
 
-        # Go To 버튼 레이아웃
-        layout_go_to = QHBoxLayout(section_go_to)
-        layout_go_to.setContentsMargins(0, 0, 0, 0)
-        layout_go_to.setSpacing(0)
+        # 버튼 레이아웃
+        layout_buttons = QHBoxLayout(section_buttons)
+        layout_buttons.setContentsMargins(0, 0, 0, 0)
+        layout_buttons.setSpacing(10)
 
-        # 레이아웃에 Go To 버튼 넣기
-        layout_go_to.addWidget(self._create_goto_button())
+        # 버튼 레이아웃에 버튼 넣기
+        # 버튼 레이아웃에 버튼 넣기
+        layout_buttons.addWidget(self._create_button("Home", "special", self.other_buttons))
+        layout_buttons.addWidget(self._create_button("Stop", "general", self.other_buttons))
+        layout_buttons.addWidget(self._create_button("Go_To", "special", self.other_buttons))
 
 
 
@@ -267,46 +281,51 @@ class RobotControllerWidget(BaseWidget):
         widgets_layout.addWidget(section_coordinate)
         widgets_layout.addWidget(section_macro_buttons)
         widgets_layout.addWidget(section_feed_rate)
-        widgets_layout.addWidget(section_go_to)
+        widgets_layout.addWidget(section_buttons)
 
         base_group_box.setLayout(widgets_layout)
 
 
         return base_group_box
 
-    def _create_button(self, title: str, type: str) -> QPushButton:
-        button = QPushButton(title.upper())
-        # QSS에서 찾기 쉽게 소문자와 언더스코어를 사용
-        button.setObjectName(title.lower().replace(" ", "_"))
-        button.setProperty("type", type)
-        return button
-
-    def _create_edit_macro_button(self) -> QPushButton:
-        """ Edit Macro 버튼 생성 """
-        # 인스턴스 변수에 버튼 객체 저장
-        self.edit_macro_button = self._create_button(title="Edit Macro", type="special")
-        return self.edit_macro_button
-    
-    def _create_macro_button(self, macro_id: str) -> QPushButton:
-        """ 
-        매크로 버튼 생성
-
-        버튼 제목은 macro_id (나중에 데이터 로드 시 변경됨)
+    def _create_button(
+        self, 
+        title: str, 
+        type: str, 
+        target_dict: Optional[Dict[str, QPushButton]] = None, 
+        key: Optional[str] = None, 
+        extra_props: Optional[Dict[str, Any]] = None
+    ) -> QPushButton:
         """
-        btn = self._create_button(title=macro_id, type="general")
+        [리팩토링] 버튼 생성 로직 통합
+        
+        Args:
+            title: 버튼 텍스트 (자동으로 대문자로 변환됨)
+            type: QSS 스타일 타입 (special / general)
+            target_dict: 버튼 객체를 저장할 딕셔너리 (Optional)
+            key: 딕셔너리 키 (None이면 title을 소문자+언더스코어로 변환해서 사용)
+            extra_props: 추가로 설정할 setProperty 값들 (Optional)
+        """
+        btn = QPushButton(title.upper())
+        
+        # QSS ID 생성 (공백 -> 언더스코어, 소문자)
+        obj_name = title.lower().replace(" ", "_")
+        btn.setObjectName(obj_name)
+        
+        # 타입 설정
+        btn.setProperty("type", type)
 
-        # 버튼을 보관함에 등록(나중에 이름 바꾸기 위해)
-        self.macro_btn_map[macro_id] = btn
+        # 추가 속성 설정 (예: macro_id)
+        if extra_props:
+            for k, v in extra_props.items():
+                btn.setProperty(k, v)
 
-        # 버튼에 id 심기
-        btn.setProperty("macro_id", macro_id)
+        # 딕셔너리에 저장
+        if target_dict is not None:
+            dict_key = key if key else obj_name
+            target_dict[dict_key] = btn
 
         return btn
-
-    def _create_goto_button(self) -> QPushButton:
-        """ GoTo 버튼 생성 """
-        self.goto_button = self._create_button(title="Go To", type="special")
-        return self.goto_button
     
     def _create_coordinate_input_fields(self, axes: list[Union[str, FANUCPoseKey]]) -> QFormLayout:
         """
@@ -493,20 +512,17 @@ class RobotControllerWidget(BaseWidget):
     @pyqtSlot(str, bool)
     def _on_disable_buttons(self, _: str, disable: bool):
         """버튼 활성화/비활성화 처리"""
-        if self.goto_button:
-            self.goto_button.setDisabled(disable)
+        if btn := self.other_buttons.get("go_to"): btn.setDisabled(disable)
+
+        if btn := self.other_buttons.get("home"): btn.setDisabled(disable)
 
     @pyqtSlot(dict)
     def _on_macro_data_loaded(self, data: Dict[str, Any]):
         """매크로 데이터 로드 시그널 처리"""
-        EVENT_BUS.log.message.emit(
-            f"매크로 데이터 로드 완료 (총 {len(data)}개 항목)", 
-            "INFO"
-        )
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 데이터 로드 완료 (총 {len(data)}개 항목)", "INFO")
 
         # 나중에 쓰기 위해 보관함에 저장
         self.cached_macro_data = data
-
 
         # 딕셔너리에 있는 모든 매크로 데이터를 순회
         for macro_id, macro_data in data.items():
@@ -529,17 +545,41 @@ class RobotControllerWidget(BaseWidget):
 
 
     # ===============================================
-    # 사용자 인터랙션 처리 (UI 이벤트)
-    # =============================================== 
+    # 이벤트 슬롯 [물리적 신호 처리]
+    #   - 사용자 입력(클릭, 선택)에 대한 신호 처리
+    # ===============================================
     @pyqtSlot()
     def _on_edit_macro_button_clicked(self):
-        """
-        'Edit Macro' 버튼이 클릭되었을 때 실행할 함수
+        self._handle_edit_macro()
 
-        직접 MacroSettingsDialog 를 연다
-        """
-        if not self.vm: return
+    @pyqtSlot(str)
+    def _on_macro_btn_clicked(self, macro_id: str):
+        self._handle_macro(macro_id)
 
+    @pyqtSlot(float)
+    def _on_feed_rate_changed(self, feed_rate: float):
+        """FEED RATE 스핀박스 값 변경됐을 때"""
+        self._handle_feed_rate(feed_rate)
+
+    @pyqtSlot()
+    def _on_home_btn_clicked(self):
+        self._handle_home()
+
+    @pyqtSlot()
+    def _on_stop_btn_clicked(self):
+        self._handle_stop()
+
+    @pyqtSlot()
+    def _on_goto_btn_clicked(self):
+        self._handle_goto()
+
+
+
+    # ===============================================
+    # 핸들러 [논리적 흐름 담당]
+    #   - 입력 데이터 가공 및 뷰모델 통신
+    # ===============================================
+    def _handle_edit_macro(self):
         EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 편집 다이얼로그(MacroSettingsDialog) 열림", "INFO")
 
         dialog = MacroSettingsDialog(parent=self)
@@ -549,29 +589,18 @@ class RobotControllerWidget(BaseWidget):
         dialog.exec()
 
         # 다이얼로그가 닫히면 이 줄이 실행됨 -> 데이터 새로고침 기능
-        self.vm.load_macro_data()
+        if self.vm: self.vm.load_macro_data()
 
-    @pyqtSlot(str)
-    def _on_macro_btn_clicked(self, macro_id: str):
+    def _handle_macro(self, macro_id: str):
         """
         매크로 버튼 클릭 시: 저장된 좌표 데이터를 입력창에 채워넣음
         """
-        EVENT_BUS.log.message.emit(f"매크로 버튼 클릭됨: {macro_id}", "DEBUG")
-
-        # 1. 저장된 데이터가 있는지 확인
-        if macro_id not in self.cached_macro_data:
-            return
-
+        # 저장된 데이터가 있는지 확인
+        if macro_id not in self.cached_macro_data: return
         macro_data = self.cached_macro_data[macro_id]
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} {macro_id} 매크로 버튼 클릭됨    매크로 데이터: {macro_data}", "DEBUG")
 
-        # 어떤 매크로를 불러왔는지 이름과 함께 기록
-        macro_name = macro_data.get('name', 'No Name')
-        EVENT_BUS.log.message.emit(
-            f"매크로 불러오기: {macro_id} ('{macro_name}') -> 입력창 갱신", 
-            "INFO"
-        )
-
-        # 2. 데이터 -> UI 입력창으로 복사
+        # 데이터 -> UI 입력창으로 복사
         for key_enum in FANUCPoseKey:
             data_key = key_enum.model_key  # 'x'
             widget_key = key_enum.value    # 'X'
@@ -581,6 +610,8 @@ class RobotControllerWidget(BaseWidget):
             
             # 위젯 가져오기
             line_edit = self.coord_widgets.get(widget_key)
+
+            EVENT_BUS.log.message.emit(f"{self.log_prefix} {widget_key} 의 값: {val}", "DEBUG")
             
             if isinstance(line_edit, QLineEdit):
                 # QLineEdit에 값 설정 (소수점 3자리까지)
@@ -589,7 +620,7 @@ class RobotControllerWidget(BaseWidget):
         # 3. 사용자 좌표계(로봇) 원점 설정
         # World Coordinate 기준으로 움직이기 위해 
         # 사용자 좌표계(로봇)를 초기화
-        EVENT_BUS.control.robot_origin_set_requested.emit()
+        # EVENT_BUS.control.robot_origin_set_requested.emit()
 
         # Feed Rate 위젯 값 업데이트(SpinBox 대응)
         feed_widget = self.coord_widgets.get('FEED RATE')
@@ -597,19 +628,22 @@ class RobotControllerWidget(BaseWidget):
             feed_val = macro_data.get('f', 10.0)
             feed_widget.setValue(feed_val)
 
-        EVENT_BUS.log.message.emit(f"UI 업데이트 완료: 매크로 ID({macro_id})", "DEBUG")
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 ID({macro_id}) -> UI 업데이트 완료", "INFO")
 
-    @pyqtSlot(float)
-    def _on_feed_rate_changed(self, feed_rate: float):
+    def _handle_feed_rate(self, feed_rate: float):
         """FEED RATE 스핀박스 값 변경됐을 때"""
         if self.vm:
             self.vm.update_feed_rate(feed_rate)
 
-    @pyqtSlot()
-    def _on_goto_btn_clicked(self):
-        """
-        'GoTo' 버튼이 클릭되었을 때 실행할 함수
-        """
+    def _handle_home(self):
+        if not self.vm: return
+        self.vm.robot_home_manual()
+
+    def _handle_stop(self):
+        if not self.vm: return
+        self.vm.robot_stop_manual()
+
+    def _handle_goto(self):
         if not self.vm: return
 
         try:
@@ -621,7 +655,7 @@ class RobotControllerWidget(BaseWidget):
                 "INFO"
             )
 
-            self.vm.request_move_robot(line_edit_data)
+            self.vm.robot_move_manual(line_edit_data)
 
         except ValueError as e:
             error_msg = "좌표값 입력 오류: 숫자만 입력 가능합니다."
@@ -629,7 +663,6 @@ class RobotControllerWidget(BaseWidget):
 
             # 에러 시그널 방출
             self.error_occurred.emit(error_msg)
-
 
 
 # ==========================================================

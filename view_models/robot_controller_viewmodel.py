@@ -108,7 +108,6 @@ class RobotControllerViewModel(QObject):
     # ===============================================
     # View -> ViewModel 호출 메서드 (Commands)
     # ===============================================
-    @pyqtSlot()
     def load_macro_data(self):
         """매크로 데이터 읽어서 뷰에게 전달"""
 
@@ -128,7 +127,20 @@ class RobotControllerViewModel(QObject):
             self.state_changed.emit(f"매크로 데이터 로드 실패: {e}")
             EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 데이터 로드 실패: {e}", "WARNING")
 
-    def request_move_robot(self, fanuc_pose_obj: FANUCPose):
+    def update_feed_rate(self, feed_rate: float):
+        """"""
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} 로봇 FEED RATE 변경됨: {feed_rate}", "DEBUG")
+        self._plc_service.set_robot_speed(feed_rate)
+
+    def robot_home_manual(self):
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} 로봇 홈 명령 전송 중...", "DEBUG")
+        print("로봇 홈 명령 전송 중...")
+
+    def robot_stop_manual(self):
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} 로봇 정지 명령 전송 중...", "DEBUG")
+        print("로봇 정지 명령 전송 중...")
+
+    def robot_move_manual(self, fanuc_pose_obj: FANUCPose):
         """
         로봇 이동 명령을 PLCService로 위임
         View에서 직접 호출
@@ -152,10 +164,7 @@ class RobotControllerViewModel(QObject):
             self.state_changed.emit(error_msg)
             EVENT_BUS.log.message.emit(f"{self.log_prefix} {error_msg}", "ERROR")
 
-    def update_feed_rate(self, feed_rate: float):
-        """"""
-        EVENT_BUS.log.message.emit(f"{self.log_prefix} 로봇 FEED RATE 변경됨: {feed_rate}", "DEBUG")
-        self._plc_service.set_robot_speed(feed_rate)
+
 
 
     # ===============================================

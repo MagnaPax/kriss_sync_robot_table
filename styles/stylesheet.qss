@@ -387,7 +387,7 @@ QLabel {
 #robot_controller_widget QFrame#section_robot_coordinate, 
 #robot_controller_widget QFrame#section_turtable_coordinate, 
 #robot_controller_widget QFrame#section_macro_buttons, 
-#robot_controller_widget QFrame#section_go_to, 
+#robot_controller_widget QFrame#section_robot_execution_buttons, 
 #robot_controller_widget QFrame#section_feed_rate {
     border: none;
     background: transparent;
