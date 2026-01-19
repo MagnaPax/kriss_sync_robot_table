@@ -286,10 +286,6 @@ class ControlSignals(QObject):
         str (type): "robot", "servo", "all"
     """
 
-    robot_origin_set_requested = pyqtSignal()
-    """사용자 좌표계(로봇) 원점 설정 요청 (Set Origin)"""
-
-
     clear_view_content = pyqtSignal(str)
     """
     현재 화면에 표시된 콘텐츠 초기화

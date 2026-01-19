@@ -49,8 +49,6 @@ class UserCoordinatesViewModel(QObject):
         EVENT_BUS.data.sequence_in_progress.connect(self.origin_buttons_disabled.emit)
         # 파일을 읽으면 모든 사용자 좌표를 0으로 설정
         EVENT_BUS.data.sequence_data_loaded.connect(self.origin_all_pose)
-        # 외부에서 사용자 좌표계(로봇)의 원점 설정을 요청할 때
-        EVENT_BUS.control.robot_origin_set_requested.connect(self.origin_robot_pose)
 
 
 
