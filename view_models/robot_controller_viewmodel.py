@@ -1,13 +1,14 @@
 # view_models/robot_controller_viewmodel.py
-from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
-from models.fanuc_pose_model import FANUCPoseModel, FANUCPose
-from services.macro_service import MacroService
-from config.paths import CONFIG_MACRO_PATH
-from core.event_bus import EVENT_BUS
 from typing import TYPE_CHECKING
+from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
+from core.event_bus import EVENT_BUS
+from config.paths import CONFIG_MACRO_PATH
+from services.macro_service import MacroService
+from models.fanuc_pose_model import FANUCPoseModel, FANUCPose
 
 if TYPE_CHECKING:
     from services.plc_service import PLCService
+
 
 
 class RobotControllerViewModel(QObject):
@@ -37,9 +38,12 @@ class RobotControllerViewModel(QObject):
         self._plc_service = plc_service
         self._macro_service = MacroService()
 
+        # 사용자 좌표계 값 캐싱
+        self._current_user_robot_pose = FANUCPose()
 
         # EventBus 연결
         self._bind_signals()
+
 
 
     def _bind_signals(self):
@@ -61,6 +65,12 @@ class RobotControllerViewModel(QObject):
     def _on_replace_inputs_by_selected_sequence_on_waypoints_table(self, row_data: dict):
         """WaypointsTable에서 선택된 시퀀스를 View에게 전달하여 입력 필드를 채우게 함"""
         self._handle_sequence_selection(row_data)
+
+    @pyqtSlot(object)
+    def _on_user_robot_pose_changed(self, pose: FANUCPose):
+        """UserCoordinatesViewModel로부터 수신한 로봇의 현재 사용자 좌표(User) 캐싱"""
+        self._current_user_robot_pose = pose
+
 
 
     # ===============================================
@@ -118,8 +128,6 @@ class RobotControllerViewModel(QObject):
             self.state_changed.emit(f"매크로 데이터 로드 실패: {e}")
             EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 데이터 로드 실패: {e}", "WARNING")
 
-
-
     def request_move_robot(self, fanuc_pose_obj: FANUCPose):
         """
         로봇 이동 명령을 PLCService로 위임
@@ -133,18 +141,52 @@ class RobotControllerViewModel(QObject):
 
         # PLC 통신을 시작하는 트리거이므로 try-except로 처리
         try:
-            # PLCService 호출
-            # PLCService.move_robot()은 내부적으로 QThread와 Worker를 생성, 
-            # UI 멈춤 없이 비동기로 통신을 수행
-            self._plc_service.move_robot_by_pose(fanuc_pose_obj)
+            # 입력받은 fanuc_pose_obj는 "사용자가 원하는 좌표" 이므로
+            # 현재 상태를 고려하여 "실제로 움직일 거리(Delta)"로 변환한다.
+            target_raw_pose = self._calculate_target_raw_pose(fanuc_pose_obj)
+            
+            self._plc_service.move_robot_by_pose(target_raw_pose)
+            
         except Exception as e:
             error_msg = f"이동 명령 전송 실패: {e}"
             self.state_changed.emit(error_msg)
             EVENT_BUS.log.message.emit(f"{self.log_prefix} {error_msg}", "ERROR")
 
-
     def update_feed_rate(self, feed_rate: float):
         """"""
         EVENT_BUS.log.message.emit(f"{self.log_prefix} 로봇 FEED RATE 변경됨: {feed_rate}", "DEBUG")
-
         self._plc_service.set_robot_speed(feed_rate)
+
+
+    # ===============================================
+    # 헬퍼 메서드
+    # ===============================================
+    def _calculate_target_raw_pose(self, target_user_pose: FANUCPose) -> FANUCPose:
+        """
+        실제 이동 거리(Delta) 계산
+        사용자가 입력한 목표 좌표(User)와 현재 사용자 좌표(User)의 차이(Delta)를 계산한다.
+        Result = TargetUser - CurrentUser
+        """
+        # 현재의 '사용자 좌표값'이 기준이 됨
+        curr_user = self._current_user_robot_pose
+        
+        # 차이(Delta) 계산
+        delta_x = target_user_pose.x - curr_user.x
+        delta_y = target_user_pose.y - curr_user.y
+        delta_z = target_user_pose.z - curr_user.z
+        delta_w = target_user_pose.w - curr_user.w
+        delta_p = target_user_pose.p - curr_user.p
+        delta_r = target_user_pose.r - curr_user.r
+
+        # 실제 목표(증분) 좌표 생성
+        target_delta = FANUCPose(
+            x = delta_x,
+            y = delta_y,
+            z = delta_z,
+            w = delta_w,
+            p = delta_p,
+            r = delta_r
+        )
+        
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} 이동량 계산: Target({target_user_pose}) - Current({curr_user}) = Delta({target_delta})", "DEBUG")
+        return target_delta
