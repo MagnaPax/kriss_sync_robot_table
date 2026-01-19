@@ -35,7 +35,7 @@ from communication.execution_strategies import (
 
 class TwinCATCommander(QObject):
     # =========================================================
-    # 3. 게이트웨이 (The Commander)
+    # Executor 관문
     # =========================================================
     def __init__(self, connector: TwinCATConnector, fanuc: FanucAdapter, servo: ServoAdapter):
         super().__init__()                                  # QObject 초기화
