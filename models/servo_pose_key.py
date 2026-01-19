@@ -39,7 +39,7 @@ class ServoSignal(str, Enum):
         - .path(index) 메서드를 통해 실제 주소를 생성
     """
 
-    # [설정] - 나중에 1,2,3을 끼워넣을 수 있게
+    # [설정] - 나중에 1(공전),2(자전),3(턴테이블)을 끼워넣을 수 있도록
     SERVO_ON     = 'MAIN.bServoOn{}'    # 서보 전원 (BOOL)
     READ_POS_ON  = 'MAIN.bReadPos{}'    # 위치 읽기 활성화 (BOOL)       켜지면 위치가 표시됨
     READ_VEL_ON  = 'MAIN.bReadVel{}'    # 속도 읽기 활성화 (BOOL)       켜지면 속도가 표시됨
@@ -64,7 +64,7 @@ class ServoSignal(str, Enum):
     DONE         = 'MAIN.bDone{}'       # 이동 완료 (Rising Edge) (BOOL)
 
     # [피드백 (Read)]
-    BUSY         = 'MAIN.bBusy{}'       # 이동 중 여부 (BOOL) - 명령 받아도 write ❌
+    BUSY         = 'MAIN.bBusy{}'       # 이동 중 여부 (BOOL)           켜지면 다른 명령 받아도 write 안 함
     ACT_POS      = 'MAIN.Act_pos{}'     # 현재 위치 (LREAL)
     ACT_VEL      = 'MAIN.Act_vel{}'     # 현재 속도 (LREAL)
 

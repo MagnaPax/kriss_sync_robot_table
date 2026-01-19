@@ -85,37 +85,37 @@ class FanucSignal(str, Enum):
     # [입력] Robot <- PLC (보내는 신호: Trigger/DataReady)
     # 키 이름은 FANUCPose.to_struct() 메서드 내부 로직과 일치해야 함
     # =========================================================
-    IMSP =          "IMSP"          # Immediate Stop    즉시 멈춰라(OFF)    즉시 멈춤 신호 해제는 On
+    IMSP =          "IMSP"          # Immediate Stop    즉시 멈춰라(OFF)    On 이면 즉시 멈춤 신호 해제
     HOLD =          "Hold"          # Hold              일시정지
     SFSP =          "SFSP"          # Safety Speed      안전 속도
     ENABLE =        "Enable"        # Enable            동작 실행 가능 여부 확인
     """
     ⬆️ 기본적으로 이 위의 신호가 켜져야 로봇이 동작한다 ⬆️
     """
-    CYCLE_STOP =    "CycleStop"     #                   테스트 중
-    FAULT_RESET =   "FaultReset"    # Fault Reset       (Fault 원인 제거 후) -> 이 신호를 Falling Edge가 되면 정상 상태가 된다. (원인 제거를 안 하면 계속 FAULT 신호가 유지됨)
+    CYCLE_STOP =    "CycleStop"     # (아직 어떤 역할인지 모른다)
+    FAULT_RESET =   "FaultReset"    # Fault Reset       Falling Edge가 되면 정상 상태 (단, 원인 제거를 안 하면 계속 FAULT 신호 유지)
     START =         "Start"         # Start             (아마도) 일시 정지 후 재시작 할 때
     HOME =          "Home"          # Home              (아마도) Home 위치로 이동할 때
     
-    RSR1 =          "RSR1"          # Robot Service Request 1   원격으로 로봇의 TP 프로그램 실행하고 싶을때 사용 (최종적으로 어떤 신호를 사용할지는 미정)
-    RSR2 =          "RSR2"          # Robot Service Request 2   원격으로 로봇의 TP 프로그램 실행하고 싶을때 사용
-    RSR3 =          "RSR3"          # Robot Service Request 3   원격으로 로봇의 TP 프로그램 실행하고 싶을때 사용
-    RSR4 =          "RSR4"          # Robot Service Request 4   원격으로 로봇의 TP 프로그램 실행하고 싶을때 사용
-    RSR5 =          "RSR5"          # Robot Service Request 5   원격으로 로봇의 TP 프로그램 실행하고 싶을때 사용
-    RSR6 =          "RSR6"          # Robot Service Request 6   원격으로 로봇의 TP 프로그램 실행하고 싶을때 사용
-    RSR7 =          "RSR7"          # Robot Service Request 7   원격으로 로봇의 TP 프로그램 실행하고 싶을때 사용
-    RSR8 =          "RSR8"          # Robot Service Request 8   원격으로 로봇의 TP 프로그램 실행하고 싶을때 사용
+    RSR1 =          "RSR1"          # Robot Service Request 1   로봇 TP 프로그램 원격 실행 (최종적으로 몇 번 신호를 사용할지는 미정)
+    RSR2 =          "RSR2"          # Robot Service Request 2   로봇 TP 프로그램 원격 실행
+    RSR3 =          "RSR3"          # Robot Service Request 3   로봇 TP 프로그램 원격 실행
+    RSR4 =          "RSR4"          # Robot Service Request 4   로봇 TP 프로그램 원격 실행
+    RSR5 =          "RSR5"          # Robot Service Request 5   로봇 TP 프로그램 원격 실행
+    RSR6 =          "RSR6"          # Robot Service Request 6   로봇 TP 프로그램 원격 실행
+    RSR7 =          "RSR7"          # Robot Service Request 7   로봇 TP 프로그램 원격 실행
+    RSR8 =          "RSR8"          # Robot Service Request 8   로봇 TP 프로그램 원격 실행
     
-    # DI43: 이동 시작 트리거 (Start Trigger)
-    #       매 스텝마다 데이터 전송 후, Low -> High (Rising Edge)로 펄스를 주어
+    # DI43: 이동 시작 트리거
+    #       매 스텝마다 데이터 전송 후, Low -> High (Rising Edge)로 펄스를 줘서 
     #       로봇에게 시퀀스를 보낸다는 신호
     TRIGGER_DI43 = "DI43"          
     
-    # DI44: 루프 상태 신호 (Loop Signal)
-    #       시퀀스가 시작되면 High로 켜지고, 전체 작업이 끝날 때까지 유지된다.
+    # DI44: 루프 신호
     #       로봇은 이 신호가 켜져 있어야 Handshake 루프를 계속 돈다.
+    #       시퀀스가 시작되면 High로 켜지고 전체 작업이 끝날 때까지 유지됨
     LOOP_DI44 = "DI44"
-    
+
 
     # =========================================================
     # [출력] Robot -> PLC (읽는 신호: Handshake/Status)
