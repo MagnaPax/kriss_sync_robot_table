@@ -45,11 +45,11 @@ class MainViewModel(QObject):
 
         # 2. 하위 뷰모델 생성 및 자원 배분 (Dependency Injection)
         # 서보 제어: 전체 PLC 서비스 전달(비동기 처리 권한)
-        self.servo_control_vm = ServoControlViewModel(self._service)
+        self.servo_controller_vm = ServoControlViewModel(self._service)
         # 좌표 표시: 읽기 전용 UI TODO: 추후 필요시 자원 주입
         self.world_coordinates_vm = WorldCoordinatesViewModel()
         # 목표 위치 설정: 위치 모델 & 전체 PLC 서비스 전달(비동기 처리 권한)
-        self.target_position_vm = RobotControllerViewModel(self.positon_model, self._service)
+        self.robot_controller_vm = RobotControllerViewModel(self.positon_model, self._service)
         # 작업 관리: 시퀀스 파일 서비스 & 전체 PLC 서비스 전달(비동기 처리 권한)
         self.task_manager_vm = TaskManagerViewModel(self.sequence_service, self._service)
         # 사용자 좌표계: 전체 PLC 서비스 전달(비동기 처리 권한)
@@ -60,6 +60,28 @@ class MainViewModel(QObject):
         self.progress_bar_vm = ProgressBarViewModel()
         # 턴테이블 게이지: 독자적인 뷰모델 (EventBus 구독)
         self.turntable_gauge_vm = TurntableGaugeViewModel()
+
+
+        # 3. 뷰모델 간 연결 (사용자 좌표계)
+        # MainViewModel은 Composition Root 역할로서 하위 ViewModel 간의 의존성을 엮어준다.
+
+        # [Robot] 사용자 좌표계 -> 로봇 제어
+        self.user_coordinates_vm.user_robot_pose_changed.connect(
+            self.robot_controller_vm._on_user_robot_pose_changed
+        )
+
+        # [Servo] 사용자 좌표계 -> 서보 제어
+        self.user_coordinates_vm.user_turntable_pose_changed.connect(
+            self.servo_controller_vm._on_user_turntable_pose_changed
+        )
+        self.user_coordinates_vm.user_tool_revolution_changed.connect(
+            self.servo_controller_vm._on_user_tool_revolution_pose_changed
+        )
+        self.user_coordinates_vm.user_tool_rotation_changed.connect(
+            self.servo_controller_vm._on_user_tool_rotation_pose_changed
+        )
+
+
 
 
 
