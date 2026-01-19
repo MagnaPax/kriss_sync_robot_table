@@ -6,10 +6,9 @@ from ui.widgets.turntable_gauge import TurntableGaugeWidget
 from ui.widgets.servo_controller_widget import ServoControllerWidget
 from ui.widgets.robot_controller_widget import RobotControllerWidget
 
-
+# 순환 참조 방지용
 if TYPE_CHECKING:
     from view_models.main_window_viewmodel import MainViewModel
-
 
 
 class LeftPanel(QFrame):
@@ -35,9 +34,10 @@ class LeftPanel(QFrame):
 
         # --- 뷰모델 주입 --- #
         # MainViewModel에서 뷰모델을 꺼내서 주입
-        servo_control.set_view_model(self.vm.servo_control_vm)
-        target_position.set_view_model(self.vm.target_position_vm)
+        servo_control.set_view_model(self.vm.servo_controller_vm)
+        target_position.set_view_model(self.vm.robot_controller_vm)
         self.turntable_gauge.set_view_model(self.vm.turntable_gauge_vm)
+
 
 
         # 바탕 레이아웃에 위젯 추가

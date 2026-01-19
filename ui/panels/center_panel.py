@@ -6,7 +6,6 @@ from ui.widgets.robot_controller_widget import RobotControllerWidget
 from ui.widgets.world_coordinates_widget import WorldCoordinatesWidget
 from ui.widgets.user_coordinates_widget import UserCoordinatesWidget
 
-
 # 순환 참조 방지용
 if TYPE_CHECKING:
     from view_models.main_window_viewmodel import MainViewModel
@@ -31,8 +30,9 @@ class CenterPanel(QFrame):
 
         # --- 뷰모델 주입 --- #
         # MainViewModel에서 뷰모델을 꺼내서 주입
-        target_position.set_view_model(self.vm.target_position_vm)
+        target_position.set_view_model(self.vm.robot_controller_vm)
         world_coordinates.set_view_model(self.vm.world_coordinates_vm)
+
         user_position.set_view_model(self.vm.user_coordinates_vm)
 
 
