@@ -586,6 +586,11 @@ class RobotControllerWidget(BaseWidget):
                 # QLineEdit에 값 설정 (소수점 3자리까지)
                 line_edit.setText(f"{val:.3f}")
 
+        # 3. 사용자 좌표계(로봇) 원점 설정
+        # World Coordinate 기준으로 움직이기 위해 
+        # 사용자 좌표계(로봇)를 초기화
+        EVENT_BUS.control.robot_origin_set_requested.emit()
+
         # Feed Rate 위젯 값 업데이트(SpinBox 대응)
         feed_widget = self.coord_widgets.get('FEED RATE')
         if feed_widget and isinstance(feed_widget, QDoubleSpinBox):

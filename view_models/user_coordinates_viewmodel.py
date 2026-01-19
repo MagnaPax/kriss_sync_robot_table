@@ -49,6 +49,9 @@ class UserCoordinatesViewModel(QObject):
         EVENT_BUS.data.sequence_in_progress.connect(self.origin_buttons_disabled.emit)
         # 파일을 읽으면 모든 사용자 좌표를 0으로 설정
         EVENT_BUS.data.sequence_data_loaded.connect(self.origin_all_pose)
+        # 외부에서 사용자 좌표계(로봇)의 원점 설정을 요청할 때
+        EVENT_BUS.control.robot_origin_set_requested.connect(self.origin_robot_pose)
+
 
 
     # ===============================================
@@ -116,7 +119,7 @@ class UserCoordinatesViewModel(QObject):
         self._robot_offset = self._raw_robot_pose   # 현재 World 좌표를 기준점으로 설정
         # 입력 필드 초기화 요청 방송
         EVENT_BUS.control.clear_user_inputs.emit("robot")
-        EVENT_BUS.log.message.emit(f"{self._log_prefix} 로봇 사용자 좌표계 원점 설정 완료", "INFO")
+        EVENT_BUS.log.message.emit(f"{self._log_prefix} 사용자 좌표계(로봇) 원점 설정 완료", "INFO")
 
 
     def origin_turntable_pose(self):
@@ -125,7 +128,7 @@ class UserCoordinatesViewModel(QObject):
             self._servo_offsets[ServoAxis.TURNTABLE] = self._raw_servo_states[ServoAxis.TURNTABLE]
             # 입력 필드 초기화 요청 방송
             EVENT_BUS.control.clear_user_inputs.emit("servo")
-            EVENT_BUS.log.message.emit(f"{self._log_prefix} 턴테이블(Axis 3) 사용자 좌표계 원점 설정 완료", "INFO")
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 사용자 좌표계(턴테이블) 원점 설정 완료", "INFO")
 
     def origin_all_pose(self):
         """모든 좌표(로봇 + 모든 서보)를 0으로 설정"""
@@ -139,4 +142,4 @@ class UserCoordinatesViewModel(QObject):
         
         # 입력 필드 초기화 요청 방송
         EVENT_BUS.control.clear_user_inputs.emit("all")
-        EVENT_BUS.log.message.emit(f"{self._log_prefix} 모든 장치 사용자 좌표계 원점 설정 완료", "INFO")
+        EVENT_BUS.log.message.emit(f"{self._log_prefix} 사용자 좌표계(로봇, 턴테이블) 원점 설정 완료", "INFO")

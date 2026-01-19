@@ -38,7 +38,7 @@ class RobotControllerViewModel(QObject):
         self._plc_service = plc_service
         self._macro_service = MacroService()
 
-        # 사용자 좌표계 값 캐싱
+        # 사용자 좌표계(로봇) 값 캐싱
         self._current_user_robot_pose = FANUCPose()
 
         # EventBus 연결

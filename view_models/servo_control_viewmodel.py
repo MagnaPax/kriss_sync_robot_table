@@ -36,7 +36,7 @@ class ServoControlViewModel(QObject):
         self._log_prefix = f"[{self.__class__.__name__}]"
         self._plc_service = plc_service
 
-        # 사용자 좌표계 값 캐싱
+        # 사용자 좌표계(서보) 값 캐싱
         self._current_user_servo_states: dict[ServoAxis, ServoPose] = {}
 
         # EventBus 연결
