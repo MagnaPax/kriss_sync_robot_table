@@ -112,25 +112,7 @@ class FanucAdapter:
 
     # ==========================================================================
     # 2. 알림 (Notification): 완료 신호 감지
-    # [원본] 96: def add_device_notification(self, symbol, callback)
     # ==========================================================================
-    def register_calculation_request_callback(self, callback: Callable) -> int:
-        """
-        [Sync Step 1: Calculation Request] 로봇의 계산 요청(DO45) 신호를 감지하기 위한 이벤트를 등록한다.
-        [원본] 430: handle_calc = robot.add_device_notification(SYM_CALC_REQUEST, handle_calculation_request)
-        
-        로봇 PLC가 다음 스텝의 경로 데이터를 계산해달라고 요청할 때 이 알림(Rising Edge)이 발생한다.
-        이 알림이 오면 파이썬(Commander)은 즉시 다음 좌표를 로봇에게 전송(Pre-load)해야 한다.
-            
-        Args:
-            callback: 
-                신호 변화 시 실행될 함수. (notification, data) 형태의 인자를 받음.
-            
-        Returns:
-            int: 이 알림을 나중에 해제할 때 사용할 핸들(Handle) 번호.
-        """
-        return self._register_notification(FanucSignal.CALCULATION_REQUEST.value, callback)
-
     def register_robot_motion_done_callback(self, callback: Callable) -> int:
         """
         [Sync Step 3: Robot Motion Done] 로봇의 물리적 이동 완료(DO46) 신호를 감지하기 위한 이벤트를 등록한다.
@@ -157,12 +139,6 @@ class FanucAdapter:
         except Exception:
             pass
 
-    # 구버전 호환성 유지 (Reference: FanucOnlyExecutor)
-    # FanucOnlyExecutor는 아직 'Handshake'라는 용어를 사용하므로 Alias 제공
-    def register_handshake_callback(self, callback: Callable) -> int:
-        """(호환성 유지용) 구버전 연동을 위해 calculation_request_callback으로 연결함"""
-        return self.register_calculation_request_callback(callback)
-    
     def remove_handshake_callback(self, handle: int):
         # FanucOnlyExecutor에서 호출할 때 특정 심볼을 지우려고 시도할 수 있으므로
         # remove_notification 공용 메서드를 사용하도록 유도
@@ -323,58 +299,3 @@ class FanucAdapter:
             r = self._read_target_axis_value(FANUCPoseKey.R)
         )
 
-
-# ==========================================================
-# Smoke Test
-# ==========================================================
-if __name__ == '__main__':
-    from communication.mock_plc import MockConnection
-    from unittest.mock import MagicMock
-
-    print("=" * 70)
-    print("FanucAdapter 단독 실행 테스트 (Mock)")
-    print("=" * 70)
-
-    # 1. Mock Connector 생성
-    mock_connector = MagicMock(spec=TwinCATConnector)
-    mock_plc = MagicMock(spec=MockConnection)
-    mock_connector.handle = mock_plc
-    
-    adapter = FanucAdapter(mock_connector)
-    print("✅ Adapter 생성 완료")
-
-    # 2. write_command_packet 테스트
-    print("\n[Test 1] write_command_packet")
-    dummy_pose = FANUCPose(x=10.0, y=20.0, z=30.0, w=0, p=0, r=0, f=100.0)
-    dummy_packet = dummy_pose.to_struct(dummy_pose, {'Start': True})
-    
-    adapter.write_command_packet(dummy_packet)
-    
-    # Verify: write_by_name called with struct
-    args, _ = mock_plc.write_by_name.call_args
-    # args[0] should be "MAIN.Robot1._UI1"
-    # args[1] should be the packet
-    # args[2] should be FanucCommandPacket type
-    print(f"   Call args: {args}")
-    assert args[0] == "MAIN.Robot1._UI1"
-    assert isinstance(args[1], FanucCommandPacket)
-    assert args[2] == FanucCommandPacket
-    print("✅ write_command_packet 호출 검증 성공")
-
-    # 3. register_handshake_callback 테스트
-    print("\n[Test 2] register_handshake_callback")
-    def my_callback(n, d):
-        pass
-    
-    adapter.register_handshake_callback(my_callback)
-    
-    # Verify: add_device_notification called
-    args, _ = mock_plc.add_device_notification.call_args
-    print(f"   Call args: {args}")
-    assert args[0] == FanucSignal.CALCULATION_REQUEST.value # "MAIN.Robot1._UO1.DO45"
-    assert args[2] == my_callback
-    print("✅ register_handshake_callback 호출 검증 성공")
-
-    print("\n" + "=" * 70)
-    print("테스트 완료")
-    print("=" * 70)
