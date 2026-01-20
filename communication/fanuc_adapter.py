@@ -358,10 +358,34 @@ class FanucAdapter:
             mask = 1 << i   # Check_X is Bit 0
             lines.append(f"    - Check_{name}:   {'True' if (chk & mask) else 'False'}")
 
-        # 5. 나머지 필드들은 단순 값 출력
-        exclude_fields = {'UI_Byte1', 'UI_Byte2', 'UI_Byte3', 'Check_Bits'}
+        # 5. 축 데이터 (X, Y, Z, W, P, R) 상세 출력
+        #    사용자 요청 포맷: 값 계산 후 High, Low 표시
+        axis_names = ['X', 'Y', 'Z', 'W', 'P', 'R']
+        for i, axis in enumerate(axis_names):
+            high = getattr(packet, f"{axis}_High")
+            low = getattr(packet, f"{axis}_Low")
+            
+            # 값 복원 (High * 65536 + Low) / 1000
+            raw_val = (high * 65536) + low
+            float_val = raw_val / 1000.0
+            
+            # 음수 체크 (Check_Bits 해당 비트가 1이면 음수)
+            if (packet.Check_Bits >> i) & 1:
+                float_val = -float_val
+
+            lines.append(f"  - 실제 이동할 {axis} 거리 (입력값-사용자좌표): {float_val}")
+            lines.append(f"    - {axis}_High:   {high}")
+            lines.append(f"    - {axis}_Low:    {low}")
+
+        # 6. 나머지 필드 (Feed_Low 등)
+        completed_fields = {'UI_Byte1', 'UI_Byte2', 'UI_Byte3', 'Check_Bits'}
+        # 축 관련 필드도 이미 찍었으므로 제외
+        for axis in axis_names:
+            completed_fields.add(f"{axis}_High")
+            completed_fields.add(f"{axis}_Low")
+            
         for field_name, field_type in packet._fields_:
-            if field_name in exclude_fields:
+            if field_name in completed_fields:
                 continue
             value = getattr(packet, field_name)
             lines.append(f"  - {field_name:<10}: {value}")
