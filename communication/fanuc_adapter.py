@@ -338,7 +338,19 @@ class FanucAdapter:
             mask = 1 << i
             lines.append(f"    - RSR{i+1}:       {'True' if (ui2 & mask) else 'False'}")
 
-        # 3. Check_Bits (Negative Checks)
+        # 3. UI_Byte3 (사용하지 않는 신호 + 이동시작 + 루프 + Feed Rate)
+        ui3 = packet.UI_Byte3
+        lines.append(f"  - UI_Byte3: {ui3} (0x{ui3:02X})")
+        lines.append(f"    - PNStrobe:         {'True' if (ui3 & 1) else 'False'}")   # Bit 0
+        lines.append(f"    - Prod start:       {'True' if (ui3 & 2) else 'False'}")   # Bit 1
+        lines.append(f"    - DI43:             {'True' if (ui3 & 4) else 'False'}")   # Bit 2
+        lines.append(f"    - DI44:             {'True' if (ui3 & 8) else 'False'}")   # Bit 3
+        lines.append(f"    - F00:              {'True' if (ui3 & 16) else 'False'}")  # Bit 4
+        lines.append(f"    - F01:              {'True' if (ui3 & 32) else 'False'}")  # Bit 5
+        lines.append(f"    - F02:              {'True' if (ui3 & 64) else 'False'}")  # Bit 6
+        lines.append(f"    - F03:              {'True' if (ui3 & 128) else 'False'}") # Bit 7
+
+        # 4. Check_Bits (Negative Checks)
         chk = packet.Check_Bits
         lines.append(f"  - Check_Bits: {chk} (0x{chk:02X})")
         axis_names = ['X', 'Y', 'Z', 'W', 'P', 'R']
@@ -346,8 +358,8 @@ class FanucAdapter:
             mask = 1 << i   # Check_X is Bit 0
             lines.append(f"    - Check_{name}:   {'True' if (chk & mask) else 'False'}")
 
-        # 4. 나머지 필드들은 단순 값 출력
-        exclude_fields = {'UI_Byte1', 'UI_Byte2', 'Check_Bits'}
+        # 5. 나머지 필드들은 단순 값 출력
+        exclude_fields = {'UI_Byte1', 'UI_Byte2', 'UI_Byte3', 'Check_Bits'}
         for field_name, field_type in packet._fields_:
             if field_name in exclude_fields:
                 continue
