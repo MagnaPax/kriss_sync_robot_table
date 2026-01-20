@@ -47,8 +47,6 @@ class UserCoordinatesViewModel(QObject):
         EVENT_BUS.control.servo_current_motion.connect(self._on_servo_data_received)
         # '시퀀스 실행중' 방송 청취 -> 내 로컬 시그널로 바로 재방송
         EVENT_BUS.data.sequence_in_progress.connect(self.origin_buttons_disabled.emit)
-        # 파일을 읽으면 모든 사용자 좌표를 0으로 설정
-        EVENT_BUS.data.sequence_data_loaded.connect(self.origin_all_pose)
 
 
 
