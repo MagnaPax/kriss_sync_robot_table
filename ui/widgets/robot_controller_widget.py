@@ -107,6 +107,8 @@ class RobotControllerWidget(BaseWidget):
             
         if btn := self.other_buttons.get("stop"):
             btn.clicked.connect(self._on_stop_btn_clicked)
+            # 초기 상태에는 정지할 작업이 없으므로 비활성화
+            btn.setDisabled(True)
 
         if btn := self.other_buttons.get("go_to"):
             btn.clicked.connect(self._on_goto_btn_clicked)
@@ -395,46 +397,87 @@ class RobotControllerWidget(BaseWidget):
     # ===============================================
     # 데이터 처리
     # ===============================================
-    def update_data(self, pose: FANUCPose):
+    def update_data(self, data: Any):
         """
         [Override] BaseWidget.update_data
         실제 UI 업데이트 로직 (safe_update_data에 의해 호출됨)
         """
-        if not pose: return
-        EVENT_BUS.log.message.emit(f"{self.log_prefix} 입력창에 넣을 데이터: {pose}", "DEBUG")
+        if not data: return
+        # EVENT_BUS.log.message.emit(f"{self.log_prefix} update_data: {data}", "DEBUG")
 
-        # FANUCPoseKey를 사용한 동적 매핑
-        # 1. 로봇 좌표 (X, Y, Z, W, P, R)
-        for key_enum in FANUCPoseKey:
-            # Data Key: 'x' (소문자) -> pose.x 접근용
-            data_attr = key_enum.model_key
-            
-            # Widget Key: 'X' (대문자) -> self.coord_widgets 접근용
-            widget_key = key_enum.value
-            
-            # 1) 데이터 가져오기
-            val = getattr(pose, data_attr, 0.0)
-            
-            # 2) 위젯 가져오기
-            if widget := self.coord_widgets.get(widget_key):
-                # 시그널 차단 (피드백 루프 방지)
+        # ---------------------------------------------------------------------
+        # Case 1: FANUCPose 객체 (좌표 업데이트)
+        # ---------------------------------------------------------------------
+        if isinstance(data, FANUCPose):
+            pose = data
+            # EVENT_BUS.log.message.emit(f"{self.log_prefix} 입력창에 넣을 데이터: {pose}", "DEBUG")
+
+            # FANUCPoseKey를 사용한 동적 매핑
+            # 1. 로봇 좌표 (X, Y, Z, W, P, R)
+            for key_enum in FANUCPoseKey:
+                data_attr = key_enum.model_key  # 'x'
+                widget_key = key_enum.value     # 'X'
+                
+                val = getattr(pose, data_attr, 0.0)
+                
+                if widget := self.coord_widgets.get(widget_key):
+                    blocker = widget.blockSignals(True)
+                    if isinstance(widget, QDoubleSpinBox):
+                        widget.setValue(float(val))
+                    elif isinstance(widget, QLineEdit):
+                        widget.setText(str(val))
+                    widget.blockSignals(blocker)
+
+            # 2. Feed Rate
+            if widget := self.coord_widgets.get('FEED RATE'):
                 blocker = widget.blockSignals(True)
-                
-                if isinstance(widget, QDoubleSpinBox):
-                    widget.setValue(float(val))
-                elif isinstance(widget, QLineEdit):
-                    widget.setText(str(val))
-                
+                widget.setValue(pose.f)
                 widget.blockSignals(blocker)
 
-        # 2. Feed Rate (FANUCPoseKey에 없으므로 별도 처리)
-        # 키는 config.data_formats.KEY_ROBOT_FEED_RATE ('f') 이지만
-        # UI 위젯 키는 'FEED RATE'로 되어 있음 -> 이건 유지하거나 상수로 뺄 수 있음
-        # 여기서는 기존 문자열 'FEED RATE'를 그대로 사용 (단, pose.f 로 값은 가져옴)
-        if widget := self.coord_widgets.get('FEED RATE'):
-            blocker = widget.blockSignals(True)
-            widget.setValue(pose.f)
-            widget.blockSignals(blocker)
+        # ---------------------------------------------------------------------
+        # Case 2: Dictionary (상태 업데이트)
+        # ---------------------------------------------------------------------
+        elif isinstance(data, dict):
+            # 1. 상태 플래그 확인
+            is_busy = False
+            
+            if 'is_robot_active' in data:
+                is_busy = data['is_robot_active']
+            elif 'is_sequence_in_progress' in data:
+                is_busy = data['execution_status'] # sequence_in_progress는 (type, bool) 형태가 아니라 딕셔너리로 넘어올 수 있음?
+                # 아니, EVENT_BUS.data.sequence_in_progress.connect(self.disable_buttons.emit) -> _on_disable_buttons -> safe_update_data({'is_robot_active': disable})
+                # 현재는 _on_disable_buttons에서 'is_robot_active' 키로 통일해서 보내고 있음.
+                pass
+
+            # 만약 직접 'is_sequence_in_progress' 키가 넘어온다면 처리
+            if 'is_sequence_in_progress' in data:
+                is_busy = data['is_sequence_in_progress']
+
+            if 'is_robot_active' in data or 'is_sequence_in_progress' in data:
+                
+                # 2. 버튼 상태 제어
+                # 움직이는 중이면(active=True) -> Home/GoTo 비활성, Stop 활성
+                # 멈춰있으면(active=False)   -> Home/GoTo 활성, Stop 비활성
+                
+                if btn := self.other_buttons.get("go_to"): 
+                    btn.setDisabled(is_busy)
+                if btn := self.other_buttons.get("home"): 
+                    btn.setDisabled(is_busy)
+                
+                # Macro 버튼들도 비활성화? (사용자 요청엔 없었지만 안전상 권장)
+                # for btn in self.macro_btn_map.values():
+                #     btn.setDisabled(is_busy)
+
+                # Stop 버튼 제어
+                if btn := self.other_buttons.get("stop"): 
+                    # 시퀀스 실행 중일 때도 Stop은 가능해야 함 (비상정지 성격)
+                    # ServoControllerWidget 예시에서는 시퀀스 중 Stop 비활성화 로직이 있었으나
+                    # 로봇은 Stop이 중요하므로 활성화 유지 (사용자 요청: 움직임 중 Stop 활성)
+                    btn.setEnabled(is_busy)
+
+                # 3. 입력 필드 제어 (안전 장치)
+                for widget in self.coord_widgets.values():
+                    widget.setEnabled(not is_busy)
 
     def clear_widget(self):
         """
@@ -512,9 +555,8 @@ class RobotControllerWidget(BaseWidget):
     @pyqtSlot(str, bool)
     def _on_disable_buttons(self, _: str, disable: bool):
         """버튼 활성화/비활성화 처리"""
-        if btn := self.other_buttons.get("go_to"): btn.setDisabled(disable)
-
-        if btn := self.other_buttons.get("home"): btn.setDisabled(disable)
+        # 로직을 update_data로 위임 (Adapter 역할)
+        self.safe_update_data({'is_robot_active': disable})
 
     @pyqtSlot(dict)
     def _on_macro_data_loaded(self, data: Dict[str, Any]):

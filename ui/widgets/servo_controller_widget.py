@@ -66,7 +66,11 @@ class ServoControllerWidget(BaseWidget):
         """UI 이벤트 바인딩"""
         if btn := self.btn_start: btn.clicked.connect(self._on_start_clicked)
         if btn := self.btn_tt_start: btn.clicked.connect(self._on_tt_start_clicked)
-        if btn := self.btn_stop:  btn.clicked.connect(self._on_stop_clicked)
+        if btn := self.btn_stop:  
+            btn.clicked.connect(self._on_stop_clicked)
+            # 초기 상태에는 정지할 작업이 없으므로 비활성화
+            btn.setDisabled(True)
+
         if btn := self.btn_home:  btn.clicked.connect(self._on_home_clicked)
         if btn := self.btn_reset: btn.clicked.connect(self._on_reset_clicked)
 
