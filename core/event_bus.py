@@ -297,6 +297,9 @@ class ControlSignals(QObject):
     servo_physical_moving_status_changed = pyqtSignal(dict)
     """서보모터의 물리적인 이동 상태 변경 알림"""
 
+    robot_moving_status_changed = pyqtSignal(dict)
+    """로봇의 이동 상태 변경 알림"""
+
 # =============================================================================
 # 2. 실제 QObject
 # =============================================================================
