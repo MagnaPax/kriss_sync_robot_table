@@ -301,7 +301,7 @@ class FanucOnlyExecutor(BaseExecutor):
             robot.validate_robot_ready()
 
             # [Step 1] 첫 번째 위치로 이동!
-            current_pose = robot.get_current_pose_model()
+            current_pose = robot.read_current_world_pose()
             target_pose = FanucPoseModel.from_dict(sequence_data[0])
             target_pose = self._apply_feed_override_safe(target_pose)
 
