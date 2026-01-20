@@ -21,7 +21,7 @@ class ServoControlViewModel(QObject):
     """서보모터 제어용 뷰모델"""
 
     # 로컬 시그널 - View 가 구독
-    busy_state_changed = pyqtSignal(dict)
+    busy_state_changed = pyqtSignal(dict)               # 서보가 움직이고 있는지 아닌지
     servo_inputs_clear = pyqtSignal()                   # 서보 입력 필드 초기화 요청 시그널
     servo_axis_motion_changed = pyqtSignal(dict)        # 서보 축 값 바꾸기
     disable_buttons = pyqtSignal(str, bool)             # 버튼 비활성화
