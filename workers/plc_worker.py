@@ -57,12 +57,12 @@ class PLCWorker(QObject):
 
         # ================================================================================
         # QThread에서 브레이크포인트가 안 잡히는 문제 해결을 위해 디버거 강제 연결
-        # try:
-        #     import debugpy
-        #     debugpy.debug_this_thread()
-        # except (ImportError, Exception):
-        #     # 디버거가 없거나 연결 불가 시 조용히 넘어감
-        #     pass
+        try:
+            import debugpy
+            debugpy.debug_this_thread()
+        except (ImportError, Exception):
+            # 디버거가 없거나 연결 불가 시 조용히 넘어감
+            pass
         # ================================================================================
 
         is_success = False
@@ -89,9 +89,7 @@ class PLCWorker(QObject):
                     msg = self.commander.apply_user_feed_rate_when_moving_robot(float(self.data))
                     is_success = True
                 case 'ROBOT_HOMING':
-                    # is_success, msg = self.commander.home_robot_safely()
-                    is_success = True
-                    msg = "로봇 원점 복귀 호출됨 (임시 구현)"
+                    is_success, msg = self.commander.home_robot()
 
 
                 # --- 서보 전용 제어 명령 (Commander 사용) --- #

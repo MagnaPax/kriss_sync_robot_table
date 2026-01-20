@@ -7,6 +7,10 @@ from communication.twincat_connector import TwinCATConnector
 from models.fanuc_pose_key import FANUCPoseKey, FanucSignal
 from models.fanuc_pose_model import FANUCPose, FanucCommandPacket
 from core.exceptions import RobotFaultError
+from core.exceptions import RobotFaultError
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 # 실제 런타임에는 실행 안 됨
 # 타입 검사기(Pylance)에게만 MockConnection의 존재를 알려줌
@@ -52,18 +56,15 @@ class FanucAdapter:
         return self.connector.handle
 
 
-    # ==========================================================================
-    # 1. 쓰기 (Write): 구조체 전송
-    # ==========================================================================
+    # ===================================================
+    #           쓰기 (Write): 구조체 전송
+    # ===================================================
     def write_command_packet(self, packet: FanucCommandPacket):
         """
         [핵심] 명령 패킷(구조체)을 PLC에 전송
-        
-        [Reference]
-        원본 파일: FANUC_SYNC_CLEAN_renamed(260105).py
-        [원본] 88: def send_robot_command_packet(self, symbol, payload)
-        [원본] 296, 322, 339: robot_controller.send_robot_command_packet(...)
         """
+        log_msg = self._format_packet_log(packet)
+        logger.debug(log_msg)
         # 구조체 타입(FanucCommandPacket)을 명시적으로 전달해야 함
         self._plc.write_by_name("MAIN.Robot1._UI1", packet, FanucCommandPacket)
 
@@ -90,11 +91,6 @@ class FanucAdapter:
         self.write_command_packet(packet)
         time.sleep(0.05)
 
-    def set_finish_signals(self):
-        """[종료] 로봇 시퀀스 종료 신호 전송 (RSR2=False)"""
-        # 초기화와 거의 동일하게 모든 시작 신호를 끔
-        self.set_initial_signals()
-
     def write_initial_signals(self):
         """(Legacy Alias)"""
         self.set_initial_signals()
@@ -108,11 +104,20 @@ class FanucAdapter:
         packet = FANUCPose.create_signal_only_packet(stop_cmd_signals)
         self.write_command_packet(packet)
 
+    def back_to_fanuc_home(self):
+        """[복귀] 로봇 원점 복귀 신호 전송"""
+        cmd_signals = {
+            FanucSignal.IMSP: True, FanucSignal.HOLD: True, FanucSignal.SFSP: True, FanucSignal.ENABLE: True,
+            FanucSignal.CYCLE_STOP: False, FanucSignal.START: False, FanucSignal.RSR2: False, FanucSignal.RSR3: False, FanucSignal.TRIGGER_DI43: False
+        }
+        # 원점 복귀할 때 로봇 좌표는 의미가 없으므로 '신호 전송용 패킷'을 생성해서 보낸다
+        packet = FANUCPose.create_signal_only_packet(cmd_signals)
+        self.write_command_packet(packet)
 
 
-    # ==========================================================================
-    # 2. 알림 (Notification): 완료 신호 감지
-    # ==========================================================================
+    # ===================================================
+    #       알림 (Notification): 완료 신호 감지
+    # ===================================================
     def register_robot_motion_done_callback(self, callback: Callable) -> int:
         """
         [Sync Step 3: Robot Motion Done] 로봇의 물리적 이동 완료(DO46) 신호를 감지하기 위한 이벤트를 등록한다.
@@ -162,9 +167,9 @@ class FanucAdapter:
 
 
 
-    # ==========================================================================
-    # 3. 상태 읽기 (Read): 기존 유지 (Bit-wise)
-    # ==========================================================================
+    # ===================================================
+    #       상태 읽기 (Read): 기존 유지 (Bit-wise)
+    # ===================================================
     # 로봇팀 코드에 '읽기(Output)'용 구조체 정의가 없으므로,
     # 기존에 잘 동작하던 비트 읽기 방식을 유지하는 것이 가장 안전함.
     
@@ -190,9 +195,9 @@ class FanucAdapter:
     # WORLD 좌표: 로봇 발바닥(Base) 기준 절대 좌표
     # TOOL 좌표: 로봇 손끝(TCP: Tool Center Point) 기준 좌표
 
-    # ==========================================================================
-    # 4. 피드백 데이터 읽기
-    # ==========================================================================
+    # ===================================================
+    #           피드백 데이터 읽기
+    # ===================================================
     """
     목적:           로봇이 "실제로 어디에 있는가?" 확인
     데이터 방향:    로봇 → PLC (로봇이 보고함)
@@ -247,9 +252,9 @@ class FanucAdapter:
             r = self._read_axis_value(FANUCPoseKey.R)
         )
 
-    # ==========================================================================
-    # 5. 모니터링 데이터 읽기 <- 값 확인하는 디버깅 용
-    # ==========================================================================
+    # ===================================================
+    #   모니터링 데이터 읽기 <- 값 확인하는 디버깅 용
+    # ===================================================
     """
     목적:           PLC가 로봇에게 "어디로 가라고 시켰는가?" 확인
     데이터 방향:    PLC → 로봇 (PLC가 명령함)

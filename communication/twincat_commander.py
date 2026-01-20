@@ -35,7 +35,7 @@ from communication.execution_strategies import (
 
 class TwinCATCommander(QObject):
     # =========================================================
-    # Executor 관문
+    #           [Executor 선택하기 위한 관문]
     # =========================================================
     def __init__(self, connector: TwinCATConnector, fanuc: FanucAdapter, servo: ServoAdapter):
         super().__init__()                                  # QObject 초기화
@@ -83,76 +83,10 @@ class TwinCATCommander(QObject):
 
 
 
-    # ================================= #
-    # --- 일반 정지 (로봇&서보) --- #
-    # ================================= #
-    def stop_robot_servo_normally(self) -> tuple[bool, str]:
-        """
-        [일반 정지] 로봇과 서보를 정상적으로 정지시킴 (작업 중단 시 사용)
-            - 로봇: CYCLE_STOP 등 부드러운 정지 신호
-            - 서보: 감속 정지
-        """
-        results = []
-        
-        # 1. 로봇 정지
-        if self.robot:
-            try:
-                self.robot.stop_fanuc_normally()
-                results.append(f"{self._log_prefix} 로봇 정지 신호 전송")
-            except Exception as e:
-                results.append(f"{self._log_prefix} 로봇 정지 실패: {e}")
-        
-        # 2. 서보 정지 ( 즉시 정지 요청 활용)
-        if self.servo:
-            try:
-                self.servo.request_immediate_stop()
-                results.append(f"{self._log_prefix} 서보 정지 요청 전송")
-            except Exception as e:
-                results.append(f"{self._log_prefix} 서보 정지 실패: {e}")
 
-        # 서보 바쁨 상태 해제
-        EVENT_BUS.control.servo_physical_moving_status_changed.emit({'is_servo_moving': False})
-        
-        return True, ", ".join(results)
-
-
-    # ================================= #
-    # --- 비상 정지 명령 (로봇&서보)--- #
-    # ================================= #
-    def emergency_stop_servo_and_robot(self) -> tuple[bool, str]:
-        """
-        [비상 정지] 로봇과 서보를 즉시 정지시킴
-        """
-        results = []
-        
-        # 1. 로봇 비상 정지 (CycleStop)
-        if self.robot:
-            try:
-                self.robot.set_emergency_stop()
-                results.append(f"{self._log_prefix} 로봇정지: 성공")
-            except Exception as e:
-                results.append(f"{self._log_prefix} 로봇정지: 실패({e})")
-        else:
-            results.append("로봇정지: 연결없음")
-
-        # 2. 서보 비상 정지 (Power Off)
-        if self.servo:
-            try:
-                self.servo.turn_off_all_servos()
-                results.append(f"{self._log_prefix} 서보정지: 성공 (전원 차단)")
-            except Exception as e:
-                results.append(f"{self._log_prefix} 서보정지: 실패({e})")
-        else:
-            results.append(f"{self._log_prefix} 서보정지: 연결없음")
-            
-        return True, ", ".join(results)
-
-
-
-
-    # ================================= #
-    # --- 로봇에게 내리는 명령들 --- #
-    # ================================= #
+    # ================================================ #
+    #           로봇에게 내리는 명령들 
+    # ================================================ #
     def apply_user_feed_rate_when_moving_robot(self, feed_rate: float) -> str | None:
         """RobotControllerWidget 에서 사용자가 입력한 Feed Rate 값을 FANUC에 적용"""
 
@@ -191,22 +125,25 @@ class TwinCATCommander(QObject):
         """로봇에게 종료/정지 신호 전송"""
         if self.robot:
             try:
-                self.robot.set_finish_signals()
+                self.robot.stop_fanuc_normally()
                 return True, "종료 신호 전송 완료"
             except Exception as e:
-                # 1808: Symbol not found (Servo Only 모드)
-                # 로봇이 없어도 서보 정지 등 후속 작업을 위해 True 반환
-                if "symbol not found" in str(e).lower() or "1808" in str(e):
-                    EVENT_BUS.log.message.emit(f"{self._log_prefix} 로봇 정지 신호 전송 실패 (변수 없음): {e}", "WARNING")
-                    return True, "로봇 연결 없음 (무시됨)"
-
                 return False, f"종료 신호 전송 실패: {e}"
         return False, "로봇이 연결되지 않았습니다."
 
+    def home_robot(self) -> tuple[bool, str]:
+        """로봇 원점 복귀"""
+        if self.robot:
+            try:
+                self.robot.back_to_fanuc_home()
+                return True, "원점 복귀 완료"
+            except Exception as e:
+                return False, f"원점 복귀 실패: {e}"
+        return False, "로봇이 연결되지 않았습니다."
 
-    # ================================= #
-    # --- 서보(Panasonic) 제어 명령 --- #
-    # ================================= #
+    # ================================================ #
+    #           서보 모터에게 내리는 명령들 
+    # ================================================ #
     def is_servo_on(self, axis: ServoAxis) -> bool:
         """서보 전원이 켜져 있는지 확인 (브릿지)"""
         if self.servo:
@@ -232,7 +169,6 @@ class TwinCATCommander(QObject):
         
         return False, f"{self._log_prefix} 서보 어댑터가 연결되지 않았습니다."
 
-
     def home_servos_safely(self) -> tuple[bool, str]:
         """
         [브릿지] 서보의 안전 원점 복귀 절차를 실행하도록 시킴
@@ -253,7 +189,6 @@ class TwinCATCommander(QObject):
         finally:
             # 성공/실패 여부에 상관없이 마지막에는 바쁨 상태 해제
             EVENT_BUS.control.servo_physical_moving_status_changed({'is_servo_moving': False})
-
 
     def reset_servos_safely(self) -> tuple[bool, str]:
         """서보 축의 에러 상태 해제"""
@@ -277,9 +212,9 @@ class TwinCATCommander(QObject):
 
 
 
-    # ================================= #
-    # --- 로봇&서보 공통 명령 --- #
-    # ================================= #
+    # ================================================ #
+    #           로봇&서보 공통 명령 
+    # ================================================ #
     def are_gagets_busy(self) -> bool:
         """로봇이나 턴테이블 중 하나라도 움직이고 있다면 True(바쁨) 반환"""
 
@@ -305,3 +240,59 @@ class TwinCATCommander(QObject):
         # 둘 중 하나라도 바쁘면 시스템은 바쁜 것
         return robot_busy or servo_busy
 
+    def stop_robot_servo_normally(self) -> tuple[bool, str]:
+        """
+        [일반 정지] 로봇과 서보를 정상적으로 정지시킴 (작업 중단 시 사용)
+            - 로봇: CYCLE_STOP 등 부드러운 정지 신호
+            - 서보: 감속 정지
+        """
+        results = []
+        
+        # 1. 로봇 정지
+        if self.robot:
+            try:
+                self.robot.stop_fanuc_normally()
+                results.append(f"{self._log_prefix} 로봇 정지 신호 전송")
+            except Exception as e:
+                results.append(f"{self._log_prefix} 로봇 정지 실패: {e}")
+        
+        # 2. 서보 정지 ( 즉시 정지 요청 활용)
+        if self.servo:
+            try:
+                self.servo.request_immediate_stop()
+                results.append(f"{self._log_prefix} 서보 정지 요청 전송")
+            except Exception as e:
+                results.append(f"{self._log_prefix} 서보 정지 실패: {e}")
+
+        # 서보 바쁨 상태 해제
+        EVENT_BUS.control.servo_physical_moving_status_changed.emit({'is_servo_moving': False})
+        
+        return True, ", ".join(results)
+
+    def emergency_stop_servo_and_robot(self) -> tuple[bool, str]:
+        """
+        [비상 정지] 로봇과 서보를 즉시 정지시킴
+        """
+        results = []
+        
+        # 1. 로봇 비상 정지 (CycleStop)
+        if self.robot:
+            try:
+                self.robot.set_emergency_stop()
+                results.append(f"{self._log_prefix} 로봇정지: 성공")
+            except Exception as e:
+                results.append(f"{self._log_prefix} 로봇정지: 실패({e})")
+        else:
+            results.append("로봇정지: 연결없음")
+
+        # 2. 서보 비상 정지 (Power Off)
+        if self.servo:
+            try:
+                self.servo.turn_off_all_servos()
+                results.append(f"{self._log_prefix} 서보정지: 성공 (전원 차단)")
+            except Exception as e:
+                results.append(f"{self._log_prefix} 서보정지: 실패({e})")
+        else:
+            results.append(f"{self._log_prefix} 서보정지: 연결없음")
+            
+        return True, ", ".join(results)
