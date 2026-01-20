@@ -300,6 +300,9 @@ class FanucOnlyExecutor(BaseExecutor):
             # 로봇 상태 점검
             robot.validate_robot_ready()
 
+            # 로봇 움직임 시작
+            EVENT_BUS.control.robot_moving_status_changed.emit({'is_robot_moving': True})
+
             # [Step 1] 첫 번째 위치로 이동!
             current_pose = robot.read_current_world_pose()
             target_pose = FanucPoseModel.from_dict(sequence_data[0])
@@ -384,7 +387,10 @@ class FanucOnlyExecutor(BaseExecutor):
             return False, f"Error: {e}"
 
         finally:
+            # 시퀀스 종료
             EVENT_BUS.data.sequence_job_finished.emit()
+            # 로봇 움직임 종료
+            EVENT_BUS.control.robot_moving_status_changed.emit({'is_robot_moving': False})
             try:
                 if handle_motion is not None:
                     robot.remove_notification(handle_motion)
