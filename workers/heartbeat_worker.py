@@ -33,8 +33,14 @@ class HeartbeatWorker(QObject):
                     self.connection_lost.emit()
                     break
 
-                # 2초 대기 (sleep은 이 스레드만 멈추므로 UI에 영향 없음)
-                time.sleep(self.interval)
+                # 2초 대기 (빠른 종료 반응을 위해 0.1초 단위로 쪼개서 대기)
+                # time.sleep(self.interval) 대신 아래 로직 사용
+                elapsed = 0.0
+                while elapsed < self.interval:
+                    if not self._is_running:
+                        break
+                    time.sleep(0.1)
+                    elapsed += 0.1
 
             except Exception:
                 # 체크 과정 자체 에러 시 끊김으로 간주

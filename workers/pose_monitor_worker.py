@@ -35,7 +35,10 @@ class PoseMonitorWorker(QObject):
         while self._is_running:
             try:
                 if not self.commander.connector.is_connected:
-                    time.sleep(1.0)
+                    # 연결 끊김 상태일 때 1초 대기 (빠른 종료 반응을 위해 분할 대기)
+                    for _ in range(10):
+                        if not self._is_running: break
+                        time.sleep(0.1)
                     continue
 
                 # 1. 로봇 상태 읽기 (변화 체크 포함)

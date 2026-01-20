@@ -279,7 +279,11 @@ class PLCService(QObject):
         if thread and thread.isRunning():
             thread.quit()     # Thread의 이벤트 루프 종료 요청 - 남아 있는 이벤트 처리 후 종료
             EVENT_BUS.log.message.emit(f"{self._log_prefix} 작업 중인 스레드 종료 요청 (quit)", "DEBUG")
-            # thread.wait(2000) # [제거] UI 스레드에서 wait을 호출하면 화면이 멈춤 (Freezing)
+            
+            # 스레드가 완전히 종료될 때까지 최대 1초 대기 (안전한 종료 보장)
+            # wait을 하지 않으면 앱 종료 시 "Destroyed while thread is still running" 에러 발생
+            if not thread.wait(1000):
+                EVENT_BUS.log.message.emit(f"{self._log_prefix} 스레드가 제시간에 종료되지 않아 강제 종료될 수 있습니다.", "WARNING")
             
         # 해당 ID의 워커를 딕셔너리에서 제거
         if worker_id:
