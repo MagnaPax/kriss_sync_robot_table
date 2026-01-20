@@ -78,7 +78,7 @@ class RobotControllerWidget(BaseWidget):
         self.vm.macros_loaded.connect(self._on_macro_data_loaded)
         self.vm.robot_poses_clear.connect(self.clear_widget)
         self.vm.robot_poses_changed.connect(self.safe_update_data)
-        self.vm.disable_buttons.connect(self._on_disable_buttons)
+        self.vm.sequence_processing_changed.connect(lambda tag, val: self.safe_update_data({tag: val})) # {tag: val} 딕셔너리로 데이터 전달
         
         # 매크로 데이터에서 버튼 제목을 읽어 와야 되기 때문에 UI가 생성된 후에 바로 호출
         self.vm.load_macro_data()
@@ -403,14 +403,14 @@ class RobotControllerWidget(BaseWidget):
         실제 UI 업데이트 로직 (safe_update_data에 의해 호출됨)
         """
         if not data: return
-        # EVENT_BUS.log.message.emit(f"{self.log_prefix} update_data: {data}", "DEBUG")
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} 로봇 컨트롤러 update_data가 받은 데이터: {data}", "DEBUG")
 
         # ---------------------------------------------------------------------
         # Case 1: FANUCPose 객체 (좌표 업데이트)
         # ---------------------------------------------------------------------
         if isinstance(data, FANUCPose):
             pose = data
-            # EVENT_BUS.log.message.emit(f"{self.log_prefix} 입력창에 넣을 데이터: {pose}", "DEBUG")
+            EVENT_BUS.log.message.emit(f"{self.log_prefix} 입력창에 넣을 데이터: {pose}", "DEBUG")
 
             # FANUCPoseKey를 사용한 동적 매핑
             # 1. 로봇 좌표 (X, Y, Z, W, P, R)
@@ -444,38 +444,24 @@ class RobotControllerWidget(BaseWidget):
             if 'is_robot_active' in data:
                 is_busy = data['is_robot_active']
             elif 'is_sequence_in_progress' in data:
-                is_busy = data['execution_status'] # sequence_in_progress는 (type, bool) 형태가 아니라 딕셔너리로 넘어올 수 있음?
-                # 아니, EVENT_BUS.data.sequence_in_progress.connect(self.disable_buttons.emit) -> _on_disable_buttons -> safe_update_data({'is_robot_active': disable})
-                # 현재는 _on_disable_buttons에서 'is_robot_active' 키로 통일해서 보내고 있음.
-                pass
-
-            # 만약 직접 'is_sequence_in_progress' 키가 넘어온다면 처리
-            if 'is_sequence_in_progress' in data:
                 is_busy = data['is_sequence_in_progress']
 
+            EVENT_BUS.log.message.emit(f"{self.log_prefix} 상태 업데이트 data: {data}, is_busy: {is_busy}", "DEBUG")
+
             if 'is_robot_active' in data or 'is_sequence_in_progress' in data:
-                
-                # 2. 버튼 상태 제어
-                # 움직이는 중이면(active=True) -> Home/GoTo 비활성, Stop 활성
-                # 멈춰있으면(active=False)   -> Home/GoTo 활성, Stop 비활성
-                
-                if btn := self.other_buttons.get("go_to"): 
-                    btn.setDisabled(is_busy)
-                if btn := self.other_buttons.get("home"): 
-                    btn.setDisabled(is_busy)
-                
-                # Macro 버튼들도 비활성화? (사용자 요청엔 없었지만 안전상 권장)
-                # for btn in self.macro_btn_map.values():
-                #     btn.setDisabled(is_busy)
 
-                # Stop 버튼 제어
-                if btn := self.other_buttons.get("stop"): 
-                    # 시퀀스 실행 중일 때도 Stop은 가능해야 함 (비상정지 성격)
-                    # ServoControllerWidget 예시에서는 시퀀스 중 Stop 비활성화 로직이 있었으나
-                    # 로봇은 Stop이 중요하므로 활성화 유지 (사용자 요청: 움직임 중 Stop 활성)
-                    btn.setEnabled(is_busy)
+                # 버튼 상태 제어
+                if btn := self.other_buttons.get("home"): btn.setEnabled(not is_busy)
+                if btn := self.other_buttons.get("go_to"): btn.setEnabled(not is_busy)
+                if btn := self.other_buttons.get("stop"): btn.setEnabled(is_busy)
 
-                # 3. 입력 필드 제어 (안전 장치)
+                # STOP 버튼 처리 로직 분기
+                if self.other_buttons.get("stop"):
+                    if 'is_sequence_in_progress' in data and data['is_sequence_in_progress']:
+                        # 시퀀스 진행 중이면 Stop 버튼도 비활성화 (시퀀스 멈춤은 Task Manager 담당)
+                        self.other_buttons.get("stop").setEnabled(not is_busy)
+
+                # 시퀀스가 진행 중이면 입력창들도 비활성화 해서 오작동 방지
                 for widget in self.coord_widgets.values():
                     widget.setEnabled(not is_busy)
 
@@ -552,12 +538,6 @@ class RobotControllerWidget(BaseWidget):
     # ===============================================
     # ViewModel 시그널 수신 (상태 업데이트)
     # =============================================== 
-    @pyqtSlot(str, bool)
-    def _on_disable_buttons(self, _: str, disable: bool):
-        """버튼 활성화/비활성화 처리"""
-        # 로직을 update_data로 위임 (Adapter 역할)
-        self.safe_update_data({'is_robot_active': disable})
-
     @pyqtSlot(dict)
     def _on_macro_data_loaded(self, data: Dict[str, Any]):
         """매크로 데이터 로드 시그널 처리"""
