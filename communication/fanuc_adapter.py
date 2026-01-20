@@ -108,7 +108,7 @@ class FanucAdapter:
         """[복귀] 로봇 원점 복귀 신호 전송"""
         cmd_signals = {
             FanucSignal.IMSP: True, FanucSignal.HOLD: True, FanucSignal.SFSP: True, FanucSignal.ENABLE: True,
-            FanucSignal.CYCLE_STOP: False, FanucSignal.START: False, FanucSignal.RSR2: False, FanucSignal.RSR3: False, FanucSignal.TRIGGER_DI43: False
+            FanucSignal.CYCLE_STOP: False, FanucSignal.START: False, FanucSignal.HOME: True, FanucSignal.RSR2: False, FanucSignal.RSR3: False, FanucSignal.TRIGGER_DI43: False
         }
         # 원점 복귀할 때 로봇 좌표는 의미가 없으므로 '신호 전송용 패킷'을 생성해서 보낸다
         packet = FANUCPose.create_signal_only_packet(cmd_signals)
