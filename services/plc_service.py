@@ -401,7 +401,7 @@ class PLCService(QObject):
         sequence_data = [fanuc_pose_data]
 
         # Worker 호출
-        self._start_worker('MOVE', worker_id=WorkerID.ROBOT_ONLY, data=sequence_data, log_msg=f"FANUC 단독 이동 위한 워커 호출: {fanuc_pose_obj}")
+        self._start_worker('MOVE', worker_id=WorkerID.ROBOT_ONLY, data=sequence_data, log_msg=f"{self._log_prefix} FANUC 단독 이동 위한 워커 호출: {fanuc_pose_obj}")
 
     def set_robot_speed(self, feed_rate: float):
         self._start_worker('SET_ROBOT_SPEED', worker_id=WorkerID.SET_ROBOT_SPEED, data=feed_rate, log_msg=f"로봇 속도 설정 변경 요청: {feed_rate} mm/sec")
