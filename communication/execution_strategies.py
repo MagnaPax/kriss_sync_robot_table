@@ -634,7 +634,7 @@ class ServoOnlyExecutor(BaseExecutor):
                 
                 if moving:
                     busy_detected = True
-                    EVENT_BUS.control.servo_physical_moving_status_changed({'is_servo_moving': True})
+                    EVENT_BUS.control.servo_physical_moving_status_changed.emit({'is_servo_moving': True})
                 else:
                     # 안 움직임? 목표에 이미 가있나?
                     if target_pos is not None:
@@ -691,7 +691,7 @@ class ServoOnlyExecutor(BaseExecutor):
         
         finally:
             # 어쨌든 끝났으니 바쁨 신호는 끈다.
-            EVENT_BUS.control.servo_physical_moving_status_changed({'is_servo_moving': False})
+            EVENT_BUS.control.servo_physical_moving_status_changed.emit({'is_servo_moving': False})
 
     def _is_interrupted(self) -> bool:
         """누가 "그만해!"(정지) 라고 했는지 확인함."""
