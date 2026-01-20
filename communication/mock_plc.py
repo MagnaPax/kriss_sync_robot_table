@@ -12,6 +12,7 @@ class MockConnection:
     Notification(Callback)과 배치 쓰기를 지원하도록 리팩토링됨.
     """
     def __init__(self, ams_net_id: str, port: int):
+        print(f"DEBUG: MockConnection initialized. Has add_device_notification? {hasattr(self, 'add_device_notification')}")
         self.ams_net_id = ams_net_id
         self.port = port
         self.logger = get_logger(__name__)
@@ -38,6 +39,11 @@ class MockConnection:
         
         # for sine wave animation
         self._sim_time = 0.0
+
+        # [Servo Simulation] Control States
+        self._servo_mode: Dict[int, str] = {1: "IDLE", 2: "IDLE", 3: "IDLE"}
+        self._servo_target_vel: Dict[int, float] = {1: 0.0, 2: 0.0, 3: 0.0}
+        self._servo_target_pos: Dict[int, float] = {1: 0.0, 2: 0.0, 3: 0.0}
 
     def open(self):
         self._is_open = True
@@ -122,10 +128,71 @@ class MockConnection:
         # 기본값
         return 0
 
+    # ==========================================================
+    # Write by Name (PLC 명령 수신)
+    # ==========================================================
+    def write_list_by_name(self, data_map: Dict[str, Any]):
+        """여러 변수를 한 번에 쓰기 (Batch Write)"""
+        for name, value in data_map.items():
+            self.write_by_name(name, value, None)
+
     def write_by_name(self, name: str, value: Any, plc_type: Any):
         # self.logger.debug(f"[MOCK] Write: {name} = {value}")
         
-        # [Simulation] 로봇 동작 트리거 감지
+        # ---------------------------------------------------------------------
+        # [Servo Simulation] 서보 제어 신호 가로채기
+        # ---------------------------------------------------------------------
+        if "MAIN." in name:
+            # 1. 목표 속도 설정 (vel1, vel2, vel3)
+            if "vel" in name and "Move" not in name and "Act" not in name:
+                try:
+                    axis = int(name[-1])
+                    self._servo_target_vel[axis] = float(value)
+                except: pass
+
+            # 2. 목표 위치 설정 (pos1, pos2, pos3)
+            elif "pos" in name and "Read" not in name and "Act" not in name:
+                try:
+                    axis = int(name[-1])
+                    self._servo_target_pos[axis] = float(value)
+                except: pass
+
+            # 3. 이동 명령 - 속도 모드 (bMoveVel1, 2, 3)
+            elif "bMoveVel" in name and value is True:
+                try:
+                    axis = int(name[-1])
+                    self._servo_mode[axis] = "VELOCITY"
+                    # self.logger.debug(f"[MOCK] Axis {axis} Velocity Move Start -> Target {self._servo_target_vel[axis]}")
+                except: pass
+
+            # 4. 이동 명령 - 위치 모드 (bMoveAbs1, 2, 3)
+            elif "bMoveAbs" in name and value is True:
+                try:
+                    axis = int(name[-1])
+                    self._servo_mode[axis] = "POSITION"
+                    # self.logger.debug(f"[MOCK] Axis {axis} Position Move Start -> Target {self._servo_target_pos[axis]}")
+                except: pass
+
+            # 5. 정지 명령 (bStop1, 2, 3)
+            elif "bStop" in name and value is True:
+                try:
+                    axis = int(name[-1])
+                    self._servo_mode[axis] = "IDLE"
+                    self._servo_target_vel[axis] = 0.0
+                except: pass
+
+            # 6. 원점 복귀 (bHome1, 2, 3)
+            elif "bHome" in name and value is True:
+                try:
+                    axis = int(name[-1])
+                    self._servo_mode[axis] = "HOMING"
+                    # 3초 뒤에 원점 완료 처리
+                    threading.Timer(3.0, self._finish_homing, args=(axis,)).start()
+                except: pass
+
+        # ---------------------------------------------------------------------
+        # [Robot Simulation] 로봇 동작 트리거 감지
+        # ---------------------------------------------------------------------
         # 1. DI44 (Trigger) Rising Edge
         if "DI44" in name and value is True:
             self._simulate_robot_motion("DI44 Trigger")
@@ -156,13 +223,6 @@ class MockConnection:
             else:
                 self._is_rsr2_active = False
 
-    def write_list_by_name(self, data_map: Dict[str, Any]):
-        """배치 쓰기 모킹"""
-        # self.logger.debug(f"[MOCK] Batch Write: {len(data_map)} items")
-        # 여기서도 트리거가 있는지 확인 가능하지만, 
-        # 현재 IntegratedExecutor는 Servo만 Batch로 쏘고 Robot은 개별 Write함.
-        pass
-
     def write_control(self, ads_state, device_state, data, plc_type):
         """TwinCAT 상태 제어 모킹 (ensure_run_mode 지원)"""
         self.logger.info(f"[MOCK] write_control 호출됨: State={ads_state}")
@@ -185,6 +245,32 @@ class MockConnection:
                 del self._callbacks[handle]
                 # self.logger.debug(f"[MOCK] Notification 해제: {handle}")
 
+    def _fire_notification(self, name_part: str, value: Any):
+        """
+        [내부용] 시뮬레이션 중 값이 바뀌었음을 알리고 콜백 호출
+        name_part: 예) "DO45", "DO46" 등 감지할 이름의 일부
+        value: 변경된 값
+        """
+        # 등록된 모든 콜백을 확인
+        with self._lock:
+            # {handle: (callback, loop_name)}
+            for handle, (cb, loop_name) in self._callbacks.items():
+                # 만약 등록된 변수 이름(loop_name)에 지금 바뀐 이름(name_part)이 포함되어 있다면?
+                if name_part in loop_name:
+                    try:
+                        # 콜백 호출 (handle, value) - execution_strategies.py에서
+                        # 인자 개수에 따라 유연하게 처리하므로 이렇게 넘겨도 됨.
+                        cb(handle, value) 
+                    except Exception as e:
+                        self.logger.error(f"[MOCK] Callback Error: {e}")
+
+    def _finish_homing(self, axis):
+        """원점 복귀 완료 처리"""
+        self._servo_pos[axis] = 0.0
+        self._servo_vel[axis] = 0.0
+        self._servo_mode[axis] = "IDLE"
+        # self.logger.debug(f"[MOCK] Axis {axis} Homing Complete")
+
     # ==========================================================
     # Simulation Logic
     # ==========================================================
@@ -194,6 +280,10 @@ class MockConnection:
         Trigger -> (Wait) -> Calc Req(DO45) -> (Wait) -> Motion Done(DO46)
         """
         self.logger.info(f"[MOCK-SIM] 로봇 동작 시작 ({trigger_source})")
+
+        # [핵심 수정] 기존 신호를 일단 끈다 (Rising Edge 준비)
+        self._fire_notification("DO45", False)
+        self._fire_notification("DO46", False)
         
         # 비동기 지연 실행 (타이머)
         # 1. 0.5초 후: Calc Req (DO45) ON -> "다음 데이터 계산해줘"
@@ -201,7 +291,7 @@ class MockConnection:
         t1.start()
         
         # 2. 1.5초 후: Motion Done (DO46) ON -> "이번 동작 끝났어"
-        # 2. 1.5초 후: Motion Done (DO46) ON -> "이번 동작 끝났어"
+        #    이로써 0 -> 1 변화가 확실해짐
         t2 = threading.Timer(1.5, self._fire_notification, args=("DO46", True))
         t2.start()
 
@@ -210,55 +300,55 @@ class MockConnection:
         t3 = threading.Timer(1.7, self._fire_notification, args=("bDone3", True))
         t3.start()
 
-    def _fire_notification(self, signal_keyword: str, value: Any):
-        """저장된 콜백 중 해당 신호를 구독하는 콜백 실행"""
-        with self._lock:
-            # 복사본으로 순회 (Thread Safe)
-            targets = list(self._callbacks.items())
-            
-        for handle, (callback, loop_name) in targets:
-            # loop_name(심볼)에 signal_keyword(예: DO45)가 포함되어 있으면 콜백 호출
-            if signal_keyword in loop_name:
-                try:
-                    # pyads 콜백 서명: (handle, name, datetime, value)
-                    # 하지만 Adapter에서는 (notification, data) 형태를 기대할 수 있음
-                    # fanuc_adapter.py wrapper: callback(notification, data)
-                    # 여기서는 그냥 단순하게 호출
-                    import datetime
-                    timestamp = datetime.datetime.now()
-                    
-                    # 로깅
-                    # self.logger.debug(f"[MOCK-SIM] Fire {signal_keyword} -> Handle {handle}")
-                    
-                    # 실제 pyads 콜백은 (handle, timestamp, value) 등을 줄 수 있음.
-                    # Adapter 구현: def _cb(n, d): ...
-                    # Mock에서는 편의상 (handle, value) 전달
-                    callback(handle, value)
-                except Exception as e:
-                    self.logger.error(f"[MOCK] Callback Error: {e}")
-
     def _simulation_loop(self):
         """백그라운드에서 센서 데이터 변경 (애니메이션 효과)"""
         import math
         while self._sim_running:
             self._sim_time += 0.1
-            t = self._sim_time
+            dt = 0.1
             
-            # [수정됨] 사용자의 요청으로 가짜 시뮬레이션 값 업데이트 중단
-            # 실제 값만 읽거나 정지 상태 유지
-            
-            # 1. 로봇 좌표 (고정값 유지 or 0)
-            # self._robot_data['X'] = 300.0 + 100.0 * math.cos(t * 0.5)
-            # self._robot_data['Y'] = 100.0 * math.sin(t * 0.5)
-            # self._robot_data['Z'] = 150.0 + 50.0 * math.sin(t * 1.0)
-            
-            # self._robot_data['W'] = 180.0
-            # self._robot_data['P'] = 0.0
-            # self._robot_data['R'] = 0.0
-            
-            # 2. 서보 모터 (고정값 유지)
-            # self._servo_pos[3] = (self._servo_pos[3] + self._servo_vel[3] * 0.1) % 360.0
-            # self._servo_pos[1] = (self._servo_pos[1] + self._servo_vel[1] * 0.1) % 360.0
-            # self._servo_pos[2] = (self._servo_pos[2] + self._servo_vel[2] * 0.1) % 360.0
-            
-            time.sleep(0.1) # 10Hz 업데이트
+            # [Servo Simulation] 물리 엔진 모방
+            for axis in [1, 2, 3]:
+                mode = self._servo_mode.get(axis, "IDLE")
+                current_pos = self._servo_pos.get(axis, 0.0)
+                current_vel = self._servo_vel.get(axis, 0.0)
+                
+                target_vel = self._servo_target_vel.get(axis, 0.0)
+                target_pos = self._servo_target_pos.get(axis, 0.0)
+
+                if mode == "VELOCITY":
+                    # 속도 모드: 목표 속도까지 서서히 가속
+                    # 간단하게: 
+                    new_vel = target_vel # 가속도 무시하고 즉시 도달
+                    new_pos = current_pos + new_vel * dt
+                    
+                    self._servo_vel[axis] = new_vel
+                    self._servo_pos[axis] = new_pos
+                    
+                elif mode == "POSITION":
+                    # 위치 모드: 목표 위치로 이동
+                    dist = target_pos - current_pos
+                    step = target_vel * dt
+                    
+                    if abs(dist) <= step:
+                        # 도착
+                        new_pos = target_pos
+                        new_vel = 0.0
+                    else:
+                        # 이동 중
+                        direction = 1.0 if dist > 0 else -1.0
+                        new_vel = target_vel * direction
+                        new_pos = current_pos + new_vel * dt
+                        
+                    self._servo_vel[axis] = new_vel
+                    self._servo_pos[axis] = new_pos
+                    
+                elif mode == "HOMING":
+                    # 호밍 중에는 속도만 약간 줌
+                    self._servo_vel[axis] = 10.0
+                
+                else:
+                    # IDLE: 정지
+                    self._servo_vel[axis] = 0.0
+
+            time.sleep(dt) # 10Hz 업데이트
