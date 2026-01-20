@@ -115,18 +115,18 @@ class FanucSignal(str, Enum):
     # DI43: 이동 시작 트리거
     #       매 스텝마다 데이터 전송 후, Low -> High (Rising Edge)로 펄스를 줘서 
     #       로봇에게 시퀀스를 보낸다는 신호
-    TRIGGER_DI43 = "DI43"          
+    TRIGGER_DI43 =  "DI43"
     
     # DI44: 루프 신호
     #       로봇은 이 신호가 켜져 있어야 Handshake 루프를 계속 돈다.
     #       시퀀스가 시작되면 High로 켜지고 전체 작업이 끝날 때까지 유지됨
-    LOOP_DI44 = "DI44"
+    LOOP_DI44 =     "DI44"
 
 
-    FEED_RATE_1ST =    "F00"
-    FEED_RATE_2ND =    "F01"
-    FEED_RATE_3RD =    "F02"
-    FEED_RATE_4TH =    "F03"
+    FEED_RATE_1ST = "F00"
+    FEED_RATE_2ND = "F01"
+    FEED_RATE_3RD = "F02"
+    FEED_RATE_4TH = "F03"
 
 
 
