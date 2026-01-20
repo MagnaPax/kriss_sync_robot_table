@@ -310,7 +310,7 @@ class WaypointsWidget(BaseWidget):
 
         if row_data:
             EVENT_BUS.data.waypoints_selected.emit(row_data)
-            EVENT_BUS.log.message.emit(f"{self.log_prefix} 사용자가 선택한 행({row}): {row_data['id']}", "DEBUG")
+            EVENT_BUS.log.message.emit(f"{self.log_prefix} 사용자가 선택한 행({row}): {row_data.get('id', 'Unknown')}", "DEBUG")
 
     @pyqtSlot(int, int, str)
     def _on_progress_updated(self, step: int, total: int, status: str):
