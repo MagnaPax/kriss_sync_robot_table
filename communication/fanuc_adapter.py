@@ -304,3 +304,55 @@ class FanucAdapter:
             r = self._read_target_axis_value(FANUCPoseKey.R)
         )
 
+
+    # ==================
+    #       헬퍼        
+    # ==================
+    def _format_packet_log(self, packet: FanucCommandPacket) -> str:
+        """
+        [로깅 헬퍼] FanucCommandPacket을 사람이 읽기 편한 문자열로 변환 (비트 디코딩 포함)
+        
+        전달 신호로 사용되는 바이트(UI_Byte1, UI_Byte2, Check_Bits)는 비트 단위로 풀어서 보여준다.
+        """
+        lines = []
+        lines.append(f"plc에 쓸 패킷: {packet} 타입: {type(packet)}")
+        
+        # 1. UI_Byte1 (Control Signals)
+        # 128 64 32 16 8 4 2 1
+        # [7] [6] [5] [4] [3] [2] [1] [0] 
+        ui1 = packet.UI_Byte1
+        lines.append(f"  - UI_Byte1: {ui1} (0x{ui1:02X})")
+        lines.append(f"    - IMSP:       {'True' if (ui1 & 1) else 'False'}")   # Bit 0
+        lines.append(f"    - Hold:       {'True' if (ui1 & 2) else 'False'}")   # Bit 1
+        lines.append(f"    - SFSPD:      {'True' if (ui1 & 4) else 'False'}")   # Bit 2
+        lines.append(f"    - Cycle Stop: {'True' if (ui1 & 8) else 'False'}")   # Bit 3
+        lines.append(f"    - Fault Reset:{'True' if (ui1 & 16) else 'False'}")  # Bit 4
+        lines.append(f"    - Start:      {'True' if (ui1 & 32) else 'False'}")  # Bit 5
+        lines.append(f"    - Home:       {'True' if (ui1 & 64) else 'False'}")  # Bit 6
+        lines.append(f"    - Enable:     {'True' if (ui1 & 128) else 'False'}") # Bit 7
+
+        # 2. UI_Byte2 (RSR Signals)
+        ui2 = packet.UI_Byte2
+        lines.append(f"  - UI_Byte2: {ui2} (0x{ui2:02X})")
+        for i in range(8):
+            mask = 1 << i
+            lines.append(f"    - RSR{i+1}:       {'True' if (ui2 & mask) else 'False'}")
+
+        # 3. Check_Bits (Negative Checks)
+        chk = packet.Check_Bits
+        lines.append(f"  - Check_Bits: {chk} (0x{chk:02X})")
+        axis_names = ['X', 'Y', 'Z', 'W', 'P', 'R']
+        for i, name in enumerate(axis_names):
+            mask = 1 << i   # Check_X is Bit 0
+            lines.append(f"    - Check_{name}:   {'True' if (chk & mask) else 'False'}")
+
+        # 4. 나머지 필드들은 단순 값 출력
+        exclude_fields = {'UI_Byte1', 'UI_Byte2', 'Check_Bits'}
+        for field_name, field_type in packet._fields_:
+            if field_name in exclude_fields:
+                continue
+            value = getattr(packet, field_name)
+            lines.append(f"  - {field_name:<10}: {value}")
+            
+        return "\n".join(lines)
+

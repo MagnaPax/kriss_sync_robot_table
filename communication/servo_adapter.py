@@ -7,6 +7,9 @@ from communication.twincat_connector import TwinCATConnector
 from models.servo_pose_key import ServoSignal
 from models.servo_pose_key import ServoAxis
 from core.exceptions import ServoBusyError, ServoFaultError
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 
@@ -256,7 +259,7 @@ class ServoAdapter:
                 self.set_servo_state(axis.value, False)
         except Exception as e:
             # 비상 정지 중 에러는 로깅만 하고 무시 (최대한 끄는 게 중요)
-            print(f"Error during turn_off_all: {e}")
+            logger.error(f"Error during turn_off_all: {e}")
 
 
 
