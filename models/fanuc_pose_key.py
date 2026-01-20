@@ -96,7 +96,8 @@ class FanucSignal(str, Enum):
     FAULT_RESET =   "FaultReset"    # Fault Reset       Falling Edge가 되면 정상 상태 (단, 원인 제거를 안 하면 계속 FAULT 신호 유지)
     START =         "Start"         # Start             (아마도) 일시 정지 후 재시작 할 때
     HOME =          "Home"          # Home              (아마도) Home 위치로 이동할 때
-    
+
+
     RSR1 =          "RSR1"          # Robot Service Request 1   로봇 TP 프로그램 원격 실행 (최종적으로 몇 번 신호를 사용할지는 미정)
     RSR2 =          "RSR2"          # Robot Service Request 2   로봇 TP 프로그램 원격 실행
     RSR3 =          "RSR3"          # Robot Service Request 3   로봇 TP 프로그램 원격 실행
@@ -105,7 +106,12 @@ class FanucSignal(str, Enum):
     RSR6 =          "RSR6"          # Robot Service Request 6   로봇 TP 프로그램 원격 실행
     RSR7 =          "RSR7"          # Robot Service Request 7   로봇 TP 프로그램 원격 실행
     RSR8 =          "RSR8"          # Robot Service Request 8   로봇 TP 프로그램 원격 실행
-    
+
+
+    PNS_STROBE =    "PNStrobe"      # 할당되어 있지만 사용하지는 않음
+    PROD_START =    "ProdStart"     # 할당되어 있지만 사용하지는 않음
+
+
     # DI43: 이동 시작 트리거
     #       매 스텝마다 데이터 전송 후, Low -> High (Rising Edge)로 펄스를 줘서 
     #       로봇에게 시퀀스를 보낸다는 신호
@@ -115,6 +121,13 @@ class FanucSignal(str, Enum):
     #       로봇은 이 신호가 켜져 있어야 Handshake 루프를 계속 돈다.
     #       시퀀스가 시작되면 High로 켜지고 전체 작업이 끝날 때까지 유지됨
     LOOP_DI44 = "DI44"
+
+
+    FEED_RATE_1ST =    "F00"
+    FEED_RATE_2ND =    "F01"
+    FEED_RATE_3RD =    "F02"
+    FEED_RATE_4TH =    "F03"
+
 
 
     # =========================================================
