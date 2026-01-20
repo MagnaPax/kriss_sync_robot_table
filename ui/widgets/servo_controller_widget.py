@@ -60,7 +60,7 @@ class ServoControllerWidget(BaseWidget):
         self.vm.busy_state_changed.connect(self.safe_update_data)
         self.vm.servo_inputs_clear.connect(self.clear_widget)
         self.vm.servo_axis_motion_changed.connect(self.safe_update_data)
-        self.vm.disable_buttons.connect(lambda tag, val: self.safe_update_data({tag: val}))
+        self.vm.disable_buttons.connect(lambda tag, val: self.safe_update_data({tag: val})) # {tag: val} 딕셔너리로 데이터 전달
 
     def _bind_events(self):
         """UI 이벤트 바인딩"""
@@ -222,14 +222,12 @@ class ServoControllerWidget(BaseWidget):
             if self.btn_reset: self.btn_reset.setEnabled(not is_busy)
             
             # STOP 버튼 처리 로직 분기
-            # 1. 시퀀스 실행 중이면 -> STOP 버튼도 비활성화 (TaskManager가 담당)
-            # 2. 단순 서보 구동 중이면 -> STOP 버튼 활성화 (수동 정지 가능)
             if self.btn_stop:
                 if 'is_sequence_in_progress' in data and data['is_sequence_in_progress']:
+                    # 시퀀스 실행 중이면 -> STOP 버튼도 비활성화 (TaskManager가 담당)
                     self.btn_stop.setEnabled(False) 
                 else:
-                    # 시퀀스가 아닐 때는 '바쁠 때만' 활성화 (유휴 상태에선 비활성화 or 항상 활성화 정책에 따름)
-                    # 여기서는 기존 로직대로 '바쁠 때 활성화'로 유지
+                    # 시퀀스가 아닐 때는 '바쁠 때만' 활성화 (수동 정지 가능)
                     self.btn_stop.setEnabled(is_busy)
             
             # 입력창들도 비활성화하여 오작동 방지
