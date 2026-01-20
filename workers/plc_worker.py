@@ -84,10 +84,14 @@ class PLCWorker(QObject):
                     is_success, msg = self.commander.start_robot_plc_signals()
                 case 'ROBOT_STOP':
                     is_success, msg = self.commander.stop_robot_plc_signals()
-                case 'SET_SPEED':
+                case 'SET_ROBOT_SPEED':
                     EVENT_BUS.log.message.emit(f"{self._log_prefix} 이동속도:{self.data}\n데이터 타입: {type(self.data)}", "DEBUG")
                     msg = self.commander.apply_user_feed_rate_when_moving_robot(float(self.data))
                     is_success = True
+                case 'ROBOT_HOMING':
+                    # is_success, msg = self.commander.home_robot_safely()
+                    is_success = True
+                    msg = "로봇 원점 복귀 호출됨 (임시 구현)"
 
 
                 # --- 서보 전용 제어 명령 (Commander 사용) --- #

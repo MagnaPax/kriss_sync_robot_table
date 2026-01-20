@@ -17,16 +17,22 @@ from workers.heartbeat_worker import HeartbeatWorker
 
 
 class WorkerID:
-    """워커 식별자 상수"""
-    SEQUENCE = "robot_servo_sequence"
-    FANUC_ONLY = "fanuc_only"
+    """
+    워커 식별자 상수
+        상수의 값: 워커의 고유 식별자(clean up 할때 사용)
+    """
+    ROBOT_ONLY = "robot_only"
+    ROBOT_STOP = "robot_stop"
+    ROBOT_HOMING = "robot_homing"
+    SET_ROBOT_SPEED = "set_robot_speed"
+
     SERVO_ONLY = "servo_only"
     SERVO_HOME = "home_servo_all"
     SERVO_RESET = "reset_servo_all"
-    SET_SPEED = "set_speed"
-    EMERGENCY = "emergency_stop"
-    ROBOT_STOP = "robot_stop"
     SERVO_STOP = "servo_stop"
+
+    SEQUENCE = "robot_servo_sequence"
+    EMERGENCY = "emergency_stop"
 
 
 class PLCService(QObject):
@@ -395,11 +401,16 @@ class PLCService(QObject):
         sequence_data = [fanuc_pose_data]
 
         # Worker 호출
-        self._start_worker('MOVE', worker_id=WorkerID.FANUC_ONLY, data=sequence_data, log_msg=f"FANUC 단독 이동 위한 워커 호출: {fanuc_pose_obj}")
+        self._start_worker('MOVE', worker_id=WorkerID.ROBOT_ONLY, data=sequence_data, log_msg=f"FANUC 단독 이동 위한 워커 호출: {fanuc_pose_obj}")
 
     def set_robot_speed(self, feed_rate: float):
-        self._start_worker('SET_SPEED', worker_id=WorkerID.SET_SPEED, data=feed_rate, log_msg=f"로봇 속도 설정 변경 요청: {feed_rate} mm/sec")
+        self._start_worker('SET_ROBOT_SPEED', worker_id=WorkerID.SET_ROBOT_SPEED, data=feed_rate, log_msg=f"로봇 속도 설정 변경 요청: {feed_rate} mm/sec")
 
+    def back_to_robot_home(self):
+        self._start_worker('ROBOT_HOMING', worker_id=WorkerID.ROBOT_HOMING, log_msg=f"{self._log_prefix} 로봇 원점 복귀 요청")
+
+    def stop_robot(self):
+        self._start_worker('ROBOT_STOP', worker_id=WorkerID.ROBOT_STOP, log_msg=f"{self._log_prefix} 로봇 정지 요청")
 
     # ==========================================================
     # [비동기] 서보 모터 제어 (Worker 사용)

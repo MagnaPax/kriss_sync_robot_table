@@ -133,12 +133,10 @@ class RobotControllerViewModel(QObject):
         self._plc_service.set_robot_speed(feed_rate)
 
     def robot_home_manual(self):
-        EVENT_BUS.log.message.emit(f"{self.log_prefix} 로봇 홈 명령 전송 중...", "DEBUG")
-        print("로봇 홈 명령 전송 중...")
+        self._plc_service.back_to_robot_home()
 
     def robot_stop_manual(self):
-        EVENT_BUS.log.message.emit(f"{self.log_prefix} 로봇 정지 명령 전송 중...", "DEBUG")
-        print("로봇 정지 명령 전송 중...")
+        self._plc_service.stop_robot()
 
     def robot_move_manual(self, fanuc_pose_obj: FANUCPose):
         """
