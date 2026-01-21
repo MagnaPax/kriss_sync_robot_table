@@ -89,14 +89,15 @@ class ServoControllerWidget(BaseWidget):
         # 그룹박스 생성
         self.servo_group = QGroupBox("Servo Control")
         group_layout = QVBoxLayout(self.servo_group)
-        group_layout.setSpacing(10)
-        group_layout.setContentsMargins(15, 15, 15, 15)
+        group_layout.setSpacing(10) # 내부 요소들 사이 간격
+        group_layout.setContentsMargins(15, 15, 15, 15) # 외곽 여백
+
 
         # 1. 입력 필드 영역 (공전, 자전, 턴테이블)
         input_section = QFrame()
         input_layout = QHBoxLayout(input_section)
-        input_layout.setContentsMargins(0, 0, 0, 0)
-        input_layout.setSpacing(20)
+        input_layout.setSpacing(10) # 레이아웃 내부에 배치된 요소들 사이의 간격
+        input_layout.setContentsMargins(0, 0, 0, 0) # 레이아웃의 외곽 여백(마진)
 
         # 왼쪽: 공전/자전 (RPM)
         tool_layout = QFormLayout()
@@ -106,8 +107,8 @@ class ServoControllerWidget(BaseWidget):
         self.input_widgets[KEY_TOOL_ROT_RPM] = self._create_spinbox(
             SETTINGS.servo.tool_rpm_min, SETTINGS.servo.tool_rpm_max, SETTINGS.servo.tool_rpm_default
         )
-        tool_layout.addRow("공전 (rpm):", self.input_widgets[KEY_TOOL_REV_RPM])
-        tool_layout.addRow("자전 (rpm):", self.input_widgets[KEY_TOOL_ROT_RPM])
+        tool_layout.addRow("공전:", self.input_widgets[KEY_TOOL_REV_RPM])
+        tool_layout.addRow("자전:", self.input_widgets[KEY_TOOL_ROT_RPM])
 
         # 오른쪽: 턴테이블 (각도/RPM)
         tt_layout = QFormLayout()
@@ -117,11 +118,14 @@ class ServoControllerWidget(BaseWidget):
         self.input_widgets[KEY_TURNTABLE_FEED_RATE] = self._create_spinbox(
             SETTINGS.servo.turntable_rpm_min, SETTINGS.servo.turntable_rpm_max, SETTINGS.servo.turntable_rpm_default
         )
-        tt_layout.addRow("턴테이블 각도 (deg):", self.input_widgets[KEY_TURNTABLE_DEG])
-        tt_layout.addRow("턴테이블 속도 (rpm):", self.input_widgets[KEY_TURNTABLE_FEED_RATE])
+        tt_layout.addRow("턴테이블 각도:", self.input_widgets[KEY_TURNTABLE_DEG])
+        tt_layout.addRow("턴테이블 속도:", self.input_widgets[KEY_TURNTABLE_FEED_RATE])
 
+        input_layout.addStretch(1)
         input_layout.addLayout(tool_layout)
+        input_layout.addStretch(1)
         input_layout.addLayout(tt_layout)
+        input_layout.addStretch(1)
 
         # 2. 제어 버튼 영역 (START, STOP, HOME)
         button_section = QFrame()
@@ -141,6 +145,8 @@ class ServoControllerWidget(BaseWidget):
         button_layout.addWidget(self.btn_stop)
         button_layout.addWidget(self.btn_home)
         button_layout.addWidget(self.btn_reset)
+        button_layout.addStretch(1)
+
 
         # 그룹 레이아웃에 섹션 추가
         group_layout.addWidget(input_section)
@@ -156,7 +162,7 @@ class ServoControllerWidget(BaseWidget):
         spin.setSuffix(suffix)
         spin.setDecimals(1)
         spin.setSingleStep(1.0)
-        spin.setFixedWidth(100)
+        spin.setFixedWidth(150)
 
         # 음수 입력 차단 로직 (최소값이 0 이상일 때)
         if min_val >= 0:
