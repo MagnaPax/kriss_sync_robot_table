@@ -20,8 +20,6 @@ from core.event_bus import EVENT_BUS
 from ui.widgets.base_widget import BaseWidget
 from models.fanuc_pose_model import FANUCPose
 from models.fanuc_pose_key import FANUCPoseKey
-from config.data_formats import KEY_ROBOT_FEED_RATE
-from utils.validators import NumericValidator
 from ui.dialogs.macro_settings_dialog import MacroSettingsDialog
 from PyQt6.QtWidgets import QWidget
 
@@ -215,16 +213,17 @@ class RobotControllerWidget(BaseWidget):
             FANUCPoseKey.X, FANUCPoseKey.Y, FANUCPoseKey.Z
         ]))
 
-        # 턴테이블(W, P, R) 입력 영역
-        section_turtable_coordinate = QFrame()
+        # 툴(W, P, R) 입력 영역
+        section_robot_tool_coordinate = QFrame()
+        section_robot_tool_coordinate.setObjectName("section_robot_tool_coordinate")
         # 턴테이블 좌표 입력 섹션에 W, P, R 폼 레이아웃 생성하여 추가
-        section_turtable_coordinate.setLayout(self._create_coordinate_input_fields([
+        section_robot_tool_coordinate.setLayout(self._create_coordinate_input_fields([
             FANUCPoseKey.W, FANUCPoseKey.P, FANUCPoseKey.R
         ]))
 
         # 좌표 입력 레이아웃에 로봇팔, 턴테이블 입력 영역 넣기
         layout_coordinate.addWidget(section_robot_coordinate)
-        layout_coordinate.addWidget(section_turtable_coordinate)
+        layout_coordinate.addWidget(section_robot_tool_coordinate)
 
         # 매크로 버튼 영역
         section_macro_buttons = QFrame()
@@ -338,7 +337,7 @@ class RobotControllerWidget(BaseWidget):
             axes: [FANUCPoseKey.X, ...] 또는 ["FEED RATE"]
 
         반환:
-            QFormLayout: 라벨과 QLineEdit가 채워진 폼 레이아웃
+            QFormLayout: 라벨과 QDoubleSpinBox가 채워진 폼 레이아웃
         """
         form_layout = QFormLayout()
         form_layout.setContentsMargins(5, 5, 5, 5)
@@ -354,38 +353,38 @@ class RobotControllerWidget(BaseWidget):
             
             label = QLabel(f"{axis_name}:")
 
-            if axis_name not in ["FEED RATE"]:
-                # 일반 좌표는 QLineEdit 사용
-                line_edit = QLineEdit()
-                line_edit.setObjectName(f"line_edit_{axis_name}") # QSS 적용을 위한 ID
-                line_edit.setPlaceholderText(f"{axis_name} 값 입력...")
+            # QDoubleSpinBox 사용 (모든 입력 필드 통일)
+            spin_box = QDoubleSpinBox()
+            spin_box.setObjectName(f"spinbox_{axis_name.lower().replace(' ', '_')}")
+            
+            # 기본 설정
+            spin_box.setKeyboardTracking(False) # (엔터, 포커스 이동, 스핀박스 버튼 클릭)만 시그널 발생
+            spin_box.focusInEvent = lambda e, s=spin_box: QTimer.singleShot(0, s.selectAll) # 전체선택
 
-                # 숫자만 입력 가능하도록 유효성 검사기 추가
-                # 에러 발생 시 BaseWidget의 error_occurred 시그널을 통해 알림
-                validator = NumericValidator(
-                    error_callback=lambda msg: self.error_occurred.emit(msg), # type: ignore
-                    parent=line_edit
-                )
-                validator.setDecimals(3) # 소수점 3자리까지 허용
-                line_edit.setValidator(validator)                
-
-                input_widget = line_edit
-
-            else:
-                # feed rate는 QDoubleSpinBox 사용
-                spin_box = QDoubleSpinBox()
-                spin_box.setObjectName(f"spinbox_{axis_name.lower().replace(' ', '_')}")
-
-                # 설정 적용
+            if axis_name == "FEED RATE":
+                # Feed Rate 설정
                 spin_box.setRange(0.0, 1000.0)      # 범위 0 ~ 1000
                 spin_box.setValue(10.0)             # 기본값 10
                 spin_box.setSingleStep(5.0)         # 1회 클릭 시 5씩 증감
+                spin_box.setDecimals(1)             # 소수점 1자리
                 spin_box.setSuffix(" mm/sec")       # 단위 표시
-                spin_box.setKeyboardTracking(False) # (엔터, 포커스 이동, 스핀박스 버튼 클릭)만 시그널 발생
-                spin_box.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons) # Up/Down 화살표 제거
-                spin_box.focusInEvent = lambda e: QTimer.singleShot(0, spin_box.selectAll)  # 전체선택(사용자 입력편의성 향상)
+                
+                # 값 변경 시 이벤트 연결 (Feed Rate만 즉시 반응)
+                spin_box.valueChanged.connect(self._on_feed_rate_changed)
 
-                input_widget = spin_box
+            else:
+                # 좌표 (X, Y, Z, W, P, R) 설정
+                # 범위: 로봇 동작 범위를 고려하여 충분히 넓게 설정
+                spin_box.setRange(-9999.0, 9999.0)  
+                spin_box.setValue(0.0)
+                spin_box.setSingleStep(1.0)
+                spin_box.setDecimals(3)             # 소수점 3자리
+                
+                # 단위 설정 (선택사항 - 공간 문제로 생략 가능하거나 mm/deg 구분 가능)
+                # if axis_name in ["X", "Y", "Z"]: spin_box.setSuffix(" mm")
+                # elif axis_name in ["W", "P", "R"]: spin_box.setSuffix(" deg")
+
+            input_widget = spin_box
 
             # 만든 위젯을 보관함에 저장 (Key: "X", "Y", "FEED RATE" 등 문자열)
             self.coord_widgets[axis_name] = input_widget
@@ -476,25 +475,21 @@ class RobotControllerWidget(BaseWidget):
 
         # 1. 좌표 입력창 초기화
         for axis, widget in self.coord_widgets.items():
-            if isinstance(widget, QLineEdit):
-                widget.setText("0.000")
-            elif isinstance(widget, QDoubleSpinBox):
+            if isinstance(widget, QDoubleSpinBox):
                 # FEED RATE 등 스핀박스인 경우
                 if axis == "FEED RATE":
                     widget.setValue(10.0) # 기본값으로
                 else:
                     widget.setValue(0.0)
+            elif isinstance(widget, QLineEdit): # 혹시 모를 레거시
+                widget.setText("0.000")
 
     def _extract_data_from_ui(self) -> FANUCPose:
         """
-        QLineEdit 객체들에서 데이터만 뽑아서 FANUCPose 객체를 만든다.
-        뷰모델에게 QLineEdit 객체를 넘기지 않고 데이터 뽑아서 넘기는 이유
-            - 워커가 이 객체를 들고 백그라운드 스레드에서 작업하면 스레드 충돌로 에러난다
-            - 뷰모델이 뷰와 결합해서 뷰를 바꿀 때 뷰모델까지 바꿔야 된다
+        QDoubleSpinBox 객체들에서 데이터만 뽑아서 FANUCPose 객체를 만든다.
         """
         data = {}
 
-        # 좌표값 읽기
         # 좌표값 읽기
         for key_enum in FANUCPoseKey:
             widget_key = key_enum.value # "X", "Y", ... (Dictionary Key)
@@ -503,25 +498,23 @@ class RobotControllerWidget(BaseWidget):
             widget = self.coord_widgets.get(widget_key)
 
             if widget:
-                # QLineEdit 전용 로직
-                text = widget.text().strip()
-                val = float(text) if text else 0.0
-                data[data_key] = val
+                if isinstance(widget, QDoubleSpinBox):
+                    data[data_key] = widget.value()
+                elif isinstance(widget, QLineEdit):
+                    text = widget.text().strip()
+                    data[data_key] = float(text) if text else 0.0
             else:
                 data[data_key] = 0.0
 
-        # 위젯 타입에 따라 값 가져오는 방식 분기
+        # Feed Rate 값 가져오기
         feed_widget = self.coord_widgets.get('FEED RATE')
         feed_val = 10.0 # 기본값
 
         if feed_widget:
             if isinstance(feed_widget, QDoubleSpinBox):
-                # SpinBox 는 value()로 float값을 직접 가져옴
                 feed_val = feed_widget.value()
             elif isinstance(feed_widget, QLineEdit):
-                # LineEdit 는 text()로 문자열을 가져옴)
                 text = feed_widget.text().strip()
-                # 값이 비어있으면 10.0을 사용
                 feed_val = float(text) if text else 10.0
         
         return FANUCPose(

@@ -385,7 +385,7 @@ QLabel {
 #robot_controller_widget QFrame#section_edit_macro, 
 #robot_controller_widget QFrame#section_coordinate, 
 #robot_controller_widget QFrame#section_robot_coordinate, 
-#robot_controller_widget QFrame#section_turtable_coordinate, 
+#robot_controller_widget QFrame#section_robot_tool_coordinate, 
 #robot_controller_widget QFrame#section_macro_buttons, 
 #robot_controller_widget QFrame#section_robot_execution_buttons, 
 #robot_controller_widget QFrame#section_feed_rate {
