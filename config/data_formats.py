@@ -65,7 +65,7 @@ CSV_SCHEMA: Dict[str, Dict[str, Any]] = {
     'U':      {'name': KEY_TURNTABLE_DEG,       'type': float},    # 턴테이블 각도 (극좌표계의 θ - deg/sec)
     'X':      {'name': KEY_ROBOT_X,             'type': float},    # 로봇 X축 (극좌표계의 r)
     'Z':      {'name': KEY_ROBOT_Z,             'type': float},    # 로봇 Z축 (파라볼로이드 높이)
-    'A':      {'name': 'unused_data_a',         'type': float},    # 무시 (의미 없는 칼럼)
+    'A':      {'name': 'unused_data_a',         'type': float},    # 의미 없는 칼럼 - parsing 할 때 무시됨
     'B':      {'name': KEY_TOOL_REV_RPM,        'type': float},    # 툴 공전 (툴 스트로크 속도 - rpm)
     'C':      {'name': KEY_TOOL_ROT_RPM,        'type': float},    # 툴 자전
 }
