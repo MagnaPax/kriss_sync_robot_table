@@ -625,13 +625,13 @@ class RobotControllerWidget(BaseWidget):
             val = macro_data.get(data_key, 0.0)
             
             # 위젯 가져오기
-            line_edit = self.coord_widgets.get(widget_key)
+            widget = self.coord_widgets.get(widget_key)
 
             EVENT_BUS.log.message.emit(f"{self.log_prefix} {widget_key} 의 값: {val}", "DEBUG")
             
-            if isinstance(line_edit, QLineEdit):
-                # QLineEdit에 값 설정 (소수점 3자리까지)
-                line_edit.setText(f"{val:.3f}")
+            if isinstance(widget, QDoubleSpinBox):
+                # QDoubleSpinBox에 값 설정 (widget.setDecimals(3)에 의해 소수점 3자리 표시됨)
+                widget.setValue(float(val))
 
         # Feed Rate 위젯 값 업데이트(SpinBox 대응)
         feed_widget = self.coord_widgets.get('FEED RATE')
