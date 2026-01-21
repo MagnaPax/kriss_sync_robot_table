@@ -130,6 +130,10 @@ class SequenceCsvParser(BaseParser):
                     field_name = schema_info['name']
                     data_type = schema_info['type']
 
+                    # 의미 없는 칼럼 A는 무시
+                    if field_name == 'unused_a': 
+                        continue
+
                     if field_name == 'id':
                         sequence_id = value_str # 정수로 변환하지 않고 문자열 키로 유지
                         temp_dict['id'] = int(value_str)
@@ -146,7 +150,7 @@ class SequenceCsvParser(BaseParser):
                                 f"키 '{key}'의 값 '{value_str}'을(를) {data_type.__name__} 타입으로 변환할 수 없습니다."
                             ) from e
 
-            # 기본값(status, result) 추가
+            # 작업 진행 상태 확인을 위한 기본값 추가
             temp_dict.update(DEFAULT_VALUES)
 
             # 유효한 ID가 있으면 결과에 추가
