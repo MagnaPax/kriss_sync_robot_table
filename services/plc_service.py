@@ -276,14 +276,17 @@ class PLCService(QObject):
                 worker_id = None 
     
         # 2. 정리 작업 수행
-        if thread and thread.isRunning():
-            thread.quit()     # Thread의 이벤트 루프 종료 요청 - 남아 있는 이벤트 처리 후 종료
-            EVENT_BUS.log.message.emit(f"{self._log_prefix} 작업 중인 스레드 종료 요청 (quit)", "DEBUG")
-            
-            # 스레드가 완전히 종료될 때까지 최대 1초 대기 (안전한 종료 보장)
-            # wait을 하지 않으면 앱 종료 시 "Destroyed while thread is still running" 에러 발생
-            if not thread.wait(1000):
-                EVENT_BUS.log.message.emit(f"{self._log_prefix} 스레드가 제시간에 종료되지 않아 강제 종료될 수 있습니다.", "WARNING")
+        try:
+            if thread and thread.isRunning():
+                thread.quit()     # Thread의 이벤트 루프 종료 요청 - 남아 있는 이벤트 처리 후 종료
+                EVENT_BUS.log.message.emit(f"{self._log_prefix} 작업 중인 스레드 종료 요청 (quit)", "DEBUG")
+                
+                # 스레드가 완전히 종료될 때까지 최대 1초 대기 (안전한 종료 보장)
+                # wait을 하지 않으면 앱 종료 시 "Destroyed while thread is still running" 에러 발생
+                if not thread.wait(1000):
+                    EVENT_BUS.log.message.emit(f"{self._log_prefix} 스레드가 제시간에 종료되지 않아 강제 종료될 수 있습니다.", "WARNING")
+        except RuntimeError:
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 이미 삭제된 스레드입니다. (Cleanup)", "DEBUG")
             
         # 해당 ID의 워커를 딕셔너리에서 제거
         if worker_id:
@@ -325,8 +328,11 @@ class PLCService(QObject):
                 continue
             
             thread, worker = self._active_workers[w_id]
-            if thread.isRunning():
-                thread.requestInterruption()
+            try:
+                if thread.isRunning():
+                    thread.requestInterruption()
+            except RuntimeError:
+                pass
             
             # _cleanup 호출하여 스레드 종료 대기 및 메모리 정리
             self._cleanup(thread, worker, worker_id=w_id)
@@ -373,8 +379,11 @@ class PLCService(QObject):
         """
         if WorkerID.SEQUENCE in self._active_workers:
             thread, _ = self._active_workers[WorkerID.SEQUENCE]
-            if thread.isRunning():
-                return False
+            try:
+                if thread.isRunning():
+                    return False
+            except RuntimeError:
+                pass
         return True
 
     def is_connected(self):
@@ -452,14 +461,17 @@ class PLCService(QObject):
             # 1. 소프트웨어 루프 중단 - 다음 동작을 하지 않도록(하고 있는 동작은 계속 진행됨)
             if w_id in self._active_workers:
                 thread, _ = self._active_workers[w_id]
-                if thread.isRunning():
-                    # thread.requestInterruption()을 호출하면 ->
-                    # 워커 내부 루프(while not isInterruptionRequested())가 깨지고 ->
-                    # process_... 메서드가 리턴(종료)되면 ->
-                    # PLCWorker.run() 메서드가 끝나면서 finished 시그널 방출 ->
-                    # _create_worker를 통해 스레드를 만들 때 연결해둔 _cleanup이 자동으로 호출됨
-                    thread.requestInterruption()
-                    EVENT_BUS.log.message.emit(f"{self._log_prefix} 진행 중인 서보 모터 작업 루프 종료", "INFO")
+                try:
+                    if thread.isRunning():
+                        # thread.requestInterruption()을 호출하면 ->
+                        # 워커 내부 루프(while not isInterruptionRequested())가 깨지고 ->
+                        # process_... 메서드가 리턴(종료)되면 ->
+                        # PLCWorker.run() 메서드가 끝나면서 finished 시그널 방출 ->
+                        # _create_worker를 통해 스레드를 만들 때 연결해둔 _cleanup이 자동으로 호출됨
+                        thread.requestInterruption()
+                        EVENT_BUS.log.message.emit(f"{self._log_prefix} 진행 중인 서보 모터 작업 루프 종료", "INFO")
+                except RuntimeError:
+                    pass
 
 
         # 2. 물리적 장비 정지 명령 전송 - PLC에게 정지 신호 보내기
@@ -505,17 +517,20 @@ class PLCService(QObject):
             # 현재 돌고있는 스레드 중에서 `WorkerID.SEQUENCE` 이름으로 돌고 있는 스레드와 워커 객체만 뽑아오기
             thread, worker = self._active_workers[WorkerID.SEQUENCE]
             
-            if thread.isRunning():
-                # 여기서 requestInterruption()을 호출하면 -> 
-                # 워커 내부 루프 종료 -> 
-                # run() 리턴 ->
-                # finished 시그널 방출 -> 
-                # 스레드를 만들 때(_create_worker) 연결을 예약해둔 _cleanup 자동 호출 ->
-                # 딕셔너리(self._active_workers)에서 해당 스레드/워커 제거 및 메모리 해제
-                # 즉, 여기서 명시적으로 _cleanup을 부르지 않아도 알아서 정리됨. (오히려 부르면 충돌남)
-                thread.requestInterruption()
-                
-                EVENT_BUS.log.message.emit(f"{self._log_prefix} 진행 중인 시퀀스 작업 루프 종료", "INFO")
+            try:
+                if thread.isRunning():
+                    # 여기서 requestInterruption()을 호출하면 -> 
+                    # 워커 내부 루프 종료 -> 
+                    # run() 리턴 ->
+                    # finished 시그널 방출 -> 
+                    # 스레드를 만들 때(_create_worker) 연결을 예약해둔 _cleanup 자동 호출 ->
+                    # 딕셔너리(self._active_workers)에서 해당 스레드/워커 제거 및 메모리 해제
+                    # 즉, 여기서 명시적으로 _cleanup을 부르지 않아도 알아서 정리됨. (오히려 부르면 충돌남)
+                    thread.requestInterruption()
+                    
+                    EVENT_BUS.log.message.emit(f"{self._log_prefix} 진행 중인 시퀀스 작업 루프 종료", "INFO")
+            except RuntimeError:
+                pass
 
         # 2. 물리적 장비 정지 명령 전송 - PLC에게 정지 신호 보내기
         # _stop_worker 는 _create_worker를 사용해서 워커를 생성하고 정지 신호를 보낸다.
