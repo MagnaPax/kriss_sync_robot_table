@@ -121,7 +121,7 @@ class ServoControllerWidget(BaseWidget):
         tt_layout.addRow("턴테이블 각도:", self.input_widgets[KEY_TURNTABLE_DEG])
         tt_layout.addRow("턴테이블 속도:", self.input_widgets[KEY_TURNTABLE_FEED_RATE])
 
-        input_layout.addStretch(1)
+        input_layout.addStretch(1)  # 빈 공간 채우기
         input_layout.addLayout(tool_layout)
         input_layout.addStretch(1)
         input_layout.addLayout(tt_layout)
