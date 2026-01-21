@@ -36,11 +36,11 @@ KEY_ROBOT_P = 'p'
 KEY_ROBOT_R = 'r'
 
 # 3. 서보 모터(Panasonic) 및 턴테이블 키
-KEY_TOOL_REV_RPM        = 'tool_revolution_rpm'    # 공전
-KEY_TOOL_ROT_RPM        = 'tool_rotation_rpm'      # 자전
-KEY_TURNTABLE_DEG       = 'turntable_deg'          # 턴테이블 각도
-KEY_TURNTABLE_FEED_RATE = 'turntable_feed_rate'    # 턴테이블 속도
-KEY_POLAR_THETA         = 'polar_coord_theta'      # 극좌표 각도 (턴테이블 연동) - Legacy support
+KEY_TOOL_REV_RPM        = 'rev'             # 툴 공전
+KEY_TOOL_ROT_RPM        = 'rot'             # 툴 자전
+KEY_TURNTABLE_DEG       = 'tt_deg'          # 턴테이블 각도
+KEY_TURNTABLE_FEED_RATE = 'tt_feed_rate'    # 턴테이블 속도
+KEY_POLAR_THETA         = 'polar_coord_theta' # 극좌표 각도 (턴테이블 연동) - Legacy support
 
 # 4. 특수 목적 키 (CSV/Legacy 통합용)
 KEY_POLAR_RADIUS    = 'polar_coord_radius'
