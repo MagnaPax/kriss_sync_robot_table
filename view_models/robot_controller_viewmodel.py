@@ -114,19 +114,18 @@ class RobotControllerViewModel(QObject):
         """매크로 데이터 읽어서 뷰에게 전달"""
 
         try:
-            # 서비스한테 시킴
+            # 파일 읽는 것 서비스한테 시킴
             macro_data = self._macro_service.load_macro(CONFIG_MACRO_PATH)
 
             if macro_data:
+                # 매크로 데이터 로컬 시그널에 실어서 emit (뷰가 connect해서 사용)
                 self.macros_loaded.emit(macro_data)
                 EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 데이터 로드 성공(매크로 버튼 제목을 뽑아오기 위함)", "INFO")
                 
             else:
-                self.state_changed.emit("매크로 데이터 로드 실패")
                 EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 데이터 로드 실패", "WARNING")
 
         except Exception as e:
-            self.state_changed.emit(f"매크로 데이터 로드 실패: {e}")
             EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 데이터 로드 실패: {e}", "WARNING")
 
     def update_feed_rate(self, feed_rate: float):
@@ -141,16 +140,7 @@ class RobotControllerViewModel(QObject):
         self._plc_service.stop_robot()
 
     def robot_move_manual(self, fanuc_pose_obj: FANUCPose):
-        """
-        로봇 이동 명령을 PLCService로 위임
-        View에서 직접 호출
-        """
-
-        # 상태 알림
-        #   사용자에게 명령이 시스템으로 전송됐다는 피드백 주기 위해
-        # View에게 전화 걸어서 알림
-        self.state_changed.emit(f"이동 명령 전송 중... (좌표: {fanuc_pose_obj})")
-
+        """로봇 이동 명령을 PLCService로 위임"""
         # PLC 통신을 시작하는 트리거이므로 try-except로 처리
         try:
             # 입력받은 fanuc_pose_obj는 "사용자가 원하는 좌표" 이므로
@@ -161,7 +151,6 @@ class RobotControllerViewModel(QObject):
             
         except Exception as e:
             error_msg = f"이동 명령 전송 실패: {e}"
-            self.state_changed.emit(error_msg)
             EVENT_BUS.log.message.emit(f"{self.log_prefix} {error_msg}", "ERROR")
 
 
