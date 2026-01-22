@@ -168,11 +168,8 @@ class ServoControllerWidget(BaseWidget):
         if min_val >= 0:
             def validate_no_minus(text: str):
                 if '-' in text:
-                    # 1. 시그널 방출 (메인 윈도우에서 팝업)
-                    EVENT_BUS.system.operation_error_alert.emit(
-                        "입력 불가", 
-                        "속도 항목에는 음수(-)를 입력할 수 없습니다."
-                    )
+                    # 1. 에러 시그널 방출
+                    self.error_occurred.emit("속도 항목에는 음수(-)를 입력할 수 없습니다.")
                     # 2. '-' 문자 강제 삭제
                     line_edit = spin.lineEdit()
                     line_edit.blockSignals(True)
