@@ -182,7 +182,7 @@ class ConnSignals(QObject):
     PLC, Robot Controller 등 외부 장비와의 연결 상태를 관리합니다.
     """
     
-    status_changed = pyqtSignal(bool)
+    connection_status_changed = pyqtSignal(bool)
     """
     메인 장비 연결 상태 변경 알림
     

@@ -98,13 +98,13 @@ class MainViewModel(QObject):
         """
 
         # 'connection_status_changed' 라는 주파수에서 방송이 나오면 내 전화기(self.connection_status)로 연결해
-        EVENT_BUS.conn.status_changed.connect(self.connection_status)
+        EVENT_BUS.conn.connection_status_changed.connect(self.connection_status)
 
         # system.error 에서 방송 나오면 _handle_system_error 한테 일 시킴
         EVENT_BUS.system.error.connect(self._handle_system_error)
 
         # connection_status_changed 방송 나오면 _update_twincat_widget_status 한테 일 시킴
-        EVENT_BUS.conn.status_changed.connect(self._update_twincat_widget_status)
+        EVENT_BUS.conn.connection_status_changed.connect(self._update_twincat_widget_status)
 
 
         # --- 초기 상태 동기화 --- #

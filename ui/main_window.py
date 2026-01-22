@@ -149,7 +149,7 @@ class MainWindow(QMainWindow):
                 pass
             
             # TODO: 나중에 다른 공통 이벤트가 생기면 여기서 또 연결하면 된다
-            # widget.status_changed.connect(self.update_status_bar)
+            # widget.connection_status_changed.connect(self.update_status_bar)
 
 
     # ==========================================================

@@ -76,7 +76,7 @@ class PLCService(QObject):
 
 
         # --- 연결 상태 변경 시 모니터링 시작/중지 --- #
-        EVENT_BUS.conn.status_changed.connect(self._on_connectino_changed)
+        EVENT_BUS.conn.connection_status_changed.connect(self._on_connectino_changed)
 
 
         # --- 앱 종료 시 연결 끊기 --- #
@@ -99,7 +99,7 @@ class PLCService(QObject):
         # 3. 실제 연결 끊기
         if self.connector.is_connected:
             self.connector.disconnect()
-            EVENT_BUS.conn.status_changed.emit(False)
+            EVENT_BUS.conn.connection_status_changed.emit(False)
             EVENT_BUS.log.message.emit(f"{self._log_prefix} PLC 연결이 안전하게 해제되었습니다.", "INFO")
 
     def connect_with_retry(self, ui_callback: Optional[Callable[[str, int], None]] = None) -> bool:
@@ -637,7 +637,7 @@ class PLCService(QObject):
         self._stop_heartbeat_worker()
 
         # UI 및 시스템 알림 방송
-        EVENT_BUS.conn.status_changed.emit(False)
+        EVENT_BUS.conn.connection_status_changed.emit(False)
         EVENT_BUS.log.message.emit(f"{self._log_prefix} ⚠️ TwinCAT 연결 끊김 감지! (Heartbeat Lost)", "ERROR")
         # 메세지 형태 바꾸면 안됨 MainViewModel._handle_system_error 에서 확인하는 문자열과 일치해야 함
         EVENT_BUS.system.error.emit("TwinCAT_DISCONNECTED")
