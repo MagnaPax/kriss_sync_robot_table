@@ -71,7 +71,8 @@ class PoseMonitorWorker(QObject):
             EVENT_BUS.control.robot_current_pose.emit(current_pose)
             self._last_robot_pose = current_pose
             
-        except Exception:
+        except Exception as e:
+            EVENT_BUS.log.message.emit(f"Robot Monitor Error: {e}", "ERROR")
             pass
 
     def _check_servo_optimized(self):
@@ -94,11 +95,12 @@ class PoseMonitorWorker(QObject):
             EVENT_BUS.control.servo_current_motion.emit(current_states)
             self._last_servo_states = current_states
             
-        except Exception:
-            pass
+        except Exception as e:
+            EVENT_BUS.log.message.emit(f"Servo Monitor Error: {e}", "ERROR")
+
+
 
     # --- 비교 함수들 ---
-    
     def _is_robot_diff(self, old: FANUCPose | None, new: FANUCPose) -> bool:
         """로봇 좌표가 임계값 이상 변했는지 검사"""
         if old is None: return True # 처음이면 무조건 전송
