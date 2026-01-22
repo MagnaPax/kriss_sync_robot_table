@@ -191,6 +191,25 @@ class MockConnection:
                 except: pass
 
         # ---------------------------------------------------------------------
+        # [MOCK] 개발용 강제 값 주입 (Backdoor)
+        # ---------------------------------------------------------------------
+        if "MOCK.Robot." in name:
+            # 예: MOCK.Robot.X, MOCK.Robot.R 등
+            axis = name.split(".")[-1] # X, Y, Z, W, P, R
+            if axis in self._robot_data:
+                self._robot_data[axis] = float(value)
+                self.logger.info(f"[MOCK-DEV] 로봇 좌표 강제 설정: {axis} = {value}")
+
+        if "MOCK.Servo." in name:
+            # 예: MOCK.Servo.1, MOCK.Servo.2
+            try:
+                axis = int(name.split(".")[-1])
+                if axis in self._servo_pos:
+                    self._servo_pos[axis] = float(value)
+                    self.logger.info(f"[MOCK-DEV] 서보 좌표 강제 설정: Axis {axis} = {value}")
+            except: pass
+
+        # ---------------------------------------------------------------------
         # [Robot Simulation] 로봇 동작 트리거 감지
         # ---------------------------------------------------------------------
         # 1. DI44 (Trigger) Rising Edge
@@ -200,23 +219,24 @@ class MockConnection:
         # 2. _UI1Struct 전송 시 RSR2 (Start) 또는 DI44 (Trigger) 체크
         if "Robot1._UI1" in name:
             triggered = False
+            packet = value # FanucCommandPacket
             
             # (A) DI44 Check (Priority 1: Trigger)
-            if hasattr(value, 'UI_Byte3'):
-                ui3 = getattr(value, 'UI_Byte3', 0)
+            if hasattr(packet, 'UI_Byte3'):
+                ui3 = getattr(packet, 'UI_Byte3', 0)
                 if ui3 & 0x08: # DI44 (1 << 3)
-                    self._simulate_robot_motion("DI44 Trigger (Struct)")
+                    self._simulate_robot_motion("DI44 Trigger (Struct)", move_packet=packet)
                     triggered = True
             
             # (B) RSR2 Check (Priority 2: Output Start - Rising Edge Only)
-            if hasattr(value, 'UI_Byte2'):
-                ui2 = getattr(value, 'UI_Byte2', 0)
+            if hasattr(packet, 'UI_Byte2'):
+                ui2 = getattr(packet, 'UI_Byte2', 0)
                 is_rsr2_high = bool(ui2 & 0x02) # RSR2 (1 << 1)
                 
                 # Rising Edge 감지: 이전에 Low였는데 지금 High일 때만 Trigger
                 if is_rsr2_high and not self._is_rsr2_active:
                     if not triggered: # DI44랑 겹치면 DI44가 우선
-                        self._simulate_robot_motion("RSR2 Start (Struct)")
+                        self._simulate_robot_motion("RSR2 Start (Struct)", move_packet=packet)
                 
                 # 상태 업데이트
                 self._is_rsr2_active = is_rsr2_high
@@ -274,12 +294,31 @@ class MockConnection:
     # ==========================================================
     # Simulation Logic
     # ==========================================================
-    def _simulate_robot_motion(self, trigger_source: str):
+    def _simulate_robot_motion(self, trigger_source: str, move_packet=None):
         """
         로봇이 움직이는 상황을 시뮬레이션
         Trigger -> (Wait) -> Calc Req(DO45) -> (Wait) -> Motion Done(DO46)
         """
         self.logger.info(f"[MOCK-SIM] 로봇 동작 시작 ({trigger_source})")
+
+        # [MOCK] 실제 좌표 이동 시뮬레이션
+        if move_packet:
+            axis_names = ['X', 'Y', 'Z', 'W', 'P', 'R']
+            for i, axis in enumerate(axis_names):
+                high = getattr(move_packet, f"{axis}_High", 0)
+                low = getattr(move_packet, f"{axis}_Low", 0)
+                
+                # 값 복원 (High * 65536 + Low) / 1000
+                raw_val = (high << 16) | low
+                delta_val = raw_val / 1000.0
+                
+                # 음수 체크 (Check_Bits 해당 비트가 1이면 음수)
+                if (move_packet.Check_Bits >> i) & 1:
+                    delta_val = -delta_val
+                
+                # 현재 위치에 델타 적용
+                self._robot_data[axis] += delta_val
+                self.logger.debug(f"[MOCK-SIM] {axis} 축 이동: Delta({delta_val}) -> NewPos({self._robot_data[axis]})")
 
         # [핵심 수정] 기존 신호를 일단 끈다 (Rising Edge 준비)
         self._fire_notification("DO45", False)
@@ -350,5 +389,13 @@ class MockConnection:
                 else:
                     # IDLE: 정지
                     self._servo_vel[axis] = 0.0
+
+            # [Robot Simulation] 로봇 좌표 미세 변동 (연결 확인용 Live Data)
+            # PoseMonitorWorker가 변화를 감지할 수 있도록 약간의 노이즈 추가
+            import random
+            if self._sim_time % 1.0 < 0.1: # 1초마다
+                noise_axis = random.choice(['X', 'Y', 'Z'])
+                self._robot_data[noise_axis] += random.choice([-0.001, 0.001])
+
 
             time.sleep(dt) # 10Hz 업데이트
