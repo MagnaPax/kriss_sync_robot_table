@@ -119,13 +119,14 @@ class MainWindow(QMainWindow):
         """
 
         # --- VM의 시그널(전화) 연결 --- #
-        self.vm.twincat_connection_changed.connect(self.twincat_indicator.safe_update_data)    # PLC 연결 상태 화면 표시
-        self.vm.show_recovery_dialog.connect(self._on_recovery_dialog)                  # 재접속 모달 표시
+        self.vm.twincat_connection_changed.connect(self.twincat_indicator.safe_update_data)     # PLC 연결 상태 화면 표시
+        self.vm.show_recovery_dialog.connect(self._on_recovery_dialog)                          # 재접속 모달 표시
+        self.vm.control_ui_enabled.connect(self._on_control_status_changed)                     # 패널 활성화 여부 연결
 
         # --- 이벤트 버스 시그널(라디오 방송) 연결 --- #
-        EVENT_BUS.system.operation_error_alert.connect(self._on_operation_error_dialog)   # 작업 중 발생한 에러 팝업
-        EVENT_BUS.system.loading_started.connect(self._on_loading_started)      # 파일 읽기 시작
-        EVENT_BUS.system.loading_finished.connect(self._on_loading_finished)    # 파일 읽기 끝
+        EVENT_BUS.system.operation_error_alert.connect(self._on_operation_error_dialog)         # 작업 중 발생한 에러 팝업
+        EVENT_BUS.system.loading_started.connect(self._on_loading_started)                      # 파일 읽기 시작
+        EVENT_BUS.system.loading_finished.connect(self._on_loading_finished)                    # 파일 읽기 끝
 
     def _bind_ui_events(self):
         """
@@ -257,3 +258,20 @@ class MainWindow(QMainWindow):
         """파일 읽기 다이얼로그 닫기"""
         if self.loading_dialog:
             self.loading_dialog.close()
+
+    @pyqtSlot(bool)
+    def _on_control_status_changed(self, enabled: bool):
+        """연결이 끊겼을 때 모든 패널 비활성화"""
+
+        # 패널 비활성화
+        self.left.setEnabled(enabled)
+        self.center.setEnabled(enabled)
+        self.right.setEnabled(enabled)
+        
+        # 상태바 텍스트 업데이트
+        if not enabled:
+            self.status_label.setText("Disconnected")
+            self.status_label.setStyleSheet("color: red; font-weight: bold;")
+        else:
+            self.status_label.setText("Ready")
+            self.status_label.setStyleSheet("")

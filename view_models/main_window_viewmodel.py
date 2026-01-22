@@ -23,9 +23,10 @@ class MainViewModel(QObject):
     # 로컬 시그널 (View가 UI 갱신을 위해 구독)
     # View는 한 개의 ViewModel만 갖기 때문에
     # 라디오방송국(EventBus)으로 '아무나 들어라' 보다 전화(로컬 시그널/바인딩)로 알리는게 더 적절
-    show_recovery_dialog = pyqtSignal()     # 재접속 모달 띄우기 요청
-    log_message = pyqtSignal(str)           # 로그 메시지
-    twincat_connection_changed = pyqtSignal(dict)  # TwinCAT 상태 표시 위젯용 데이터 시그널
+    show_recovery_dialog = pyqtSignal()             # 재접속 모달 띄우기 요청
+    log_message = pyqtSignal(str)                   # 로그 메시지
+    twincat_connection_changed = pyqtSignal(dict)   # TwinCAT 상태 표시 위젯용 데이터 시그널
+    control_ui_enabled = pyqtSignal(bool)           # 패널 활성화 여부
 
 
     def __init__(self, plc_service: PLCService):
@@ -67,24 +68,21 @@ class MainViewModel(QObject):
         self.progress_bar_vm = ProgressBarViewModel()       # 전체 공정 진행률 표시
         self.turntable_gauge_vm = TurntableGaugeViewModel() # 턴테이블 각도 시각화 도구
 
+        # --- 초기 상태 동기화 --- #
+        # 뷰모델이 생성되는 시점에 이미 연결되어 있다면(StartupManager 덕분에)
+        # View에게 바로 연결됐다는 상태를 보내줘야
+        if self.is_connected:
+            from PyQt6.QtCore import QTimer
+            # QTimer.singleShot을 쓰는 이유: View가 완전히 바인딩된 후에 실행되게 하기 위해
+            QTimer.singleShot(100, lambda: self._update_twincat_widget_status(True))
+            QTimer.singleShot(100, lambda: self.control_ui_enabled.emit(True))
 
-
-        # [Servo] 사용자 좌표계 -> 서보 제어
-        self.user_coordinates_vm.user_turntable_pose_changed.connect(
-            self.servo_controller_vm._on_user_turntable_pose_changed
-        )
-        self.user_coordinates_vm.user_tool_revolution_changed.connect(
-            self.servo_controller_vm._on_user_tool_revolution_pose_changed
-        )
-        self.user_coordinates_vm.user_tool_rotation_changed.connect(
-            self.servo_controller_vm._on_user_tool_rotation_pose_changed
-        )
-
-
+        self._bind_eventbus()
+        self._bind_signals()
 
 
 
-
+    def _bind_eventbus(self):
         """
         EventBus 구독
         - 집에 있는 오디오의 라디오 채널을 해당 주파수에 맞춰놓겠다
@@ -95,21 +93,23 @@ class MainViewModel(QObject):
             VM : PLCService 가 소리치는 것을 들음
             VM : _handle_system_error 에게 일하라고 시킴
         """
-
-        # system.error 에서 방송 나오면 _handle_system_error 한테 일 시킴
         EVENT_BUS.system.error.connect(self._handle_system_error)
-
-        # connection_status_changed 방송 나오면 _update_twincat_widget_status 한테 일 시킴
         EVENT_BUS.conn.connection_status_changed.connect(self._update_twincat_widget_status)
+        EVENT_BUS.conn.connection_status_changed.connect(self.control_ui_enabled.emit)
 
+    def _bind_signals(self):
+        """시그널 바인딩"""
 
-        # --- 초기 상태 동기화 --- #
-        # 뷰모델이 생성되는 시점에 이미 연결되어 있다면(StartupManager 덕분에)
-        # View에게 바로 연결됐다는 상태를 보내줘야
-        if self.is_connected:
-            from PyQt6.QtCore import QTimer
-            # QTimer.singleShot을 쓰는 이유: View가 완전히 바인딩된 후에 실행되게 하기 위해
-            QTimer. singleShot(100, lambda: self._update_twincat_widget_status(True))
+        # 사용자 좌표계 -> 서보 제어
+        self.user_coordinates_vm.user_turntable_pose_changed.connect(
+            self.servo_controller_vm._on_user_turntable_pose_changed
+        )
+        self.user_coordinates_vm.user_tool_revolution_changed.connect(
+            self.servo_controller_vm._on_user_tool_revolution_pose_changed
+        )
+        self.user_coordinates_vm.user_tool_rotation_changed.connect(
+            self.servo_controller_vm._on_user_tool_rotation_pose_changed
+        )
 
 
 
