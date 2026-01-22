@@ -162,7 +162,7 @@ class PLCService(QObject):
 
                 if i < max_retries:
                     if ui_callback:
-                        ui_callback(f"접속 실패. 잠시 후 재시도...", progress)
+                        ui_callback(f"접속 실패. 다시 접속을 시도합니다...", progress)
 
                     # 대기(UI Freezing 방지)
                     end_time = time.time() + 1.0
