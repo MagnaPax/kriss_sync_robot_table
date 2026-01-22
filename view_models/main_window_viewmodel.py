@@ -23,7 +23,6 @@ class MainViewModel(QObject):
     # 로컬 시그널 (View가 UI 갱신을 위해 구독)
     # View는 한 개의 ViewModel만 갖기 때문에
     # 라디오방송국(EventBus)으로 '아무나 들어라' 보다 전화(로컬 시그널/바인딩)로 알리는게 더 적절
-    connection_status = pyqtSignal(bool)    # 연결 상태 (초록/빨강)
     show_recovery_dialog = pyqtSignal()     # 재접속 모달 띄우기 요청
     log_message = pyqtSignal(str)           # 로그 메시지
     twincat_status_data = pyqtSignal(dict)  # TwinCAT 상태 표시 위젯용 데이터 시그널
@@ -96,9 +95,6 @@ class MainViewModel(QObject):
             VM : PLCService 가 소리치는 것을 들음
             VM : _handle_system_error 에게 일하라고 시킴
         """
-
-        # 'connection_status_changed' 라는 주파수에서 방송이 나오면 내 전화기(self.connection_status)로 연결해
-        EVENT_BUS.conn.connection_status_changed.connect(self.connection_status)
 
         # system.error 에서 방송 나오면 _handle_system_error 한테 일 시킴
         EVENT_BUS.system.error.connect(self._handle_system_error)
