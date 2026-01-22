@@ -639,4 +639,5 @@ class PLCService(QObject):
         # UI 및 시스템 알림 방송
         EVENT_BUS.conn.status_changed.emit(False)
         EVENT_BUS.log.message.emit(f"{self._log_prefix} ⚠️ TwinCAT 연결 끊김 감지! (Heartbeat Lost)", "ERROR")
-        EVENT_BUS.system.error.emit(f"{self._log_prefix} TwinCAT_DISCONNECTED")
+        # 메세지 형태 바꾸면 안됨 MainViewModel._handle_system_error 에서 확인하는 문자열과 일치해야 함
+        EVENT_BUS.system.error.emit("TwinCAT_DISCONNECTED")
