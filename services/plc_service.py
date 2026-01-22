@@ -76,7 +76,7 @@ class PLCService(QObject):
 
 
         # --- 연결 상태 변경 시 모니터링 시작/중지 --- #
-        EVENT_BUS.conn.connection_status_changed.connect(self._on_connectino_changed)
+        EVENT_BUS.conn.connection_status_changed.connect(self._on_connection_status_changed)
 
 
         # --- 앱 종료 시 연결 끊기 --- #
@@ -543,7 +543,7 @@ class PLCService(QObject):
     # ==========================================================
     # 기기의 현재 위치 모니터링
     # ==========================================================
-    def _on_connectino_changed(self, is_connected: bool):
+    def _on_connection_status_changed(self, is_connected: bool):
         """연결되면 모니터링 시작, 끊기면 중지"""
         if is_connected:
             self._start_monitoring()
