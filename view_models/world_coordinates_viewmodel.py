@@ -22,7 +22,7 @@ class WorldCoordinatesViewModel(QObject):
         super().__init__()
 
         # 로봇 좌표 캐싱 (외부 접근용)
-        self.cashed_robot_world_position: FANUCPose | None = None
+        self.cashed_robot_world_position: FANUCPose = FANUCPose()
 
         # 로봇: 1대1 매칭이므로 곧바로 재방송
         EVENT_BUS.control.robot_current_pose.connect(self._on_robot_current_position_received)
