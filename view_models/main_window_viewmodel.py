@@ -38,37 +38,37 @@ class MainViewModel(QObject):
         """
         super().__init__()
 
-        # 1. 공용 서비스 및 데이터 모델 보관
+        # --- 공용 서비스 및 데이터 모델 보관 --- #
         self._service = plc_service                 # PLC 통신 서비스 (하드웨어 제어권 - 직접 호출)
         self.positon_model = FANUCPoseModel()       # 로봇 위치 데이터 모델
         self.sequence_service = SequenceService()   # 파일 입출력 서비스
 
-        # 2. 하위 뷰모델 생성 및 자원 배분 (Dependency Injection)
-        # 서보 제어: 전체 PLC 서비스 전달(비동기 처리 권한)
-        self.servo_controller_vm = ServoControlViewModel(self._service)
-        # 좌표 표시: 읽기 전용 UI TODO: 추후 필요시 자원 주입
-        self.world_coordinates_vm = WorldCoordinatesViewModel()
-        # 목표 위치 설정: 위치 모델 & 전체 PLC 서비스 전달(비동기 처리 권한)
-        self.robot_controller_vm = RobotControllerViewModel(self.positon_model, self._service)
-        # 작업 관리: 시퀀스 파일 서비스 & 전체 PLC 서비스 전달(비동기 처리 권한)
-        self.task_manager_vm = TaskManagerViewModel(self.sequence_service, self._service)
-        # 사용자 좌표계: 전체 PLC 서비스 전달(비동기 처리 권한)
+
+        # --- 뷰모델 생성 (의존성 주입) ---
+        # 로봇 컨트롤러가 이동량을 계산할 때 이 정보를 조회해야 하므로 가장 먼저 생성
         self.user_coordinates_vm = UserCoordinatesViewModel(self._service)
-        # 웨이포인트(테이블): 독자적인 뷰모델
-        self.waypoints_vm = WaypointsViewModel()
-        # 진행률 표시: 독자적인 뷰모델 (EventBus 구독)
-        self.progress_bar_vm = ProgressBarViewModel()
-        # 턴테이블 게이지: 독자적인 뷰모델 (EventBus 구독)
-        self.turntable_gauge_vm = TurntableGaugeViewModel()
+        # 매크로 이동 등 실제 좌표 계산에 필요하므로 로봇 컨트롤러보다 먼저 생성하여 주입
+        self.world_coordinates_vm = WorldCoordinatesViewModel()
+        # 하드웨어(PLC)에 직접 명령을 내려야 하므로 통신 서비스(PLCService)를 주입
+        self.servo_controller_vm = ServoControlViewModel(self._service)
 
-
-        # 3. 뷰모델 간 연결 (사용자 좌표계)
-        # MainViewModel은 Composition Root 역할로서 하위 ViewModel 간의 의존성을 엮어준다.
-
-        # [Robot] 사용자 좌표계 -> 로봇 제어
-        self.user_coordinates_vm.user_robot_pose_changed.connect(
-            self.robot_controller_vm._on_user_robot_pose_changed
+        # 데이터 일관성 유지 및 로봇 제어에 필요한 의존성들을 주입
+        self.robot_controller_vm = RobotControllerViewModel(
+            model=self.positon_model, 
+            plc_service=self._service,
+            user_coords_vm=self.user_coordinates_vm,
+            world_coords_vm=self.world_coordinates_vm
         )
+        # 파일을 읽는 서비스와 하드웨어 제어 서비스를 결합하여 자동 공정을 수행하기 위해 주입
+        self.task_manager_vm = TaskManagerViewModel(self.sequence_service, self._service)
+
+
+        # --- 독립적인 UI 표시용 뷰모델들 ---
+        self.waypoints_vm = WaypointsViewModel()           # 경로 목록 표시 및 관리
+        self.progress_bar_vm = ProgressBarViewModel()       # 전체 공정 진행률 표시
+        self.turntable_gauge_vm = TurntableGaugeViewModel() # 턴테이블 각도 시각화 도구
+
+
 
         # [Servo] 사용자 좌표계 -> 서보 제어
         self.user_coordinates_vm.user_turntable_pose_changed.connect(
