@@ -810,6 +810,21 @@ QProgressBar#main_progress_bar::chunk {
     min-width: 80px;
 }
 
+/* MacroSettingsDialog Button Styles */
+#macro_settings_dialog QPushButton#macro_save_btn:hover {
+    background-color: #4A89DC;
+}
+
+#macro_settings_dialog QPushButton#macro_save_btn:pressed {
+    background-color: #3b6eb0;
+}
+
+#macro_settings_dialog QPushButton#macro_save_btn:disabled {
+    background-color: #e0e0e0;
+    color: #999999;
+}
+
+
 
 /* Turntable Gauge Zoom Scrollbar (Subtle Style) */
 QScrollBar#zoom_scrollbar:vertical {
@@ -838,23 +853,6 @@ QScrollBar#zoom_scrollbar::sub-page:vertical {
     background: none;
 }
 
-
-/* MacroSettingsDialog Button Styles */
-#macro_settings_dialog QPushButton#macro_save_btn:hover {
-    background-color: #4A89DC;
-}
-
-#macro_settings_dialog QPushButton#macro_save_btn:pressed {
-    background-color: #3b6eb0;
-}
-
-#macro_settings_dialog QPushButton#macro_save_btn:disabled {
-    background-color: #e0e0e0;
-    color: #999999;
-}
-
-
-
 /* Turntable Widget Styling */
 #turntable_gauge_painter {
     /* 턴테이블 */
@@ -875,8 +873,6 @@ QScrollBar#zoom_scrollbar::sub-page:vertical {
     font-weight: bold; 
     margin-top: 5px;
 }
-
-
 
 /* Turntable Gauge Popup Window */
 QWidget#turntable_gauge_popup {
