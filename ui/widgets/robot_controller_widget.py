@@ -641,6 +641,17 @@ class RobotControllerWidget(BaseWidget):
 
         EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 ID({macro_id}) -> UI 업데이트 완료", "INFO")
 
+        # 현재 UI에 채워진 값들을 추출
+        positions_macro = self._extract_data_from_ui()
+
+        # 좌표값이 모두 0이면 실행 안 함
+        if (positions_macro.x == 0.0 and positions_macro.y == 0.0 and positions_macro.z == 0.0 and
+            positions_macro.w == 0.0 and positions_macro.p == 0.0 and positions_macro.r == 0.0):
+            EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 ID({macro_id}) 이동 명령 취소: 모든 제어 좌표가 0.0 입니다.", "WARNING")
+            return
+
+        self.vm.robot_move_manual(positions_macro, is_macro_value=True)
+
     def _handle_feed_rate(self, feed_rate: float):
         """FEED RATE 스핀박스 값 변경됐을 때"""
         if self.vm:
@@ -666,7 +677,7 @@ class RobotControllerWidget(BaseWidget):
                 "INFO"
             )
 
-            self.vm.robot_move_manual(line_edit_data)
+            self.vm.robot_move_manual(line_edit_data, is_macro_value=False)
 
         except ValueError as e:
             error_msg = "좌표값 입력 오류: 숫자만 입력 가능합니다."
