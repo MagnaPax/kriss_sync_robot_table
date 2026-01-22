@@ -450,10 +450,16 @@ class RobotControllerWidget(BaseWidget):
 
             if 'is_robot_moving' in data or 'is_sequence_in_progress' in data:
 
-                # 버튼 상태 제어
+                # 버튼들 상태 제어
+                # 매크로 버튼들
+                for btn in self.macro_btn_map.values():
+                    btn.setEnabled(not is_busy)
+
+                # 다른 버튼들
                 if btn := self.other_buttons.get("home"): btn.setEnabled(not is_busy)
                 if btn := self.other_buttons.get("go_to"): btn.setEnabled(not is_busy)
                 if btn := self.other_buttons.get("stop"): btn.setEnabled(is_busy)
+
 
                 # STOP 버튼 처리 로직 분기
                 if self.other_buttons.get("stop"):
