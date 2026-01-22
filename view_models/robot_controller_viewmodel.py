@@ -202,7 +202,8 @@ class RobotControllerViewModel(QObject):
             z = delta_z,
             w = delta_w,
             p = delta_p,
-            r = delta_r
+            r = delta_r,
+            f = target_user_pose.f
         )
         
         EVENT_BUS.log.message.emit(f"{self.log_prefix} 이동량 계산: Target({target_user_pose}) - Current({stand_coordinates}) = Delta({target_delta})", "DEBUG")
