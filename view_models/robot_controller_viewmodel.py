@@ -66,9 +66,12 @@ class RobotControllerViewModel(QObject):
     def _bind_signals(self):
         # '로봇이 움직이고 있다'는 방송이 오면 -> 내 로컬 시그널로 그대로 재방송
         EVENT_BUS.control.robot_moving_status_changed.connect(self.robot_moving_status_changed.emit)
-        EVENT_BUS.control.clear_user_inputs.connect(self._on_clear_manual_inputs)   # 입력 필드 초기화
-        EVENT_BUS.data.waypoints_selected.connect(self._on_replace_inputs_by_selected_sequence_on_waypoints_table)      # 웨이포인트에서 선택된 시퀀스
-        EVENT_BUS.data.sequence_in_progress.connect(self.sequence_processing_changed.emit)      # '시퀀스 실행중' 방송 청취 -> 내 로컬 시그널로 바로 재방송
+        # 입력 필드 초기화
+        EVENT_BUS.control.clear_user_inputs.connect(self._on_clear_manual_inputs)
+        # 웨이포인트에서 선택된 시퀀스
+        EVENT_BUS.data.waypoints_selected.connect(self._on_replace_inputs_by_selected_sequence_on_waypoints_table)
+        # '시퀀스 실행중' 방송 청취 -> 내 로컬 시그널로 바로 재방송
+        EVENT_BUS.data.sequence_in_progress.connect(self.sequence_processing_changed.emit)
 
 
 
