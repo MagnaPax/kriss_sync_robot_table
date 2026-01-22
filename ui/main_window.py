@@ -119,7 +119,7 @@ class MainWindow(QMainWindow):
         """
 
         # --- VM의 시그널(전화) 연결 --- #
-        self.vm.twincat_status_data.connect(self.twincat_indicator.safe_update_data)    # PLC 연결 상태 화면 표시
+        self.vm.twincat_connection_changed.connect(self.twincat_indicator.safe_update_data)    # PLC 연결 상태 화면 표시
         self.vm.show_recovery_dialog.connect(self._on_recovery_dialog)                  # 재접속 모달 표시
 
         # --- 이벤트 버스 시그널(라디오 방송) 연결 --- #

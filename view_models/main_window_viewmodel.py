@@ -25,7 +25,7 @@ class MainViewModel(QObject):
     # 라디오방송국(EventBus)으로 '아무나 들어라' 보다 전화(로컬 시그널/바인딩)로 알리는게 더 적절
     show_recovery_dialog = pyqtSignal()     # 재접속 모달 띄우기 요청
     log_message = pyqtSignal(str)           # 로그 메시지
-    twincat_status_data = pyqtSignal(dict)  # TwinCAT 상태 표시 위젯용 데이터 시그널
+    twincat_connection_changed = pyqtSignal(dict)  # TwinCAT 상태 표시 위젯용 데이터 시그널
 
 
     def __init__(self, plc_service: PLCService):
@@ -159,4 +159,4 @@ class MainViewModel(QObject):
         }
         
         # 로컬 시그널로 전화 건다 - View 가 '전화' 받아서 UI 처리 (EVENT BUS 아님)
-        self.twincat_status_data.emit(data)
+        self.twincat_connection_changed.emit(data)
