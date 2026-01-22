@@ -112,6 +112,7 @@ class PLCService(QObject):
         # 연결 시도 중일때는 연결 확인 중지
         self._stop_heartbeat_worker()
 
+        # 연결 시도 횟수
         max_retries = 3
         
         for i in range(1, max_retries + 1):
@@ -136,7 +137,7 @@ class PLCService(QObject):
 
                 # 통신 상태 성공 시그널 방송
                 EVENT_BUS.system.info.emit(f"{self._log_prefix} TwinCAT 연결 성공")
-                EVENT_BUS.conn.status_changed.emit(True)
+                EVENT_BUS.conn.connection_status_changed.emit(True)     # 연결 성공 시그널 방송
                 EVENT_BUS.log.message.emit(success_msg, "INFO")
 
                 # 연결 감시자 투입
@@ -157,6 +158,7 @@ class PLCService(QObject):
 
             except Exception as e:
                 EVENT_BUS.log.message.emit(f"{self._log_prefix} TwinCAT 접속 시도({i}) 실패: {e}", "ERROR")
+                EVENT_BUS.conn.connection_status_changed.emit(False)     # 연결 실패 시그널 방송
 
                 if i < max_retries:
                     if ui_callback:
@@ -543,6 +545,7 @@ class PLCService(QObject):
     # ==========================================================
     # 기기의 현재 위치 모니터링
     # ==========================================================
+    @pyqtSlot(bool)
     def _on_connection_status_changed(self, is_connected: bool):
         """연결되면 모니터링 시작, 끊기면 중지"""
         if is_connected:
