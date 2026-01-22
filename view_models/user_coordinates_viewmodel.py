@@ -34,7 +34,7 @@ class UserCoordinatesViewModel(QObject):
         self._robot_offset = FANUCPose()
 
         # [Getter 지원] 최근 값 캐싱 (외부 접근용)
-        self.cashed_robot_user_position: FANUCPose | None = None
+        self.cashed_robot_user_position: FANUCPose = FANUCPose()
 
         self._raw_servo_states: Dict[ServoAxis, ServoPose] = {}
         self._servo_offsets: Dict[ServoAxis, ServoPose] = {
