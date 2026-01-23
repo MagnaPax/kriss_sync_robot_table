@@ -1,10 +1,10 @@
 # ui/panels/center_panel.py
 from typing import TYPE_CHECKING, Optional
 from PyQt6.QtWidgets import QFrame, QVBoxLayout, QWidget
-from ui.widgets.robot_motion_widget import RobotMotionWidget
-from ui.widgets.robot_controller_widget import RobotControllerWidget
+from ui.widgets.robot_motion_widget import 
 from ui.widgets.world_coordinates_widget import WorldCoordinatesWidget
 from ui.widgets.user_coordinates_widget import UserCoordinatesWidget
+from ui.widgets.emergency_stop_widget import EmergencyStopWidget
 
 # 순환 참조 방지용
 if TYPE_CHECKING:
@@ -21,30 +21,22 @@ class CenterPanel(QFrame):
         self.setFrameShape(QFrame.Shape.StyledPanel)    # OS/Qt 테마 스타일을 따라감
         self.setFrameShadow(QFrame.Shadow.Sunken)       # 음영이 아래쪽에 있어, 패널이 눌려 보임
 
+        # 레이아웃 설정
         layout = QVBoxLayout(self)
 
         world_coordinates = WorldCoordinatesWidget()
-        robot_position = RobotMotionWidget()
-        target_position = RobotControllerWidget()
         user_position = UserCoordinatesWidget()
+        emergency_stop = EmergencyStopWidget()
+
 
         # --- 뷰모델 주입 --- #
         # MainViewModel에서 뷰모델을 꺼내서 주입
-        target_position.set_view_model(self.vm.robot_controller_vm)
         world_coordinates.set_view_model(self.vm.world_coordinates_vm)
-
         user_position.set_view_model(self.vm.user_coordinates_vm)
-
-
-
-        # 위젯 배치를 위한 임시 스타일 표시
-        # TODO: 모든 위젯들 완성 후 삭제해야 된다
-        #       styles/stylesheet.qss 보다 아래 코드가 우선순위가 더 높다
-        robot_position.setStyleSheet("color: black; border: 1px solid black;")
+        emergency_stop.set_view_model(self.vm)
 
 
         # 바탕 레이아웃에 위젯 추가
-        layout.addWidget(world_coordinates, stretch=50)  
+        layout.addWidget(emergency_stop,    stretch=1)
+        layout.addWidget(world_coordinates, stretch=49)  
         layout.addWidget(user_position,     stretch=50)
-        # layout.addWidget(robot_position,    stretch=2)  # 2/5 -> 40%
-        # layout.addWidget(target_position,   stretch=1)  # 1/5 -> 20%
