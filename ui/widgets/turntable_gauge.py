@@ -56,9 +56,12 @@ class _GaugePainter(QWidget):
         self._tool_position_color = QColor(Qt.GlobalColor.black)
         # Material Cut Trajectory (실제 소재 가공 궤적)
         self._material_cut_trajectory_color = QColor(Qt.GlobalColor.lightGray) 
+        self._material_cut_completed_trajectory_color = QColor(Qt.GlobalColor.darkGray) # 완료된 궤적 색상
+        self._material_cut_processing_trajectory_color = QColor(Qt.GlobalColor.blue)    # 진행 중인 궤적 색상
         self._material_cut_trajectory_border_color = QColor(Qt.GlobalColor.transparent) # 테두리 색상 (기본 투명)
         
         self._waypoints: list = [] # 웨이포인트 목록 [{'material_cut_angle': ..., 'material_cut_radius_ratio': ...}, ...]
+        self._current_step_index: int = 0 # 현재 진행중인 스텝 (0-based)
     
     # --- Signals ---
     # 먼저 시그널 정의
@@ -87,6 +90,14 @@ class _GaugePainter(QWidget):
     def get_material_cut_trajectory_color(self): return self._material_cut_trajectory_color
     def set_material_cut_trajectory_color(self, c): self._material_cut_trajectory_color = c; self.update()
     materialCutTrajectoryColor = pyqtProperty(QColor, get_material_cut_trajectory_color, set_material_cut_trajectory_color)
+
+    def get_material_cut_completed_trajectory_color(self): return self._material_cut_completed_trajectory_color
+    def set_material_cut_completed_trajectory_color(self, c): self._material_cut_completed_trajectory_color = c; self.update()
+    materialCutCompletedTrajectoryColor = pyqtProperty(QColor, get_material_cut_completed_trajectory_color, set_material_cut_completed_trajectory_color)
+
+    def get_material_cut_processing_trajectory_color(self): return self._material_cut_processing_trajectory_color
+    def set_material_cut_processing_trajectory_color(self, c): self._material_cut_processing_trajectory_color = c; self.update()
+    materialCutProcessingTrajectoryColor = pyqtProperty(QColor, get_material_cut_processing_trajectory_color, set_material_cut_processing_trajectory_color)
 
     def get_material_cut_trajectory_border_color(self): return self._material_cut_trajectory_border_color
     def set_material_cut_trajectory_border_color(self, c): self._material_cut_trajectory_border_color = c; self.update()
@@ -122,6 +133,11 @@ class _GaugePainter(QWidget):
     def set_waypoints(self, waypoints: list):
         """웨이포인트 목록 업데이트"""
         self._waypoints = waypoints
+        self.update()
+
+    def set_current_step(self, index: int):
+        """현재 진행중인 스텝 설정"""
+        self._current_step_index = index
         self.update()
 
     def wheelEvent(self, event):
@@ -245,53 +261,91 @@ class _GaugePainter(QWidget):
         painter.drawText(QRectF(center.x() - text_radius - 30, center.y() - 10, 40, 20), Qt.AlignmentFlag.AlignRight, "270")
 
     def _draw_waypoints(self, painter: QPainter, center: QPointF, radius: float):
-        """웨이포인트 목록 그리기 (최적화 버전: drawPoints 사용)"""
+        """
+        웨이포인트 목록 그리기 (최적화 버전: drawPoints 사용)
+        """
         if not self._waypoints:
             return
 
-        # [최적화] 점 크기 및 펜 설정
-        # drawEllipse에서는 반지름(r)을 지정했지만, drawPoints는 펜 두께(Width)가 지름이 됨
-        # 기존 dot_r = max(0.5, 0.5 * zoom) => 지름 = max(1.0, 1.0 * zoom)
+        # 점 크기 설정
+        # drawPoints는 펜 두께(Width)가 지름이 됨
         pen_width = max(1.0, 1.0 * self._zoom_scale)
-        
-        # 색상 및 스타일 설정 (RoundCap으로 점을 둥글게)
-        pen = QPen(self._material_cut_trajectory_color, pen_width)
-        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        painter.setPen(pen)
-        
-        points = []
         
         # 미리 계산된 중앙점 좌표
         cx, cy = center.x(), center.y()
-        
+
         # 턴테이블 현재 각도
         turntable_angle = self._angle
 
-        for wp in self._waypoints:
-            # 개별 포인트 각도
-            # 전체 각도 = 턴테이블 각도(self._angle) + 재료 커팅 각도(wp['material_cut_angle']) (둘 다 시계방향 가정)
-            # 좌표계: 12시 방향이 0도, 시계 방향 회전
-            # x = center.x + r * sin(theta)
-            # y = center.y - r * cos(theta)
+        # ----------------------------------------------------
+        # 공통 좌표 계산 함수 (Closure)
+        # ----------------------------------------------------
+        def calculate_points(target_waypoints):
+            pts = []
+            for wp in target_waypoints:
+                material_cut_angle = wp.get('material_cut_angle', 0.0)
+                material_cut_radius_ratio = wp.get('material_cut_radius_ratio', 0.0)
+                
+                # 각도 합산 (도 -> 라디안)
+                total_angle_deg = turntable_angle + material_cut_angle
+                rad = math.radians(total_angle_deg)
+                
+                # 거리 계산
+                dist = radius * material_cut_radius_ratio
+                
+                # 좌표 계산
+                px = cx + dist * math.sin(rad)
+                py = cy - dist * math.cos(rad)
+                
+                pts.append(QPointF(px, py))
+            return pts
+
+        # ----------------------------------------------------
+        # 1. 완료된 궤적 그리기 (Index < Current)
+        # ----------------------------------------------------
+        # 리스트 슬라이싱으로 분리 (C 언어 레벨에서 처리되어 매우 빠름)
+        # current_idx가 0이면 빈 리스트 -> 루프 안 돎
+        completed_wps = self._waypoints[:self._current_step_index]
+        
+        if completed_wps:
+            points_completed = calculate_points(completed_wps)
             
-            material_cut_angle = wp.get('material_cut_angle', 0.0)
-            material_cut_radius_ratio = wp.get('material_cut_radius_ratio', 0.0)
+            # 완료된 색상 적용
+            pen_completed = QPen(self._material_cut_completed_trajectory_color, pen_width)
+            pen_completed.setCapStyle(Qt.PenCapStyle.RoundCap)
+            painter.setPen(pen_completed)
             
-            # 각도 합산 (도 -> 라디안)
-            total_angle_deg = turntable_angle + material_cut_angle
-            rad = math.radians(total_angle_deg)
+            painter.drawPoints(points_completed)
+
+        # ----------------------------------------------------
+        # 2. 진행 중인 궤적 그리기 (Index == Current)
+        # ----------------------------------------------------
+        # 범위 체크 필요
+        if 0 <= self._current_step_index < len(self._waypoints):
+            # 리스트로 감싸서 전달
+            processing_wps = [self._waypoints[self._current_step_index]]
+            points_processing = calculate_points(processing_wps)
             
-            # 거리 계산
-            dist = radius * material_cut_radius_ratio
+            # 진행 중 색상 적용 (조금 더 두껍게 강조할 수도 있음)
+            pen_processing = QPen(self._material_cut_processing_trajectory_color, pen_width * 1.5) # 강조
+            pen_processing.setCapStyle(Qt.PenCapStyle.RoundCap)
+            painter.setPen(pen_processing)
+            painter.drawPoints(points_processing)
+
+        # ----------------------------------------------------
+        # 3. 남은 궤적 그리기 (Index > Current)
+        # ----------------------------------------------------
+        remaining_wps = self._waypoints[self._current_step_index + 1:]
+        
+        if remaining_wps:
+            points_remaining = calculate_points(remaining_wps)
             
-            # 좌표 계산
-            px = cx + dist * math.sin(rad)
-            py = cy - dist * math.cos(rad)
+            # 기본 색상 적용
+            pen_remaining = QPen(self._material_cut_trajectory_color, pen_width)
+            pen_remaining.setCapStyle(Qt.PenCapStyle.RoundCap)
+            painter.setPen(pen_remaining)
             
-            points.append(QPointF(px, py))
-            
-        # 일괄 그리기 (매우 빠름)
-        painter.drawPoints(points)
+            painter.drawPoints(points_remaining)
 
 
     def _draw_dynamic_elements(self, painter: QPainter, center: QPointF, radius: float):
@@ -456,6 +510,16 @@ class TurntableGauge(BaseWidget):
         self.view_model = vm
         self.view_model.ui_data_updated.connect(self.update_data)
         self.view_model.waypoints_changed.connect(self.update_waypoints)
+        self.view_model.progressing_step_changed.connect(self._on_progressing_step_changed)
+
+    def _on_progressing_step_changed(self, current: int, total: int, status: str):
+        """진행 단계 업데이트"""
+        # current: 1-based index (1, 2, 3...)
+        # list index: 0-based index (0, 1, 2...)
+        
+        # '현재 작업 중인' 스텝의 인덱스 = current - 1
+        current_index = max(0, current - 1)
+        self.gauge_widget.set_current_step(current_index)
 
     def update_waypoints(self, waypoints: list):
         """ViewModel -> 웨이포인트 데이터 수신 -> GaugeWidget 전달"""
