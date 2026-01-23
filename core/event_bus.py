@@ -146,10 +146,10 @@ class SystemSignals(QObject):
         - MainWindow: QMessageBox.critical 등을 사용하여 팝업 표시
     """
 
-    loading_started = pyqtSignal(str)   # 로딩 시작 (메시지)
-    """파일 읽기 시작"""
-    loading_finished = pyqtSignal()     # 로딩 완료
-    """파일 읽기 완료"""
+    file_loading_status_changed = pyqtSignal(str, bool)
+    """파일 로딩 상태 변경"""
+
+    
 
 
 class LogSignals(QObject):

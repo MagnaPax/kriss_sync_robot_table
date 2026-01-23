@@ -279,7 +279,7 @@ class WaypointsWidget(BaseWidget):
             EVENT_BUS.log.message.emit(f"{self.log_prefix} 데이터 렌더링 중 에러: {e}", "ERROR")
             
         finally:
-            EVENT_BUS.system.loading_finished.emit()
+            EVENT_BUS.system.file_loading_status_changed.emit("", False)
             EVENT_BUS.log.message.emit(f"{self.log_prefix} 데이터 렌더링 완료 {len(data)}건", "INFO")
 
 

@@ -71,7 +71,7 @@ class TaskManagerViewModel(QObject):
         self._reset_runtime_timer()
         
         # [UX] 파일 읽기 시작 알림 방송
-        EVENT_BUS.system.loading_started.emit("파일 읽는 중...")
+        EVENT_BUS.system.file_loading_status_changed.emit("파일 읽는 중...", True)
 
         # 이전에 표시된 Waypoints 콘텐츠 초기화 시그널 방송
         EVENT_BUS.control.clear_view_content.emit("waypoints")
