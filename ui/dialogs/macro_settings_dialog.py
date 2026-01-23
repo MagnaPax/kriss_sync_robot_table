@@ -14,11 +14,9 @@ from PyQt6.QtWidgets import (
     QMessageBox
 )
 from PyQt6.QtCore import Qt, pyqtSlot
-from PyQt6.QtGui import QIcon
 from typing import Dict, Any, Tuple, cast, Optional, Type
 from functools import partial
 
-from core.settings import SETTINGS
 from config.paths import CONFIG_MACRO_PATH
 
 from services.macro_service import MacroService as Service

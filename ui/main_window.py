@@ -10,7 +10,7 @@ MainWindow 클래스 (View)
 4. 재접속 시도 로직 (SplashScreen 재사용)
 """
 
-from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QLabel, QMessageBox, QDialog
+from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QLabel, QMessageBox
 from PyQt6.QtCore import Qt, pyqtSlot
 from PyQt6.QtGui import QIcon
 
@@ -241,6 +241,8 @@ class MainWindow(QMainWindow):
             case "error":
                 msg_box.setIcon(QMessageBox.Icon.Critical)
                 msg_box.setObjectName("error_message_box")
+            case _:
+                pass
         
         if modal:
             # 모달(Blocking): 닫을 때까지 대기

@@ -1,5 +1,5 @@
 # ui/panels/left_panel.py
-from PyQt6.QtWidgets import QFrame, QVBoxLayout, QGroupBox, QWidget
+from PyQt6.QtWidgets import QFrame, QVBoxLayout, QWidget
 from typing import TYPE_CHECKING, Optional
 from ui.widgets.logo_widget import LogoWidget
 from ui.widgets.turntable_gauge import TurntableGaugeWidget

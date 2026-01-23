@@ -1,11 +1,10 @@
 # view_models/servo_control_viewmodel.py
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, Any
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 from core.event_bus import EVENT_BUS
 from config.data_formats import (
     KEY_TURNTABLE_DEG,
     KEY_TURNTABLE_FEED_RATE,
-    KEY_TOOL_REV_RPM,
     KEY_TOOL_REV_RPM,
     KEY_TOOL_ROT_RPM
 )
@@ -65,7 +64,7 @@ class ServoControlViewModel(QObject):
         self._handle_clear_inputs(type_)
 
     @pyqtSlot(dict)
-    def _on_replace_inputs_by_selected_sequence_on_waypoints_table(self, row_data: dict):
+    def _on_replace_inputs_by_selected_sequence_on_waypoints_table(self, row_data: Dict[str, Any]):
         """WaypointsTable에서 선택된 시퀀스를 View에게 전달하여 입력 필드를 채우게 함"""
         self._handle_sequence_selection(row_data)
 
@@ -92,7 +91,7 @@ class ServoControlViewModel(QObject):
         if type_ in ["servo", "all"]:
             self.servo_inputs_clear.emit()
 
-    def _handle_sequence_selection(self, row_data: dict):
+    def _handle_sequence_selection(self, row_data: Dict[str, Any]):
         """시퀀스 선택 시 입력 필드 업데이트 로직"""
         EVENT_BUS.log.message.emit(f"{self._log_prefix} 선택된 시퀀스 값: {row_data}", "DEBUG")
         
@@ -159,13 +158,13 @@ class ServoControlViewModel(QObject):
     # ===============================================
     # 헬퍼 메서드
     # ===============================================
-    def _calculate_target_manual_data(self, input_data: dict[str, float]) -> dict[str, float]:
+    def _calculate_target_manual_data(self, input_data: Dict[str, float]) -> Dict[str, float]:
         """
         실제로 이동할 거리와 속도 계산 (Delta)
         TargetDelta = TargetUser - CurrentUser
         """
         # 결과 담을 딕셔너리
-        target_data = {}
+        target_data: Dict[str, float] = {}
 
         # 1. 턴테이블 (Angle)
         if KEY_TURNTABLE_DEG in input_data:

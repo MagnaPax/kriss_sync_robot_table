@@ -26,9 +26,11 @@ TwinCAT Connector
     - XAR : 실시간 제어 실행을 담당하는 런타임 시스템
         - PLC 로직(IEC 61131-3)을 돌림
 """
+import time
 import pyads
 from typing import Optional, Union
 from core.settings import SETTINGS
+from core.event_bus import EVENT_BUS
 from communication.mock_plc import MockConnection
 
 
@@ -151,7 +153,10 @@ class TwinCATConnector:
         try:
             # 1. 현재 상태 확인
             # read_state() returns (ads_state, device_state)
-            state = self._twincat.read_state()[0]
+            current_conn = self._twincat
+            
+            read_result = current_conn.read_state()
+            state = read_result[0] if isinstance(read_result, tuple) else read_result
             
             if state == pyads.ADSSTATE_RUN:
                 return True
@@ -165,7 +170,8 @@ class TwinCATConnector:
             # 3. 전환 대기 (Polling)
             start_time = time.time()
             while time.time() - start_time < timeout:
-                current_state = self._twincat.read_state()[0]
+                read_result = self._twincat.read_state()
+                current_state = read_result[0] if isinstance(read_result, tuple) else read_result
                 if current_state == pyads.ADSSTATE_RUN:
                     EVENT_BUS.log.message.emit("TwinCAT 실행 모드 전환 성공.", "INFO")
                     return True

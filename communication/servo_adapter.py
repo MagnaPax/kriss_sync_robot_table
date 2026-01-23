@@ -266,7 +266,7 @@ class ServoAdapter:
     # ==========================================================================
     # 알림 (Notification)
     # ==========================================================================
-    def register_turntable_motion_done_callback(self, callback: Callable) -> int:
+    def register_turntable_motion_done_callback(self, callback: Callable[[Any, Any], None]) -> int:
         """
         [Sync Step 4: Turntable Motion Done] 턴테이블 이동 완료(bDone3) 신호 감지
         
@@ -276,13 +276,20 @@ class ServoAdapter:
         """
         # MAIN.bDone3 감시 (값이 변할 때마다 콜백)
         attr = pyads.NotificationAttrib(ctypes.sizeof(pyads.PLCTYPE_BOOL))
-        attr.nTransMode = pyads.ADSTRANS_SERVERONCHA
-        attr.nCycleTime = 100000 # 10ms
-        attr.nMaxDelay = 0
+        attr.nTransMode = pyads.ADSTRANS_SERVERONCHA # type: ignore
+        attr.nCycleTime = 100000 # type: ignore
+        attr.nMaxDelay = 0 # type: ignore
         
         # 주소: MAIN.bDone3 (ServoSignal.DONE + Axis 3)
         symbol = ServoSignal.DONE.get_plc_path(ServoAxis.TURNTABLE.value)
-        return self._plc.add_device_notification(symbol, attr, callback)
+        
+        # add_device_notification의 반환값 처리 및 user_handle(0) 명시
+        user_handle = 0
+        result = self._plc.add_device_notification(symbol, attr, callback, user_handle)
+        
+        if isinstance(result, tuple):
+            return result[0]
+        return result # type: ignore
 
     # ==========================================================================
     # 상태 모니터링 (Read Feedback)

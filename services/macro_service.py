@@ -12,7 +12,7 @@
     값: 실수(float)
 """
 from pathlib import Path
-from typing import Callable, Any, Dict, Optional
+from typing import Callable, Any, Dict
 from utils.file_handler import load_json, save_json
 from utils.file_exceptions import FileOperationError
 from core.event_bus import EVENT_BUS

@@ -1,7 +1,6 @@
 # ui/widgets/emergency_stop_widget.py
-from PyQt6.QtWidgets import QVBoxLayout, QPushButton, QLabel, QHBoxLayout
-from PyQt6.QtCore import pyqtSlot, QSize
-from PyQt6.QtGui import QIcon, QFont
+from PyQt6.QtWidgets import QVBoxLayout, QPushButton  
+from PyQt6.QtCore import pyqtSlot
 from typing import TYPE_CHECKING, Any
 
 from ui.widgets.base_widget import BaseWidget
@@ -66,6 +65,7 @@ if __name__ == "__main__":
     from PyQt6.QtWidgets import QApplication
     import sys
     import os
+    from pathlib import Path
     
     # 프로젝트 루트 경로를 sys.path에 추가 (styles 모듈 import 위함)
     sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     qss_path = os.path.join(project_root, "styles", "stylesheet.qss")
     
-    load_and_apply_stylesheet(app, qss_path)
+    load_and_apply_stylesheet(app, Path(qss_path))
 
     widget = EmergencyStopWidget()
     widget.show()

@@ -32,6 +32,7 @@ class MockConnection:
         
         # Robot Pose (X, Y, Z, W, P, R)
         self._robot_data = {'X': 300.0, 'Y': 0.0, 'Z': 150.0, 'W': 180.0, 'P': 0.0, 'R': 0.0}
+        self._robot_data = {'X': 0.1, 'Y': 0.1, 'Z': 0.1, 'W': 0.1, 'P': 0.1, 'R': 0.1}
         
         # Servo Data (1: Revolution, 2: Rotation, 3: Turntable)
         self._servo_pos = {1: 0.0, 2: 0.0, 3: 0.0}
@@ -251,15 +252,15 @@ class MockConnection:
     # ==========================================================
     # Notification (Callback) Support
     # ==========================================================
-    def add_device_notification(self, loop_name: str, attr: Any, callback: Callable) -> int:
+    def add_device_notification(self, loop_name: str, attr: Any, callback: Callable, user_handle: int = 0) -> int:
         with self._lock:
             self._callback_counter += 1
             handle = self._callback_counter
             self._callbacks[handle] = (callback, loop_name)
-            self.logger.info(f"[MOCK] Notification 등록: {loop_name} (Handle: {handle})")
+            self.logger.info(f"[MOCK] Notification 등록: {loop_name} (Handle: {handle}, UserHandle: {user_handle})")
             return handle
 
-    def del_device_notification(self, handle: int):
+    def del_device_notification(self, handle: int, user_handle: int = 0):
         with self._lock:
             if handle in self._callbacks:
                 del self._callbacks[handle]

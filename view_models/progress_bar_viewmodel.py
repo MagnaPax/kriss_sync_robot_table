@@ -1,3 +1,4 @@
+from typing import List, Dict, Any
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 from core.event_bus import EVENT_BUS
 
@@ -16,7 +17,7 @@ class ProgressBarViewModel(QObject):
         EVENT_BUS.data.progress_updated.connect(self._on_progress_updated)            # 진행률 업데이트 시
         
     @pyqtSlot(list)
-    def _on_sequence_data_loaded(self, data: list):
+    def _on_sequence_data_loaded(self, data: List[Dict[str, Any]]):
         """시퀀스 데이터가 로드되면 프로그레스바 범위를 설정"""
         total_count = len(data)
         self.progress_range_changed.emit(0, total_count)

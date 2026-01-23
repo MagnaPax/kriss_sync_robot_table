@@ -1,5 +1,5 @@
 # view_models/robot_controller_viewmodel.py
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, Any
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 from core.event_bus import EVENT_BUS
 from config.paths import CONFIG_MACRO_PATH
@@ -84,7 +84,7 @@ class RobotControllerViewModel(QObject):
         self._handle_clear_inputs(type_)
 
     @pyqtSlot(dict)
-    def _on_replace_inputs_by_selected_sequence_on_waypoints_table(self, row_data: dict):
+    def _on_replace_inputs_by_selected_sequence_on_waypoints_table(self, row_data: Dict[str, Any]):
         """WaypointsTable에서 선택된 시퀀스를 View에게 전달하여 입력 필드를 채우게 함"""
         self._handle_sequence_selection(row_data)
 
@@ -107,7 +107,7 @@ class RobotControllerViewModel(QObject):
             #    단순히 초기화 신호를 보냄.
             self.robot_poses_clear.emit()
 
-    def _handle_sequence_selection(self, row_data: dict):
+    def _handle_sequence_selection(self, row_data: Dict[str, Any]):
         """시퀀스 선택 시 입력 필드 업데이트 로직"""
         EVENT_BUS.log.message.emit(f"{self.log_prefix} 선택된 시퀀스 값 전체: {row_data}", "DEBUG")
         

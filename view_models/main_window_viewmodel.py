@@ -101,14 +101,15 @@ class MainViewModel(QObject):
         """시그널 바인딩"""
 
         # 사용자 좌표계 -> 서보 제어
+        # pylint: disable=protected-access
         self.user_coordinates_vm.user_turntable_pose_changed.connect(
-            self.servo_controller_vm._on_user_turntable_pose_changed
+            self.servo_controller_vm._on_user_turntable_pose_changed # type: ignore
         )
         self.user_coordinates_vm.user_tool_revolution_changed.connect(
-            self.servo_controller_vm._on_user_tool_revolution_pose_changed
+            self.servo_controller_vm._on_user_tool_revolution_pose_changed # type: ignore
         )
         self.user_coordinates_vm.user_tool_rotation_changed.connect(
-            self.servo_controller_vm._on_user_tool_rotation_pose_changed
+            self.servo_controller_vm._on_user_tool_rotation_pose_changed # type: ignore
         )
 
 

@@ -10,8 +10,7 @@ from PyQt6.QtWidgets import (
     QLineEdit, 
     QDoubleSpinBox,
     QGridLayout,
-    QPushButton,
-    QAbstractSpinBox
+    QPushButton
 )
 from functools import partial
 from typing import Dict, Any, TYPE_CHECKING, Union, Optional
@@ -70,14 +69,14 @@ class RobotControllerWidget(BaseWidget):
     def set_view_model(self, view_model: "RobotControllerViewModel"):
         """외부에서 뷰모델을 꽂아주는 함수(Setter)"""
         self.vm = view_model
-        if self.vm is None: return
+        if self.vm is None: return # type: ignore
 
         # VM의 로컬 시그널 연결
         self.vm.robot_moving_status_changed.connect(self.safe_update_data)
         self.vm.macros_loaded.connect(self._on_macro_data_loaded)
         self.vm.robot_poses_clear.connect(self.clear_widget)
         self.vm.robot_poses_changed.connect(self.safe_update_data)
-        self.vm.sequence_processing_changed.connect(lambda tag, val: self.safe_update_data({tag: val})) # {tag: val} 딕셔너리로 데이터 전달
+        self.vm.sequence_processing_changed.connect(self._on_sequence_processing_changed) # {tag: val} 딕셔너리로 데이터 전달
         
         # 매크로 데이터에서 버튼 제목을 읽어 와야 되기 때문에 UI가 생성된 후에 바로 호출
         self.vm.load_macro_data()
@@ -424,15 +423,14 @@ class RobotControllerWidget(BaseWidget):
                     blocker = widget.blockSignals(True)
                     if isinstance(widget, QDoubleSpinBox):
                         widget.setValue(float(val))
-                    elif isinstance(widget, QLineEdit):
-                        widget.setText(str(val))
                     widget.blockSignals(blocker)
 
             # 2. Feed Rate
             if widget := self.coord_widgets.get('FEED RATE'):
-                blocker = widget.blockSignals(True)
-                widget.setValue(pose.f)
-                widget.blockSignals(blocker)
+                if isinstance(widget, QDoubleSpinBox):
+                    blocker = widget.blockSignals(True)
+                    widget.setValue(pose.f)
+                    widget.blockSignals(blocker)
 
         # ---------------------------------------------------------------------
         # Case 2: Dictionary (상태 업데이트)
@@ -442,9 +440,9 @@ class RobotControllerWidget(BaseWidget):
             is_busy = False
             
             if 'is_robot_moving' in data:
-                is_busy = data['is_robot_moving']
+                is_busy = bool(data['is_robot_moving'])
             elif 'is_sequence_in_progress' in data:
-                is_busy = data['is_sequence_in_progress']
+                is_busy = bool(data['is_sequence_in_progress'])
 
             EVENT_BUS.log.message.emit(f"{self.log_prefix} 상태 업데이트 data: {data}, is_busy: {is_busy}", "DEBUG")
 
@@ -462,10 +460,10 @@ class RobotControllerWidget(BaseWidget):
 
 
                 # STOP 버튼 처리 로직 분기
-                if self.other_buttons.get("stop"):
+                if stop_btn := self.other_buttons.get("stop"):
                     if 'is_sequence_in_progress' in data and data['is_sequence_in_progress']:
                         # 시퀀스 진행 중이면 Stop 버튼도 비활성화 (시퀀스 멈춤은 Task Manager 담당)
-                        self.other_buttons.get("stop").setEnabled(not is_busy)
+                        stop_btn.setEnabled(not is_busy)
 
                 # 시퀀스가 진행 중이면 입력창들도 비활성화 해서 오작동 방지
                 for widget in self.coord_widgets.values():
@@ -487,8 +485,6 @@ class RobotControllerWidget(BaseWidget):
                     widget.setValue(10.0) # 기본값으로
                 else:
                     widget.setValue(0.0)
-            elif isinstance(widget, QLineEdit): # 혹시 모를 레거시
-                widget.setText("0.000")
 
     def _extract_data_from_ui(self) -> FANUCPose:
         """
@@ -506,9 +502,6 @@ class RobotControllerWidget(BaseWidget):
             if widget:
                 if isinstance(widget, QDoubleSpinBox):
                     data[data_key] = widget.value()
-                elif isinstance(widget, QLineEdit):
-                    text = widget.text().strip()
-                    data[data_key] = float(text) if text else 0.0
             else:
                 data[data_key] = 0.0
 
@@ -519,9 +512,6 @@ class RobotControllerWidget(BaseWidget):
         if feed_widget:
             if isinstance(feed_widget, QDoubleSpinBox):
                 feed_val = feed_widget.value()
-            elif isinstance(feed_widget, QLineEdit):
-                text = feed_widget.text().strip()
-                feed_val = float(text) if text else 10.0
         
         return FANUCPose(
             x=data['x'],
@@ -564,6 +554,11 @@ class RobotControllerWidget(BaseWidget):
                         new_name = macro_id # 또는 f"매크로 {macro_id[-1]}" 등 원하는 기본값
 
                     btn.setText(new_name)
+
+    @pyqtSlot(str, bool)
+    def _on_sequence_processing_changed(self, tag: str, val: bool):
+        """시퀀스 실행 상태 변경 시그널 처리 (Lambda 대체)"""
+        self.safe_update_data({tag: val})
 
 
     # ===============================================
@@ -656,7 +651,8 @@ class RobotControllerWidget(BaseWidget):
             EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 ID({macro_id}) 이동 명령 수행 불가: 모든 제어 좌표가 0.0 입니다.", "WARNING")
             return
 
-        self.vm.robot_move_manual(positions_macro, is_macro_value=True)
+        if self.vm:
+            self.vm.robot_move_manual(positions_macro, is_macro_value=True)
 
     def _handle_feed_rate(self, feed_rate: float):
         """FEED RATE 스핀박스 값 변경됐을 때"""
@@ -691,7 +687,7 @@ class RobotControllerWidget(BaseWidget):
 
             self.vm.robot_move_manual(line_edit_data, is_macro_value=False)
 
-        except ValueError as e:
+        except ValueError:
             error_msg = "좌표값 입력 오류: 숫자만 입력 가능합니다."
             EVENT_BUS.log.message.emit(error_msg, "WARNING")
 
@@ -736,17 +732,23 @@ if __name__ == '__main__':
     plc_service = PLCService()
     
     try:
-        plc_service.connect_plc() 
+        plc_service.connector.connect() 
         print("✅ PLC Service 연결(Mock/Real) 완료")
     except Exception as e:
         print(f"❌ 연결 실패: {e}")
 
     # 3. ViewModel 생성
-    view_model = RobotControllerViewModel(model, plc_service)
+    # Mocking missing dependencies for test
+    from unittest.mock import MagicMock
+    user_coords_vm = MagicMock()
+    world_coords_vm = MagicMock()
+    
+    view_model = RobotControllerViewModel(model, plc_service, user_coords_vm, world_coords_vm)
 
     # 4. Widget 생성
     main_win = QMainWindow()
-    widget = RobotControllerWidget(view_model)
+    widget = RobotControllerWidget()  # parent=None (기본값)
+    widget.set_view_model(view_model) # Setter 주입
     main_win.setCentralWidget(widget)
     main_win.setWindowTitle("RobotControllerWidget 테스트")
     main_win.resize(400, 300)

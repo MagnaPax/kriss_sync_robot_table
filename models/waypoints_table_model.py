@@ -15,10 +15,10 @@ A: 데이터가 적을 땐 QTableWidget이 편하지만, 데이터가 1,000개�
 
 from typing import List, Dict, Any, Optional
 from PyQt6.QtCore import QAbstractTableModel, Qt, QModelIndex, QObject
-from PyQt6.QtGui import QColor, QBrush
 
-# [Refactor] 하드코딩 제거: 공통 데이터 포맷 상수 사용
-# Model 계층에서 도메인 정의(Keys)를 아는 것은 의존성 주입 위반이 아니라 올바른 참조입니다.
+
+# 공통 데이터 포맷 상수 사용
+# Model 계층에서 도메인 정의(Keys)를 아는 것은 의존성 주입 위반이 아니라 올바른 참조
 from config.data_formats import (
     KEY_ID, 
     KEY_STATUS, 

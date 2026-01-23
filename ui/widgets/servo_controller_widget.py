@@ -60,7 +60,7 @@ class ServoControllerWidget(BaseWidget):
         self.vm.busy_state_changed.connect(self.safe_update_data)
         self.vm.servo_inputs_clear.connect(self.clear_widget)
         self.vm.servo_axis_motion_changed.connect(self.safe_update_data)
-        self.vm.disable_buttons.connect(lambda tag, val: self.safe_update_data({tag: val})) # {tag: val} 딕셔너리로 데이터 전달
+        self.vm.disable_buttons.connect(self._on_disable_buttons) # {tag: val} 딕셔너리로 데이터 전달
 
     def _bind_events(self):
         """UI 이벤트 바인딩"""
@@ -73,6 +73,11 @@ class ServoControllerWidget(BaseWidget):
 
         if btn := self.btn_home:  btn.clicked.connect(self._on_home_clicked)
         if btn := self.btn_reset: btn.clicked.connect(self._on_reset_clicked)
+
+    @pyqtSlot(str, bool)
+    def _on_disable_buttons(self, tag: str, val: bool):
+        """버튼 비활성화 시그널 처리 (Lambda 대체)"""
+        self.safe_update_data({tag: val})
 
 
 
@@ -167,16 +172,16 @@ class ServoControllerWidget(BaseWidget):
         # 음수 입력 차단 로직 (최소값이 0 이상일 때)
         if min_val >= 0:
             def validate_no_minus(text: str):
-                if '-' in text:
+                if '-' in text and (line_edit := spin.lineEdit()):
                     # 1. 에러 시그널 방출
                     self.error_occurred.emit("속도 항목에는 음수(-)를 입력할 수 없습니다.")
                     # 2. '-' 문자 강제 삭제
-                    line_edit = spin.lineEdit()
                     line_edit.blockSignals(True)
                     line_edit.setText(text.replace('-', ''))
                     line_edit.blockSignals(False)
             
-            spin.lineEdit().textChanged.connect(validate_no_minus)
+            if line_edit := spin.lineEdit():
+                line_edit.textChanged.connect(validate_no_minus)
 
         # RobotControllerWidget 스타일 참고: 포커스 시 전체 선택
         spin.focusInEvent = lambda e: QTimer.singleShot(0, spin.selectAll)
@@ -208,10 +213,10 @@ class ServoControllerWidget(BaseWidget):
 
         # 서보가 움직일 때
         if 'is_servo_moving' in data:
-            is_busy = data['is_servo_moving']
+            is_busy = bool(data['is_servo_moving'])
         # 시퀀스 실행 중일 때
         elif 'is_sequence_in_progress' in data:
-            is_busy = data['is_sequence_in_progress']
+            is_busy = bool(data['is_sequence_in_progress'])
 
         if 'is_servo_moving' in data or 'is_sequence_in_progress' in data:
             # BaseWidget._is_enabled를 건드리면 safe_update_data가 막히므로

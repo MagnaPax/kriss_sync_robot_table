@@ -2,7 +2,7 @@
 import time
 import pyads
 import ctypes
-from typing import TYPE_CHECKING, Union, Dict, Callable
+from typing import TYPE_CHECKING, Union, Callable, Any
 from communication.twincat_connector import TwinCATConnector
 from models.fanuc_pose_key import FANUCPoseKey, FanucSignal
 from models.fanuc_pose_model import FANUCPose, FanucCommandPacket
@@ -66,7 +66,32 @@ class FanucAdapter:
         log_msg = self._format_packet_log(packet)
         logger.debug(log_msg)
         # 구조체 타입(FanucCommandPacket)을 명시적으로 전달해야 함
-        self._plc.write_by_name("MAIN.Robot1._UI1", packet, FanucCommandPacket)
+        # pyads의 write_by_name은 ctypes.Structure 타입을 인자로 받을 수 있지만, 
+        # 타입 힌트가 엄격하게 정의되어 있어서 Any로 캐스팅하여 에러를 우회함
+        self._plc.write_by_name("MAIN.Robot1._UI1", packet, FanucCommandPacket) # type: ignore
+
+    def send_instant_feed(self, feed_rate: float):
+        """
+        [속도 변경] 이동 중인 비트스트림의 Feed Rate 부분을 즉시 수정하여 반영
+        Reference: FanucPose.to_struct()
+        """
+        plc = self._plc
+        
+        # 1. 값 변환: float -> scaled int
+        raw_feed_rate = int(abs(round(feed_rate, 3) * 1000))
+        
+        # 2. Feed_Low (하위 16비트) 즉시 쓰기
+        feed_low = raw_feed_rate & 0xFFFF
+        plc.write_by_name("MAIN.Robot1._UI1.Feed_Low", feed_low, pyads.PLCTYPE_UINT)
+        
+        # 3. UI_Byte3 (상위 4비트) Read-Modify-Write
+        #    기존 신호(Start, DI44 등)가 하위 4비트에 있으므로 보존해야 함
+        current_ui3 = plc.read_by_name("MAIN.Robot1._UI1.UI_Byte3", pyads.PLCTYPE_BYTE)
+        
+        feed_high = (raw_feed_rate >> 16) & 0x0F
+        new_ui3 = (current_ui3 & 0x0F) | (feed_high << 4)
+        
+        plc.write_by_name("MAIN.Robot1._UI1.UI_Byte3", new_ui3, pyads.PLCTYPE_BYTE)
 
     def set_emergency_stop(self):
         """[비상 정지] IMSP 신호 전송"""
@@ -118,7 +143,7 @@ class FanucAdapter:
     # ===================================================
     #       알림 (Notification): 완료 신호 감지
     # ===================================================
-    def register_robot_motion_done_callback(self, callback: Callable) -> int:
+    def register_robot_motion_done_callback(self, callback: Callable[..., Any]) -> int:
         """
         [Sync Step 3: Robot Motion Done] 로봇의 물리적 이동 완료(DO46) 신호를 감지하기 위한 이벤트를 등록한다.
         [원본] 384: handle_motion = robot.add_device_notification(SYM_ROBOT_MOTION_DONE, handle_robot_motion_done)
@@ -129,18 +154,26 @@ class FanucAdapter:
         """
         return self._register_notification(FanucSignal.ROBOT_MOTION_DONE.value, callback)
 
-    def _register_notification(self, symbol: str, callback: Callable) -> int:
+    def _register_notification(self, symbol: str, callback: Callable[[Any, Any], None]) -> int:
         """(내부 헬퍼) ADS 알림 등록 공통 로직"""
         attr = pyads.NotificationAttrib(ctypes.sizeof(pyads.PLCTYPE_BOOL))
-        attr.nTransMode = pyads.ADSTRANS_SERVERONCHA # 값이 바뀔 때마다 알림
-        attr.nCycleTime = 100000 # 10ms (100ns 단위)
-        attr.nMaxDelay = 0
-        return self._plc.add_device_notification(symbol, attr, callback)
+        # pyads.NotificationAttrib 속성에 대한 타입 힌트 오류 무시
+        attr.nTransMode = pyads.ADSTRANS_SERVERONCHA # type: ignore
+        attr.nCycleTime = 100000 # type: ignore
+        attr.nMaxDelay = 0 # type: ignore
+        
+        # add_device_notification의 반환값 처리 및 user_handle(0) 명시
+        user_handle = 0
+        result = self._plc.add_device_notification(symbol, attr, callback, user_handle)
+        
+        if isinstance(result, tuple):
+            return result[0]
+        return result # type: ignore
 
     def remove_notification(self, handle: int):
         """[정리] 알림 해제 (공용)"""
         try:
-            self._plc.del_device_notification(handle)
+            self._plc.del_device_notification(handle, 0)
         except Exception:
             pass
 
@@ -384,7 +417,8 @@ class FanucAdapter:
             completed_fields.add(f"{axis}_High")
             completed_fields.add(f"{axis}_Low")
             
-        for field_name, field_type in packet._fields_:
+        for field in packet._fields_:
+            field_name = field[0]
             if field_name in completed_fields:
                 continue
             value = getattr(packet, field_name)

@@ -48,7 +48,7 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
         self.viewmodel.user_turntable_pose_changed.connect(self._update_turntable_ui)
         
         # 버튼 활성화/비활성화 (시퀀스 실행 중일 때)
-        self.viewmodel.origin_buttons_disabled.connect(lambda tag, val: self.safe_update_data({tag: val}))
+        self.viewmodel.origin_buttons_disabled.connect(self._on_disable_origin_buttons)
 
 
     # ========================================
@@ -101,7 +101,7 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
 
         # --- case 2: 제어 명령(dict)인 경우 --- #
         if isinstance(data, dict) and 'is_sequence_in_progress' in data:
-            should_disable = data['is_sequence_in_progress']  # True면 비활성화
+            should_disable: bool = bool(data['is_sequence_in_progress'])  # True면 비활성화
             should_enable = not should_disable
             
             if self.btn_robot_origin: self.btn_robot_origin.setEnabled(should_enable)
@@ -134,6 +134,11 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
     # 이벤트 슬롯 [물리적 신호 처리]
     #   - 사용자 입력(클릭, 선택)에 대한 신호 처리
     # ===============================================
+    @pyqtSlot(str, bool)
+    def _on_disable_origin_buttons(self, tag: str, val: bool):
+        """버튼 비활성화 시그널 처리"""
+        self.safe_update_data({tag: val})
+
     @pyqtSlot()
     def _on_robot_origin_clicked(self):
         self._handle_robot_origin()

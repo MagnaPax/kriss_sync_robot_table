@@ -83,12 +83,12 @@ class FanucOnlyExecutor(BaseExecutor):
     # 펄스 신호 폭 조절 (너무 빠르면 PLC가 못 알아들으니까 조금 기다려준다)
     PRE_TRIGGER_DELAY_S = 0.05      # '데이터 장전' 하고 '발사' 누르기 전 대기 시간
     TRIGGER_HOLD_S = 0.05           # '발사' 버튼 누르고 나서 떼기 전까지 유지 시간
-    MOVE_TIMEOUT = 60.0             # 60초 동안 안 움직이면 고장난 걸로 친다.
+
 
     def __init__(self, robot: FanucAdapter, servo: ServoAdapter):
         super().__init__(robot, servo)
         # 설정 파일에서 타임아웃 시간을 가져온다 (없으면 기본 60초)
-        self.MOVE_TIMEOUT = getattr(SETTINGS.servo, "move_timeout", 60.0)
+        self.move_timeout = getattr(SETTINGS.servo, "move_timeout", 60.0)
 
     def can_execute(self, sample_data: Dict[str, Any]) -> bool:
         """
@@ -236,11 +236,11 @@ class FanucOnlyExecutor(BaseExecutor):
         # [감시자] DO46 신호가 꺼졌다가 켜지는지 지켜보는 로직
         prev_do46_val = False
 
-        def _on_motion_done_edge_detect(*args):
+        def _on_motion_done_edge_detect(*args: Any):
             nonlocal prev_do46_val
 
             # (데이터 껍질 까기 - 복잡하니 넘어감)
-            raw_val = None
+            raw_val: Any = None
             try:
                 if len(args) == 2:
                     raw_val = args[1]
@@ -323,7 +323,7 @@ class FanucOnlyExecutor(BaseExecutor):
                 step_idx = i + 1
 
                 # (1) 이전 이동이 끝날 때까지 기다린다 (DO46)
-                if not self._wait_event_with_safety(robot_motion_done_event, timeout=self.MOVE_TIMEOUT):
+                if not self._wait_event_with_safety(robot_motion_done_event, timeout=self.move_timeout):
                     if self._is_interrupted():
                         raise InterruptedError("사용자가 작업을 중단했습니다.")
                     raise TimeoutError(f"[Step {step_idx}] 로봇이 안 와서 에러남 (시간초과)")
@@ -350,7 +350,7 @@ class FanucOnlyExecutor(BaseExecutor):
 
             # [마무리] 마지막 이동이 끝날 때까지 기다린다.
             EVENT_BUS.log.message.emit(f"{self._log_prefix} 마지막 이동 완료 대기 중...", "INFO")
-            if not self._wait_event_with_safety(robot_motion_done_event, timeout=self.MOVE_TIMEOUT):
+            if not self._wait_event_with_safety(robot_motion_done_event, timeout=self.move_timeout):
                 EVENT_BUS.log.message.emit(f"{self._log_prefix} 마지막 이동 대기 시간 초과됨 (무시하고 종료)", "WARNING")
 
             # [종료 프로토콜]Loop 끄고, Trigger 끄고, 0으로 채운 패킷을 보낸다.
@@ -392,7 +392,7 @@ class FanucOnlyExecutor(BaseExecutor):
             # 로봇 움직임 종료
             EVENT_BUS.control.robot_moving_status_changed.emit({'is_robot_moving': False})
             try:
-                if handle_motion is not None:
+                if handle_motion:
                     robot.remove_notification(handle_motion)
             except Exception:
                 pass
@@ -437,8 +437,8 @@ class ServoOnlyExecutor(BaseExecutor):
         super().__init__(robot, servo)
         
         # 설정 파일에서 얼마나 기다려줄지 값을 가져온다.
-        self.BUSY_TIMEOUT = SETTINGS.servo.busy_timeout
-        self.MOVE_TIMEOUT = SETTINGS.servo.move_timeout
+        self.busy_timeout = SETTINGS.servo.busy_timeout
+        self.move_timeout = SETTINGS.servo.move_timeout
 
     def can_execute(self, sample_data: Dict[str, Any]) -> bool:
         """
@@ -466,8 +466,8 @@ class ServoOnlyExecutor(BaseExecutor):
         EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
 
         # 설정값 최신화
-        self.BUSY_TIMEOUT = SETTINGS.servo.busy_timeout
-        self.MOVE_TIMEOUT = SETTINGS.servo.move_timeout
+        self.busy_timeout = SETTINGS.servo.busy_timeout
+        self.move_timeout = SETTINGS.servo.move_timeout
 
         adapter = self.servo
         total_steps = len(sequence_data)
@@ -497,6 +497,10 @@ class ServoOnlyExecutor(BaseExecutor):
                 current_turntable_pos = adapter.read_current_servo_motion(ServoAxis.TURNTABLE)['position']
                 
                 should_move_turntable = True
+
+                # [Type Hinting] 변수 초기화
+                pose_revolution = None
+                pose_rotation = None
 
                 # 1. 위치 체크: 이미 그 자리에 있으면 안 움직인다.
                 if abs(current_turntable_pos - pose_turntable.angle) < 0.05:
@@ -565,7 +569,7 @@ class ServoOnlyExecutor(BaseExecutor):
                     if not self._wait_for_turntable_completion(ServoAxis.TURNTABLE, target_pos=pose_turntable.angle):
                         adapter.request_immediate_stop()
                         
-                        msg = "작업 중단됨" if self._is_interrupted() else f"턴테이블 응답 없음 또는 시간 초과 ({self.MOVE_TIMEOUT}s)"
+                        msg = "작업 중단됨" if self._is_interrupted() else f"턴테이블 응답 없음 또는 시간 초과 ({self.move_timeout}s)"
                         return False, msg
 
                 # 잘 끝났는지 결과 확인용 로그
@@ -573,11 +577,11 @@ class ServoOnlyExecutor(BaseExecutor):
                 feedback_rotation = adapter.read_current_servo_motion(ServoAxis.TOOL_ROTATION)
                 feedback_turntable = adapter.read_current_servo_motion(ServoAxis.TURNTABLE)
 
-                if KEY_TOOL_REV_RPM in row:
+                if KEY_TOOL_REV_RPM in row and pose_revolution:
                     EVENT_BUS.log.message.emit(
                         f"{self._log_prefix} 툴 공전 확인: 목표={pose_revolution.velocity:.1f}, 현재={feedback_revolution['velocity']:.1f}", "DEBUG"
                     )
-                if KEY_TOOL_ROT_RPM in row:
+                if KEY_TOOL_ROT_RPM in row and pose_rotation:
                     EVENT_BUS.log.message.emit(
                         f"{self._log_prefix} 툴 자전 확인: 목표={pose_rotation.velocity:.1f}, 현재={feedback_rotation['velocity']:.1f}", "DEBUG"
                     )
@@ -610,7 +614,7 @@ class ServoOnlyExecutor(BaseExecutor):
             # 3. 종료 처리 (안전하게 끄기)
             EVENT_BUS.log.message.emit(f"{self._log_prefix} 서보 모터를 안전하게 끕니다...", "DEBUG")
 
-            is_safely_shutdown = adapter.shutdown_all_with_power_off(timeout=self.MOVE_TIMEOUT)
+            is_safely_shutdown = adapter.shutdown_all_with_power_off(timeout=self.move_timeout)
 
             if is_safely_shutdown:
                 EVENT_BUS.log.message.emit(f"{self._log_prefix} 깔끔하게 종료되었습니다.", "INFO")
@@ -633,7 +637,10 @@ class ServoOnlyExecutor(BaseExecutor):
             start_wait = time.time()
             busy_detected = False
 
-            while time.time() - start_wait < self.BUSY_TIMEOUT:
+            start_wait = time.time()
+            busy_detected = False
+
+            while time.time() - start_wait < self.busy_timeout:
                 
                 # 실제로 움직임?
                 moving = self.servo.is_servo_moving_physically(axis_idx)
@@ -683,7 +690,7 @@ class ServoOnlyExecutor(BaseExecutor):
             while self.servo.is_servo_moving_physically(axis_idx):
                 if self._is_interrupted(): return False
 
-                if time.time() - move_start_time > self.MOVE_TIMEOUT:
+                if time.time() - move_start_time > self.move_timeout:
                     EVENT_BUS.log.message.emit(f"{self._log_prefix} 너무 오래 걸려서 타임아웃 되었습니다.", "ERROR")
                     return False
 
@@ -714,8 +721,8 @@ class IntegratedExecutor(BaseExecutor):
         super().__init__(robot, servo)
         
         # 서보 모터가 다 움직일 때까지 기다려줄 최대 시간 (설정값)
-        self.BUSY_TIMEOUT = SETTINGS.servo.busy_timeout
-        self.MOVE_TIMEOUT = SETTINGS.servo.move_timeout
+        self.busy_timeout = SETTINGS.servo.busy_timeout
+        self.move_timeout = SETTINGS.servo.move_timeout
 
     def can_execute(self, sample_data: Dict[str, Any]) -> bool:
         """
@@ -829,7 +836,7 @@ class IntegratedExecutor(BaseExecutor):
         # 이전 신호 상태를 기억하기 위한 변수 (0이었다가 1이 될 때만 감지하려고)
         prev_do46_val = False 
 
-        def _on_robot_motion_done_edge_detect(*args):
+        def _on_robot_motion_done_edge_detect(*args: Any):
             """
             [알림 콜백] 
             PLC가 "DO46 신호 바뀌었어!" 하고 알려주면 이 함수가 실행된다.
@@ -839,7 +846,7 @@ class IntegratedExecutor(BaseExecutor):
             self._timestamp_robot_done = time.time()
             
             # (복잡한 데이터 포장지를 벗겨내고 알맹이 값만 꺼내는 과정)
-            raw_val = None
+            raw_val: Any = None
             try:
                 if len(args) == 2:
                     raw_val = args[1]
@@ -911,13 +918,14 @@ class IntegratedExecutor(BaseExecutor):
             # [Step 0: 서보 모터(드릴) 시동]
             # ---------------------------------------------------------------------
             # 작업 내내 계속 돌아가야 하는 모터들(공전/자전)을 먼저 켠다.
+            m3_deg_per_s = 0.0 # 초기화
             if sequence_data:
                 first_row = sequence_data[0]
                 
                 m1_rpm = first_row.get(KEY_TOOL_REV_RPM, 0.0)             # 공전(뺑뺑이) 속도
                 m2_rpm = first_row.get(KEY_TOOL_ROT_RPM, 0.0)             # 자전(드릴) 속도
                 m3_deg_per_s = first_row.get(KEY_TURNTABLE_FEED_RATE, 0.0)# 턴테이블 속도
-                m3_pos = first_row.get(KEY_TURNTABLE_DEG, 0.0) 
+                _m3_pos = first_row.get(KEY_TURNTABLE_DEG, 0.0) 
                 
                 EVENT_BUS.log.message.emit(f"{self._log_prefix} 서보 모터 예열 시작: Rev={m1_rpm}RPM, Rot={m2_rpm}RPM", "INFO")
                 
@@ -988,7 +996,7 @@ class IntegratedExecutor(BaseExecutor):
                 row = sequence_data[i]
                 
                 # (1) 로봇이 "나 도착했어(DO46)" 라고 할 때까지 기다린다.
-                if not self._wait_event_with_safety(robot_motion_done_event, timeout=self.MOVE_TIMEOUT):
+                if not self._wait_event_with_safety(robot_motion_done_event, timeout=self.move_timeout):
                     if self._is_interrupted(): raise InterruptedError("사용자가 멈춤 버튼을 눌렀음.")
                     raise TimeoutError(f"[Step {step_idx}] 로봇이 너무 오래 걸려서 에러남 (타임아웃).")
                 
@@ -1039,7 +1047,7 @@ class IntegratedExecutor(BaseExecutor):
 
             # [마지막 정리] 다 보냈으면 마지막 동작이 끝날 때까지 기다린다.
             EVENT_BUS.log.message.emit(f"{self._log_prefix} 마지막 동작이 끝날 때까지 대기 중...", "INFO")
-            if not self._wait_event_with_safety(robot_motion_done_event, timeout=self.MOVE_TIMEOUT):
+            if not self._wait_event_with_safety(robot_motion_done_event, timeout=self.move_timeout):
                 EVENT_BUS.log.message.emit(f"{self._log_prefix} 마지막 동작 대기 시간 초과됨 (그냥 종료함).", "WARNING")
             
             # [종료 프로토콜] 로봇에게 "이제 진짜 끝이야" 라고 알린다. (모든 신호 끄기)

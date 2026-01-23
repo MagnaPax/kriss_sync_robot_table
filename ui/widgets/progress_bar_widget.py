@@ -82,7 +82,7 @@ if __name__ == '__main__':
     widget.show()
 
     # 테스트 초기 데이터 설정
-    vm._on_sequence_data_loaded(["item"] * 100) # 100개 아이템
+    vm._on_sequence_data_loaded(["item"] * 100) # type: ignore # 100개 아이템
 
     # 동적 진행률 시뮬레이션
     current_value = 0
@@ -99,7 +99,7 @@ if __name__ == '__main__':
         elif current_value <= 0:
             direction = 1
             
-        vm._on_progress_updated(current_value, 100, "Processing...")
+        vm._on_progress_updated(current_value, 100, "Processing...") # type: ignore
 
     # 타이머 설정 (50ms마다 업데이트 = 20fps)
     timer = QTimer()

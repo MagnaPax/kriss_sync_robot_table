@@ -2,10 +2,10 @@
 import sys
 import math
 
-from typing import Optional
-from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QSizePolicy, QHBoxLayout, QGroupBox, QScrollBar
-from PyQt6.QtGui import QPainter, QColor, QPen, QPolygonF, QCursor, QAction
-from PyQt6.QtCore import Qt, QPointF, QPoint, QRectF, QSize, QTimer, pyqtProperty, pyqtSignal
+from typing import Optional, List, Dict, Any
+from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QSizePolicy, QHBoxLayout, QGroupBox, QScrollBar
+from PyQt6.QtGui import QPainter, QColor, QPen, QPolygonF, QWheelEvent, QMouseEvent
+from PyQt6.QtCore import Qt, QPointF, QPoint, QRectF, QSize, QTimer, pyqtProperty, pyqtSignal # type: ignore
 
 from ui.widgets.base_widget import BaseWidget
 from view_models.turntable_gauge_viewmodel import TurntableGaugeViewModel
@@ -32,8 +32,7 @@ class _GaugePainter(QWidget):
         # (Bird's-eye View: 턴테이블 위의 재료 가공 궤적 - Material Cut Trajectory)
         self._material_cut_angle: float = 0.0          # Material Cut Angle
         self._material_cut_radius_ratio: float = 0.9   # Material Cut Radius Ratio
-        self._material_cut_angle: float = 0.0          # Material Cut Angle
-        self._material_cut_radius_ratio: float = 0.9   # Material Cut Radius Ratio
+
         self._robot_z: float = 0.0                     # 로봇 높이 (Z축)
         
         # [Zoom 설정] Radius 기반 확대 (Center Zoom)
@@ -60,7 +59,7 @@ class _GaugePainter(QWidget):
         self._material_cut_processing_trajectory_color = QColor(Qt.GlobalColor.blue)    # 진행 중인 궤적 색상
         self._material_cut_trajectory_border_color = QColor(Qt.GlobalColor.transparent) # 테두리 색상 (기본 투명)
         
-        self._waypoints: list = [] # 웨이포인트 목록 [{'material_cut_angle': ..., 'material_cut_radius_ratio': ...}, ...]
+        self._waypoints: List[Dict[str, Any]] = [] # 웨이포인트 목록 [{'material_cut_angle': ..., 'material_cut_radius_ratio': ...}, ...]
         self._current_step_index: int = 0 # 현재 진행중인 스텝 (0-based)
     
     # --- Signals ---
@@ -75,49 +74,49 @@ class _GaugePainter(QWidget):
         self.update()
         self.zoom_changed_signal.emit(self._zoom_scale)
 
-    zoomInfo = pyqtProperty(float, get_zoom_scale, set_zoom_scale, notify=zoom_changed_signal)
+    zoomInfo = pyqtProperty(float, get_zoom_scale, set_zoom_scale, notify=zoom_changed_signal) # type: ignore
 
 
     # --- QProperty 정의 (Stylesheet 연동용) ---
-    def get_circle_color(self): return self._circle_color
-    def set_circle_color(self, c): self._circle_color = c; self.update()
-    circleColor = pyqtProperty(QColor, get_circle_color, set_circle_color)
+    def get_circle_color(self) -> QColor: return self._circle_color
+    def set_circle_color(self, c: QColor): self._circle_color = c; self.update()
+    circleColor = pyqtProperty(QColor, get_circle_color, set_circle_color) # type: ignore
 
-    def get_circle_bg_color(self): return self._circle_bg_color
-    def set_circle_bg_color(self, c): self._circle_bg_color = c; self.update()
-    circleBgColor = pyqtProperty(QColor, get_circle_bg_color, set_circle_bg_color)
+    def get_circle_bg_color(self) -> QColor: return self._circle_bg_color
+    def set_circle_bg_color(self, c: QColor): self._circle_bg_color = c; self.update()
+    circleBgColor = pyqtProperty(QColor, get_circle_bg_color, set_circle_bg_color) # type: ignore
 
-    def get_material_cut_trajectory_color(self): return self._material_cut_trajectory_color
-    def set_material_cut_trajectory_color(self, c): self._material_cut_trajectory_color = c; self.update()
-    materialCutTrajectoryColor = pyqtProperty(QColor, get_material_cut_trajectory_color, set_material_cut_trajectory_color)
+    def get_material_cut_trajectory_color(self) -> QColor: return self._material_cut_trajectory_color
+    def set_material_cut_trajectory_color(self, c: QColor): self._material_cut_trajectory_color = c; self.update()
+    materialCutTrajectoryColor = pyqtProperty(QColor, get_material_cut_trajectory_color, set_material_cut_trajectory_color) # type: ignore
 
-    def get_material_cut_completed_trajectory_color(self): return self._material_cut_completed_trajectory_color
-    def set_material_cut_completed_trajectory_color(self, c): self._material_cut_completed_trajectory_color = c; self.update()
-    materialCutCompletedTrajectoryColor = pyqtProperty(QColor, get_material_cut_completed_trajectory_color, set_material_cut_completed_trajectory_color)
+    def get_material_cut_completed_trajectory_color(self) -> QColor: return self._material_cut_completed_trajectory_color
+    def set_material_cut_completed_trajectory_color(self, c: QColor): self._material_cut_completed_trajectory_color = c; self.update()
+    materialCutCompletedTrajectoryColor = pyqtProperty(QColor, get_material_cut_completed_trajectory_color, set_material_cut_completed_trajectory_color) # type: ignore
 
-    def get_material_cut_processing_trajectory_color(self): return self._material_cut_processing_trajectory_color
-    def set_material_cut_processing_trajectory_color(self, c): self._material_cut_processing_trajectory_color = c; self.update()
-    materialCutProcessingTrajectoryColor = pyqtProperty(QColor, get_material_cut_processing_trajectory_color, set_material_cut_processing_trajectory_color)
+    def get_material_cut_processing_trajectory_color(self) -> QColor: return self._material_cut_processing_trajectory_color
+    def set_material_cut_processing_trajectory_color(self, c: QColor): self._material_cut_processing_trajectory_color = c; self.update()
+    materialCutProcessingTrajectoryColor = pyqtProperty(QColor, get_material_cut_processing_trajectory_color, set_material_cut_processing_trajectory_color) # type: ignore
 
-    def get_material_cut_trajectory_border_color(self): return self._material_cut_trajectory_border_color
-    def set_material_cut_trajectory_border_color(self, c): self._material_cut_trajectory_border_color = c; self.update()
-    materialCutTrajectoryBorderColor = pyqtProperty(QColor, get_material_cut_trajectory_border_color, set_material_cut_trajectory_border_color)
+    def get_material_cut_trajectory_border_color(self) -> QColor: return self._material_cut_trajectory_border_color
+    def set_material_cut_trajectory_border_color(self, c: QColor): self._material_cut_trajectory_border_color = c; self.update()
+    materialCutTrajectoryBorderColor = pyqtProperty(QColor, get_material_cut_trajectory_border_color, set_material_cut_trajectory_border_color) # type: ignore
 
-    def get_scale_line_color(self): return self._scale_line_color
-    def set_scale_line_color(self, c): self._scale_line_color = c; self.update()
-    scaleLineColor = pyqtProperty(QColor, get_scale_line_color, set_scale_line_color)
+    def get_scale_line_color(self) -> QColor: return self._scale_line_color
+    def set_scale_line_color(self, c: QColor): self._scale_line_color = c; self.update()
+    scaleLineColor = pyqtProperty(QColor, get_scale_line_color, set_scale_line_color) # type: ignore
 
-    def get_scale_text_color(self): return self._scale_text_color
-    def set_scale_text_color(self, c): self._scale_text_color = c; self.update()
-    scaleTextColor = pyqtProperty(QColor, get_scale_text_color, set_scale_text_color)
+    def get_scale_text_color(self) -> QColor: return self._scale_text_color
+    def set_scale_text_color(self, c: QColor): self._scale_text_color = c; self.update()
+    scaleTextColor = pyqtProperty(QColor, get_scale_text_color, set_scale_text_color) # type: ignore
 
-    def get_arrow_color(self): return self._arrow_color
-    def set_arrow_color(self, c): self._arrow_color = c; self.update()
-    arrowColor = pyqtProperty(QColor, get_arrow_color, set_arrow_color)
+    def get_arrow_color(self) -> QColor: return self._arrow_color
+    def set_arrow_color(self, c: QColor): self._arrow_color = c; self.update()
+    arrowColor = pyqtProperty(QColor, get_arrow_color, set_arrow_color) # type: ignore
 
-    def get_tool_position_color(self): return self._tool_position_color
-    def set_tool_position_color(self, c): self._tool_position_color = c; self.update()
-    toolPositionColor = pyqtProperty(QColor, get_tool_position_color, set_tool_position_color)
+    def get_tool_position_color(self) -> QColor: return self._tool_position_color
+    def set_tool_position_color(self, c: QColor): self._tool_position_color = c; self.update()
+    toolPositionColor = pyqtProperty(QColor, get_tool_position_color, set_tool_position_color) # type: ignore
 
 
 
@@ -130,7 +129,7 @@ class _GaugePainter(QWidget):
         self._robot_z = robot_z # Z축 높이 (mm)
         self.update()  # -> Qt -> paintEvent() : Qt 에게 paintEvent()를 호출하도록 요청
 
-    def set_waypoints(self, waypoints: list):
+    def set_waypoints(self, waypoints: List[Dict[str, Any]]):
         """웨이포인트 목록 업데이트"""
         self._waypoints = waypoints
         self.update()
@@ -140,9 +139,10 @@ class _GaugePainter(QWidget):
         self._current_step_index = index
         self.update()
 
-    def wheelEvent(self, event):
+    def wheelEvent(self, a0: Optional[QWheelEvent]):
         """마우스 휠로 줌 인/아웃 (Radius Scaling)"""
-        delta = event.angleDelta().y()
+        if not a0: return
+        delta = a0.angleDelta().y()
         # 휠 올리면 확대(+), 내리면 축소(-)
         if delta > 0:
             self._zoom_scale = min(self._max_zoom, self._zoom_scale + 0.5)
@@ -155,7 +155,7 @@ class _GaugePainter(QWidget):
 
         self.update()
         self.zoom_changed_signal.emit(self._zoom_scale) # 시그널 발생
-        event.accept()
+        a0.accept()
 
     def reset_view(self):
         """뷰 초기화 (줌 1.0, 오프셋 0,0)"""
@@ -164,40 +164,43 @@ class _GaugePainter(QWidget):
         self.update()
         self.zoom_changed_signal.emit(self._zoom_scale)
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, a0: Optional[QMouseEvent]):
         """마우스 클릭/드래그 시작"""
-        if event.button() == Qt.MouseButton.LeftButton:
-            self._last_mouse_pos = event.pos()
+        if not a0: return
+        if a0.button() == Qt.MouseButton.LeftButton:
+            self._last_mouse_pos = a0.pos()
             self._is_dragging = False
-        super().mousePressEvent(event)
+        super().mousePressEvent(a0)
 
-    def mouseMoveEvent(self, event):
+    def mouseMoveEvent(self, a0: Optional[QMouseEvent]):
         """마우스 드래그로 화면 이동 (Panning)"""
+        if not a0: return
         # 버튼이 눌린 상태에서만 처리 (LeftButton)
-        if event.buttons() & Qt.MouseButton.LeftButton:
+        if a0.buttons() & Qt.MouseButton.LeftButton:
             # 이동 거리 계산
-            delta = event.pos() - self._last_mouse_pos
-            self._last_mouse_pos = event.pos()
+            delta = a0.pos() - self._last_mouse_pos
+            self._last_mouse_pos = a0.pos()
             
             # 드래그 감지 (약간의 움직임은 클릭으로 허용할 수도 있으나 여기선 즉시 반영)
             # 단, 클릭과 구분을 위해 플래그 설정
             if delta.manhattanLength() > 0: # 조금이라도 움직였으면
-                 self._is_dragging = True
-                 self._view_offset += QPointF(delta)
-                 self.update()
+                self._is_dragging = True
+                self._view_offset += QPointF(delta)
+                self.update()
 
-        super().mouseMoveEvent(event)
+        super().mouseMoveEvent(a0)
 
-    def mouseReleaseEvent(self, event):
+    def mouseReleaseEvent(self, a0: Optional[QMouseEvent]):
         """마우스 놓았을 때: 드래그가 아니었으면 클릭 시그널 발생"""
-        if event.button() == Qt.MouseButton.LeftButton:
+        if not a0: return
+        if a0.button() == Qt.MouseButton.LeftButton:
             if not self._is_dragging:
                 self.clicked.emit()
             
             # 드래그 상태 초기화
             self._is_dragging = False
         
-        super().mouseReleaseEvent(event)
+        super().mouseReleaseEvent(a0)
 
 
 
@@ -216,10 +219,10 @@ class _GaugePainter(QWidget):
 
         # 1. 좌표계 설정 (정사각형 기준)
         side = min(self.width(), self.height())     # 창이 직사각형 되어도 게이지 찌그러지지 않게
-        center = QPointF(self.width() / 2, self.height() / 2)
+        center: QPointF = QPointF(self.width() / 2.0, self.height() / 2.0)
         
         # [Panning] 뷰 오프셋 적용 (중심점 이동)
-        center += self._view_offset
+        center += self._view_offset # type: ignore
 
         # [핵심] Zoom 적용: 반지름 자체를 키운다. 
         # 이렇게 하면 중심(center)은 그대로이고, 원의 크기만 커지거나 작아짐 = 완벽한 Center Zoom
@@ -280,8 +283,8 @@ class _GaugePainter(QWidget):
         # ----------------------------------------------------
         # 공통 좌표 계산 함수 (Closure)
         # ----------------------------------------------------
-        def calculate_points(target_waypoints):
-            pts = []
+        def calculate_points(target_waypoints: List[Dict[str, Any]]) -> List[QPointF]:
+            pts: List[QPointF] = []
             for wp in target_waypoints:
                 material_cut_angle = wp.get('material_cut_angle', 0.0)
                 material_cut_radius_ratio = wp.get('material_cut_radius_ratio', 0.0)
@@ -315,7 +318,7 @@ class _GaugePainter(QWidget):
             pen_completed.setCapStyle(Qt.PenCapStyle.RoundCap)
             painter.setPen(pen_completed)
             
-            painter.drawPoints(points_completed)
+            painter.drawPoints(QPolygonF(points_completed))
 
         # ----------------------------------------------------
         # 2. 진행 중인 궤적 그리기 (Index == Current)
@@ -330,7 +333,8 @@ class _GaugePainter(QWidget):
             pen_processing = QPen(self._material_cut_processing_trajectory_color, pen_width * 1.5) # 강조
             pen_processing.setCapStyle(Qt.PenCapStyle.RoundCap)
             painter.setPen(pen_processing)
-            painter.drawPoints(points_processing)
+
+            painter.drawPoints(QPolygonF(points_processing))
 
         # ----------------------------------------------------
         # 3. 남은 궤적 그리기 (Index > Current)
@@ -345,7 +349,7 @@ class _GaugePainter(QWidget):
             pen_remaining.setCapStyle(Qt.PenCapStyle.RoundCap)
             painter.setPen(pen_remaining)
             
-            painter.drawPoints(points_remaining)
+            painter.drawPoints(QPolygonF(points_remaining))
 
 
     def _draw_dynamic_elements(self, painter: QPainter, center: QPointF, radius: float):
@@ -489,17 +493,17 @@ class TurntableGauge(BaseWidget):
         # ViewModel은 외부(MainVeiwModel)에서 set_view_model()을 통해 주입받음
         self.view_model: Optional[TurntableGaugeViewModel] = None
 
-    def _on_scrollbar_value_changed(self, value):
+    def _on_scrollbar_value_changed(self, value: int):
         """스크롤바 값 변경 -> 게이지 줌 변경"""
         # 스크롤바 값(5~200) -> 줌 스케일(0.5 ~ 20.0)
         scale = value / 10.0
         # 시그널 루프 방지를 위해 blockSignals 할 수도 있으나,
         # set_zoom_scale 내부에서 값을 체크하거나, 단방향 흐름이므로 괜찮음.
         # 하지만 무한 루프 방지를 위해 값 비교
-        if abs(self.gauge_widget._zoom_scale - scale) > 0.01:
+        if abs(self.gauge_widget._zoom_scale - scale) > 0.01: # pylint: disable=protected-access # type: ignore
              self.gauge_widget.set_zoom_scale(scale)
 
-    def _on_gauge_zoom_changed(self, scale):
+    def _on_gauge_zoom_changed(self, scale: float):
         """게이지 휠 줌 변경 -> 스크롤바 값 동기화"""
         val = int(scale * 10)
         if self.scroll_bar.value() != val:
@@ -521,11 +525,11 @@ class TurntableGauge(BaseWidget):
         current_index = max(0, current - 1)
         self.gauge_widget.set_current_step(current_index)
 
-    def update_waypoints(self, waypoints: list):
+    def update_waypoints(self, waypoints: List[Dict[str, Any]]):
         """ViewModel -> 웨이포인트 데이터 수신 -> GaugeWidget 전달"""
         self.gauge_widget.set_waypoints(waypoints)
 
-    def update_data(self, data: dict):
+    def update_data(self, data: Dict[str, Any]):
         """
         BaseWidget의 추상 메서드(update_data) 구현
 
@@ -541,13 +545,13 @@ class TurntableGauge(BaseWidget):
         material_cut_angle = float(data.get('material_cut_angle', 0.0))
         material_cut_radius_ratio = float(data.get('material_cut_radius_ratio', 0.9))
 
-        rounds = int(data.get('rounds', 0))
-        state = str(data.get('state', 'waiting'))
+        # rounds = int(data.get('rounds', 0))
+        # state = str(data.get('state', 'waiting'))
 
         # 추가 데이터 추출 (View 표시용)
         robot_z = float(data.get('robot_z', 0.0))
-        robot_f = float(data.get('robot_f', 0.0))
-        turntable_vel = float(data.get('servo_turntable_vel', 0.0))
+        # robot_f = float(data.get('robot_f', 0.0))
+        # turntable_vel = float(data.get('servo_turntable_vel', 0.0))
 
 
         # 게이지 위젯에 값 전달
@@ -576,7 +580,7 @@ class TurntableGaugePopup(QWidget):
     TurntableGauge를 팝업 창으로 띄우기 위한 위젯
     메인 위젯과 동일한 화면을 독립된 창에서 보여줌
     """
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.setWindowTitle("Turntable Gauge Detail")
         self.setObjectName("turntable_gauge_popup") # QSS ID 설정
@@ -596,12 +600,12 @@ class TurntableGaugePopup(QWidget):
         self._view_model = vm
         self.gauge.set_view_model(vm)
         
-    def update_data(self, data: dict):
+    def update_data(self, data: Dict[str, Any]):
         """수동 데이터 업데이트"""
         self._current_data = data
         self.gauge.update_data(data)
     
-    def set_waypoints(self, waypoints: list):
+    def set_waypoints(self, waypoints: List[Dict[str, Any]]):
         """웨이포인트 업데이트"""
         self.gauge.update_waypoints(waypoints)
 
@@ -657,7 +661,7 @@ class TurntableGaugeWidget(BaseWidget):
         
         # [데이터 동기화]
         # 1. 팝업이 열릴 때, 메인 게이지가 가지고 있던 웨이포인트를 복사해서 넣어줌
-        current_waypoints = self.gauge.gauge_widget._waypoints
+        current_waypoints = self.gauge.gauge_widget._waypoints # pylint: disable=protected-access # type: ignore
         self.popup.gauge.update_waypoints(current_waypoints)
         
         # 2. 뷰 초기화 (항상 가운데, 기본 줌으로 시작)
@@ -682,7 +686,7 @@ class TurntableGaugeWidget(BaseWidget):
         self.popup.raise_()
         self.popup.activateWindow()
 
-    def update_waypoints(self, waypoints: list):
+    def update_waypoints(self, waypoints: List[Dict[str, Any]]):
         """웨이포인트 업데이트 위임 + 팝업 동기화"""
         self.gauge.update_waypoints(waypoints)
         
@@ -690,7 +694,7 @@ class TurntableGaugeWidget(BaseWidget):
         if self.popup is not None and self.popup.isVisible():
             self.popup.gauge.update_waypoints(waypoints)
 
-    def update_data(self, data: dict):
+    def update_data(self, data: Dict[str, Any]):
         """데이터 업데이트 위임 + 팝업 동기화"""
         if hasattr(self, 'gauge'):
             self.gauge.update_data(data)
@@ -745,11 +749,13 @@ if __name__ == '__main__':
         'angle': 0.0,
         'rounds': 0,
         'material_cut_angle': 270.0, # 빨간 점 초기 위치
+
         'material_cut_radius_ratio': 0.9, # 반지름 90%에서 시작
         'state': 'running'
     }
 
     # 반지름이 움직이는 방향 (1: 바깥쪽, -1: 안쪽)
+    # pylint: disable=protected-access
     radius_direction = -1    
 
     def update_test():

@@ -517,7 +517,7 @@ class PLCService(QObject):
         # 1. 소프트웨어 루프 중단 - 다음 동작을 하지 않도록(하고 있는 동작은 계속 진행됨)
         if WorkerID.SEQUENCE in self._active_workers:
             # 현재 돌고있는 스레드 중에서 `WorkerID.SEQUENCE` 이름으로 돌고 있는 스레드와 워커 객체만 뽑아오기
-            thread, worker = self._active_workers[WorkerID.SEQUENCE]
+            thread, _ = self._active_workers[WorkerID.SEQUENCE]
             
             try:
                 if thread.isRunning():

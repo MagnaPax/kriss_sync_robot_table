@@ -1,7 +1,8 @@
 # ui/widgets/waypoints_widget.py
 
 from typing import Any, List, Dict, Optional, TYPE_CHECKING
-from PyQt6.QtCore import Qt, pyqtSlot, QEvent
+from PyQt6.QtCore import Qt, pyqtSlot, QEvent, QModelIndex, QObject
+
 from PyQt6.QtWidgets import (
     QApplication,
     QVBoxLayout, 
@@ -35,7 +36,7 @@ class WaypointsDelegate(QStyledItemDelegate):
         실제로는 보이지 않는 QLabel을 하나 만들어서 QSS 속성(Property)을 먹인 뒤,
         그 라벨의 Palette 색상을 훔쳐와서 테이블 셀을 그립니다.
     """
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
         # 스타일 추출용 Proxy Widget
         # 부모를 지정해야 앱 전체 스타일시트(QSS)를 상속받을 수 있다
@@ -44,7 +45,9 @@ class WaypointsDelegate(QStyledItemDelegate):
         self._proxy_label.setAutoFillBackground(True) # Palette에 배경색이 반영되도록 설정
         self._proxy_label.setProperty("usage", "waypoint_result") # QSS 선택자용
 
-    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index):
+    def paint(self, painter: Optional[QPainter], option: QStyleOptionViewItem, index: QModelIndex):
+        if not painter: return
+
         # 1. 원본 데이터 가져오기 (DisplayRole)
         text = index.data(Qt.ItemDataRole.DisplayRole)
         
@@ -67,9 +70,9 @@ class WaypointsDelegate(QStyledItemDelegate):
         # 4. Proxy Widget에 속성 설정 및 스타일 폴리싱(Polishing)
         #    Property 변경 후 반드시 unpolish -> polish 과정을 거쳐야 QSS가 재계산된다
         self._proxy_label.setProperty("status", qss_status)
-        style = self._proxy_label.style()
-        style.unpolish(self._proxy_label)
-        style.polish(self._proxy_label)
+        if style := self._proxy_label.style():
+            style.unpolish(self._proxy_label)
+            style.polish(self._proxy_label)
         
         # 5. QSS가 적용된 라벨에서 배경색 및 글자색 추출
         bg_color = self._proxy_label.palette().color(QPalette.ColorRole.Window)
@@ -156,15 +159,13 @@ class WaypointsWidget(BaseWidget):
         
         # 스크롤바 동기화
         # 메인 테이블의 스크롤바가 움직이면 -> 고정 테이블도 같이 움직임
-        self.table_view.verticalScrollBar().valueChanged.connect(
-            self.frozen_table_view.verticalScrollBar().setValue
-        )
-        self.frozen_table_view.verticalScrollBar().valueChanged.connect(
-            self.table_view.verticalScrollBar().setValue
-        )
+        if (v_bar_main := self.table_view.verticalScrollBar()) and (v_bar_frozen := self.frozen_table_view.verticalScrollBar()):
+            v_bar_main.valueChanged.connect(v_bar_frozen.setValue)
+            v_bar_frozen.valueChanged.connect(v_bar_main.setValue)
         
         # 메인 테이블에 가로 스크롤바가 생기면, 고정 테이블의 하단에도 그만큼 여백을 줘서 줄 간격을 맞춤
-        self.table_view.horizontalScrollBar().installEventFilter(self)
+        if h_bar_main := self.table_view.horizontalScrollBar():
+            h_bar_main.installEventFilter(self)
 
         # 델리게이트 설정 (Result 컬럼 스타일링)
         # 주의: Result 컬럼이 항상 0번이라고 가정 (모델에서 insert(0) 했음)
@@ -344,13 +345,16 @@ class WaypointsWidget(BaseWidget):
 
 
 
-    def eventFilter(self, source, event):
+    def eventFilter(self, a0: Optional[QObject], a1: Optional[QEvent]) -> bool:
         """이벤트 필터: 가로 스크롤바의 표시/숨김 이벤트를 감지"""
-        if source == self.table_view.horizontalScrollBar():
-            if event.type() in [QEvent.Type.Show, QEvent.Type.Hide]:
+        if not a0 or not a1:
+            return super().eventFilter(a0, a1)
+
+        if a0 == self.table_view.horizontalScrollBar():
+            if a1.type() in [QEvent.Type.Show, QEvent.Type.Hide]:
                 self._sync_frozen_footer()
                 
-        return super().eventFilter(source, event)
+        return super().eventFilter(a0, a1)
 
     def _sync_frozen_footer(self):
         """메인 테이블의 가로 스크롤바가 생기면, 고정 테이블에도 가로 스크롤바를 켜서 높이를 맞춤"""
@@ -358,7 +362,7 @@ class WaypointsWidget(BaseWidget):
             return
             
         h_bar = self.table_view.horizontalScrollBar()
-        if h_bar.isVisible():
+        if h_bar and h_bar.isVisible():
             # 메인 스크롤바가 보이면 -> 고정 테이블 스크롤바도 강제로 켜기 (공간 확보용)
             self.frozen_table_view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         else:
