@@ -1,5 +1,6 @@
 # ui/widgets/turntable_widget.py
 import sys
+import math
 
 from typing import Optional
 from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QSizePolicy, QHBoxLayout, QGroupBox, QScrollBar
@@ -244,44 +245,53 @@ class _GaugePainter(QWidget):
         painter.drawText(QRectF(center.x() - text_radius - 30, center.y() - 10, 40, 20), Qt.AlignmentFlag.AlignRight, "270")
 
     def _draw_waypoints(self, painter: QPainter, center: QPointF, radius: float):
-        """웨이포인트 목록 그리기"""
+        """웨이포인트 목록 그리기 (최적화 버전: drawPoints 사용)"""
         if not self._waypoints:
             return
 
-        painter.save()
-        painter.translate(center)
+        # [최적화] 점 크기 및 펜 설정
+        # drawEllipse에서는 반지름(r)을 지정했지만, drawPoints는 펜 두께(Width)가 지름이 됨
+        # 기존 dot_r = max(0.5, 0.5 * zoom) => 지름 = max(1.0, 1.0 * zoom)
+        pen_width = max(1.0, 1.0 * self._zoom_scale)
         
-        # Material Cut Trajectory 스타일 (작고 연한 점)
-        # 테두리 설정 (시인성 향상)
-        if self._material_cut_trajectory_border_color.alpha() > 0:
-            painter.setPen(QPen(self._material_cut_trajectory_border_color, 1)) # 1px 테두리
-        else:
-            painter.setPen(Qt.PenStyle.NoPen)
-            
-        painter.setBrush(self._material_cut_trajectory_color)
+        # 색상 및 스타일 설정 (RoundCap으로 점을 둥글게)
+        pen = QPen(self._material_cut_trajectory_color, pen_width)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
         
-        # [핵심] 턴테이블과 함께 회전하도록 설정 (재료에 고정된 궤적)
-        painter.rotate(self._angle) 
+        points = []
+        
+        # 미리 계산된 중앙점 좌표
+        cx, cy = center.x(), center.y()
+        
+        # 턴테이블 현재 각도
+        turntable_angle = self._angle
 
         for wp in self._waypoints:
+            # 개별 포인트 각도
+            # 전체 각도 = 턴테이블 각도(self._angle) + 재료 커팅 각도(wp['material_cut_angle']) (둘 다 시계방향 가정)
+            # 좌표계: 12시 방향이 0도, 시계 방향 회전
+            # x = center.x + r * sin(theta)
+            # y = center.y - r * cos(theta)
+            
             material_cut_angle = wp.get('material_cut_angle', 0.0)
             material_cut_radius_ratio = wp.get('material_cut_radius_ratio', 0.0)
             
-            painter.save()
-            painter.rotate(material_cut_angle)
+            # 각도 합산 (도 -> 라디안)
+            total_angle_deg = turntable_angle + material_cut_angle
+            rad = math.radians(total_angle_deg)
             
-            # 위치 계산
+            # 거리 계산
             dist = radius * material_cut_radius_ratio
-            pos = QPointF(0, -dist)
             
-            # 작은 점 그리기 (궤적이 뭉치지 않게 아주 작게 표현하되, 줌에 비례하여 커지게 함)
-            # 기본 반지름 0.5 * 줌 스케일 (최소 크기 보장)
-            dot_r = max(0.5, 0.5 * self._zoom_scale)
-            painter.drawEllipse(pos, dot_r, dot_r) 
+            # 좌표 계산
+            px = cx + dist * math.sin(rad)
+            py = cy - dist * math.cos(rad)
             
-            painter.restore()
+            points.append(QPointF(px, py))
             
-        painter.restore()
+        # 일괄 그리기 (매우 빠름)
+        painter.drawPoints(points)
 
 
     def _draw_dynamic_elements(self, painter: QPainter, center: QPointF, radius: float):
