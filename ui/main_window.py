@@ -102,9 +102,9 @@ class MainWindow(QMainWindow):
         self.mainLayout.addWidget(self.right)
 
         # 패널 레이아웃 비율 설정
-        self.mainLayout.setStretch(0, 3)  # Left    30%
-        self.mainLayout.setStretch(1, 3)  # Center  30%
-        self.mainLayout.setStretch(2, 4)  # Right   40%
+        self.mainLayout.setStretch(0, 30)  # Left    30%
+        self.mainLayout.setStretch(1, 15)  # Center  15%
+        self.mainLayout.setStretch(2, 55)  # Right   55%
 
 
 
