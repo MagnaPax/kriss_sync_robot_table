@@ -131,7 +131,7 @@ class SequenceCsvParser(BaseParser):
                     data_type = schema_info['type']
 
                     # 의미 없는 칼럼 A는 무시
-                    if field_name == 'unused_a': 
+                    if field_name == 'unused_data_a': 
                         continue
 
                     if field_name == 'id':
