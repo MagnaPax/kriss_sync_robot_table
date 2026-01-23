@@ -1,7 +1,6 @@
 # ui/panels/center_panel.py
 from typing import TYPE_CHECKING, Optional
 from PyQt6.QtWidgets import QFrame, QVBoxLayout, QWidget
-from ui.widgets.robot_motion_widget import 
 from ui.widgets.world_coordinates_widget import WorldCoordinatesWidget
 from ui.widgets.user_coordinates_widget import UserCoordinatesWidget
 from ui.widgets.emergency_stop_widget import EmergencyStopWidget

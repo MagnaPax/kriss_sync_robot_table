@@ -26,6 +26,7 @@ class EmergencyStopWidget(BaseWidget):
         # 비상 정지 버튼
         self.stop_btn = QPushButton("EMERGENCY STOP")
         self.stop_btn.setObjectName("emergency_button") # QSS(#emergency_button)
+        self.stop_btn.setShortcut("Esc")                # Esc 키 연동
         
         # 클릭 이벤트 연결
         self.stop_btn.clicked.connect(self._on_stop_clicked)
