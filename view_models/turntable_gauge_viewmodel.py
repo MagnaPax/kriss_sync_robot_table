@@ -8,6 +8,7 @@ from models.fanuc_pose_key import FANUCPoseKey
 from models.servo_pose_model import ServoPose
 from models.servo_pose_key import ServoAxis
 from core.event_bus import EVENT_BUS
+from config.data_formats import KEY_TURNTABLE_DEG, KEY_ROBOT_X, KEY_ROBOT_Y
 
 class TurntableGaugeViewModel(QObject):
     """
@@ -219,8 +220,8 @@ class TurntableGaugeViewModel(QObject):
             
             # 안전하게 가져오기 (문자열일 수 있으므로 float 변환)
             try:
-                x = float(step.get('x', 0.0))
-                y = float(step.get('y', 0.0))
+                x = float(step.get(KEY_ROBOT_X, 0.0))
+                y = float(step.get(KEY_ROBOT_Y, 0.0))
                 
                 # Cartesian -> Polar 변환 (Visual Angle)
                 math_angle_rad = math.atan2(y, x)
@@ -234,7 +235,7 @@ class TurntableGaugeViewModel(QObject):
                 # Material Cut Path 계산 (Material Frame)
                 # 가공 궤적 = World Angle - Turntable Angle
                 # (턴테이블이 회전해도 궤적이 재료에 고정되어 같이 회전하도록 함)
-                step_turntable_deg = float(step.get('turntable_deg', 0.0))
+                step_turntable_deg = float(step.get(KEY_TURNTABLE_DEG, step.get('turntable_deg', 0.0)))
                 material_cut_angle = (visual_angle - step_turntable_deg) % 360
 
                 visual_waypoints.append({
