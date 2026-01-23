@@ -1,12 +1,12 @@
 # view_models/turntable_gauge_viewmodel.py
 import math
-from PyQt6.QtCore import QObject, pyqtSignal
-from typing import Dict, Any
+from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
+from typing import Dict, Any, List, cast
 
 from models.fanuc_pose_model import FANUCPose
 from models.fanuc_pose_key import FANUCPoseKey
 from models.servo_pose_model import ServoPose
-from models.servo_pose_key import ServoAxis, ServoPoseKey
+from models.servo_pose_key import ServoAxis
 from core.event_bus import EVENT_BUS
 
 class TurntableGaugeViewModel(QObject):
@@ -59,19 +59,23 @@ class TurntableGaugeViewModel(QObject):
     # ===============================================
     # 시그널 슬롯 [물리적 시그널 처리]
     # ===============================================
+    @pyqtSlot(object)
     def on_update_current_robot_pose(self, pose: FANUCPose):
         """현재 로봇 위치 업데이트"""
         self._handle_robot_servo_data({'pose': pose})
 
+    @pyqtSlot(dict)
     def on_update_current_servo_motion(self, servo_states: Dict[ServoAxis, ServoPose]):
         """현재 서보 모터 상태 업데이트"""
         # _handle_robot_servo_data가 'servo_axes' 키로 dict를 받도록 설계됨
         self._handle_robot_servo_data({'servo_axes': servo_states})
 
-    def on_sequence_data_loaded(self, sequence_data: list):
+    @pyqtSlot(list)
+    def on_sequence_data_loaded(self, sequence_data: List[Dict[str, Any]]):
         """시퀀스 데이터 읽기 완료"""
         self._handle_trajectory(sequence_data)
 
+    @pyqtSlot(int, int, str)
     def _on_progress_updated(self, current: int, total: int, status: str):
         """현재 진행중인 시퀀스 단계 업데이트"""
         self.progressing_step_changed.emit(current, total, status)
@@ -90,12 +94,14 @@ class TurntableGaugeViewModel(QObject):
         # 1. 서보 모터 데이터 처리 (Axis 1, 2, 3)
         # ---------------------------------------------------------------------
         # (A) 전체 서보 데이터 (Dict[ServoAxis, ServoPose])
-        servo_axes = data.get('servo_axes')
-        if isinstance(servo_axes, dict):
+        servo_axes_raw = data.get('servo_axes')
+        if isinstance(servo_axes_raw, dict):
             # 통째로 업데이트하거나, 개별 업데이트
             # 여기서는 내부 딕셔너리를 갱신
-            for axis, pose in servo_axes.items():
-                if axis in self.servo_motions and isinstance(pose, ServoPose):
+            servo_axes: Dict[ServoAxis, ServoPose] = cast(Dict[ServoAxis, ServoPose], servo_axes_raw)
+            for axis in self.servo_motions:
+                if axis in servo_axes:
+                    pose = servo_axes[axis]
                     # 값 비교
                     current = self.servo_motions[axis]
                     if current.angle != pose.angle or current.velocity != pose.velocity:
@@ -202,7 +208,7 @@ class TurntableGaugeViewModel(QObject):
         
         self.ui_data_updated.emit(view_data)
 
-    def _handle_trajectory(self, sequence_data: list):
+    def _handle_trajectory(self, sequence_data: List[Dict[str, Any]]):
         """웨이포인트들을 시각화용 데이터로 변환하여 로컬 시그널로 emit"""
         visual_waypoints = []
         
