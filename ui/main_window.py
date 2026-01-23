@@ -49,8 +49,8 @@ class MainWindow(QMainWindow):
         # --- UI 이벤트 바인딩 --- #
         self._bind_ui_events()
 
-        # 전역 로딩 다이얼로그 (Lazy Loading)
-        self.loading_dialog: QProgressDialog | None = None
+        # 로딩 상태 표시용 메시지 박스
+        self.loading_dialog: QMessageBox | None = None
 
 
     # =====================
@@ -120,13 +120,12 @@ class MainWindow(QMainWindow):
 
         # --- VM의 시그널(전화) 연결 --- #
         self.vm.twincat_connection_changed.connect(self.twincat_indicator.safe_update_data)     # PLC 연결 상태 화면 표시
-        self.vm.show_recovery_dialog.connect(self._on_recovery_dialog)                          # 재접속 모달 표시
+        self.vm.show_recovery_dialog.connect(self._on_recovery_dialog)
         self.vm.control_ui_enabled.connect(self._on_control_status_changed)                     # 패널 활성화 여부 연결
 
         # --- 이벤트 버스 시그널(라디오 방송) 연결 --- #
-        EVENT_BUS.system.operation_error_alert.connect(self._on_operation_error_dialog)         # 작업 중 발생한 에러 팝업
-        EVENT_BUS.system.loading_started.connect(self._on_loading_started)                      # 파일 읽기 시작
-        EVENT_BUS.system.loading_finished.connect(self._on_loading_finished)                    # 파일 읽기 끝
+        EVENT_BUS.system.operation_error_alert.connect(self._on_operation_error_dialog)
+        EVENT_BUS.system.file_loading_status_changed.connect(self._on_receive_file_loading_status)
 
     def _bind_ui_events(self):
         """
@@ -145,7 +144,7 @@ class MainWindow(QMainWindow):
             try:
                 # 이미 연결되어 있을 수 있으므로 끊고 다시 연결하거나
                 # 단순히 연결 (Qt는 기본적으로 다중 연결 허용)
-                widget.error_occurred.connect(self.show_error_popup)
+                widget.error_occurred.connect(self._on_error_by_base_widget)
             except Exception:
                 pass
             
@@ -153,14 +152,58 @@ class MainWindow(QMainWindow):
             # widget.connection_status_changed.connect(self.update_status_bar)
 
 
-    # ==========================================================
-    # 공통 핸들러
-    # ==========================================================
+    # ===============================================
+    # 시그널 슬롯 [물리적 시그널 수신]
+    # ===============================================
     @pyqtSlot()
     def _on_recovery_dialog(self):
+        """연결 끊김 시 재접속 시도 UI (모달) 표시"""
+        self._handle_reconnect_splash_screen()
+
+    @pyqtSlot(str, str)
+    def _on_operation_error_dialog(self, title: str, message: str):
+        """작업 에러 발생 시 모달 다이얼로그 표시"""
+        self._handle_message_box_popup(level="error", title=title, message=message)
+
+    @pyqtSlot(str)
+    def _on_error_by_base_widget(self, error_message: str):
         """
-        [복구 모드] 연결 끊김 시 재접속 시도 UI (모달) 표시
+        [공통 에러 처리]
+        BaseWidget를 상속받은 모든 위젯에서 self.error_occurred.emit(msg)를 호출하면
+        이 함수가 실행되어 경고창을 띄운다
         """
+        self._handle_message_box_popup(level="error", title="오류", message=error_message)
+
+    @pyqtSlot(str, bool)
+    def _on_receive_file_loading_status(self, message: str, status: bool):
+        if status is True:
+            # 기존 다이얼로그가 있다면 닫기 (중복 방지 Safety Logic)
+            if self.loading_dialog:
+                self.loading_dialog.done(0)
+                self.loading_dialog.deleteLater()
+                self.loading_dialog = None
+            
+            # 비동기(Non-blocking)로 팝업 띄우기
+            self.loading_dialog = self._handle_message_box_popup(level="info", title="파일 로딩", message=message, modal=False)
+        else:
+            # 팝업 닫기
+            if self.loading_dialog:
+                self.loading_dialog.done(0) # QDialog는 done()으로 닫아야 확실함
+                self.loading_dialog.deleteLater()
+                self.loading_dialog = None
+
+    @pyqtSlot(bool)
+    def _on_control_status_changed(self, enabled: bool):
+        self._handle_ui_enabling_control(enabled)
+
+
+
+    # ===============================================
+    # 핸들러 [논리적 흐름 담당]
+    # ===============================================
+    def _handle_reconnect_splash_screen(self, message:str = ""):
+        """연결 끊김 시 재접속 시도 UI (모달) 표시"""
+
         # 스플래시 화면 재사용 (모달처럼 띄움)
         recovery_splash = SplashScreen()
         recovery_splash.setWindowTitle("재접속 중...")
@@ -177,96 +220,47 @@ class MainWindow(QMainWindow):
         
         # ViewModel에게 재접속 요청 (UI 업데이트용 콜백 함수 전달)
         #    Service의 connect_with_retry가 실행되면서 splash.update_status를 호출함
-        success = self.vm.retry_connection(ui_callback=recovery_splash.update_status)
+        self.vm.retry_connection(ui_callback=recovery_splash.update_status)
         
         recovery_splash.close()
-        
-        # 최종 실패 시 경고창 표시
-        if not success:
-            QMessageBox.critical(
-                self, 
-                "재접속 실패", 
-                "연결을 복구할 수 없습니다.\n케이블 연결 상태를 확인 후 다시 시도하십시오."
-            )
 
-    @pyqtSlot(str, str)
-    def _on_operation_error_dialog(self, title: str, message: str):
-        """작업 에러 발생 시 모달 다이얼로그 표시"""
+    def _handle_message_box_popup(self, level:str = "info", title: str = "", message: str = "", modal: bool = True):
+        """사용자에게 보여줄 팝업 메세지 박스 처리 (모달/비모달 선택 가능)"""
+
         msg_box = QMessageBox(self)
-        msg_box.setIcon(QMessageBox.Icon.Critical)
-        msg_box.setWindowTitle(title)
-        msg_box.setText(message)
-        msg_box.setObjectName("error_message_box") # QSS 스타일 적용을 위한 ID
-        msg_box.exec()
+        msg_box.setText(title)
+        msg_box.setInformativeText(message)
 
-    @pyqtSlot(str)
-    def show_error_popup(self, error_message: str):
-        """
-        [공통 에러 처리]
-        BaseWidget를 상속받은 모든 위젯에서 self.error_occurred.emit(msg)를 호출하면
-        이 함수가 실행되어 경고창을 띄운다
-        """
-        QMessageBox.critical(self, "오류", error_message)
-
-    @pyqtSlot(str)
-    def _on_loading_started(self, message: str):
-        """파일 읽기 다이얼로그 표시"""
-        if self.loading_dialog is None:
-            # 단순 메시지 창을 위한 QDialog 구성
-            self.loading_dialog = QDialog(self)
-            self.loading_dialog.setObjectName("loading_dialog") # QSS 스타일링용 ID
-            
-            # Frameless 설정
-            self.loading_dialog.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
-            self.loading_dialog.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-            self.loading_dialog.setWindowModality(Qt.WindowModality.WindowModal)
-
-            # 메인 레이아웃 (여백 없음)
-            main_layout = QVBoxLayout(self.loading_dialog)
-            main_layout.setContentsMargins(0, 0, 0, 0)
-            
-            # 배경 위젯 (실제 다이얼로그 디자인)
-            self.loading_bg = QWidget(self.loading_dialog)
-            self.loading_bg.setObjectName("loading_bg")
-            self.loading_bg.setProperty("type", "success") # QSS 타입
-            main_layout.addWidget(self.loading_bg)
-
-            # 내용 레이아웃
-            content_layout = QVBoxLayout(self.loading_bg)
-            content_layout.setContentsMargins(20, 20, 20, 20)
-            
-            self.loading_label = QLabel(self.loading_dialog)
-            self.loading_label.setObjectName("loading_label") # QSS 스타일링용 ID
-            self.loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.loading_label.setWordWrap(True)
-            content_layout.addWidget(self.loading_label)
-
-            # 창 크기 고정 및 디자인 설정
-            self.loading_dialog.setFixedSize(300, 100)
-            # 도움말 버튼(?) 제거 (Frameless라 사실 의미없음)
-            # self.loading_dialog.setWindowFlags(self.loading_dialog.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
-
-        self.loading_label.setText(message)
-        self.loading_dialog.show()
+        match level:
+            case "info":
+                msg_box.setIcon(QMessageBox.Icon.Information)
+                msg_box.setObjectName("info_message_box")
+            case "warning":
+                msg_box.setIcon(QMessageBox.Icon.Warning)
+                msg_box.setObjectName("warning_message_box")
+            case "error":
+                msg_box.setIcon(QMessageBox.Icon.Critical)
+                msg_box.setObjectName("error_message_box")
         
-        # 즉시 렌더링 (메인 스레드가 곧 블로킹될 것이므로 미리 그려야 함)
-        import PyQt6.QtWidgets
-        PyQt6.QtWidgets.QApplication.processEvents()
+        if modal:
+            # 모달(Blocking): 닫을 때까지 대기
+            msg_box.exec()
+            return None
+        else:
+            # 비모달(Non-blocking): 즉시 표시 후 객체 반환 (코드 계속 실행됨)
+            msg_box.setStandardButtons(QMessageBox.StandardButton.NoButton) # 버튼 없음
+            msg_box.show()
+            return msg_box
 
-    @pyqtSlot()
-    def _on_loading_finished(self):
-        """파일 읽기 다이얼로그 닫기"""
-        if self.loading_dialog:
-            self.loading_dialog.close()
+    def _handle_ui_enabling_control(self, enabled: bool):
+        """UI 컨트롤 활성화/비활성화 처리"""
 
-    @pyqtSlot(bool)
-    def _on_control_status_changed(self, enabled: bool):
-        """연결이 끊겼을 때 모든 패널 비활성화"""
-
-        # 패널 비활성화
-        self.left.setEnabled(enabled)
-        self.center.setEnabled(enabled)
-        self.right.setEnabled(enabled)
+        # 모든 BaseWidget 자식들을 찾아서 개별적으로 set_enabled 호출
+        # 이렇게 하면 BaseWidget 내부의 _is_enabled 플래그도 함께 설정되어
+        # safe_update_data()가 막히는 효과도 얻을 수 있다 (데이터 수신 차단)
+        all_widgets = self.findChildren(BaseWidget)
+        for widget in all_widgets:
+            widget.set_enabled(enabled)
         
         # 상태바 텍스트 업데이트
         if not enabled:
