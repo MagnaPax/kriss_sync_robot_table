@@ -299,7 +299,7 @@ class RobotControllerWidget(BaseWidget):
         extra_props: Optional[Dict[str, Any]] = None
     ) -> QPushButton:
         """
-        [리팩토링] 버튼 생성 로직 통합
+        버튼 생성 로직 통합
         
         Args:
             title: 버튼 텍스트 (자동으로 대문자로 변환됨)
@@ -340,11 +340,11 @@ class RobotControllerWidget(BaseWidget):
             QFormLayout: 라벨과 QDoubleSpinBox가 채워진 폼 레이아웃
         """
         form_layout = QFormLayout()
-        form_layout.setContentsMargins(5, 5, 5, 5)
+        form_layout.setContentsMargins(5, 5, 5, 5)  # 좌, 상, 우, 하
         form_layout.setSpacing(5)
-        
+
         # QFormLayout은 수평/수직 간격 동시 설정이 어려우므로
-        form_layout.setHorizontalSpacing(10)
+        form_layout.setHorizontalSpacing(2) # 레이블과 스핀박스 간격
         form_layout.setVerticalSpacing(5)
 
         for axis in axes:
