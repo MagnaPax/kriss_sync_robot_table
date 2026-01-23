@@ -284,8 +284,8 @@ QPushButton#emergency_button {
     background-color: #DC3545; /* 기존 'disconnected'와 동일한 강조색 */
     color: #F0F0F0;
     font-weight: bold;
-    font-size: 16px; /* 폰트 크기 증가 (14px -> 16px) */
-    min-height: 60px; /* 버튼 높이 증가 */
+    font-size: 16px;    /* 폰트 크기 */
+    min-height: 20px;   /* 버튼 높이 */
     border: 1px solid #b02a37;
     border-radius: 4px;
     padding: 8px 15px;
