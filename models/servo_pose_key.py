@@ -41,8 +41,8 @@ class ServoSignal(str, Enum):
 
     # [설정] - 나중에 1(공전),2(자전),3(턴테이블)을 끼워넣을 수 있도록
     SERVO_ON     = 'MAIN.bServoOn{}'    # 서보 전원 (BOOL)
-    READ_POS_ON  = 'MAIN.bReadPos{}'    # 위치 읽기 활성화 (BOOL)       켜지면 위치가 표시됨
-    READ_VEL_ON  = 'MAIN.bReadVel{}'    # 속도 읽기 활성화 (BOOL)       켜지면 속도가 표시됨
+    READ_POS_ON  = 'MAIN.bReadPos{}'    # 위치 표시 (BOOL)  자동으로 True 되도록 변경됨
+    READ_VEL_ON  = 'MAIN.bReadVel{}'    # 속도 표시 (BOOL)  자동으로 True 되도록 변경됨
 
     # [명령]
     STOP         = 'MAIN.bStop{}'       # 정지 (BOOL)
@@ -58,15 +58,15 @@ class ServoSignal(str, Enum):
     HOME         = 'MAIN.bHome{}'       # 원점 복귀 시작 (Rising Edge) (BOOL)
     
     # [공통 입력]
-    TARGET_VEL   = 'MAIN.vel{}'         # 목표 속도 입력 (LREAL)        이 값에 입력된 속도로 돌아라 (위치/속도 모드 공용)
+    TARGET_VEL   = 'MAIN.lVel{}'        # 목표 속도 입력 (LREAL)        이 값에 입력된 속도로 돌아라 (위치/속도 모드 공용)
     
     # [상태 확인]
     DONE         = 'MAIN.bDone{}'       # 이동 완료 (Rising Edge) (BOOL)
 
     # [피드백 (Read)]
     BUSY         = 'MAIN.bBusy{}'       # 이동 중 여부 (BOOL)           켜지면 다른 명령 받아도 write 안 함
-    ACT_POS      = 'MAIN.Act_pos{}'     # 현재 위치 (LREAL)
-    ACT_VEL      = 'MAIN.Act_vel{}'     # 현재 속도 (LREAL)
+    ACT_POS      = 'MAIN.lAct_Pos{}'    # 현재 위치 (LREAL)
+    ACT_VEL      = 'MAIN.lAct_Vel{}'    # 현재 속도 (LREAL)
 
     # [에러]
     ERROR_ID     = 'MAIN.nErrorID{}'    # 에러 코드 (UDINT/UINT)
