@@ -139,6 +139,10 @@ class FanucSignal(str, Enum):
     #   이 신호가 TRUE 되면 다음 데이터를 전송하고 DI43을 트리거한다.
     ROBOT_MOTION_DONE = "MAIN.Robot1._UO1.DO46"
 
+    # 로봇이 명령어 묶음을 받을 수 있다는 신호
+    ROBOT_READY_FOR_CMDS = "MAIN.Robot1._UO1.DO47"
+
+
     BUSY =      "MAIN.Robot1._UO1.UO10_Busy"        # 바쁨 신호
     PAUSED =    "MAIN.Robot1._UO1.UO04_PrgPaused"   # 일시정지
     FAULT =     "MAIN.Robot1._UO1.UO06_Fault"       # 에러
