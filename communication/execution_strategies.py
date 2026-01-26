@@ -749,7 +749,7 @@ class IntegratedExecutor(BaseExecutor):
         start_trigger: bool
     ) -> tuple[Any, float]:
         """
-        [핵심 계산 함수]
+        [핵심 로직]
         로봇이 얼마나 빨리 움직여야 턴테이블과 딱 맞춰서 도착할지 계산하고,
         PLC에게 보낼 '명령서(Packet)'를 만드는 함수이다.
         
@@ -763,7 +763,7 @@ class IntegratedExecutor(BaseExecutor):
         # 1. 턴테이블이 이동하는 데 걸리는 시간 계산
         # (목표 각도 - 현재 각도) / 속도 = 걸리는 시간
         tt_delta = abs(target_turntable_angle - current_turntable_angle)
-        expected_move_time = tt_delta / target_turntable_velocity if target_turntable_velocity > 0 else 0.0
+        expected_move_time = tt_delta / target_turntable_velocity if target_turntable_velocity > 0 else 0.0 # 턴테이블이 정지되어 있다면 0초
         
         # 2. 로봇이 이동해야 할 거리 계산 (직선 거리 mm)
         robot_dist, _ = current_robot_pose.distance_to(target_robot_pose)
@@ -773,8 +773,8 @@ class IntegratedExecutor(BaseExecutor):
             # 로봇이 조금도 안 움직여도 되면 속도는 0이다.
             robot_calculated_velocity = 0.0
         elif expected_move_time < 0.001:
-            # 턴테이블은 가만히 있고 로봇만 움직여야 할 때
-            # 이전 속도를 그대로 쓰거나, 기본값(100)으로 움직인다.
+            # 턴테이블이 정지되어 있다면 로봇만 움직여야 할 때
+            # 이전 속도를 그대로 쓰거나 기본값(100)으로 움직인다.
             robot_calculated_velocity = previous_robot_velocity if previous_robot_velocity > 0 else 100.0
         else:
             # 시간 = 거리 / 속도 공식을 뒤집어서 -> 속도 = 거리 / 시간

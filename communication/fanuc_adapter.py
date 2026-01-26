@@ -145,10 +145,9 @@ class FanucAdapter:
     # ===================================================
     def register_robot_motion_done_callback(self, callback: Callable[..., Any]) -> int:
         """
-        [Sync Step 3: Robot Motion Done] 로봇의 물리적 이동 완료(DO46) 신호를 감지하기 위한 이벤트를 등록한다.
-        [원본] 384: handle_motion = robot.add_device_notification(SYM_ROBOT_MOTION_DONE, handle_robot_motion_done)
+        로봇이 시퀀스(한 줄)을 받았다는 확인 신호(DO46)를 감지하기 위한 이벤트를 등록한다.
+        [원본] robot.add_notification(SYM_DO46, cb_motion_done)
         
-            로봇이 목표 위치에 실제로 도착했을 때 이 알림이 발생한다.
             동시 동기 구동(Hand-in-hand)을 위해, 로봇과 서보(턴테이블)가 모두 이동을 마쳤는지 확인할 때 사용된다.
             이 신호가 확인된 후에야 비로소 다음 스텝을 위한 'Sync Start Trigger(DI44)'를 보낼 수 있다.
         """
