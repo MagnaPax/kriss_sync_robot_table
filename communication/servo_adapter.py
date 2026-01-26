@@ -73,10 +73,10 @@ class ServoAdapter:
         # 1. 서보 전원 (bServoOn)
         plc.write_by_name(ServoSignal.SERVO_ON.get_plc_path(axis_index), enable, pyads.PLCTYPE_BOOL)
         
-        # 2. 피드백 읽기 활성화 (bReadPos, bReadVel)
-        #    원본 1219_Test.py의 Servo_Read_On 함수 로직 이식
-        plc.write_by_name(ServoSignal.READ_POS_ON.get_plc_path(axis_index), enable, pyads.PLCTYPE_BOOL)
-        plc.write_by_name(ServoSignal.READ_VEL_ON.get_plc_path(axis_index), enable, pyads.PLCTYPE_BOOL)
+        if enable:
+            # 2. 피드백 읽기 활성화 (Deprecated in new PLC logic)
+            #    PLC에서 항상 읽기가 활성화되어 있으므로 별도 신호 전송 필요 없음
+            pass
 
         # 신호 안정화 대기 (하드웨어 특성 고려)
         time.sleep(0.05)
