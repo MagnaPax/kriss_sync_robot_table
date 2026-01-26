@@ -123,6 +123,11 @@ class FANUCPose:
         if signals.get('RSR1', False): b2 |= (1 << 0)
         if signals.get('RSR2', False): b2 |= (1 << 1)
         if signals.get('RSR3', False): b2 |= (1 << 2)
+        if signals.get('RSR4', False): b2 |= (1 << 3)
+        if signals.get('RSR5', False): b2 |= (1 << 4)
+        if signals.get('RSR6', False): b2 |= (1 << 5)
+        if signals.get('RSR7', False): b2 |= (1 << 6)
+        if signals.get('RSR8', False): b2 |= (1 << 7)
         payload.UI_Byte2 = b2
 
         # UI_Byte3 (하위 4비트: 신호 / 상위 4비트: Feed High)
@@ -219,9 +224,9 @@ class FanucCommandPacket(ctypes.Structure):
     """
     _pack_ = 1
     _fields_ = [
-        ("UI_Byte1", ctypes.c_uint8),
-        ("UI_Byte2", ctypes.c_uint8),
-        ("UI_Byte3", ctypes.c_uint8),
+        ("UI_Byte1", ctypes.c_uint8),   # CycleStop, FaultReset, Start, Home, Enable
+        ("UI_Byte2", ctypes.c_uint8),   # RSR1, RSR2, RSR3
+        ("UI_Byte3", ctypes.c_uint8),   # PNSStrobe, ProdStart, DI43, DI44
         ("Feed_Low", ctypes.c_uint16),
         ("X_High", ctypes.c_uint8), ("X_Low",  ctypes.c_uint16),
         ("Y_High", ctypes.c_uint8), ("Y_Low",  ctypes.c_uint16),
