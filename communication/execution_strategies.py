@@ -794,8 +794,7 @@ class IntegratedExecutor(BaseExecutor):
         signals = {
             FanucSignal.IMSP: True, FanucSignal.HOLD: True, FanucSignal.SFSP: True, FanucSignal.ENABLE: True,
             FanucSignal.CYCLE_STOP: False, FanucSignal.START: False, 
-            FanucSignal.RSR2: False,       
-            FanucSignal.RSR3: True,                 # "DO46 신호 기다릴게" 모드 켜기
+            FanucSignal.RSR4: True,                 # (명령어 묶음을 업로드 하는 TP 프로그램) 시작
             FanucSignal.TRIGGER_DI43: data_ready,   # "데이터 가져가세요" (Pulse 신호)
             FanucSignal.LOOP_DI44: start_trigger    # "멈추지 말고 계속해" (Loop 신호)
         }
