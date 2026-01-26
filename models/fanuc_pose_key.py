@@ -98,14 +98,14 @@ class FanucSignal(str, Enum):
     HOME =          "Home"          # Home              (아마도) Home 위치로 이동할 때
 
 
-    RSR1 =          "RSR1"          # Robot Service Request 1   로봇 TP 프로그램 원격 실행 (최종적으로 몇 번 신호를 사용할지는 미정)
-    RSR2 =          "RSR2"          # Robot Service Request 2   로봇 TP 프로그램 원격 실행
-    RSR3 =          "RSR3"          # Robot Service Request 3   로봇 TP 프로그램 원격 실행
-    RSR4 =          "RSR4"          # Robot Service Request 4   로봇 TP 프로그램 원격 실행
-    RSR5 =          "RSR5"          # Robot Service Request 5   로봇 TP 프로그램 원격 실행
-    RSR6 =          "RSR6"          # Robot Service Request 6   로봇 TP 프로그램 원격 실행
-    RSR7 =          "RSR7"          # Robot Service Request 7   로봇 TP 프로그램 원격 실행
-    RSR8 =          "RSR8"          # Robot Service Request 8   로봇 TP 프로그램 원격 실행
+    RSR1 =          "RSR1"          # 로봇 TP 프로그램을 '시작' 하겠다(다른 TP 프로그램을 시작하기 위해서는 꺼야 됨)
+    RSR2 =          "RSR2"          # 로봇 TP 프로그램을 '시작' 하겠다(다른 TP 프로그램을 시작하기 위해서는 꺼야 됨)
+    RSR3 =          "RSR3"          # 로봇 TP 프로그램을 '시작' 하겠다(다른 TP 프로그램을 시작하기 위해서는 꺼야 됨)
+    RSR4 =          "RSR4"          # 로봇 TP 프로그램을 '시작' 하겠다(다른 TP 프로그램을 시작하기 위해서는 꺼야 됨)     '명령어 묶음을 업로드 하는 TP 프로그램'
+    RSR5 =          "RSR5"          # 로봇 TP 프로그램을 '시작' 하겠다(다른 TP 프로그램을 시작하기 위해서는 꺼야 됨)     '명령어를 실제로 시작하는 TP 프로그램' <- 예정
+    RSR6 =          "RSR6"          # 로봇 TP 프로그램을 '시작' 하겠다(다른 TP 프로그램을 시작하기 위해서는 꺼야 됨)
+    RSR7 =          "RSR7"          # 로봇 TP 프로그램을 '시작' 하겠다(다른 TP 프로그램을 시작하기 위해서는 꺼야 됨)
+    RSR8 =          "RSR8"          # 로봇 TP 프로그램을 '시작' 하겠다(다른 TP 프로그램을 시작하기 위해서는 꺼야 됨)
 
 
     PNS_STROBE =    "PNStrobe"      # 할당되어 있지만 사용하지는 않음
@@ -115,11 +115,12 @@ class FanucSignal(str, Enum):
     # DI43: 이동 시작 트리거
     #       매 스텝마다 데이터 전송 후, Low -> High (Rising Edge)로 펄스를 줘서 
     #       로봇에게 시퀀스를 보낸다는 신호
+    #       (명령어 묶음 안에 들어있는)한 줄(=시퀀스 한 개) 보내기의 '시작/끝' 을 알리는 신호
     TRIGGER_DI43 =  "DI43"
     
-    # DI44: 루프 신호
-    #       로봇은 이 신호가 켜져 있어야 Handshake 루프를 계속 돈다.
-    #       시퀀스가 시작되면 High로 켜지고 전체 작업이 끝날 때까지 유지됨
+    # DI44: TP 프로그램에서의 루프 신호
+    #       켜져있는 동안 TP 프로그램 안의 로직을 계속 반복 실행한다.
+    #       명령어 묶음 보내기의 '시작/끝'을 알리는 신호
     LOOP_DI44 =     "DI44"
 
 
