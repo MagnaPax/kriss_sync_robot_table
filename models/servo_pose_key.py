@@ -41,8 +41,8 @@ class ServoSignal(str, Enum):
 
     # [설정] - 나중에 1(공전),2(자전),3(턴테이블)을 끼워넣을 수 있도록
     SERVO_ON     = 'MAIN.bServoOn{}'    # 서보 전원 (BOOL)
-    READ_POS_ON  = 'MAIN.bReadPos{}'    # 위치 표시 (BOOL)  자동으로 True 되도록 변경됨
-    READ_VEL_ON  = 'MAIN.bReadVel{}'    # 속도 표시 (BOOL)  자동으로 True 되도록 변경됨
+    READ_POS_ON  = 'MAIN.bReadPos{}'    # 위치 표시 (BOOL)  TwinCAT PLC 에서 자동으로 켜짐
+    READ_VEL_ON  = 'MAIN.bReadVel{}'    # 속도 표시 (BOOL)  TwinCAT PLC 에서 자동으로 켜짐
 
     # [명령]
     STOP         = 'MAIN.bStop{}'       # 정지 (BOOL)
