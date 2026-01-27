@@ -16,12 +16,20 @@ KRISS_CI = resources/images/kriss_logo.gif  ; 표준연 로고
 
 [TwinCAT]
 ; TwinCAT PLC 접속 정보
-; 로컬 테스트: 127.0.0.1.1.1
-; AMS_NET_ID = 5.143.171.16.1.1
+; [로컬 테스트]
+; AMS_NET_ID = 127.0.0.1.1.1
+; [KRISS TwinCAT]
 ; AMS_NET_ID = 5.119.154.174.1.1
-; PORT = 851                    <- TwinCAT3 기본 포트
+; [회사 TwinCAT]
+; AMS_NET_ID = 5.143.171.16.1.1
+
+; [포트] TwinCAT3 기본 포트
+; PORT = 851
+
+; [데모 모드] -> PLC 없이 테스트할 때는 True
 ; DEMO_MODE = False             <- 데모 모드 : PLC 없이 테스트할 때는 True로 바꾸기
-AMS_NET_ID = 127.0.0.1.1.1
+
+AMS_NET_ID = 5.143.171.16.1.1
 PORT = 851
 DEMO_MODE = True
 
