@@ -645,12 +645,6 @@ class RobotControllerWidget(BaseWidget):
         # 현재 UI에 채워진 값들을 추출
         positions_macro = self._extract_data_from_ui()
 
-        # 좌표값이 모두 0이면 실행 안 함
-        if (positions_macro.x == 0.0 and positions_macro.y == 0.0 and positions_macro.z == 0.0 and
-            positions_macro.w == 0.0 and positions_macro.p == 0.0 and positions_macro.r == 0.0):
-            EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 ID({macro_id}) 이동 명령 수행 불가: 모든 제어 좌표가 0.0 입니다.", "WARNING")
-            return
-
         if self.vm:
             self.vm.robot_move_manual(positions_macro, is_macro_value=True)
 
@@ -679,10 +673,8 @@ class RobotControllerWidget(BaseWidget):
                 "INFO"
             )
             
-            if ((line_edit_data.x == 0.0 and line_edit_data.y == 0.0 and line_edit_data.z == 0.0 and 
-                line_edit_data.w == 0.0 and line_edit_data.p == 0.0 and line_edit_data.r == 0.0) or 
-                (line_edit_data.f == 0.0)):
-                EVENT_BUS.log.message.emit(f"{self.log_prefix} 사용자 입력 이동 명령 수행 불가: 모든 제어 좌표가 0.0 이거나 속도값이 0 입니다.", "WARNING")
+            if line_edit_data.f == 0.0:
+                EVENT_BUS.log.message.emit(f"{self.log_prefix} 사용자 입력 이동 명령 수행 불가: Feed Rate 값이 0 입니다.", "WARNING")
                 return
 
             self.vm.robot_move_manual(line_edit_data, is_macro_value=False)
