@@ -46,10 +46,13 @@ class ServoSignal(str, Enum):
 
     # [명령]
     STOP         = 'MAIN.bStop{}'       # 정지 (BOOL)
+    START_ALL    = 'MAIN.bStart'        # 모든 서보 동작 신호
     
     # [이동 - 위치 제어 (턴테이블용)]
-    MOVE_ABS     = 'MAIN.bMoveAbs{}'    # 절대 위치 이동 시작 (BOOL)
-    TARGET_POS   = 'MAIN.pos{}'         # 목표 위치 입력 (LREAL)        이 값에 입력된 위치로 이동(속도도 있어야 됨)
+    MOVE_ABS     = 'MAIN.bMoveAbs{}'    # 절대 위치 이동 시작 (BOOL)    사용 안 함
+    TARGET_POS   = 'MAIN.pos{}'         # 목표 위치 입력 (LREAL)        사용 안 함
+    TT_PATH_DATA = 'MAIN.aPathData'     # 턴테이블의 ((목표 속도 & 목표 좌표) = 한 쌍) 저장. 1000쌍 저장 가능. 인덱스 1번부터 시작
+
 
     # [이동 - 속도 제어 (툴 모터용)]
     MOVE_VEL     = 'MAIN.bMoveVel{}'    # 속도 제어 이동 시작 (BOOL)    
