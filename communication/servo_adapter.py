@@ -81,6 +81,21 @@ class ServoAdapter:
         # 신호 안정화 대기 (하드웨어 특성 고려)
         time.sleep(0.05)
 
+    def turn_on_all_servos(self):
+        """모든 서보모터의 전원을 켠다."""
+        plc = self._plc
+
+        # 1. 서보 전원 (bServoOn) - 3축 동시 켜기
+        plc.write_list_by_name({
+            ServoSignal.SERVO_ON.get_plc_path(ServoAxis.TOOL_REVOLUTION): True,
+            ServoSignal.SERVO_ON.get_plc_path(ServoAxis.TOOL_ROTATION): True,
+            ServoSignal.SERVO_ON.get_plc_path(ServoAxis.TURNTABLE): True
+        })
+
+        # 2. 안정화 대기
+        time.sleep(0.5)
+        logger.info("[Motor] 모든 서보 전원 ON 완료")
+
     def clear_error_pulse(self, axis_index: int) -> bool:
         """
         [에러 초기화] bReset 신호를 발생시켜 축의 에러 상태를 해제한다
