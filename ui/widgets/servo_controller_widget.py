@@ -169,19 +169,35 @@ class ServoControllerWidget(BaseWidget):
         spin.setSingleStep(1.0)
         spin.setFixedWidth(150)
 
-        # 음수 입력 차단 로직 (최소값이 0 이상일 때)
+        # 음수 및 0 입력 차단 로직 (최소값이 0 이상일 때)
         if min_val >= 0:
-            def validate_no_minus(text: str):
-                if '-' in text and (line_edit := spin.lineEdit()):
+            def validate_positive_input(text: str):
+                # 1. 음수(-) 또는 0 입력 체크 (단독 '0'인 경우)
+                # QDoubleSpinBox의 경우 빈 문자열이나 '.'만 있는 경우 등도 고려해야 함
+                is_invalid = False
+                error_msg = ""
+
+                if '-' in text:
+                    is_invalid = True
+                    error_msg = "속도는 음수(-)를 입력할 수 없습니다."
+                elif text == "0" or text == "0.0":
+                    is_invalid = True
+                    error_msg = "속도는 '0'을 입력할 수 없습니다."
+
+                if is_invalid and (line_edit := spin.lineEdit()):
                     # 1. 에러 시그널 방출
-                    self.error_occurred.emit("속도 항목에는 음수(-)를 입력할 수 없습니다.")
-                    # 2. '-' 문자 강제 삭제
+                    self.error_occurred.emit(error_msg)
+                    # 2. 강제 초기화 또는 이전 값 복구 (여기서는 단순히 텍스트 제거 또는 기본값 설정)
                     line_edit.blockSignals(True)
-                    line_edit.setText(text.replace('-', ''))
+                    # '-' 제거 또는 '0'인 경우 비우기
+                    new_text = text.replace('-', '')
+                    if new_text == "0" or new_text == "0.0":
+                        new_text = ""
+                    line_edit.setText(new_text)
                     line_edit.blockSignals(False)
             
             if line_edit := spin.lineEdit():
-                line_edit.textChanged.connect(validate_no_minus)
+                line_edit.textChanged.connect(validate_positive_input)
 
         # RobotControllerWidget 스타일 참고: 포커스 시 전체 선택
         spin.focusInEvent = lambda e: QTimer.singleShot(0, spin.selectAll)
