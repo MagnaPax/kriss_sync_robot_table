@@ -473,34 +473,28 @@ class ServoOnlyExecutor(BaseExecutor):
         total_steps = len(sequence_data)
         EVENT_BUS.log.message.emit(f"{self._log_prefix} 서보 시퀀스 시작 (총 {total_steps}건)", "INFO")
         
-        # 1. 초기화 (전원 켜기)
-        for axis in ServoAxis:
-            adapter.set_servo_state(axis, True)
-            # [안전 점검] 혹시 에러가 떠있으면 시작 안 함.
-            if adapter.has_servo_error(axis):
-                raise RuntimeError(f"서보 축({axis.name})에 에러가 켜져 있어서 작업을 중단합니다.")
+        # 1. 여기서 전원 켤 필요 없음. 앱이 실행되자마자 모니터링 스레드에서 전원 켠다.
 
         try:
             # 2. 실행 루프 (하나씩 실행)
             for step_idx, row in enumerate(sequence_data, start=1):
 
-                # (A) 사용자가 멈춤 버튼 눌렀는지 확인
+                # 사용자가 멈춤 버튼 눌렀는지 확인
                 if self._is_interrupted():
                     raise InterruptedError("사용자가 작업을 중단시켰습니다.")
 
-                # (B) UI 진행률 업데이트
+                # UI 진행률 업데이트
                 EVENT_BUS.data.progress_updated.emit(step_idx, total_steps, TaskStatus.PROCESSING)
                 EVENT_BUS.log.message.emit(f"{self._log_prefix} {step_idx}/{total_steps} 진행 중...", "DEBUG")
+                
+                # 변수 초기화
+                pose_revolution = None
+                pose_rotation = None
+                should_move_turntable = True
 
                 # (Pre-Check) 턴테이블을 움직여야 하는지 판단
                 pose_turntable = ServoPoseModel.create_for_axis(row, KEY_TURNTABLE_DEG)
                 current_turntable_pos = adapter.read_current_servo_motion(ServoAxis.TURNTABLE)['position']
-                
-                should_move_turntable = True
-
-                # [Type Hinting] 변수 초기화
-                pose_revolution = None
-                pose_rotation = None
 
                 # 1. 위치 체크: 이미 그 자리에 있으면 안 움직인다.
                 if abs(current_turntable_pos - pose_turntable.angle) < 0.05:
@@ -518,10 +512,10 @@ class ServoOnlyExecutor(BaseExecutor):
                     )
                     should_move_turntable = False
 
-                # (C) 명령 내리기
+                # 시퀀스 ID 추출
                 seq_id = row.get('id', step_idx)
                 
-                # 로그에 보기 좋게 출력
+                # 로그 메시지
                 log_msg = (
                     f"\n"
                     f"{self._log_prefix} 시퀀스 #{seq_id} 실행 시작 ({step_idx}/{total_steps}) | "
