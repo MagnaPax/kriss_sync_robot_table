@@ -418,32 +418,6 @@ class ServoAdapter:
         plc.write_by_name(ServoSignal.MOVE_VEL.get_plc_path(axis_index), False, pyads.PLCTYPE_BOOL)
         plc.write_by_name(ServoSignal.MOVE_VEL.get_plc_path(axis_index), True, pyads.PLCTYPE_BOOL)
 
-    def move_absolute(self, axis_index: int, target_pos: float, target_velocity: float):
-        """
-        [위치 제어 이동] 턴테이블용 (Axis 3)
-        특징: 목표 '위치'로 이동 후 멈춤 (bMoveAbs)
-        
-        Args:
-            axis_index: 축 번호
-            target_pos: 목표 각도 (deg)
-            target_velocity: 이동 속도 (deg/s)
-        """
-        # 명령 받을 준비 됐는지 검증 - 검증 실패 시 상위 레이어로 전파됨
-        self.validate_axis_ready(axis_index)
-
-        plc = self._plc
-
-        # 1. 목표 위치 입력 (MAIN.pos{i})
-        plc.write_by_name(ServoSignal.TARGET_POS.get_plc_path(axis_index), target_pos, pyads.PLCTYPE_LREAL)
-
-        # 2. 이동 속도 입력 (MAIN.vel{i})
-        plc.write_by_name(ServoSignal.TARGET_VEL.get_plc_path(axis_index), target_velocity, pyads.PLCTYPE_LREAL)
-        
-        # 3. 절대 이동 트리거 (Pulse)
-        #    Rising Edge(False -> True)를 만들어야 확실하게 동작함
-        plc.write_by_name(ServoSignal.MOVE_ABS.get_plc_path(axis_index), False, pyads.PLCTYPE_BOOL)
-        plc.write_by_name(ServoSignal.MOVE_ABS.get_plc_path(axis_index), True, pyads.PLCTYPE_BOOL)
-
     def move_turntable_atomic(self, axis_index: int, target_pos: float, target_velocity: float):
         """
         턴테이블 독립 제어
