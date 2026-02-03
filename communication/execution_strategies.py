@@ -473,7 +473,8 @@ class ServoOnlyExecutor(BaseExecutor):
         total_steps = len(sequence_data)
         EVENT_BUS.log.message.emit(f"{self._log_prefix} 서보 시퀀스 시작 (총 {total_steps}건)", "INFO")
         
-        # 1. 여기서 전원 켤 필요 없음. 앱이 실행되자마자 모니터링 스레드에서 전원 켠다.
+        # 1. 여기서 전원 켤 필요 없음. 
+        # 앱이 실행되자마자 실행되는 모니터링 스레드에서 전원 켠다.
 
         try:
             # 2. 실행 루프 (하나씩 실행)

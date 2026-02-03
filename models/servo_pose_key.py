@@ -46,7 +46,7 @@ class ServoSignal(str, Enum):
 
     # [명령]
     STOP         = 'MAIN.bStop{}'       # 정지 (BOOL)
-    START_ALL    = 'MAIN.bStart'        # 모든 서보 동작 신호
+    START_ALL    = 'MAIN.bStart'        # '모든' 서보 동작 신호
     
     # [이동 - 위치 제어 (턴테이블용)]
     MOVE_ABS     = 'MAIN.bMoveAbs{}'    # 절대 위치 이동 시작 (BOOL)    사용 안 함
