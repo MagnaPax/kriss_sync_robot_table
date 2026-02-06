@@ -425,3 +425,77 @@ class FanucAdapter:
             
         return "\n".join(lines)
 
+
+
+
+    # ==================
+    #    메신저 이용        
+    # ==================
+    
+    def prepare_chunk_buffers(self,total_data, current_idx, buf_size):
+        """배열에 데이터 저장(dx1, dz1, fd1, dx2, dz2, fd2, ...)"""
+        chunk = total_data[current_idx : current_idx + buf_size]
+
+        serialized = []
+        for item in chunk:
+            serialized.extend([item['dx'], item['dz'], item['fd']])
+
+        needed_len = buf_size * 3
+        if len(serialized) < needed_len:
+            serialized.extend([0.0] * (needed_len - len(serialized))) 
+
+        return [
+            serialized[0:150],
+            serialized[150:300],
+            serialized[300:450]
+        ]
+
+    def send_to_plc_group(self, group_num, buffers):
+        """PLC에 전송"""
+        plc = self._plc
+
+        print(f" >> [Group {group_num}] 데이터 전송 및 트리거 실행 시작")
+
+        total_valid_items = 0
+        for buf in buffers:
+            total_valid_items += (len(buf) - buf.count(0.0))
+        data_rows = total_valid_items // 3
+
+        if group_num == 1:
+            plc.write_list_by_name({
+                FanucSignal.FIRST_BUFFER_1: buffers[0],
+                FanucSignal.FIRST_BUFFER_2: buffers[1],
+                FanucSignal.FIRST_BUFFER_3: buffers[2]
+            })
+        else:
+            plc.write_list_by_name({
+                FanucSignal.SECOND_BUFFER_1: buffers[0],
+                FanucSignal.SECOND_BUFFER_2: buffers[1],
+                FanucSignal.SECOND_BUFFER_3: buffers[2]
+            })
+
+        start_idx = 0       if group_num == 1 else 3
+        counter_idx = 0x3E1 if group_num == 1 else 0x3D7    # Data Counter를 보내기 위한 Attribute(0x3E1 = 993(R[993]에 저장) / 0x3D7 = 983(R[983]에 저장장))
+
+        # PLC의 배열에 데이터 전송 및 Send 실행
+        for i in range(start_idx, start_idx + 3):
+            buf_id, start_pt = FanucSignal.BUFFER_MAPPING[i]
+
+            plc.write_list_by_name({
+                FanucSignal.BUFFER_ID : buf_id,
+                FanucSignal.ATTRIBUTE : start_pt
+            })
+            plc.write_by_name(FanucSignal.EXECUTE, True, pyads.PLCTYPE_BOOL)
+            time.sleep(0.4)
+            plc.write_by_name(FanucSignal.EXECUTE, False, pyads.PLCTYPE_BOOL)
+            time.sleep(0.4)
+        
+        # 데이터 정보(개수) 전송 및 Send 실행
+        plc.write_list_by_name({
+            FanucSignal.ATTRIBUTE_SINGLE: counter_idx,      # Attribute (e.g., 993, 983)
+            FanucSignal.NUMBER_OF_DATA  : data_rows,        # Data 정보(개수)
+            FanucSignal.EXECUTE_SINGLE  : True
+        })
+        time.sleep(0.5)
+        plc.write_by_name(FanucSignal.EXECUTE_SINGLE, False, pyads.PLCTYPE_BOOL)
+
