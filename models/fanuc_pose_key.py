@@ -152,3 +152,38 @@ class FanucSignal(str, Enum):
     def path(self) -> str:
         """PLC 주소 반환"""
         return self.value
+
+
+
+    # ==================
+    #    메신저 이용        
+    # ==================
+
+    # [PLC ⬅️ Robot]
+    # (받을 준비가 됐으니) 새로운 데이터를 달라
+    ROBOT_SIGNAL_VAR = "MAIN.Robot1._UO1.DO46"
+
+    # [PLC ➡️ Robot]
+    # 데이터 버퍼 (Sequence 50개 * 3 = 150개)
+    FIRST_BUFFER_1 = "MAIN.send_buffer1_1"
+    FIRST_BUFFER_2 = "MAIN.send_buffer1_2"
+    FIRST_BUFFER_3 = "MAIN.send_buffer1_3"
+    
+    SECOND_BUFFER_1 = "MAIN.send_buffer2_1"
+    SECOND_BUFFER_2 = "MAIN.send_buffer2_2"
+    SECOND_BUFFER_3 = "MAIN.send_buffer2_3"
+
+    # 실행 신호
+    EXECUTE = "MAIN.bExecute"
+    # 단일 데이터 실행 신호
+    EXECUTE_SINGLE = "MAIN.bExecute_single"
+
+    # 지정된 Robot의 NUMREG 주소 (HEX)
+    ATTRIBUTE = "MAIN.nAttribute"
+    ATTRIBUTE_SINGLE = "MAIN.nAttribute_single"
+
+    # 시퀀스 개수
+    NUMBER_OF_DATA = "MAIN.nNumberofData"
+
+    # 버퍼 번호 (예: 11 -> send_buffer1_1)
+    BUFFER_ID = "MAIN.nBufferID"
