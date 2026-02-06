@@ -250,6 +250,62 @@ class FANUCPoseModel:
     이 클래스는 상태를 가지지 않으므로(Stateless), 모든 메서드는 정적(@staticmethod)이다
     """
 
+    @staticmethod
+    def pre_calculate_all(lines: list[str]) -> list[dict[str, float]]:
+        """
+        데이터 가공(Delta 구하기)
+            
+        Returns:
+            list[dict]: [{'dx': float, 'dz': float, 'fd': float}, ...] 형태의 리스트
+        """
+        all_data = [] 
+        prev_u = None; prev_x = None; prev_z = None
+
+        for line in lines:
+            parts = line.split(',')
+            if len(parts) < 10: continue
+
+            try:
+                f_val   = float(parts[3])
+                curr_u  = float(parts[5])
+                curr_x  = float(parts[7])
+                curr_z  = float(parts[9])
+            except (ValueError, IndexError):
+                continue
+
+            if prev_u is not None:
+                delta_u = curr_u - prev_u
+                if delta_u < 0: delta_u += 360
+                delta_x = curr_x - prev_x
+                delta_z = curr_z - prev_z
+            else:
+                delta_u = curr_u
+                delta_x = curr_x
+                delta_z = curr_z
+
+            if delta_u != 0:
+                moving_time = delta_u / f_val
+                distance = math.sqrt(delta_x ** 2 + delta_z ** 2)
+                robot_feed = round(distance / moving_time, 3)
+                all_data.append({
+                    'dx': delta_x, 
+                    'dz': delta_z, 
+                    'fd': robot_feed
+                })
+            elif delta_u == 0:
+                robot_feed = 10.0
+                all_data.append({
+                    'dx': round(delta_x, 3),
+                    'dz': round(delta_z, 3),
+                    'fd': robot_feed
+                })    
+
+            prev_u = curr_u
+            prev_x = curr_x
+            prev_z = curr_z
+            
+        return all_data
+
     def do_task(self) -> str:
         msg: str = "Hello, MVVM"
         return msg
