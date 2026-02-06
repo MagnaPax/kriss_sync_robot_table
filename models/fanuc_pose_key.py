@@ -187,3 +187,9 @@ class FanucSignal(str, Enum):
 
     # 버퍼 번호 (예: 11 -> send_buffer1_1)
     BUFFER_ID = "MAIN.nBufferID"
+    
+    # Explicit Message관련(nBufferID, nAttribute)
+    BUFFER_MAPPING = [
+        (11, 0x01), (12, 0x97), (13, 0x12D),    # Group 1 (Buffer 1-1, 1-2, 1-3)
+        (21, 0x1C3), (22, 0x259), (23, 0x2EF)   # Group 2 (Buffer 2-1, 2-2, 2-3)
+    ]
