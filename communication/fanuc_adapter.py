@@ -433,10 +433,8 @@ class FanucAdapter:
     # ==================
     
     def prepare_chunk_buffers(self, total_data: list[dict[str, float]], current_idx: int, buf_size: int) -> list[list[float]]:
-        """
-        [데이터 분할] 전체 데이터에서 150개씩 잘라서 PLC 전송용 버퍼(3개)로 나눈다.
-        Reference: 0206_test.py -> prepare_chunk_buffers
-        """
+        """[데이터 분할] 전체 데이터에서 150개씩 잘라서 PLC 전송용 버퍼(3개)로 나눈다."""
+
         chunk = total_data[current_idx : current_idx + buf_size]
 
         serialized = []
@@ -467,18 +465,13 @@ class FanucAdapter:
         data_rows = total_valid_items // 3
         
         # 1. 버퍼 데이터 쓰기
-        if group_num == 1:
-            plc.write_list_by_name({
-                FanucSignal.FIRST_BUFFER_1.path: buffers[0],
-                FanucSignal.SECOND_BUFFER_1.path: buffers[1],
-                FanucSignal.THIRD_BUFFER_1.path: buffers[2]
-            })
-        elif group_num == 2:
-            plc.write_list_by_name({
-                FanucSignal.FIRST_BUFFER_2.path: buffers[0],
-                FanucSignal.SECOND_BUFFER_2.path: buffers[1],
-                FanucSignal.THIRD_BUFFER_2.path: buffers[2]
-            })
+        # MAIN.send_buffer{group_num}_{buffer_index} (1~3)
+        prefix = f'MAIN.send_buffer{group_num}_'
+        plc.write_list_by_name({
+            f'{prefix}1': buffers[0],
+            f'{prefix}2': buffers[1],
+            f'{prefix}3': buffers[2]
+        })
 
         # 2. 버퍼 ID 및 Attribute 설정 (Loop)
         start_idx = 0       if group_num == 1 else 3
