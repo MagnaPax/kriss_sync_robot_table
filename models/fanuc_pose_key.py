@@ -165,13 +165,8 @@ class FanucSignal(str, Enum):
 
     # [PLC ➡️ Robot]
     # 데이터 버퍼 (Sequence 50개 * 3 = 150개)
-    FIRST_BUFFER_1 = "MAIN.send_buffer1_1"
-    FIRST_BUFFER_2 = "MAIN.send_buffer1_2"
-    FIRST_BUFFER_3 = "MAIN.send_buffer1_3"
-    
-    SECOND_BUFFER_1 = "MAIN.send_buffer2_1"
-    SECOND_BUFFER_2 = "MAIN.send_buffer2_2"
-    SECOND_BUFFER_3 = "MAIN.send_buffer2_3"
+    # MAIN.send_buffer{Group}_{SubIndex} 패턴 사용 (FanucAdapter에서 동적 생성)
+
 
     # 실행 신호
     EXECUTE = "MAIN.bExecute"
