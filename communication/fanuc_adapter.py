@@ -432,8 +432,11 @@ class FanucAdapter:
     #    메신저 이용        
     # ==================
     
-    def prepare_chunk_buffers(self,total_data, current_idx, buf_size):
-        """배열에 데이터 저장(dx1, dz1, fd1, dx2, dz2, fd2, ...)"""
+    def prepare_chunk_buffers(self, total_data: list[dict[str, float]], current_idx: int, buf_size: int) -> list[list[float]]:
+        """
+        [데이터 분할] 전체 데이터에서 150개씩 잘라서 PLC 전송용 버퍼(3개)로 나눈다.
+        Reference: 0206_test.py -> prepare_chunk_buffers
+        """
         chunk = total_data[current_idx : current_idx + buf_size]
 
         serialized = []
@@ -444,58 +447,65 @@ class FanucAdapter:
         if len(serialized) < needed_len:
             serialized.extend([0.0] * (needed_len - len(serialized))) 
 
+        # 450개를 150개씩 3등분
         return [
             serialized[0:150],
             serialized[150:300],
             serialized[300:450]
         ]
 
-    def send_to_plc_group(self, group_num, buffers):
-        """PLC에 전송"""
+
+    def send_to_plc_group(self, group_num: int, buffers: list[list[float]]):
+        """[PLC 전송] 3개의 버퍼 데이터를 PLC의 지정된 그룹(1 or 2)에 쓴다."""
         plc = self._plc
 
-        print(f" >> [Group {group_num}] 데이터 전송 및 트리거 실행 시작")
-
+        # 데이터 개수 정보 전송 (Total Count)
         total_valid_items = 0
         for buf in buffers:
+            # 0.0은 패딩 값이므로 제외하고 실제 데이터 개수만 센다
             total_valid_items += (len(buf) - buf.count(0.0))
         data_rows = total_valid_items // 3
-
+        
+        # 1. 버퍼 데이터 쓰기
         if group_num == 1:
             plc.write_list_by_name({
-                FanucSignal.FIRST_BUFFER_1: buffers[0],
-                FanucSignal.FIRST_BUFFER_2: buffers[1],
-                FanucSignal.FIRST_BUFFER_3: buffers[2]
+                FanucSignal.FIRST_BUFFER_1.path: buffers[0],
+                FanucSignal.SECOND_BUFFER_1.path: buffers[1],
+                FanucSignal.THIRD_BUFFER_1.path: buffers[2]
             })
-        else:
+        elif group_num == 2:
             plc.write_list_by_name({
-                FanucSignal.SECOND_BUFFER_1: buffers[0],
-                FanucSignal.SECOND_BUFFER_2: buffers[1],
-                FanucSignal.SECOND_BUFFER_3: buffers[2]
+                FanucSignal.FIRST_BUFFER_2.path: buffers[0],
+                FanucSignal.SECOND_BUFFER_2.path: buffers[1],
+                FanucSignal.THIRD_BUFFER_2.path: buffers[2]
             })
 
+        # 2. 버퍼 ID 및 Attribute 설정 (Loop)
         start_idx = 0       if group_num == 1 else 3
-        counter_idx = 0x3E1 if group_num == 1 else 0x3D7    # Data Counter를 보내기 위한 Attribute(0x3E1 = 993(R[993]에 저장) / 0x3D7 = 983(R[983]에 저장장))
+
+        # Data Counter를 보내기 위한 Attribute(0x3E1 = 993(R[993]에 저장) / 0x3D7 = 983(R[983]에 저장장))
+        counter_idx = 0x3E1 if group_num == 1 else 0x3D7
 
         # PLC의 배열에 데이터 전송 및 Send 실행
         for i in range(start_idx, start_idx + 3):
-            buf_id, start_pt = FanucSignal.BUFFER_MAPPING[i]
+            buf_id, start_pt = FanucSignal.BUFFER_MAPPING.value[i] if hasattr(FanucSignal.BUFFER_MAPPING, 'value') else FanucSignal.BUFFER_MAPPING[i]
 
             plc.write_list_by_name({
-                FanucSignal.BUFFER_ID : buf_id,
-                FanucSignal.ATTRIBUTE : start_pt
+                FanucSignal.BUFFER_ID.path  : buf_id,
+                FanucSignal.ATTRIBUTE.path  : start_pt
             })
-            plc.write_by_name(FanucSignal.EXECUTE, True, pyads.PLCTYPE_BOOL)
+            
+            # Execute Pulse
+            plc.write_by_name(FanucSignal.EXECUTE.path, True, pyads.PLCTYPE_BOOL)
             time.sleep(0.4)
-            plc.write_by_name(FanucSignal.EXECUTE, False, pyads.PLCTYPE_BOOL)
+            plc.write_by_name(FanucSignal.EXECUTE.path, False, pyads.PLCTYPE_BOOL)
             time.sleep(0.4)
-        
+
         # 데이터 정보(개수) 전송 및 Send 실행
         plc.write_list_by_name({
-            FanucSignal.ATTRIBUTE_SINGLE: counter_idx,      # Attribute (e.g., 993, 983)
-            FanucSignal.NUMBER_OF_DATA  : data_rows,        # Data 정보(개수)
-            FanucSignal.EXECUTE_SINGLE  : True
+            FanucSignal.ATTRIBUTE_SINGLE.path : counter_idx,  # Attribute (e.g., 993, 983)
+            FanucSignal.NUMBER_OF_DATA.path   : data_rows,    # Data 정보(개수)
+            FanucSignal.EXECUTE_SINGLE.path   : True
         })
         time.sleep(0.5)
-        plc.write_by_name(FanucSignal.EXECUTE_SINGLE, False, pyads.PLCTYPE_BOOL)
-
+        plc.write_by_name(FanucSignal.EXECUTE_SINGLE.path, False, pyads.PLCTYPE_BOOL)
