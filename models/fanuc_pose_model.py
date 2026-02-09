@@ -4,7 +4,10 @@ from dataclasses import dataclass, asdict
 from typing import Dict, Any
 import ctypes
 import math
-from config.data_formats import KEY_ROBOT_X, KEY_ROBOT_Y, KEY_ROBOT_Z, KEY_ROBOT_W, KEY_ROBOT_P, KEY_ROBOT_R, KEY_ROBOT_FEED_RATE
+from config.data_formats import (
+    KEY_ROBOT_X, KEY_ROBOT_Y, KEY_ROBOT_Z, KEY_ROBOT_W, KEY_ROBOT_P, KEY_ROBOT_R, 
+    KEY_ROBOT_FEED_RATE, KEY_TURNTABLE_FEED_RATE, KEY_TURNTABLE_DEG
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -251,7 +254,7 @@ class FANUCPoseModel:
     """
 
     @staticmethod
-    def pre_calculate_all(lines: list[str]) -> list[dict[str, float]]:
+    def pre_calculate_all(data: list[Any]) -> list[dict[str, float]]:
         """
         데이터 가공(Delta 구하기)
             
@@ -261,16 +264,14 @@ class FANUCPoseModel:
         all_data = [] 
         prev_u = None; prev_x = None; prev_z = None
 
-        for line in lines:
-            parts = line.split(',')
-            if len(parts) < 10: continue
+        for item in data:
 
             try:
-                f_val   = float(parts[3])
-                curr_u  = float(parts[5])
-                curr_x  = float(parts[7])
-                curr_z  = float(parts[9])
-            except (ValueError, IndexError):
+                f_val   = float(item.get(KEY_TURNTABLE_FEED_RATE, 0.0))
+                curr_u  = float(item.get(KEY_TURNTABLE_DEG, 0.0))
+                curr_x  = float(item.get(KEY_ROBOT_X, 0.0))
+                curr_z  = float(item.get(KEY_ROBOT_Z, 0.0))
+            except (ValueError, TypeError):
                 continue
 
             if prev_u is not None:
