@@ -87,6 +87,16 @@ class TwinCATCommander(QObject):
     # ================================================ #
     #           로봇에게 내리는 명령들 
     # ================================================ #
+    def set_robot_ready(self) -> tuple[bool, str]:
+        """로봇에게 초기 신호 전송"""
+        if self.robot:
+            try:
+                self.robot.init_robot_signals()
+                return True, "초기 신호 전송 완료"
+            except Exception as e:
+                return False, f"초기 신호 전송 실패: {e}"
+        return False, "로봇이 연결되지 않았습니다."
+
     def apply_user_feed_rate_when_moving_robot(self, feed_rate: float) -> str | None:
         """RobotControllerWidget 에서 사용자가 입력한 Feed Rate 값을 FANUC에 적용"""
 
@@ -107,10 +117,10 @@ class TwinCATCommander(QObject):
             return None
 
     def start_robot_plc_signals(self) -> tuple[bool, str]:
-        """로봇에게 시작 신호(RSR, Loop 등) 전송"""
+        """로봇에게 시작 신호전송"""
         if self.robot:
             try:
-                self.robot.set_initial_signals()
+                self.robot.start_robot()
                 return True, "시작 신호 전송 완료"
             except Exception as e:
                 # 1808: Symbol not found (Servo Only 모드)
