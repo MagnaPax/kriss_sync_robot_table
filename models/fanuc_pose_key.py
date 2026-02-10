@@ -75,120 +75,105 @@ class FANUCPoseKey(str, Enum):
 # 제어 신호 정의
 # =============================================================================
 class FanucSignal(str, Enum):
-    """
-    FANUC 로봇 제어 신호 키 (Key) 정의
-    
-    구조체 방식에서는 모델(FANUCPose)의 to_struct() 메서드에서 '이름(Key)'으로 값을 찾는다
-    (Service -> Model 전달용)
-    """
-    # =========================================================
-    # [입력] Robot <- PLC (보내는 신호: Trigger/DataReady)
-    # 키 이름은 FANUCPose.to_struct() 메서드 내부 로직과 일치해야 함
-    # =========================================================
-    IMSP =          "IMSP"          # Immediate Stop    즉시 멈춰라(OFF)    On 이면 즉시 멈춤 신호 해제
-    HOLD =          "Hold"          # Hold              일시정지
-    SFSP =          "SFSP"          # Safety Speed      안전 속도
-    ENABLE =        "Enable"        # Enable            동작 실행 가능 여부 확인
-    """
-    ⬆️ 기본적으로 이 위의 신호가 켜져야 로봇이 동작한다 ⬆️
-    """
-    CYCLE_STOP =    "CycleStop"     # (아직 어떤 역할인지 모른다)
-    FAULT_RESET =   "FaultReset"    # Fault Reset       Falling Edge가 되면 정상 상태 (단, 원인 제거를 안 하면 계속 FAULT 신호 유지)
-    START =         "Start"         # Start             (아마도) 일시 정지 후 재시작 할 때
-    HOME =          "Home"          # Home              (아마도) Home 위치로 이동할 때
+    """FANUC 로봇 제어 신호 키 (Key) 정의"""
 
+    # ==================================
+    #       [출력] PLC ⬅️ Robot
+    # ==================================
 
-    RSR1 =          "RSR1"          # 로봇 TP 프로그램을 '시작' 하겠다(다른 TP 프로그램을 시작하기 위해서는 꺼야 됨)
-    RSR2 =          "RSR2"          # 로봇 TP 프로그램을 '시작' 하겠다(다른 TP 프로그램을 시작하기 위해서는 꺼야 됨)
-    RSR3 =          "RSR3"          # 로봇 TP 프로그램을 '시작' 하겠다(다른 TP 프로그램을 시작하기 위해서는 꺼야 됨)
-    RSR4 =          "RSR4"          # 로봇 TP 프로그램을 '시작' 하겠다(다른 TP 프로그램을 시작하기 위해서는 꺼야 됨)     '명령어 묶음을 업로드 하는 TP 프로그램'
-    RSR5 =          "RSR5"          # 로봇 TP 프로그램을 '시작' 하겠다(다른 TP 프로그램을 시작하기 위해서는 꺼야 됨)     '명령어를 실제로 시작하는 TP 프로그램' <- 예정
-    RSR6 =          "RSR6"          # 로봇 TP 프로그램을 '시작' 하겠다(다른 TP 프로그램을 시작하기 위해서는 꺼야 됨)
-    RSR7 =          "RSR7"          # 로봇 TP 프로그램을 '시작' 하겠다(다른 TP 프로그램을 시작하기 위해서는 꺼야 됨)
-    RSR8 =          "RSR8"          # 로봇 TP 프로그램을 '시작' 하겠다(다른 TP 프로그램을 시작하기 위해서는 꺼야 됨)
-
-
-    PNS_STROBE =    "PNStrobe"      # 할당되어 있지만 사용하지는 않음
-    PROD_START =    "ProdStart"     # 할당되어 있지만 사용하지는 않음
-
-
-    # DI43: 이동 시작 트리거
-    #       매 스텝마다 데이터 전송 후, Low -> High (Rising Edge)로 펄스를 줘서 
-    #       로봇에게 시퀀스를 보낸다는 신호
-    #       (명령어 묶음 안에 들어있는)한 줄(=시퀀스 한 개) 보내기의 '시작/끝' 을 알리는 신호
-    TRIGGER_DI43 =  "DI43"
-    
-    # DI44: TP 프로그램에서의 루프 신호
-    #       켜져있는 동안 TP 프로그램 안의 로직을 계속 반복 실행한다.
-    #       명령어 묶음 보내기의 '시작/끝'을 알리는 신호
-    LOOP_DI44 =     "DI44"
-
-
-    FEED_RATE_1ST = "F00"
-    FEED_RATE_2ND = "F01"
-    FEED_RATE_3RD = "F02"
-    FEED_RATE_4TH = "F03"
-
-
-
-    # =========================================================
-    # [출력] Robot -> PLC (읽는 신호: Handshake/Status)
-    # =========================================================
-
-    # 로봇이 시퀀스(한 줄)을 받았다는 확인 신호
-    #   이 신호가 TRUE 되면 다음 데이터를 전송하고 DI43을 트리거한다.
-    ROBOT_MOTION_DONE = "MAIN.Robot1._UO1.DO46"
-
-    # 로봇이 명령어 묶음을 받을 수 있다는 신호
-    ROBOT_READY_FOR_CMDS = "MAIN.Robot1._UO1.DO47"
-
-
-    BUSY =      "MAIN.Robot1._UO1.UO10_Busy"        # 바쁨 신호
-    PAUSED =    "MAIN.Robot1._UO1.UO04_PrgPaused"   # 일시정지
-    FAULT =     "MAIN.Robot1._UO1.UO06_Fault"       # 에러
-
-
-    @property
-    def path(self) -> str:
-        """PLC 주소 반환"""
-        return self.value
-
-
-
-    # ==================
-    #    메신저 이용        
-    # ==================
-
-    # [PLC ⬅️ Robot]
     # (받을 준비가 됐으니) 새로운 데이터를 달라
     ROBOT_SIGNAL_VAR = "MAIN.Robot1._UO1.DO46"
 
-    # [PLC ➡️ Robot]
+    # 오류 발생시 ON
+    FAULT_STATUS = "MAIN.Robot1._UO1.UO6_Fault"
+
+
+
+    # ==================================
+    #       [입력] PLC ➡️ Robot
+    # ==================================
+
     # 데이터 버퍼 (Sequence 50개 * 3 = 150개)
     # MAIN.send_buffer{Group}_{SubIndex} 패턴 사용 (FanucAdapter에서 동적 생성)
 
+    # 즉시 멈춤 - 평상시 ON 상태, OFF하면 즉시 정지
+    IMSP = "MAIN.Robot1._UI1.UI01_IMSP"
 
-    # 실행 신호
+    # 일시정지 - 평상시 ON 상태, OFF하면 즉시 정지
+    HOLD = "MAIN.Robot1._UI1.UI02_Hold"
+
+    # 안전속도 - 사람이 접근시 속도 늦추기(평상시 ON)
+    SFSP = "MAIN.Robot1._UI1.UI03_SFSP"
+
+    # 신호가 켜져었어야 동작 가능(평상시 ON)
+    ENABLE = "MAIN.Robot1._UI1.UI08_Enable"
+
+    """⬆️ 위 신호 4개가 ON이 되어야 로봇 동작 가능 ⬆️"""
+
+    # 사이클 정지 - 평상시 OFF 상태, ON하면 사이클 정지
+    CYCLE_STOP = "MAIN.Robot1._UI1.UI04_CycleStop"
+
+    # 오류 원인 제거 후 실행(Falling Edge로 동작)
+    FAULT_RESET = "MAIN.Robot1._UI1.UI05_FaultReset"
+
+    # 일시정지 후 재시작
+    START = "MAIN.Robot1._UI1.UI06_Start"
+
+    # Home 위치로 이동
+    HOME = "MAIN.Robot1._UI1.UI07_Home"
+
+    # TP 프로그램 시작 - ON(Rising Edge)이 되면 FANUC 로봇이 동작하는 TP Program을 실행
+    RSR1 = "MAIN.Robot1._UI1.UI09_RSR1"
+    RSR2 = "MAIN.Robot1._UI1.UI10_RSR2"
+    RSR3 = "MAIN.Robot1._UI1.UI11_RSR3"
+    RSR4 = "MAIN.Robot1._UI1.UI12_RSR4"
+    RSR5 = "MAIN.Robot1._UI1.UI13_RSR5"
+    RSR6 = "MAIN.Robot1._UI1.UI14_RSR6"
+    RSR7 = "MAIN.Robot1._UI1.UI15_RSR7"
+    RSR8 = "MAIN.Robot1._UI1.UI16_RSR8"
+
+
+    # 시퀀스 전달 실행 신호
     EXECUTE = "MAIN.bExecute"
-    # 단일 데이터 실행 신호
-    EXECUTE_SINGLE = "MAIN.bExecute_single"
+
+    # 데이터 서비스 코드
+    SERVICE_CODE = "MAIN.nServiceCode"
+
+    # 데이터 클래스
+    CLASS = "MAIN.nClass"
+
+    # 데이터 인스턴스
+    INSTANCE = "MAIN.nInstance"
 
     # 지정된 Robot의 NUMREG 주소 (HEX)
     ATTRIBUTE = "MAIN.nAttribute"
-    ATTRIBUTE_SINGLE = "MAIN.nAttribute_single"
 
     # 시퀀스 개수
     NUMBER_OF_DATA = "MAIN.nNumberofData"
 
     # 버퍼 번호 (예: 11 -> send_buffer1_1)
     BUFFER_ID = "MAIN.nBufferID"
-    
-    # Explicit Message관련(nBufferID, nAttribute)
-    BUFFER_MAPPING = [
-        (11, 0x01), (12, 0x97), (13, 0x12D),    # Group 1 (Buffer 1-1, 1-2, 1-3)
-        (21, 0x1C3), (22, 0x259), (23, 0x2EF)   # Group 2 (Buffer 2-1, 2-2, 2-3)
-    ]
+
+
+
+    # ==================
+    #
+    # ==================
 
     # 데이터 설정
     CHUNK_SIZE = 100    # 경로 단순화 청크 크기
     BUFFER_SIZE = 150   # PLC 버퍼 크기
+    
+    # Explicit Message관련(nBufferID, nAttribute)
+    BUFFER_MAPPING = [
+        (11, 1), (12, (BUFFER_SIZE + 1)), (13, (2 * BUFFER_SIZE + 1)),
+        (21, (3 * BUFFER_SIZE + 1)), (22, (4 * BUFFER_SIZE + 1)), (23, (5 * BUFFER_SIZE + 1))
+    ]
+
+
+
+
+    @property
+    def path(self) -> str:
+        """PLC 주소 반환"""
+        return self.value
