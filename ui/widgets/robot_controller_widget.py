@@ -111,6 +111,9 @@ class RobotControllerWidget(BaseWidget):
         if btn := self.other_buttons.get("go_to"):
             btn.clicked.connect(self._on_goto_btn_clicked)
 
+        if btn := self.other_buttons.get("reset"):
+            btn.clicked.connect(self._on_reset_btn_clicked)
+
         # Feed Rate 값 변경 이벤트 연결
         feed_widget = self.coord_widgets.get('FEED RATE')
         if feed_widget and isinstance(feed_widget, QDoubleSpinBox):
@@ -271,6 +274,7 @@ class RobotControllerWidget(BaseWidget):
         layout_buttons.addWidget(self._create_button("Home", "special", self.other_buttons))
         layout_buttons.addWidget(self._create_button("Stop", "general", self.other_buttons))
         layout_buttons.addWidget(self._create_button("Go_To", "special", self.other_buttons))
+        layout_buttons.addWidget(self._create_button("Reset", "general", self.other_buttons))
 
 
 
@@ -457,7 +461,7 @@ class RobotControllerWidget(BaseWidget):
                 if btn := self.other_buttons.get("home"): btn.setEnabled(not is_busy)
                 if btn := self.other_buttons.get("go_to"): btn.setEnabled(not is_busy)
                 if btn := self.other_buttons.get("stop"): btn.setEnabled(is_busy)
-
+                if btn := self.other_buttons.get("reset"): btn.setEnabled(not is_busy)
 
                 # STOP 버튼 처리 로직 분기
                 if stop_btn := self.other_buttons.get("stop"):
@@ -590,6 +594,10 @@ class RobotControllerWidget(BaseWidget):
     def _on_goto_btn_clicked(self):
         self._handle_goto()
 
+    @pyqtSlot()
+    def _on_reset_btn_clicked(self):
+        self._handle_reset()
+
 
 
     # ===============================================
@@ -685,6 +693,10 @@ class RobotControllerWidget(BaseWidget):
 
             # 에러 시그널 방출
             self.error_occurred.emit(error_msg)
+
+    def _handle_reset(self):
+        if not self.vm: return
+        self.vm.robot_init_manual()
 
 
 # ==========================================================
