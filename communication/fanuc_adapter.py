@@ -73,16 +73,28 @@ class FanucAdapter:
         plc.write_by_name("MAIN.Robot1._UI1.UI_Byte3", new_ui3, pyads.PLCTYPE_BYTE)
 
     def set_emergency_stop(self):
-        """[비상 정지] IMSP 신호 전송"""
+        """[비상 정지]"""
+        plc = self._plc
+        plc.write_by_name(FanucSignal.IMSP.path, False, pyads.PLCTYPE_BOOL)
 
     def set_initial_signals(self):
-        """[초기화] 로봇 시작 신호 초기화 (RSR2=False, DI43=False 등)"""
+        """동작 가능하게 신호 초기화"""
+        plc = self._plc
+        plc.write_by_name(FanucSignal.IMSP.path, True, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(FanucSignal.HOLD.path, True, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(FanucSignal.SFSP.path, True, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(FanucSignal.ENABLE.path, True, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(FanucSignal.FAULT_RESET.path, True, pyads.PLCTYPE_BOOL)
 
     def stop_fanuc_normally(self):
-        """[정지] 로봇 정지 신호 전송"""
+        """로봇 정지 신호 전송"""
+        plc = self._plc
+        plc.write_by_name(FanucSignal.HOLD.path, False, pyads.PLCTYPE_BOOL)
 
     def back_to_fanuc_home(self):
-        """[복귀] 로봇 원점 복귀 신호 전송"""
+        """로봇 원점 복귀 신호 전송"""
+        plc = self._plc
+        plc.write_by_name(FanucSignal.HOME.path, True, pyads.PLCTYPE_BOOL)
 
 
     # ===================================================
