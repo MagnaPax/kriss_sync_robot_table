@@ -63,8 +63,8 @@ class FanucAdapter:
         """
         [핵심] 명령 패킷(구조체)을 PLC에 전송
         """
-        log_msg = self._format_packet_log(packet)
-        logger.debug(log_msg)
+        # log_msg = self._format_packet_log(packet)
+        # logger.debug(log_msg)
         # 구조체 타입(FanucCommandPacket)을 명시적으로 전달해야 함
         # pyads의 write_by_name은 ctypes.Structure 타입을 인자로 받을 수 있지만, 
         # 타입 힌트가 엄격하게 정의되어 있어서 Any로 캐스팅하여 에러를 우회함
@@ -445,11 +445,11 @@ class FanucAdapter:
         if len(serialized) < needed_len:
             serialized.extend([0.0] * (needed_len - len(serialized))) 
 
-        # 450개를 150개씩 3등분
+        # 450개를 150개씩(BUFFER_SIZE) 3등분
         return [
-            serialized[0:150],
-            serialized[150:300],
-            serialized[300:450]
+            serialized[0:FanucSignal.BUFFER_SIZE],
+            serialized[FanucSignal.BUFFER_SIZE:FanucSignal.BUFFER_SIZE*2],
+            serialized[FanucSignal.BUFFER_SIZE*2:FanucSignal.BUFFER_SIZE*3]
         ]
 
 
