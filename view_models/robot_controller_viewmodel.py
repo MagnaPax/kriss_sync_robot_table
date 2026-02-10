@@ -172,6 +172,8 @@ class RobotControllerViewModel(QObject):
         except Exception as e:
             EVENT_BUS.log.message.emit(f"{self.log_prefix} 이동 명령 전송 실패: {e}", "ERROR")
 
+    def robot_init_manual(self):
+        self._plc_service.initialize_robot_signal()
 
 
 
