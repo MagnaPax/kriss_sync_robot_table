@@ -427,6 +427,9 @@ class PLCService(QObject):
     def stop_robot(self):
         self._start_worker('ROBOT_STOP', worker_id=WorkerID.ROBOT_STOP, log_msg=f"{self._log_prefix} 로봇 정지 요청")
 
+    def initialize_robot_signal(self):
+        self._start_worker('ROBOT_INIT', worker_id=WorkerID.ROBOT_INIT, log_msg=f"{self._log_prefix} 로봇 초기화 신호 요청")
+
     # ==========================================================
     # [비동기] 서보 모터 제어 (Worker 사용)
     # ==========================================================
