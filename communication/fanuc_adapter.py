@@ -75,11 +75,10 @@ class FanucAdapter:
     def init_robot_signals(self):
         """로봇을 움직일 수 있는 신호로 초기화"""
         plc = self._plc
-        plc.write_by_name(FanucSignal.IMSP.path, False, pyads.PLCTYPE_BOOL)
-        plc.write_by_name(FanucSignal.HOLD.path, False, pyads.PLCTYPE_BOOL)
-        plc.write_by_name(FanucSignal.SFSP.path, False, pyads.PLCTYPE_BOOL)
-        plc.write_by_name(FanucSignal.FAULT_RESET.path, False, pyads.PLCTYPE_BOOL)
-        plc.write_by_name(FanucSignal.ENABLE.path, False, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(FanucSignal.IMSP.path, True, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(FanucSignal.HOLD.path, True, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(FanucSignal.SFSP.path, True, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(FanucSignal.ENABLE.path, True, pyads.PLCTYPE_BOOL)
 
     def set_emergency_stop(self):
         """[비상 정지]"""
@@ -89,6 +88,7 @@ class FanucAdapter:
     def start_robot(self):
         """로봇 시작 신호 전송"""
         plc = self._plc
+        plc.write_by_name(FanucSignal.HOLD.path, True, pyads.PLCTYPE_BOOL)
         plc.write_by_name(FanucSignal.START.path, True, pyads.PLCTYPE_BOOL)
 
     def stop_fanuc_normally(self):
