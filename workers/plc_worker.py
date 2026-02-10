@@ -80,6 +80,8 @@ class PLCWorker(QObject):
 
 
                 # --- 로봇 전용 제어 명령 (Commander 사용) --- #
+                case 'ROBOT_INIT':
+                    is_success, msg = self.commander.set_robot_ready()
                 case 'ROBOT_START':
                     is_success, msg = self.commander.start_robot_plc_signals()
                 case 'ROBOT_STOP':
