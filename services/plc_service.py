@@ -315,8 +315,8 @@ class PLCService(QObject):
 
     def _stop_worker(self, command: str, worker_id: str = "", data: Any = None, log_msg: str = ""):
         """정지 작업 시작 (Wrapper)"""
-        # 일반적인 정지 명령을 실행한 뒤 잇따라 비상정지를 눌러도 이전 정지 명령을 무시하고 
-        # 뒤따른 비상정지 명령이 실행될 수 있도록 force_interrupt 를 True로 설정
+        # 일반적인 정지 명령을 실행한 뒤 곧바로 비상정지를 누를 경우에도 
+        # 이전의 정지 명령을 무시하고 뒤따른 비상정지 명령이 실행될 수 있도록 force_interrupt=True로 설정
         if result := self._create_worker(None, command, data, log_msg, force_interrupt=True, worker_id=worker_id):
             self._active_workers[worker_id] = result
 
