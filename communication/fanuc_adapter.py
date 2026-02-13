@@ -273,3 +273,62 @@ class FanucAdapter:
         plc.write_by_name(FanucSignal.EXECUTE.path, True, pyads.PLCTYPE_BOOL)
         time.sleep(0.3)
         plc.write_by_name(FanucSignal.EXECUTE.path, False, pyads.PLCTYPE_BOOL)
+
+    def send_to_plc(self, targets):
+        targets = self._refine_robot_targets(targets)
+
+        plc = self._plc
+        plc.write_by_name('MAIN.goto_buffer', targets, pyads.PLCTYPE_REAL * 7)
+
+        plc.write_list_by_name({
+            FanucSignal.SERVICE_CODE.path     : 0x33,
+            FanucSignal.CLASS.path            : 0x6C,
+            FanucSignal.INSTANCE.path         : 0x0701,
+            FanucSignal.ATTRIBUTE.path        : 0x3A3,
+            FanucSignal.BUFFER_ID.path        : 2
+        })
+        plc.write_by_name(FanucSignal.EXECUTE.path, True, pyads.PLCTYPE_BOOL)
+        time.sleep(0.35)
+        plc.write_by_name(FanucSignal.EXECUTE.path, False, pyads.PLCTYPE_BOOL)
+
+
+    # ==================
+    #       헬퍼
+    # ==================
+    def _refine_robot_targets(self, targets: Union[list, dict, FANUCPose]) -> list[float]:
+        """
+        로봇이 사용할 수 있는 데이터로 변환
+        
+        Input 지원 형식:
+        1. List[float]: [x, y, z, w, p, r, f] (7개 실수) -> 그대로 반환
+        2. FANUCPose: 객체의 속성값 추출
+        3. Dict: {'x': 10, ...} -> FANUCPose 변환 후 추출
+        4. List[Dict]: 시퀀스 데이터인 경우, 첫 번째 포인트만 추출 (Goto 모드)
+        """
+        # 1. 리스트인 경우
+        if isinstance(targets, list):
+            if not targets:
+                raise ValueError("Targets list is empty")
+            
+            # 1-1. 숫자 리스트 (단일 포인트 raw data)
+            if isinstance(targets[0], (int, float)):
+                # 부족하면 0.0 채우기 or 잘라내기? 일단 있는 대로 변환
+                return [float(v) for v in targets]
+            
+            # 1-2. 딕셔너리 리스트 (시퀀스 데이터) -> 첫 번째 포인트만 사용
+            return self._refine_robot_targets(targets[0])
+
+        # 2. FANUCPose 객체
+        if isinstance(targets, FANUCPose):
+            return [targets.x, targets.y, targets.z, targets.w, targets.p, targets.r, targets.f]
+
+        # 3. 딕셔너리
+        if isinstance(targets, dict):
+            # 호환성: feed_rate 키가 있으면 f로 매핑
+            if 'feed_rate' in targets and 'f' not in targets:
+                targets['f'] = targets['feed_rate']
+
+            pose = FANUCPose.from_dict(targets)
+            return [pose.x, pose.y, pose.z, pose.w, pose.p, pose.r, pose.f]
+
+        raise TypeError(f"Unsupported type for targets: {type(targets)}")
