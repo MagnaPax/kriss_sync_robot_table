@@ -1,1 +1,2 @@
-# kriss_sync_robot_table
+# Korea Research Institute of Standards and Science
+## Robot-Turntable Syncronizer
