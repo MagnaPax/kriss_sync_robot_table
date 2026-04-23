@@ -172,6 +172,45 @@ class FanucSignal(str, Enum):
 
 
 
+    # ==================
+    #
+    # ==================
+
+    # TP 프로그램 시작 - ON(Rising Edge)이 되면 FANUC 로봇이 동작하는 TP Program을 실행
+    FR_ROBOT_START_VAR  = 'MAIN.Robot1._UI1.UI09_RSR1'  # 시퀀스용 TP
+    FR_ROBOT_START_VAR2 = 'MAIN.Robot1._UI1.UI10_RSR2'  # 단독 동작용 TP
+
+    # [정지 및 재시작 신호]
+    FR_ROBOT_HOLD_VAR   = 'MAIN.Robot1._UI1.UI02_Hold'  # 기본 True,  일시정지 -> False
+    FR_ROBOT_RESUME_VAR = 'MAIN.Robot1._UI1.UI06_Start' # 기본 False, 다시 시작 -> True
+
+    # [Homing 신호]
+    FR_ROBOT_HOME_VAR   = 'MAIN.Robot1._UI1.UI07_Home'  # 기본 False, Homing -> True
+
+    # [로봇 통신 변수]
+    FR_ROBOT_SIGNAL_VAR = 'MAIN.Robot1._UO1.DO46'   # 로봇으로부터 시퀀스 갱신 신호
+
+    # [모니터링 변수] 
+    # 로봇이 보내는 비트 신호가 양수인지 음수인지
+    FR_SIGN_BIT_MAP = {
+        "X" : "MAIN.Robot1._UO1.X_Check",
+        "Y" : "MAIN.Robot1._UO1.Y_Check",
+        "Z" : "MAIN.Robot1._UO1.Z_Check",
+        "W" : "MAIN.Robot1._UO1.W_Check",
+        "P" : "MAIN.Robot1._UO1.P_Check",
+        "R" : "MAIN.Robot1._UO1.R_Check",
+    }
+
+
+
+    # ==================
+    #
+    # ==================
+
+    FR_BUFFER_SIZE      = 150
+
+
+
 
     @property
     def path(self) -> str:
