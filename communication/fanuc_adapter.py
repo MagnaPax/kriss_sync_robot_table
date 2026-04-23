@@ -274,12 +274,19 @@ class FanucAdapter:
         time.sleep(0.3)
         plc.write_by_name(FanucSignal.EXECUTE.path, False, pyads.PLCTYPE_BOOL)
 
-    def send_to_plc(self, targets):
+    def send_target_data_to_buffer(self, targets, buffer_type: str):
+        plc = self._plc
+
         targets = self._refine_robot_targets(targets)
 
-        plc = self._plc
-        plc.write_by_name('MAIN.goto_buffer', targets, pyads.PLCTYPE_REAL * 7)
-
+        match buffer_type:
+            case "manual_move":
+                plc.write_by_name(FanucSignal.FR_BUFFER_FOR_MANUAL_MOVE, targets, pyads.PLCTYPE_REAL * 7)
+            case "sequence_move":
+                plc.write_by_name(FanucSignal.FR_BUFFER_FOR_SEQUENCE_MOVE, targets, pyads.PLCTYPE_REAL * 7)
+            case _:
+                raise ValueError("Invalid buffer type")
+        
         plc.write_list_by_name({
             FanucSignal.SERVICE_CODE.path     : 0x33,
             FanucSignal.CLASS.path            : 0x6C,
