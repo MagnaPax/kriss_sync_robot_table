@@ -177,8 +177,8 @@ class FanucSignal(str, Enum):
     # ==================
 
     # TP 프로그램 시작 - ON(Rising Edge)이 되면 FANUC 로봇이 동작하는 TP Program을 실행
-    FR_ROBOT_START_VAR  = 'MAIN.Robot1._UI1.UI09_RSR1'  # 시퀀스용 TP
-    FR_ROBOT_START_VAR2 = 'MAIN.Robot1._UI1.UI10_RSR2'  # 단독 동작용 TP
+    FR_ROBOT_START_VAR  = 'MAIN.Robot1._UI1.UI09_RSR1'  # TP 프로그램 시작 - 시퀀스용
+    FR_ROBOT_START_VAR2 = 'MAIN.Robot1._UI1.UI10_RSR2'  # TP 프로그램 시작 - 단독 동작용
 
     # [정지 및 재시작 신호]
     FR_ROBOT_HOLD_VAR   = 'MAIN.Robot1._UI1.UI02_Hold'  # 기본 True,  일시정지 -> False
@@ -201,6 +201,9 @@ class FanucSignal(str, Enum):
         "R" : "MAIN.Robot1._UO1.R_Check",
     }
 
+    # [데이터 저장용 버퍼]
+    FR_BUFFER_FOR_SEQUENCE_MOVE = "MAIN.send_single_buffer" # 목적지 데이터 저장용 버퍼 - 서보모터와 함께 움직이는 시퀀스 동작용
+    FR_BUFFER_FOR_MANUAL_MOVE   = "MAIN.goto_buffer"        # 목적지 데이터 저장용 버퍼 - 로봇 단독 동작용
 
 
     # ==================
