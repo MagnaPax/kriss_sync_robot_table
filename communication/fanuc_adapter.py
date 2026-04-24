@@ -292,6 +292,20 @@ class FanucAdapter:
         time.sleep(0.35)
         plc.write_by_name(FanucSignal.EXECUTE.path, False, pyads.PLCTYPE_BOOL)
 
+    def trigger_move_signal(self, RSR_VAR: str, wait_time: float=1.0):
+        """FANUC TP 프로그램 실행 신호 전송
+        Args:
+            RSR_VAR: 
+                'MAIN.Robot1._UI1.UI09_RSR1': FANUC TP 프로그램 시작 - 시퀀스용
+                'MAIN.Robot1._UI1.UI10_RSR2': FANUC TP 프로그램 시작 - 단독 동작용
+            wait_time: 신호 전송 후 대기 시간
+        """
+        plc = self._plc
+
+        plc.write_by_name(RSR_VAR, True, pyads.PLCTYPE_BOOL)
+        time.sleep(wait_time)
+        plc.write_by_name(RSR_VAR, False, pyads.PLCTYPE_BOOL)
+
 
     # ==================
     #       헬퍼
