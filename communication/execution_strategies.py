@@ -427,29 +427,6 @@ class ServoOnlyExecutor(BaseExecutor):
         """누가 "그만해!"(정지) 라고 했는지 확인함."""
         return bool((thread := QThread.currentThread()) and thread.isInterruptionRequested())
 
-class LegacyIntegratedExecutor(BaseExecutor):
-    """
-    레거시 TXT 파일 형식
-    """
-
-    def can_execute(self, sample_data: Dict[str, Any]) -> bool:
-        data_keys = set(sample_data.keys())
-        # TXT 레거시 키 (axis_x, Y...) 와 서보 키가 공존할 때
-        has_legacy_robot = any(k in data_keys for k in ['axis_x', 'axis_y', 'axis_z', 'feed_rate'])
-        has_servo = not SERVO_KEYS.isdisjoint(data_keys)
-        return has_legacy_robot and has_servo
-
-    def execute(self, sequence_data: List[Dict[str, Any]]) -> tuple[bool, str]:
-        EVENT_BUS.log.message.emit(f"{self._log_prefix} 레거시 파일 모드로 실행 (데이터 {len(sequence_data)}건)", "INFO")
-
-        return True, "레거시 파일 모드 실행 완료 -> TODO: 로직 만들어야 된다"
-
-
-
-
-
-
-
 
 
 class IntegratedExecutor(BaseExecutor):
@@ -521,4 +498,19 @@ class IntegratedExecutor(BaseExecutor):
 
 
 
+class LegacyIntegratedExecutor(BaseExecutor):
+    """
+    레거시 TXT 파일 형식
+    """
 
+    def can_execute(self, sample_data: Dict[str, Any]) -> bool:
+        data_keys = set(sample_data.keys())
+        # TXT 레거시 키 (axis_x, Y...) 와 서보 키가 공존할 때
+        has_legacy_robot = any(k in data_keys for k in ['axis_x', 'axis_y', 'axis_z', 'feed_rate'])
+        has_servo = not SERVO_KEYS.isdisjoint(data_keys)
+        return has_legacy_robot and has_servo
+
+    def execute(self, sequence_data: List[Dict[str, Any]]) -> tuple[bool, str]:
+        EVENT_BUS.log.message.emit(f"{self._log_prefix} 레거시 파일 모드로 실행 (데이터 {len(sequence_data)}건)", "INFO")
+
+        return True, "레거시 파일 모드 실행 완료 -> TODO: 로직 만들어야 된다"
