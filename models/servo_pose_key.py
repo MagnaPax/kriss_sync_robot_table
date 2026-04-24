@@ -87,3 +87,36 @@ class ServoSignal(str, Enum):
             str: 완성된 PLC 심볼 경로 (예: 'MAIN.bServoOn1')
         """
         return self.value.format(axis_index)
+
+
+
+# =============================================================================
+# 
+# =============================================================================
+
+    # [정지 및 재시작 신호]
+    SM_STOP_VAR         = 'GVL.bStop'                   # Turn Table Stop
+    SM_STOP_REV_VAR     = 'GVL.bStop_rev'               # 자전 Stop
+    SM_STOP_ROT_VAR     = 'GVL.bStop_rot'               # 공전 Stop
+    SM_RESUME_VAR       = 'GVL.bRestart'                # Stop 시 Resume 신호
+
+    # [Homing]
+    SM_SINGLE_HOME_VAR  = 'GVL.bHome'                   # Turn Table Homing
+
+    # [단일 모터 신호 정의]
+    SM_SINGLE_POS_VAR   = 'MAIN.nPos'                   # 턴테이블 단독 동작 위치
+    SM_SINGLE_VEL_VAR   = 'MAIN.nVel'                   # 턴테이블 단독 동작 속도
+    SM_SINGLE_START_VAR = 'GVL.bStart2'                 # 턴테이블 단독 동작 신호 - 이동할 데이터들을 미리 보낸 뒤 이 신호를 올리면 (서보 단독) 동작 시작
+
+    # [서보 모터 통신 변수] 서보 모터로부터 시퀀스 갱신 신호들
+    SM_VAR_REQ_LOWER    = 'GVL.bReqUpdateLower'     
+    SM_VAR_REQ_UPPER    = 'GVL.bReqUpdateUpper'
+    SM_VAR_UPD_DONE     = 'GVL.bUpdateDone'
+    SM_VAR_ALL_FIN      = 'GVL.bAllDataFinished'
+    SM_VAR_PATH_ARR     = 'GVL.aPathData'
+
+    # 서보 모터의 위치(Turn Talbe), 속도(공전,자전)
+    SM_MONITOR_POS      = 'MAIN.fServoCurrPos'
+    SM_MONITOR_VEL_REV  = 'MAIN.fServoCurrVel_rev'
+    SM_MONITOR_VEL_ROT  = 'MAIN.fServoCurrVel_rot'
+
