@@ -79,6 +79,15 @@ class FanucAdapter:
         plc.write_by_name(FanucSignal.HOLD.path, True, pyads.PLCTYPE_BOOL)
         plc.write_by_name(FanucSignal.SFSP.path, True, pyads.PLCTYPE_BOOL)
         plc.write_by_name(FanucSignal.ENABLE.path, True, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(FanucSignal.FAULT_RESET.path, True, pyads.PLCTYPE_BOOL)
+
+    def reset_robot_fault(self):
+        """Fault 신호 리셋"""
+        plc = self._plc
+        plc.write_by_name(FanucSignal.FAULT_RESET.path, True, pyads.PLCTYPE_BOOL)
+        time.sleep(0.3)
+        plc.write_by_name(FanucSignal.FAULT_RESET.path, False, pyads.PLCTYPE_BOOL)
+        
 
     def set_emergency_stop(self):
         """[비상 정지]"""

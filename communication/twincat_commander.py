@@ -95,6 +95,12 @@ class TwinCATCommander(QObject):
                 return True, "초기 신호 전송 완료"
             except Exception as e:
                 return False, f"초기 신호 전송 실패: {e}"
+            
+            try:
+                self.robot.reset_robot_fault()
+                return True, "로봇 Fault 리셋 완료"
+            except Exception as e:
+                return False, f"로봇 Fault 리셋 실패: {e}"
         return False, "로봇이 연결되지 않았습니다."
 
     def apply_user_feed_rate_when_moving_robot(self, feed_rate: float) -> str | None:
