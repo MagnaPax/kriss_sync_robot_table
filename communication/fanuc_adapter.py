@@ -123,7 +123,7 @@ class FanucAdapter:
 
     def has_fault(self) -> bool:
         """로봇 에러 상태 확인"""
-        return bool(self._plc.read_by_name(FanucSignal.FAULT.path, pyads.PLCTYPE_BOOL))
+        return bool(self._plc.read_by_name(FanucSignal.FAULT_STATUS.path, pyads.PLCTYPE_BOOL))
 
     def read_busy_signal(self) -> bool:
         """로봇이 움직이고 있는지 확인"""
@@ -274,19 +274,13 @@ class FanucAdapter:
         time.sleep(0.3)
         plc.write_by_name(FanucSignal.EXECUTE.path, False, pyads.PLCTYPE_BOOL)
 
-    def send_target_data_to_buffer(self, targets, buffer_type: str):
+    def send_target_data_to_plc_buffer(self, targets, BUFFER_TYPE: str):
         plc = self._plc
 
         targets = self._refine_robot_targets(targets)
 
-        match buffer_type:
-            case "manual_move":
-                plc.write_by_name(FanucSignal.FR_BUFFER_FOR_MANUAL_MOVE, targets, pyads.PLCTYPE_REAL * 7)
-            case "sequence_move":
-                plc.write_by_name(FanucSignal.FR_BUFFER_FOR_SEQUENCE_MOVE, targets, pyads.PLCTYPE_REAL * 7)
-            case _:
-                raise ValueError("Invalid buffer type")
-        
+        plc.write_by_name(BUFFER_TYPE, targets, pyads.PLCTYPE_REAL * 7)
+
         plc.write_list_by_name({
             FanucSignal.SERVICE_CODE.path     : 0x33,
             FanucSignal.CLASS.path            : 0x6C,
