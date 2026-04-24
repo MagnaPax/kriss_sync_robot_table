@@ -122,7 +122,7 @@ class FanucSignal(str, Enum):
     # Home 위치로 이동
     HOME = "MAIN.Robot1._UI1.UI07_Home"
 
-    # TP 프로그램 시작 - ON(Rising Edge)이 되면 FANUC 로봇이 동작하는 TP Program을 실행
+    # TP 프로그램 시작 - ON(Rising Edge)이 되면 FANUC 로봇이 동작하는 FANUC TP Program을 실행
     RSR1 = "MAIN.Robot1._UI1.UI09_RSR1"
     RSR2 = "MAIN.Robot1._UI1.UI10_RSR2"
     RSR3 = "MAIN.Robot1._UI1.UI11_RSR3"
