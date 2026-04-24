@@ -128,15 +128,25 @@ class FanucOnlyExecutor(BaseExecutor):
         except Exception as e:
             return False, f"{self._log_prefix} 로봇이 준비되지 않았습니다: {e}"
 
-        # 로봇 이동 명령 전송(PLC->Robot)
+        # 목적지 데이터 전송(앱->PLC)
         try:
-            robot.send_to_plc(sequence_data)
-            return True, f"{self._log_prefix} 로봇 단독 이동 완료"
-
+            robot.send_target_data_to_plc_buffer(sequence_data, FanucSignal.FR_BUFFER_FOR_MANUAL_MOVE.path)
+            return True, f"{self._log_prefix} 로봇 목적지 전송 완료"
         except InterruptedError:
             return False, f"{self._log_prefix} 사용자 요청에 의한 작업 중단."
         except Exception as e:
             return False, f"{self._log_prefix} 실행 중 오류: {e}"
+
+        # 로봇 실행 신호 전송
+        try:
+            wait_time_to_change_signal: float = 1.0
+            rsr_signal: str = FanucSignal.FR_ROBOT_START_VAR2.path
+            robot.trigger_move_signal(rsr_signal, wait_time_to_change_signal)
+            return True, f"{self._log_prefix} 로봇 trigger 신호 전송 완료"
+        except Exception as e:
+            return False, f"{self._log_prefix} 실행 중 오류: {e}"
+
+
 
 class ServoOnlyExecutor(BaseExecutor):
     """
