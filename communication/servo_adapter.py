@@ -2,7 +2,7 @@
 import time
 import pyads
 import ctypes
-from typing import TYPE_CHECKING, Union, Dict, Any, Callable
+from typing import TYPE_CHECKING, Union, Dict, Any, Callable, List
 from communication.twincat_connector import TwinCATConnector
 from models.servo_pose_key import ServoSignal
 from models.servo_pose_key import ServoAxis
@@ -513,3 +513,18 @@ class ServoAdapter:
         
         # 2. 작업 시작: True 인가
         plc.write_by_name(home_signal, True, pyads.PLCTYPE_BOOL)
+
+
+
+    def send_tt_target_data(self, target_data: Dict[str, float]):
+        plc = self._plc
+        plc.write_list_by_name({
+            ServoSignal.SM_SINGLE_POS_VAR: target_data.get('tt_deg'),
+            ServoSignal.SM_SINGLE_VEL_VAR: target_data.get('tt_feed_rate')
+        })
+
+    def trigger_tt_manual_move(self):
+        plc = self._plc
+        plc.write_by_name(ServoSignal.SM_SINGLE_START_VAR, True, pyads.PLCTYPE_BOOL)
+        time.sleep(0.3)
+        plc.write_by_name(ServoSignal.SM_SINGLE_START_VAR, False, pyads.PLCTYPE_BOOL)
