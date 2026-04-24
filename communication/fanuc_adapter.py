@@ -100,6 +100,8 @@ class FanucAdapter:
         """로봇 원점 복귀 신호 전송"""
         plc = self._plc
         plc.write_by_name(FanucSignal.HOME.path, True, pyads.PLCTYPE_BOOL)
+        time.sleep(0.3)
+        plc.write_by_name(FanucSignal.HOME.path, False, pyads.PLCTYPE_BOOL)
 
 
     # ===================================================

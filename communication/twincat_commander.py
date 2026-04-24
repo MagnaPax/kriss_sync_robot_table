@@ -146,9 +146,9 @@ class TwinCATCommander(QObject):
         if self.robot:
             try:
                 self.robot.back_to_fanuc_home()
-                return True, "원점 복귀 완료"
+                return True, "원점 복귀 신호 전송 완료"
             except Exception as e:
-                return False, f"원점 복귀 실패: {e}"
+                return False, f"원점 복귀 신호 전송 실패: {e}"
         return False, "로봇이 연결되지 않았습니다."
 
     # ================================================ #
