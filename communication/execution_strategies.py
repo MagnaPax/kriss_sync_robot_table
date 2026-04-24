@@ -114,10 +114,6 @@ class FanucOnlyExecutor(BaseExecutor):
         return has_robot and not has_servo
 
     def execute(self, sequence_data: List[Dict[str, Any]]) -> tuple[bool, str]:
-
-        if not sequence_data:
-            return True, "데이터가 텅 비어있습니다."
-
         EVENT_BUS.log.message.emit(f"{self._log_prefix} 로봇 단독 모드 시작 (데이터 {len(sequence_data)}건)", "INFO")
 
         robot = self.robot
@@ -139,6 +135,9 @@ class FanucOnlyExecutor(BaseExecutor):
 
         # 로봇 실행 신호 전송
         try:
+            if self._is_interrupted():
+                return False, f"{self._log_prefix} 사용자에 의한 작업 중단"
+
             wait_time_to_change_signal: float = 1.0
             rsr_signal: str = FanucSignal.FR_ROBOT_START_VAR2.path
             robot.trigger_move_signal(rsr_signal, wait_time_to_change_signal)
@@ -148,7 +147,176 @@ class FanucOnlyExecutor(BaseExecutor):
 
 
 
+
 class ServoOnlyExecutor(BaseExecutor):
+    """
+    [서보 모터 단독 실행 전략]
+    로봇 팔은 가만히 두고 'Panasonic 서보 모터(턴테이블, 드릴)'만 제어하는 모드이다.
+    주로 서보 모터가 잘 도는지 테스트하거나 캘리브레이션할 때 사용한다.
+    """
+
+    def __init__(self, robot: FanucAdapter, servo: ServoAdapter):
+        super().__init__(robot, servo)
+        
+        # 설정 파일에서 얼마나 기다려줄지 값을 가져온다.
+        self.busy_timeout = SETTINGS.servo.busy_timeout
+        self.move_timeout = SETTINGS.servo.move_timeout
+
+    def can_execute(self, sample_data: Dict[str, Any]) -> bool:
+        """
+        이 데이터가 서보 단독 모드용인지 검사한다.
+        - 서보 데이터(회전, 공전...)는 있는데
+        - 로봇 키(X, Y, Z...)가 하나도 없으면
+        - "옳거니, 이건 서보만 돌리는거구나" 하고 True를 반환한다.
+        """
+        data_keys = set(sample_data.keys())
+        has_robot = not ROBOT_KEYS.isdisjoint(data_keys)
+        has_servo = not SERVO_KEYS.isdisjoint(data_keys)
+        # 서보 키는 있고, 로봇 키는 없을 때 합격!
+        return has_servo and not has_robot
+
+    def execute(self, sequence_data: List[Dict[str, Any]]) -> tuple[bool, str]:
+        """
+        [실행 메인 함수]
+        서보 모터 전용 데이터를 순서대로 하나씩 실행한다.
+        Returns: (성공여부, 결과메시지)
+        """
+        EVENT_BUS.log.message.emit(f"{self._log_prefix} 서보 단독 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
+        EVENT_BUS.log.message.emit(f"{self._log_prefix} 에서 처리될 전체 데이터\n{(sequence_data)}\n", "DEBUG")
+
+        adapter = self.servo
+
+        try:
+            # 한 번의 턴테이블 동작만 수행하기 때문에 sequence_data[0]만 보낸다
+            adapter.send_tt_target_data(sequence_data[0])
+            return True, f"{self._log_prefix} 사용자가 입력한 턴테이블 이동 목표 데이터 전송 완료"
+        except InterruptedError:
+            return False, f"{self._log_prefix} TT 데이터 전송 중 작업 중단됨."
+        except Exception as e:
+            return False, f"{self._log_prefix} TT 데이터 전송 중 오류: {e}"
+
+        try:
+            if self._is_interrupted():
+                return False, f"{self._log_prefix} 사용자에 의한 작업 중단"
+
+            adapter.trigger_tt_manual_move()
+            return True, f"{self._log_prefix} 사용자가 입력한 턴테이블 trigger 신호 전송 완료"
+        except InterruptedError:
+            return False, f"{self._log_prefix} TT trigger 신호 전송 중 작업 중단됨."
+        except Exception as e:
+            return False, f"{self._log_prefix} TT trigger 신호 전송 중 오류: {e}"
+
+    def _is_interrupted(self) -> bool:
+        """누가 "그만해!"(정지) 라고 했는지 확인함."""
+        return bool((thread := QThread.currentThread()) and thread.isInterruptionRequested())
+
+
+
+
+class IntegratedExecutor(BaseExecutor):
+    """
+    [통합 실행 전략]
+    로봇 팔(FANUC)과 턴테이블(Panasonic)을 정교하게 동기화해서 움직이는 클래스이다.
+    CSV 파일에 적힌 대로 '로봇이 움직이는 동안 턴테이블도 같이 돈다'는 것이 핵심이다.
+    """
+
+    def __init__(self, robot: FanucAdapter, servo: ServoAdapter):
+        super().__init__(robot, servo)
+        
+        # 서보 모터가 다 움직일 때까지 기다려줄 최대 시간 (설정값)
+        self.busy_timeout = SETTINGS.servo.busy_timeout
+        self.move_timeout = SETTINGS.servo.move_timeout
+
+    def can_execute(self, sample_data: Dict[str, Any]) -> bool:
+        """
+        이 실행기가 처리할 수 있는 데이터인지 확인한다.
+        - 로봇 데이터(X, Y, Z...)도 있고
+        - 서보 데이터(회전 속도 등)도 있고
+        - 특히 '턴테이블 각도'나 '로봇 X좌표'가 있으면 "아, 이건 내가 처리해야겠구나" 하고 True를 반환한다.
+        """
+        data_keys = set(sample_data.keys())
+        has_robot = not ROBOT_KEYS.isdisjoint(data_keys)
+        has_servo = not SERVO_KEYS.isdisjoint(data_keys)
+        has_specific_key = (KEY_TURNTABLE_DEG in data_keys) or (KEY_ROBOT_X in data_keys)
+        return has_robot and has_servo and has_specific_key
+
+    def execute(self, sequence_data: List[Dict[str, Any]]) -> tuple[bool, str]:
+        """
+        [메인 실행 로직]
+        여기가 진짜 실행부이다. 로봇과 서보를 지휘하는 지휘자 역할을 한다.
+        
+        [전체 흐름]
+        1. 준비: 툴(드릴 등) 모터를 먼저 윙~ 돌려놓는다.
+        2. 1번 스텝: 첫 번째 위치로 로봇과 턴테이블을 보낸다.
+        3. 반복 스텝: 2번부터 끝까지 착착착 다음 위치로 이동시킨다.
+           - 로봇이 "나 도착했어(DO46)" 라고 하면 다음 지점을 알려주는 식이다.
+        4. 종료: 다 끝나면 정리하고 퇴근(Homing)한다.
+        """
+
+
+
+        # TODO:  QRunnable과 QThreadPool 사용해야 되지 않을까? 제미나이에게 물어보기
+
+
+
+
+
+
+        EVENT_BUS.log.message.emit(f"{self._log_prefix} CSV 통합 동기화 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
+        EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
+
+        robot = self.robot
+        servo = self.servo
+
+        total_data = FANUCPoseModel.pre_calculate_all(sequence_data)
+        total_count = len(total_data)
+
+        current_idx = 0
+
+        # --- Step 1 --- #
+        # 처음 300개의 시퀀스((x, z, feed_rate) * 300 = 900개의 데이터) 전송
+        if current_idx < total_count:
+            # 
+            buffers     = robot.prepare_chunk_buffers(total_data, current_idx, FanucSignal.BUFFER_SIZE)
+            # PLC에 전송(send_buffer1 배열에 저장 후 실행)
+            robot.send_to_plc_group(1, buffers)
+            current_idx += FanucSignal.BUFFER_SIZE
+
+        if current_idx < total_count:
+            buffers     = robot.prepare_chunk_buffers(total_data, current_idx, FanucSignal.BUFFER_SIZE)
+            # PLC에 전송(send_buffer2 배열에 저장 후 실행)
+            robot.send_to_plc_group(2, buffers)
+            current_idx += FanucSignal.BUFFER_SIZE
+            
+        use_group_1 = True
+
+
+
+class LegacyIntegratedExecutor(BaseExecutor):
+    """
+    레거시 TXT 파일 형식
+    """
+
+    def can_execute(self, sample_data: Dict[str, Any]) -> bool:
+        data_keys = set(sample_data.keys())
+        # TXT 레거시 키 (axis_x, Y...) 와 서보 키가 공존할 때
+        has_legacy_robot = any(k in data_keys for k in ['axis_x', 'axis_y', 'axis_z', 'feed_rate'])
+        has_servo = not SERVO_KEYS.isdisjoint(data_keys)
+        return has_legacy_robot and has_servo
+
+    def execute(self, sequence_data: List[Dict[str, Any]]) -> tuple[bool, str]:
+        EVENT_BUS.log.message.emit(f"{self._log_prefix} 레거시 파일 모드로 실행 (데이터 {len(sequence_data)}건)", "INFO")
+
+        return True, "레거시 파일 모드 실행 완료 -> TODO: 로직 만들어야 된다"
+
+
+
+
+
+
+
+
+class OLD_ServoOnlyExecutor(BaseExecutor):
     """
     [서보 모터 단독 실행 전략]
     로봇 팔은 가만히 두고 'Panasonic 서보 모터(턴테이블, 드릴)'만 제어하는 모드이다.
@@ -428,89 +596,3 @@ class ServoOnlyExecutor(BaseExecutor):
         return bool((thread := QThread.currentThread()) and thread.isInterruptionRequested())
 
 
-
-class IntegratedExecutor(BaseExecutor):
-    """
-    [통합 실행 전략]
-    로봇 팔(FANUC)과 턴테이블(Panasonic)을 정교하게 동기화해서 움직이는 클래스이다.
-    CSV 파일에 적힌 대로 '로봇이 움직이는 동안 턴테이블도 같이 돈다'는 것이 핵심이다.
-    """
-
-    def __init__(self, robot: FanucAdapter, servo: ServoAdapter):
-        super().__init__(robot, servo)
-        
-        # 서보 모터가 다 움직일 때까지 기다려줄 최대 시간 (설정값)
-        self.busy_timeout = SETTINGS.servo.busy_timeout
-        self.move_timeout = SETTINGS.servo.move_timeout
-
-    def can_execute(self, sample_data: Dict[str, Any]) -> bool:
-        """
-        이 실행기가 처리할 수 있는 데이터인지 확인한다.
-        - 로봇 데이터(X, Y, Z...)도 있고
-        - 서보 데이터(회전 속도 등)도 있고
-        - 특히 '턴테이블 각도'나 '로봇 X좌표'가 있으면 "아, 이건 내가 처리해야겠구나" 하고 True를 반환한다.
-        """
-        data_keys = set(sample_data.keys())
-        has_robot = not ROBOT_KEYS.isdisjoint(data_keys)
-        has_servo = not SERVO_KEYS.isdisjoint(data_keys)
-        has_specific_key = (KEY_TURNTABLE_DEG in data_keys) or (KEY_ROBOT_X in data_keys)
-        return has_robot and has_servo and has_specific_key
-
-    def execute(self, sequence_data: List[Dict[str, Any]]) -> tuple[bool, str]:
-        """
-        [메인 실행 로직]
-        여기가 진짜 실행부이다. 로봇과 서보를 지휘하는 지휘자 역할을 한다.
-        
-        [전체 흐름]
-        1. 준비: 툴(드릴 등) 모터를 먼저 윙~ 돌려놓는다.
-        2. 1번 스텝: 첫 번째 위치로 로봇과 턴테이블을 보낸다.
-        3. 반복 스텝: 2번부터 끝까지 착착착 다음 위치로 이동시킨다.
-           - 로봇이 "나 도착했어(DO46)" 라고 하면 다음 지점을 알려주는 식이다.
-        4. 종료: 다 끝나면 정리하고 퇴근(Homing)한다.
-        """
-        EVENT_BUS.log.message.emit(f"{self._log_prefix} CSV 통합 동기화 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
-        EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
-
-        robot = self.robot
-        servo = self.servo
-
-        total_data = FANUCPoseModel.pre_calculate_all(sequence_data)
-        total_count = len(total_data)
-
-        current_idx = 0
-
-        # --- Step 1 --- #
-        # 처음 300개의 시퀀스((x, z, feed_rate) * 300 = 900개의 데이터) 전송
-        if current_idx < total_count:
-            # 
-            buffers     = robot.prepare_chunk_buffers(total_data, current_idx, FanucSignal.BUFFER_SIZE)
-            # PLC에 전송(send_buffer1 배열에 저장 후 실행)
-            robot.send_to_plc_group(1, buffers)
-            current_idx += FanucSignal.BUFFER_SIZE
-
-        if current_idx < total_count:
-            buffers     = robot.prepare_chunk_buffers(total_data, current_idx, FanucSignal.BUFFER_SIZE)
-            # PLC에 전송(send_buffer2 배열에 저장 후 실행)
-            robot.send_to_plc_group(2, buffers)
-            current_idx += FanucSignal.BUFFER_SIZE
-            
-        use_group_1 = True
-
-
-
-class LegacyIntegratedExecutor(BaseExecutor):
-    """
-    레거시 TXT 파일 형식
-    """
-
-    def can_execute(self, sample_data: Dict[str, Any]) -> bool:
-        data_keys = set(sample_data.keys())
-        # TXT 레거시 키 (axis_x, Y...) 와 서보 키가 공존할 때
-        has_legacy_robot = any(k in data_keys for k in ['axis_x', 'axis_y', 'axis_z', 'feed_rate'])
-        has_servo = not SERVO_KEYS.isdisjoint(data_keys)
-        return has_legacy_robot and has_servo
-
-    def execute(self, sequence_data: List[Dict[str, Any]]) -> tuple[bool, str]:
-        EVENT_BUS.log.message.emit(f"{self._log_prefix} 레거시 파일 모드로 실행 (데이터 {len(sequence_data)}건)", "INFO")
-
-        return True, "레거시 파일 모드 실행 완료 -> TODO: 로직 만들어야 된다"
