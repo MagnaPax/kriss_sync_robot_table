@@ -46,6 +46,10 @@ class MockConnection:
         self._servo_target_vel: Dict[int, float] = {1: 0.0, 2: 0.0, 3: 0.0}
         self._servo_target_pos: Dict[int, float] = {1: 0.0, 2: 0.0, 3: 0.0}
 
+    @property
+    def is_open(self) -> bool:
+        return self._is_open
+
     def open(self):
         self._is_open = True
         self.logger.info(f"[MOCK] 가상 PLC 연결 열림 ({self.ams_net_id}:{self.port})")
@@ -126,18 +130,35 @@ class MockConnection:
             except Exception:
                 pass
 
+        if hasattr(self, '_gvl_state') and name in self._gvl_state:
+            return self._gvl_state[name]
+
         # 기본값
         return 0
 
     # ==========================================================
     # Write by Name (PLC 명령 수신)
     # ==========================================================
+    def get_symbol(self, name: str):
+        class DummySymbol:
+            def __init__(self):
+                self.index_group = 0
+                self.index_offset = 0
+        return DummySymbol()
+
+    def write(self, index_group: int, index_offset: int, data: Any, plc_type: Any = None):
+        self.logger.debug(f"[MOCK] write(group={index_group}, offset={index_offset}, size={len(data) if isinstance(data, bytes) else '?'})")
+
     def write_list_by_name(self, data_map: Dict[str, Any]):
         """여러 변수를 한 번에 쓰기 (Batch Write)"""
         for name, value in data_map.items():
             self.write_by_name(name, value, None)
 
-    def write_by_name(self, name: str, value: Any, plc_type: Any):
+    def write_by_name(self, name: str, value: Any, plc_type: Any = None):
+        if not hasattr(self, '_gvl_state'):
+            self._gvl_state = {}
+        self._gvl_state[name] = value
+
         # self.logger.debug(f"[MOCK] Write: {name} = {value}")
         
         # ---------------------------------------------------------------------
