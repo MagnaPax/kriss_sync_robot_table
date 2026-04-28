@@ -243,14 +243,7 @@ class IntegratedExecutor(BaseExecutor):
     def execute(self, sequence_data: List[Dict[str, Any]]) -> tuple[bool, str]:
         """
         [메인 실행 로직]
-        여기가 진짜 실행부이다. 로봇과 서보를 지휘하는 지휘자 역할을 한다.
-        
-        [전체 흐름]
-        1. 준비: 툴(드릴 등) 모터를 먼저 윙~ 돌려놓는다.
-        2. 1번 스텝: 첫 번째 위치로 로봇과 턴테이블을 보낸다.
-        3. 반복 스텝: 2번부터 끝까지 착착착 다음 위치로 이동시킨다.
-           - 로봇이 "나 도착했어(DO46)" 라고 하면 다음 지점을 알려주는 식이다.
-        4. 종료: 다 끝나면 정리하고 퇴근(Homing)한다.
+        로봇과 서보를 지휘하는 통합 실행부.
         """
 
 
@@ -271,7 +264,56 @@ class IntegratedExecutor(BaseExecutor):
         total_data = FANUCPoseModel.pre_calculate_all(sequence_data)
         total_count = len(total_data)
 
-        current_idx = 0
+        EVENT_BUS.log.message.emit(f"{self._log_prefix} 전처리 완료된 전체 데이터 갯수: {len(total_data)}", "DEBUG")
+
+        current_idx: int = 0
+
+        try:
+            # 1. 초기 버퍼 (PRLINE 0, Chunk 1, Chunk 2) 전송
+            robot.FR_send_to_plc_first(robot.FR_prepare_single_buffers(total_data))
+            current_idx += 1
+
+            if current_idx < total_count:
+                buffers = robot.FR_prepare_chunk_buffers(total_data, current_idx, SETTINGS.robot.robot_buffer_size)
+                robot.FR_send_to_plc_group(SETTINGS.robot.robot_buffer_size, 1, buffers)
+                robot.FR_send_to_plc_info(1, buffers)
+                current_idx += SETTINGS.robot.robot_buffer_size
+                EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] Chunk 1 전송 완료", "DEBUG")
+
+            if current_idx < total_count:
+                buffers = robot.FR_prepare_chunk_buffers(total_data, current_idx, SETTINGS.robot.robot_buffer_size)
+                robot.FR_send_to_plc_group(SETTINGS.robot.robot_buffer_size, 2, buffers)
+                robot.FR_send_to_plc_info(2, buffers)
+                current_idx += SETTINGS.robot.robot_buffer_size
+                EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] Chunk 2 전송 완료", "DEBUG")
+
+            # 2. RSR 동작 후, DO46 신호에 맞춰 루프 구동
+            while current_idx < total_count and self.is_running:
+                robot.FR_wait_for_robot_signal()
+                if not self.is_running: break
+
+                buffers = self.FR_prepare_chunk_buffers(total_data, current_idx, SETTINGS.robot.robot_buffer_size)
+                group_num = 1 if use_group_1 else 2
+
+                robot.FR_send_to_plc_group(SETTINGS.robot.robot_buffer_size, group_num, buffers)
+                robot.FR_send_to_plc_info(group_num, buffers)
+
+                use_group_1 = not use_group_1
+                current_idx += SETTINGS.robot.robot_buffer_size
+
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] 모든 데이터 보내기 완료.", "DEBUG")
+
+
+            return True, f"{self._log_prefix} 시퀀스 작업 정상 완료"
+        except InterruptedError:
+            return False, f"{self._log_prefix} 사용자에 의해 시퀀스 작업 중단"
+        except Exception as e:
+            return False, f"{self._log_prefix} 시퀀스 작업 중 오류: {e}"
+
+
+            
+
+
 
         # --- Step 1 --- #
         # 처음 300개의 시퀀스((x, z, feed_rate) * 300 = 900개의 데이터) 전송
