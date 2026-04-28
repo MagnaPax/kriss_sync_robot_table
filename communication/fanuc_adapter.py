@@ -331,7 +331,7 @@ class FanucAdapter:
 
     def FR_prepare_chunk_buffers(self, total_data, current_idx, buf_size):
         """FR_pre_calculate_all 결괏값 저장"""
-        chunk = total_data[current_idx : current_idx + buf_size]        
+        chunk = total_data[current_idx : current_idx + buf_size]
         serialized = []
         for item in chunk:
             serialized.extend([item['dx'], item['dz'], item['fd']])
@@ -374,7 +374,7 @@ class FanucAdapter:
         """FR_prepare_single_buffers 를 PLC -> 로봇 에게 보내기"""
         plc = self._plc
 
-        plc.write_by_name(FanucSignal.BUFFER_FOR_FR_SINGLE.path, buffers, pyads.PLCTYPE_REAL * 3)
+        plc.write_by_name(FanucSignal.FR_BUFFER_FOR_SEQUENCE_MOVE.path, buffers, pyads.PLCTYPE_REAL * 3)
         plc.write_list_by_name({
             FanucSignal.SERVICE_CODE.path     : 0x33, 
             FanucSignal.CLASS.path            : 0x6C, 
