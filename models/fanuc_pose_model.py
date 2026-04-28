@@ -78,6 +78,7 @@ class FANUCPoseModel:
         3. 도메인 객체(FANUCPose) 생성 및 반환
         
     이 클래스는 상태를 가지지 않으므로(Stateless), 모든 메서드는 정적(@staticmethod)이다
+    따라서 객체를 생성할 필요 없이 `FANUCPoseModel.메서드이름()` 형태로 호출 가능
     """
 
     @staticmethod
@@ -133,3 +134,54 @@ class FANUCPoseModel:
             prev_z = curr_z
             
         return all_data
+
+    @staticmethod
+    def FR_pre_calculate_all(lines: list[Any]) -> list[dict[str, float]]:
+        """
+        턴테이블 속도와 각도를 사용해서 로봇의 이동속도와 거리 변화량 계산
+        이유: 턴테이블 속도가 변하면 로봇 속도도 변해야 하기 때문
+
+        Args:
+            lines (list[Any]): CSV 데이터 리스트
+
+        Returns:
+            list[{'dx': float, 'dz': float, 'fd': float}]: 로봇 속도와 거리 변화량 계산 결과(딕셔너리)가 담긴 한 개의 리스트
+        """
+        all_data = [] 
+        prev_u, prev_x, prev_z = None, None, None
+
+        for line in lines:
+            parts = line.split(',')
+            if len(parts) < 10: continue
+
+            try:
+                f_val   = float(parts[3])
+                curr_u  = float(parts[5])
+                curr_x  = float(parts[7])
+                curr_z  = float(parts[9])
+            except (ValueError, IndexError):
+                continue
+
+            if prev_u is not None:
+                delta_u = curr_u - prev_u
+                if delta_u < 0: delta_u += 360
+                delta_x = curr_x - prev_x
+                delta_z = curr_z - prev_z
+            else:
+                delta_u = curr_u
+                delta_x = curr_x
+                delta_z = curr_z 
+
+            if delta_u != 0:
+                moving_time = delta_u / f_val
+                distance = math.sqrt(delta_x ** 2 + delta_z ** 2)
+                robot_feed = distance / moving_time
+                all_data.append({'dx': delta_x, 'dz': delta_z, 'fd': robot_feed})
+            elif delta_u == 0:
+                robot_feed = 10.0
+                all_data.append({'dx': delta_x, 'dz': delta_z, 'fd': robot_feed})  
+
+            prev_u, prev_x, prev_z = curr_u, curr_x, curr_z
+            
+        return all_data # 현재 시퀀스의 로봇 속도, X, Z
+
