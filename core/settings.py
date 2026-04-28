@@ -48,6 +48,7 @@ class TwinCATConfig:
 @dataclass
 class RobotConfig:
     default_speed: int
+    robot_buffer_size: int
 
 @dataclass
 class ServoConfig:
@@ -162,7 +163,8 @@ class Settings:
         """[Robot] 섹션의 정보"""
         section: Any = self._config['Robot'] if 'Robot' in self._config else {}
         return RobotConfig(
-            default_speed=int(section.get('DEFAULT_SPEED', '50'))
+            default_speed=int(section.get('DEFAULT_FEED_RATE_ROBOT', '10')),
+            robot_buffer_size=int(section.get('FR_BUFFER_SIZE', '100'))
         )
 
     @property
