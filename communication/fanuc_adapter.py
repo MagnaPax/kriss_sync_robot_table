@@ -318,6 +318,126 @@ class FanucAdapter:
         plc.write_by_name(RSR_VAR, False, pyads.PLCTYPE_BOOL)
 
 
+    # =========================================
+    #     로봇 데이터 PLC로 전송하는 함수들
+    # =========================================
+    def FR_prepare_single_buffers(self, total_data, current_idx=0):
+        """
+        단일 데이터(1개)를 전송하기 위한 버퍼 생성
+            첫 번째 시퀀스 반환 (턴테이블이 멈춘 상태에서 로봇만 시작 위치로 이동하기 위해)
+        """
+        item = total_data[current_idx]
+        return [item['dx'], item['dz'], item['fd']]
+
+    def FR_prepare_chunk_buffers(self, total_data, current_idx, buf_size):
+        """FR_pre_calculate_all 결괏값 저장"""
+        chunk = total_data[current_idx : current_idx + buf_size]        
+        serialized = []
+        for item in chunk:
+            serialized.extend([item['dx'], item['dz'], item['fd']])
+
+        needed_len = buf_size * 3
+        if len(serialized) < needed_len:
+            serialized.extend([0.0] * (needed_len - len(serialized)))
+
+        return [
+            serialized[0:buf_size],
+            serialized[buf_size:(2 * buf_size)],
+            serialized[(2 * buf_size):(3 * buf_size)]
+        ]
+
+    def FR_wait_for_robot_signal(self, var_name):
+        """
+        FR_ROBOT_SIGNAL_VAR 신호 감지
+
+        Args:
+            var_name: FANUC TP 프로그램 실행 신호 변수 이름
+        """
+        plc = self._plc
+
+        # Rising Edge 감지
+        while self.is_running:
+            try:
+                if not plc.read_by_name(var_name, pyads.PLCTYPE_BOOL): break
+            except: pass
+            time.sleep(0.1)
+
+        while self.is_running:
+            try:
+                if plc.read_by_name(var_name, pyads.PLCTYPE_BOOL):
+                    print(" >> [Robot] DO46 신호 감지. 버퍼 전송 시작")
+                    return
+            except: pass
+            time.sleep(0.05)
+
+    def FR_send_to_plc_first(self, buffers):
+        """FR_prepare_single_buffers 를 PLC -> 로봇 에게 보내기"""
+        plc = self._plc
+
+        plc.write_by_name(FanucSignal.BUFFER_FOR_FR_SINGLE.path, buffers, pyads.PLCTYPE_REAL * 3)
+        plc.write_list_by_name({
+            FanucSignal.SERVICE_CODE.path     : 0x33, 
+            FanucSignal.CLASS.path            : 0x6C, 
+            FanucSignal.INSTANCE.path         : 0x0301, 
+            FanucSignal.ATTRIBUTE.path        : 0x3E5, 
+            FanucSignal.BUFFER_ID.path        : 1
+            })
+        plc.write_by_name(FanucSignal.EXECUTE.path, True, pyads.PLCTYPE_BOOL)
+        time.sleep(0.35)
+        plc.write_by_name(FanucSignal.EXECUTE.path, False, pyads.PLCTYPE_BOOL)
+
+    def FR_send_to_plc_group(self, buf_size, group_num, buffers):
+        """FR_prepare_single_buffers 다음 두번째부터 PLC -> 로봇 에게 보내기"""
+        plc = self._plc
+
+        prefix = f'MAIN.send_buffer{group_num}_'
+        try:
+            plc.write_list_by_name({
+                f'{prefix}1': buffers[0],
+                f'{prefix}2': buffers[1],
+                f'{prefix}3': buffers[2]
+            })
+        except Exception as e:
+            print(f"[Error] 로봇 Group {group_num} 배열 전송 실패: {e}")
+            return
+
+        start_idx = 0 if group_num == 1 else 3
+        nInstance = (buf_size << 8) | 0x01
+        mapping = [(11, 1), (12, (buf_size + 1)), (13, (2 * buf_size + 1)), 
+                   (21, (3 * buf_size +1)), (22, (4 * buf_size + 1)), (23, (5 * buf_size + 1))]
+
+        for i in range(start_idx, start_idx + 3):
+            buf_id, start_pt = mapping[i]
+            plc.write_list_by_name({
+                FanucSignal.SERVICE_CODE.path     : 0x33, 
+                FanucSignal.CLASS.path            : 0x6C, 
+                FanucSignal.INSTANCE.path         : nInstance, 
+                FanucSignal.ATTRIBUTE.path        : start_pt, 
+                FanucSignal.BUFFER_ID.path        : buf_id
+                })
+            plc.write_by_name(FanucSignal.EXECUTE.path, True, pyads.PLCTYPE_BOOL)
+            time.sleep(0.7)
+            plc.write_by_name(FanucSignal.EXECUTE.path, False, pyads.PLCTYPE_BOOL)
+
+    def FR_send_to_plc_info(self, group_num, buffers):
+        """시퀀스를 몇 개 보냈냐는 데이터를 보내기 (TP프로그램에서 사용)"""
+        plc = self._plc
+
+        total_valid = sum((len(b) - b.count(0.0)) for b in buffers)
+        data_rows = total_valid // 3
+        counter_idx = 0x394 if group_num == 1 else 0x395
+        plc.write_list_by_name({
+            FanucSignal.SERVICE_CODE.path     : 0x10, 
+            FanucSignal.CLASS.path            : 0x6B, 
+            FanucSignal.INSTANCE.path         : 0x01, 
+            FanucSignal.ATTRIBUTE.path        : counter_idx, 
+            FanucSignal.NUMBER_OF_DATA.path   : data_rows, 
+            FanucSignal.BUFFER_ID.path        : 99
+            })
+        plc.write_by_name(FanucSignal.EXECUTE, True, pyads.PLCTYPE_BOOL)
+        time.sleep(0.3)
+        plc.write_by_name(FanucSignal.EXECUTE, False, pyads.PLCTYPE_BOOL)
+
     # ==================
     #       헬퍼
     # ==================
