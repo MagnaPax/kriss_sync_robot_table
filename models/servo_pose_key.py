@@ -1,6 +1,7 @@
 # models/servo_pose_key.py
-from enum import Enum, IntEnum
 
+from enum import Enum, IntEnum
+import ctypes
 
 
 class ServoAxis(IntEnum):
@@ -119,4 +120,23 @@ class ServoSignal(str, Enum):
     SM_MONITOR_POS      = 'MAIN.fServoCurrPos'
     SM_MONITOR_VEL_REV  = 'MAIN.fServoCurrVel_rev'
     SM_MONITOR_VEL_ROT  = 'MAIN.fServoCurrVel_rot'
+
+
+
+# =============================================================================
+# 턴테이블 데이터 구조 정의 (Data Structure Definitions)
+# =============================================================================
+
+# 시퀀스 동작을 위한 서보 모터 제어 구조체
+class ST_PathData(ctypes.Structure):
+    _pack = 1
+    _fields_ = [
+        ('fPosition', ctypes.c_double),
+        ('fVelocity', ctypes.c_double),
+        ('fVelocity2', ctypes.c_double),
+        ('fVelocity3', ctypes.c_double)
+    ]
+
+
+Array500 = ST_PathData * 500
 
