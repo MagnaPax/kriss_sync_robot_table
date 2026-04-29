@@ -151,15 +151,12 @@ class FANUCPoseModel:
         prev_u, prev_x, prev_z = None, None, None
 
         for line in lines:
-            parts = line.split(',')
-            if len(parts) < 10: continue
-
             try:
-                f_val   = float(parts[3])
-                curr_u  = float(parts[5])
-                curr_x  = float(parts[7])
-                curr_z  = float(parts[9])
-            except (ValueError, IndexError):
+                f_val   = float(line.get('tt_feed_rate'))
+                curr_u  = float(line.get('tt_deg'))
+                curr_x  = float(line.get('x'))
+                curr_z  = float(line.get('z'))
+            except (ValueError, KeyError):
                 continue
 
             if prev_u is not None:
