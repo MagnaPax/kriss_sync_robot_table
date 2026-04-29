@@ -308,7 +308,6 @@ class IntegratedExecutor(BaseExecutor):
 
 
             # [턴테이블]
-            # print(sequence_data)
             all_data = servo.SM_load_csv_data(sequence_data)
             EVENT_BUS.log.message.emit(f"{self._log_prefix} [Motor] 시퀀스 데이터를 모터가 처리할 수 있는 형태로 변환 완료.", "DEBUG")
 
@@ -323,6 +322,15 @@ class IntegratedExecutor(BaseExecutor):
             ch1 = len(chunk1)
             current_ptr += ch1
             EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] Chunk 1 전송 완료", "DEBUG")
+
+            if total_len > 500:
+                chunk2 = all_data[500:1000]
+                servo.SM_send_buffer_chunk(501, chunk2)
+                ch2 = len(chunk2)
+                current_ptr += ch2
+                EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] Chunk 2 전송 완료", "DEBUG")
+            else:
+                current_ptr = total_len
 
 
 
