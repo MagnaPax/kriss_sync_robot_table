@@ -5,7 +5,7 @@ import ctypes
 from typing import TYPE_CHECKING, Union, Dict, Any, Callable, List
 from communication.twincat_connector import TwinCATConnector
 from models.servo_pose_key import ServoSignal
-from models.servo_pose_key import ServoAxis
+from models.servo_pose_key import ServoAxis, ST_PathData, Array500
 from core.exceptions import ServoBusyError, ServoFaultError
 from utils.logger import get_logger
 
@@ -528,3 +528,34 @@ class ServoAdapter:
         plc.write_by_name(ServoSignal.SM_SINGLE_START_VAR, True, pyads.PLCTYPE_BOOL)
         time.sleep(0.3)
         plc.write_by_name(ServoSignal.SM_SINGLE_START_VAR, False, pyads.PLCTYPE_BOOL)
+
+
+    def SM_load_csv_data(self, sequences):
+        try:
+            data_list = []
+            scale_factor = 0.995
+
+            for sequence in sequences:
+                item = ST_PathData()
+
+                try:
+                    val_velocity    = float(sequence.get('tt_feed_rate'))
+                    val_position    = float(sequence.get('tt_deg'))
+                    val_velocity2   = float(sequence.get('rev'))
+                    val_velocity3   = float(sequence.get('rot'))
+                    
+                    if sequence == 0 and val_position == 0.0:
+                        continue
+
+                    item.fVelocity  = val_velocity * scale_factor
+                    item.fPosition  = val_position
+                    item.fVelocity2 = val_velocity2
+                    item.fVelocity3 = val_velocity3
+
+                    data_list.append(item)
+                except:
+                    continue
+            return data_list
+        except Exception as e:
+            print(f"CSV Load Error: {e}")
+            return []

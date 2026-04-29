@@ -307,6 +307,21 @@ class IntegratedExecutor(BaseExecutor):
             EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] 모든 데이터 처리 완료.", "INFO")
 
 
+            # [턴테이블]
+            # print(sequence_data)
+            all_data = servo.SM_load_csv_data(sequence_data)
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} [Motor] 시퀀스 데이터를 모터가 처리할 수 있는 형태로 변환 완료.", "DEBUG")
+
+            total_len = len(all_data)
+            if total_len == 0: return
+
+
+
+
+
+
+
+
 
             return True, f"{self._log_prefix} (로봇-모터) 통합 제어 완료"
         except InterruptedError:
@@ -315,27 +330,6 @@ class IntegratedExecutor(BaseExecutor):
             return False, f"{self._log_prefix} (로봇-모터) 통합 제어 중 오류: {e}"
 
 
-
-            
-
-
-
-        # --- Step 1 --- #
-        # 처음 300개의 시퀀스((x, z, feed_rate) * 300 = 900개의 데이터) 전송
-        if current_idx < total_count:
-            # 
-            buffers     = robot.prepare_chunk_buffers(total_data, current_idx, FanucSignal.BUFFER_SIZE)
-            # PLC에 전송(send_buffer1 배열에 저장 후 실행)
-            robot.send_to_plc_group(1, buffers)
-            current_idx += FanucSignal.BUFFER_SIZE
-
-        if current_idx < total_count:
-            buffers     = robot.prepare_chunk_buffers(total_data, current_idx, FanucSignal.BUFFER_SIZE)
-            # PLC에 전송(send_buffer2 배열에 저장 후 실행)
-            robot.send_to_plc_group(2, buffers)
-            current_idx += FanucSignal.BUFFER_SIZE
-            
-        use_group_1 = True
 
 
 
@@ -355,9 +349,6 @@ class LegacyIntegratedExecutor(BaseExecutor):
         EVENT_BUS.log.message.emit(f"{self._log_prefix} 레거시 파일 모드로 실행 (데이터 {len(sequence_data)}건)", "INFO")
 
         return True, "레거시 파일 모드 실행 완료 -> TODO: 로직 만들어야 된다"
-
-
-
 
 
 
