@@ -261,16 +261,19 @@ class IntegratedExecutor(BaseExecutor):
         robot = self.robot
         servo = self.servo
 
-        total_data = FANUCPoseModel.pre_calculate_all(sequence_data)
-        total_count = len(total_data)
+        total_data = FANUCPoseModel.FR_pre_calculate_all(sequence_data)
+        total_count = len(sequence_data)
 
         EVENT_BUS.log.message.emit(f"{self._log_prefix} 전처리 완료된 전체 데이터 갯수: {len(total_data)}", "DEBUG")
 
         current_idx: int = 0
 
         try:
+            # [로봇]
             # 1. 초기 버퍼 (PRLINE 0, Chunk 1, Chunk 2) 전송
             robot.FR_send_to_plc_first(robot.FR_prepare_single_buffers(total_data))
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] 단일 버퍼 (PRLINE 0) 전송 완료", "DEBUG")
+
             current_idx += 1
 
             if current_idx < total_count:
@@ -301,14 +304,16 @@ class IntegratedExecutor(BaseExecutor):
                 use_group_1 = not use_group_1
                 current_idx += SETTINGS.robot.robot_buffer_size
 
-            EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] 모든 데이터 보내기 완료.", "DEBUG")
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] 모든 데이터 처리 완료.", "INFO")
 
 
-            return True, f"{self._log_prefix} 시퀀스 작업 정상 완료"
+
+            return True, f"{self._log_prefix} (로봇-모터) 통합 제어 완료"
         except InterruptedError:
-            return False, f"{self._log_prefix} 사용자에 의해 시퀀스 작업 중단"
+            return False, f"{self._log_prefix} (로봇-모터) 통합 제어 중 사용자에 의해 중단"
         except Exception as e:
-            return False, f"{self._log_prefix} 시퀀스 작업 중 오류: {e}"
+            return False, f"{self._log_prefix} (로봇-모터) 통합 제어 중 오류: {e}"
+
 
 
             
