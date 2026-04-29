@@ -559,3 +559,28 @@ class ServoAdapter:
         except Exception as e:
             print(f"CSV Load Error: {e}")
             return []
+
+    def SM_send_buffer_chunk(self, start_idx_plc, py_data_chunk):
+        """
+        두 번째 시퀀스부터 (특정 갯수만큼=500개) 캐싱
+        -> 첫 번째 row 제외 DUE TO 첫 번째 row는 턴테이블 움직임이 없기 때문
+        """
+        plc = self._plc
+
+        count = len(py_data_chunk)
+        if count == 0: return
+
+        buffer_array = Array500()
+        for i in range(count):
+            buffer_array[i].fPosition   = py_data_chunk[i].fPosition
+            buffer_array[i].fVelocity   = py_data_chunk[i].fVelocity
+            buffer_array[i].fVelocity2  = py_data_chunk[i].fVelocity2
+            buffer_array[i].fVelocity3  = py_data_chunk[i].fVelocity3            
+
+        byte_data       = bytes(buffer_array)
+        symbol_info     = plc.get_symbol(ServoSignal.SM_VAR_PATH_ARR)
+        base_group      = symbol_info.index_group
+        base_offset     = symbol_info.index_offset
+        current_offset  = (start_idx_plc - 1) * ctypes.sizeof(ST_PathData)
+        
+        plc.write(base_group, base_offset + current_offset, byte_data, pyads.PLCTYPE_BYTE * len(byte_data))

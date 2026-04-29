@@ -315,7 +315,14 @@ class IntegratedExecutor(BaseExecutor):
             total_len = len(all_data)
             if total_len == 0: return
 
+            current_ptr = 0
 
+            # 1. 초기 1000개 데이터 로드
+            chunk1 = all_data[0:500]
+            servo.SM_send_buffer_chunk(1, chunk1)
+            ch1 = len(chunk1)
+            current_ptr += ch1
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] Chunk 1 전송 완료", "DEBUG")
 
 
 
