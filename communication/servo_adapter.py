@@ -582,5 +582,62 @@ class ServoAdapter:
         base_group      = symbol_info.index_group
         base_offset     = symbol_info.index_offset
         current_offset  = (start_idx_plc - 1) * ctypes.sizeof(ST_PathData)
-        
         plc.write(base_group, base_offset + current_offset, byte_data, pyads.PLCTYPE_BYTE * len(byte_data))
+
+    def watch_buffer_update(self, all_data: List[ST_PathData], current_ptr: int, check_interrupt: Callable[[], bool]):
+        """
+        서보 모터의 버퍼 갱신(Req Lower/Upper)을 무한 루프로 감시하며 데이터를 전송합니다.
+        
+        Args:
+            all_data: 전체 서보 데이터 리스트
+            current_ptr: 현재까지 전송된 데이터 인덱스
+            check_interrupt: 스레드 중단 여부를 반환하는 콜백 함수
+        """
+        plc = self._plc
+        total_len = len(all_data)
+
+        while not check_interrupt():
+            if current_ptr >= total_len:
+                try:
+                    if not plc.read_by_name(ServoSignal.SM_VAR_ALL_FIN, pyads.PLCTYPE_BOOL):
+                        logger.info("[Servo] 모든 데이터 전송 완료. 종료 신호 전송.")
+                        plc.write_by_name(ServoSignal.SM_VAR_ALL_FIN, True, pyads.PLCTYPE_BOOL)
+                except: pass
+                time.sleep(1)
+                continue
+            
+            try:
+                # [하단 버퍼 업데이트 요청]
+                if plc.read_by_name(ServoSignal.SM_VAR_REQ_LOWER, pyads.PLCTYPE_BOOL):
+                    logger.debug("[Servo] Req Lower 감지 -> 버퍼 업데이트")
+                    if current_ptr + 500 > total_len:
+                        chunk = all_data[current_ptr : total_len]
+                    else:
+                        chunk = all_data[current_ptr : current_ptr + 500]
+                    self.SM_send_buffer_chunk(1, chunk)
+                    current_ptr += len(chunk)
+
+                    plc.write_by_name(ServoSignal.SM_VAR_UPD_DONE, True, pyads.PLCTYPE_BOOL)
+                    while plc.read_by_name(ServoSignal.SM_VAR_REQ_LOWER, pyads.PLCTYPE_BOOL) and not check_interrupt():
+                        time.sleep(0.01)
+                    plc.write_by_name(ServoSignal.SM_VAR_UPD_DONE, False, pyads.PLCTYPE_BOOL)
+
+                # [상단 버퍼 업데이트 요청]
+                if plc.read_by_name(ServoSignal.SM_VAR_REQ_UPPER, pyads.PLCTYPE_BOOL):
+                    logger.debug("[Servo] Req Upper 감지 -> 버퍼 업데이트")
+                    if current_ptr + 500 > total_len:
+                        chunk = all_data[current_ptr : total_len]
+                    else:
+                        chunk = all_data[current_ptr : current_ptr + 500]
+                    self.SM_send_buffer_chunk(501, chunk)
+                    current_ptr += len(chunk)
+
+                    plc.write_by_name(ServoSignal.SM_VAR_UPD_DONE, True, pyads.PLCTYPE_BOOL)
+                    while plc.read_by_name(ServoSignal.SM_VAR_REQ_UPPER, pyads.PLCTYPE_BOOL) and not check_interrupt():
+                        time.sleep(0.01)
+                    plc.write_by_name(ServoSignal.SM_VAR_UPD_DONE, False, pyads.PLCTYPE_BOOL)
+
+                time.sleep(0.005)
+
+            except Exception as e:
+                logger.error(f"[Servo] 버퍼 업데이트 중 에러: {e}")
