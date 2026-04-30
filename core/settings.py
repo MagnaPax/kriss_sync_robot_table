@@ -36,6 +36,8 @@ class AppConfig:
     version: str
     debug: bool
     log_dir: Path
+    icon_path: str
+    kriss_ci_path: str
 
 @dataclass
 class TwinCATConfig:
@@ -46,11 +48,22 @@ class TwinCATConfig:
 @dataclass
 class RobotConfig:
     default_speed: int
+    robot_buffer_size: int
 
 @dataclass
 class ServoConfig:
     move_timeout: float
     busy_timeout: float
+    # 서보 관련 상수 (기본값 및 범위)
+    turntable_deg_default: float
+    turntable_deg_min: float
+    turntable_deg_max: float
+    turntable_rpm_default: float
+    turntable_rpm_min: float
+    turntable_rpm_max: float
+    tool_rpm_default: float
+    tool_rpm_min: float
+    tool_rpm_max: float
 
 
 # =============================================================================
@@ -130,7 +143,9 @@ class Settings:
             name=section.get('APP_NAME', 'KRISS Sync'),
             version=section.get('VERSION', '0.0.0'),
             debug=section.get('DEBUG', 'False').lower() == 'true',
-            log_dir=self.ROOT_DIR / section.get('LOG_DIR', 'logs')
+            log_dir=self.ROOT_DIR / section.get('LOG_DIR', 'logs'),
+            icon_path=section.get('APP_ICON', 'resources/icons/kriss.gif'),
+            kriss_ci_path=section.get('KRISS_CI', 'resources/images/kriss_logo.gif')
         )
 
     @property
@@ -148,7 +163,8 @@ class Settings:
         """[Robot] 섹션의 정보"""
         section: Any = self._config['Robot'] if 'Robot' in self._config else {}
         return RobotConfig(
-            default_speed=int(section.get('DEFAULT_SPEED', '50'))
+            default_speed=int(section.get('DEFAULT_FEED_RATE_ROBOT', '10')),
+            robot_buffer_size=int(section.get('FR_BUFFER_SIZE', '100'))
         )
 
     @property
@@ -163,7 +179,19 @@ class Settings:
         section: Any = self._config['Servo'] if 'Servo' in self._config else {}
         return ServoConfig(
             move_timeout=float(section.get('SERVO_MOVE_TIMEOUT_SEC', '180.0')),
-            busy_timeout=float(section.get('SERVO_BUSY_TIMEOUT_SEC', '5.0'))
+            busy_timeout=float(section.get('SERVO_BUSY_TIMEOUT_SEC', '5.0')),
+            
+            turntable_deg_default=float(section.get('TURNTABLE_DEG_DEFAULT', '0')),
+            turntable_deg_min=float(section.get('TURNTABLE_DEG_MIN', '-99999')),
+            turntable_deg_max=float(section.get('TURNTABLE_DEG_MAX', '99999')),
+            
+            turntable_rpm_default=float(section.get('TURNTABLE_RPM_DEFAULT', '5')),
+            turntable_rpm_min=float(section.get('TURNTABLE_RPM_MIN', '0')),
+            turntable_rpm_max=float(section.get('TURNTABLE_RPM_MAX', '2000')),
+            
+            tool_rpm_default=float(section.get('TOOL_RPM_DEFAULT', '10')),
+            tool_rpm_min=float(section.get('TOOL_RPM_MIN', '0')),
+            tool_rpm_max=float(section.get('TOOL_RPM_MAX', '3000')),
         )
 
 # 전역 인스턴스

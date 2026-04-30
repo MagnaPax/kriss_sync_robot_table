@@ -17,6 +17,16 @@ from typing import List, Dict, Any, Optional
 from PyQt6.QtCore import QAbstractTableModel, Qt, QModelIndex, QObject
 
 
+# 공통 데이터 포맷 상수 사용
+# Model 계층에서 도메인 정의(Keys)를 아는 것은 의존성 주입 위반이 아니라 올바른 참조
+from config.data_formats import (
+    KEY_ID, 
+    KEY_STATUS, 
+    KEY_ROBOT_X, KEY_ROBOT_Y, KEY_ROBOT_Z, 
+    KEY_ROBOT_W, KEY_ROBOT_P, KEY_ROBOT_R, 
+    KEY_ROBOT_FEED_RATE
+)
+
 
 class WaypointsTableModel(QAbstractTableModel):
     """
@@ -35,11 +45,6 @@ class WaypointsTableModel(QAbstractTableModel):
     def set_data(self, data: List[Dict[str, Any]]):
         """
         [데이터 주입] 외부에서 데이터를 받아와 모델을 갱신하는 곳.
-        
-        Q: 왜 그냥 self._data = data 하면 안 되나요?
-        A: 뷰(View)는 모델의 데이터가 바뀐지 모릅니다. 
-            반드시 beginResetModel()과 endResetModel()로 감싸서 
-            "야, 데이터 싹 갈아엎는다! 다시 그려!"라고 신호를 보내야 합니다.
         """
         if not data:
             self.beginResetModel()
@@ -48,48 +53,87 @@ class WaypointsTableModel(QAbstractTableModel):
             self.endResetModel()
             return
 
-        # 1. 모델 리셋 시작 알림 (뷰야, 잠깐 멈춰! 데이터 대공사 들어간다!)
+        # 1. 모델 리셋 시작 알림
         self.beginResetModel()
 
         self._data = data
         
-        # 2. 컬럼 키 설정 (기존 로직 이식)
-        # 우선순위: ID -> CMD -> 좌표 -> 나머지 (화면에 보여줄 순서 정하기)
-        priority_keys = ['id', 'cmd', 'x', 'y', 'z', 'w', 'p', 'r', 'angle', 'velocity', 'f']
+        # 2. 컬럼 키 설정
+        #    사용자 데이터에 'status'가 이미 있는지 확인 (대소문자 구분 없이)
+        self._status_key = KEY_STATUS
         available_keys = list(data[0].keys())
+        
+        # 이미 존재하는 status 키 찾기 (예: 'STATUS', 'Status' ...)
+        found_status_key = next((k for k in available_keys if k.lower() == KEY_STATUS), None)
+        if found_status_key:
+            self._status_key = found_status_key
+        else:
+            # 없으면 'status' 키로 초기화
+            for row_data in self._data:
+                row_data[self._status_key] = '-'
+            available_keys.append(self._status_key)
+
+        # 3. 헤더 순서 결정
+        #    [Refactor] ID가 가장 먼저 보이도록 수정 (User Request)
+        #    상수 사용: KEY_ID, KEY_STATUS...
+        priority_keys = [
+            KEY_ID, 
+            self._status_key, 
+            'cmd', # 'cmd'는 data_formats에 없으므로 유지
+            KEY_ROBOT_X, KEY_ROBOT_Y, KEY_ROBOT_Z, 
+            KEY_ROBOT_W, KEY_ROBOT_P, KEY_ROBOT_R, 
+            'angle', 'velocity', # Legacy keys
+            KEY_ROBOT_FEED_RATE
+        ]
         
         self._headers = [k for k in priority_keys if k in available_keys]
         for k in available_keys:
             if k not in self._headers:
                 self._headers.append(k)
 
-        # 3. 모델 리셋 종료 알림 (공사 끝! 이제 새로 그려도 돼!)
+        # [UX] ID가 0번(맨 앞)에 오도록 강력하게 보장
+        if self._headers[0] != KEY_ID:
+            if KEY_ID in self._headers:
+                self._headers.remove(KEY_ID)
+                self._headers.insert(0, KEY_ID)
+                
+        # [UX] 그 다음은 Status가 오도록 보장 (ID 뒷자리)
+        if len(self._headers) > 1 and self._headers[1] != self._status_key:
+            if self._status_key in self._headers:
+                self._headers.remove(self._status_key)
+                # ID가 0번에 있다면 1번에 삽입
+                target_idx = 1 if self._headers[0] == KEY_ID else 0
+                self._headers.insert(target_idx, self._status_key)
+
+        # 3. 모델 리셋 종료 알림
         self.endResetModel()
 
-    # --- 필수 오버라이드 메서드 (Qt가 이 함수들을 호출해서 화면을 그림) ---
+    def update_status(self, row_idx: int, status: str):
+        """
+        [부분 갱신] 특정 행의 상태만 빠르게 업데이트
+        """
+        if 0 <= row_idx < len(self._data):
+            # 동적으로 찾은 status key 사용
+            key = getattr(self, '_status_key', KEY_STATUS)
+            self._data[row_idx][key] = status
+            
+            # 컬럼 위치 찾기
+            try:
+                col_idx = self._headers.index(key)
+                index = self.index(row_idx, col_idx)
+                self.dataChanged.emit(index, index, [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ForegroundRole])
+            except ValueError:
+                pass
+
+    # --- 필수 오버라이드 메서드 ---
 
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
-        """
-        [필수] 전체 행(Row) 개수가 몇 개인지 뷰에게 알려줍니다.
-        """
         return len(self._data)
 
     def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
-        """
-        [필수] 전체 열(Column) 개수가 몇 개인지 뷰에게 알려줍니다.
-        """
         return len(self._headers)
 
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
-        """
-        [핵심] 뷰(View)가 화면을 그릴 때마다 쉴 새 없이 호출하는 함수입니다.
-        
-        "야, 3번째 줄 2번째 칸에 글자(DisplayRole) 뭐 써야 돼?"
-        "야, 3번째 줄 2번째 칸 정렬(TextAlignmentRole)은 어떻게 해?"
-        
-        주의: 여기서 복잡한 계산을 하거나 DB를 조회하면 프로그램이 렉 걸립니다.
-                최대한 빨리 값을 리턴해야 합니다.
-        """
         if not index.isValid():
             return None
 
@@ -98,31 +142,24 @@ class WaypointsTableModel(QAbstractTableModel):
         key = self._headers[col]
         value = self._data[row].get(key)
 
-        # 1. 화면에 글자로 보여줄 때 (DisplayRole) - 엑셀 셀 내용
+        # 1. 화면에 글자로 보여줄 때 (DisplayRole)
         if role == Qt.ItemDataRole.DisplayRole:
             if isinstance(value, float):
-                return f"{value:.3f}" # 소수점 3자리 포맷팅
+                return f"{value:.3f}"
             return str(value)
 
-        # 2. 정렬 방식 (TextAlignmentRole) - 가운데 정렬
+        # 2. 정렬 방식 (TextAlignmentRole)
         if role == Qt.ItemDataRole.TextAlignmentRole:
             return Qt.AlignmentFlag.AlignCenter
 
-        # 3. (옵션) 색상(BackgroundRole), 폰트(FontRole) 등도 여기서 처리 가능
         return None
 
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
-        """
-        [헤더 설정] 표의 윗부분(컬럼명)이나 왼쪽 부분(행번호)에 들어갈 텍스트를 반환합니다.
-        """
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
             return self._headers[section].upper()
         return None
     
     def get_row_data(self, row_idx: int) -> Dict[str, Any]:
-        """
-        [유틸] 뷰에서 특정 행을 클릭했을 때, 그 행의 '진짜 데이터(Dict)'를 통째로 가져오기 위한 함수.
-        """
         if 0 <= row_idx < len(self._data):
             return self._data[row_idx]
         return {}

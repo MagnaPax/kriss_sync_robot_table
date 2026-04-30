@@ -15,12 +15,15 @@ from PyQt6.QtCore import Qt, pyqtSlot
 from PyQt6.QtGui import QIcon
 
 from core.event_bus import EVENT_BUS
+from core.settings import SETTINGS
 # 패널 및 위젯
 from ui.splash_screen import SplashScreen
 from ui.widgets.base_widget import BaseWidget
 from view_models.main_window_viewmodel import MainViewModel
 from ui.widgets.status_indicator_box import StatusIndicatorBox
-from ui.panels import left_panel, center_panel, right_panel
+from ui.panels.left_panel import LeftPanel
+from ui.panels.center_panel import CenterPanel
+from ui.panels.right_panel import RightPanel
 
 
 class MainWindow(QMainWindow):
@@ -32,8 +35,8 @@ class MainWindow(QMainWindow):
         self.vm = viewmodel
 
         # 기본 UI 설정
-        self.setWindowTitle("KRISS Robot Polishing Machine")
-        self.setWindowIcon(QIcon("resources/icons/kriss.gif"))
+        self.setWindowTitle(SETTINGS.app.name)
+        self.setWindowIcon(QIcon(SETTINGS.app.icon_path))
         self.setGeometry(100, 100, 1200, 800)  # 초기 창 크기
 
         # --- UI 초기화 --- #
@@ -45,6 +48,9 @@ class MainWindow(QMainWindow):
 
         # --- UI 이벤트 바인딩 --- #
         self._bind_ui_events()
+
+        # 로딩 상태 표시용 메시지 박스
+        self.loading_dialog: QMessageBox | None = None
 
 
     # =====================
@@ -82,21 +88,23 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         self.mainLayout = QHBoxLayout(central_widget)
+        self.mainLayout.setSpacing(0)   # 패널 사이의 간격 (Spacing)
+        self.mainLayout.setContentsMargins(5, 3, 5, 0)
 
         # 패널 생성 - 부모를 centralWidget로 명시
         # TODO: 나중에 패널 내부에서도 로직이 필요하면 self.vm을 전달하면 된다
-        self.left = left_panel.LeftPanel(self.vm, central_widget)
-        self.center = center_panel.CenterPanel(self.vm, central_widget)
-        self.right = right_panel.RightPanel(self.vm, central_widget)
+        self.left = LeftPanel(self.vm, central_widget)
+        self.center = CenterPanel(self.vm, central_widget)
+        self.right = RightPanel(self.vm, central_widget)
 
         self.mainLayout.addWidget(self.left)
         self.mainLayout.addWidget(self.center)
         self.mainLayout.addWidget(self.right)
 
         # 패널 레이아웃 비율 설정
-        self.mainLayout.setStretch(0, 3)  # Left    30%
-        self.mainLayout.setStretch(1, 3)  # Center  30%
-        self.mainLayout.setStretch(2, 4)  # Right   40%
+        self.mainLayout.setStretch(0, 30)  # Left    30%
+        self.mainLayout.setStretch(1, 15)  # Center  15%
+        self.mainLayout.setStretch(2, 55)  # Right   55%
 
 
 
@@ -110,17 +118,14 @@ class MainWindow(QMainWindow):
         __init__(초기화) 단계에서 딱 1번 호출된다
         """
 
-        # [연결 상태] VM에서 상태 데이터(dict)가 오면 -> 
-        #   위젯 업데이트 함수에 바로 전달
-        # VM에서 전화(twincat_status_data 로컬 시그널)가 오면 -> 
-        #   StatusIndicatorBox 위젯 업데이트 함수 호출
-        self.vm.twincat_status_data.connect(self.twincat_indicator.safe_update_data)
-        
-        # VM에서 전화(show_recovery_dialog 로컬 시그널)가 오면 show_recovery_ui 에 일시킴
-        self.vm.show_recovery_dialog.connect(self.show_recovery_ui)
+        # --- VM의 시그널(전화) 연결 --- #
+        self.vm.twincat_connection_changed.connect(self.twincat_indicator.safe_update_data)     # PLC 연결 상태 화면 표시
+        self.vm.show_recovery_dialog.connect(self._on_recovery_dialog)
+        self.vm.control_ui_enabled.connect(self._on_control_status_changed)                     # 패널 활성화 여부 연결
 
-        # [전역 알림] 작업 중 발생한 에러 팝업 연결
-        EVENT_BUS.system.operation_error_alert.connect(self._show_operation_error_dialog)
+        # --- 이벤트 버스 시그널(라디오 방송) 연결 --- #
+        EVENT_BUS.system.operation_error_alert.connect(self._on_operation_error_dialog)
+        EVENT_BUS.system.file_loading_status_changed.connect(self._on_receive_file_loading_status)
 
     def _bind_ui_events(self):
         """
@@ -139,22 +144,66 @@ class MainWindow(QMainWindow):
             try:
                 # 이미 연결되어 있을 수 있으므로 끊고 다시 연결하거나
                 # 단순히 연결 (Qt는 기본적으로 다중 연결 허용)
-                widget.error_occurred.connect(self.show_error_popup)
+                widget.error_occurred.connect(self._on_error_by_base_widget)
             except Exception:
                 pass
             
             # TODO: 나중에 다른 공통 이벤트가 생기면 여기서 또 연결하면 된다
-            # widget.status_changed.connect(self.update_status_bar)
+            # widget.connection_status_changed.connect(self.update_status_bar)
 
 
-    # ==========================================================
-    # 공통 핸들러
-    # ==========================================================
+    # ===============================================
+    # 시그널 슬롯 [물리적 시그널 수신]
+    # ===============================================
     @pyqtSlot()
-    def show_recovery_ui(self):
+    def _on_recovery_dialog(self):
+        """연결 끊김 시 재접속 시도 UI (모달) 표시"""
+        self._handle_reconnect_splash_screen()
+
+    @pyqtSlot(str, str)
+    def _on_operation_error_dialog(self, title: str, message: str):
+        """작업 에러 발생 시 모달 다이얼로그 표시"""
+        self._handle_message_box_popup(level="error", title=title, message=message)
+
+    @pyqtSlot(str)
+    def _on_error_by_base_widget(self, error_message: str):
         """
-        [복구 모드] 연결 끊김 시 재접속 시도 UI (모달) 표시
+        [공통 에러 처리]
+        BaseWidget를 상속받은 모든 위젯에서 self.error_occurred.emit(msg)를 호출하면
+        이 함수가 실행되어 경고창을 띄운다
         """
+        self._handle_message_box_popup(level="error", title="오류", message=error_message)
+
+    @pyqtSlot(str, bool)
+    def _on_receive_file_loading_status(self, message: str, status: bool):
+        if status is True:
+            # 기존 다이얼로그가 있다면 닫기 (중복 방지 Safety Logic)
+            if self.loading_dialog:
+                self.loading_dialog.done(0)
+                self.loading_dialog.deleteLater()
+                self.loading_dialog = None
+            
+            # 비동기(Non-blocking)로 팝업 띄우기
+            self.loading_dialog = self._handle_message_box_popup(level="info", title="파일 로딩", message=message, modal=False)
+        else:
+            # 팝업 닫기
+            if self.loading_dialog:
+                self.loading_dialog.done(0) # QDialog는 done()으로 닫아야 확실함
+                self.loading_dialog.deleteLater()
+                self.loading_dialog = None
+
+    @pyqtSlot(bool)
+    def _on_control_status_changed(self, enabled: bool):
+        self._handle_ui_enabling_control(enabled)
+
+
+
+    # ===============================================
+    # 핸들러 [논리적 흐름 담당]
+    # ===============================================
+    def _handle_reconnect_splash_screen(self, message:str = ""):
+        """연결 끊김 시 재접속 시도 UI (모달) 표시"""
+
         # 스플래시 화면 재사용 (모달처럼 띄움)
         recovery_splash = SplashScreen()
         recovery_splash.setWindowTitle("재접속 중...")
@@ -171,28 +220,54 @@ class MainWindow(QMainWindow):
         
         # ViewModel에게 재접속 요청 (UI 업데이트용 콜백 함수 전달)
         #    Service의 connect_with_retry가 실행되면서 splash.update_status를 호출함
-        success = self.vm.retry_connection(ui_callback=recovery_splash.update_status)
+        self.vm.retry_connection(ui_callback=recovery_splash.update_status)
         
         recovery_splash.close()
+
+    def _handle_message_box_popup(self, level:str = "info", title: str = "", message: str = "", modal: bool = True):
+        """사용자에게 보여줄 팝업 메세지 박스 처리 (모달/비모달 선택 가능)"""
+
+        msg_box = QMessageBox(self)
+        msg_box.setText(title)
+        msg_box.setInformativeText(message)
+
+        match level:
+            case "info":
+                msg_box.setIcon(QMessageBox.Icon.Information)
+                msg_box.setObjectName("info_message_box")
+            case "warning":
+                msg_box.setIcon(QMessageBox.Icon.Warning)
+                msg_box.setObjectName("warning_message_box")
+            case "error":
+                msg_box.setIcon(QMessageBox.Icon.Critical)
+                msg_box.setObjectName("error_message_box")
+            case _:
+                pass
         
-        # 최종 실패 시 경고창 표시
-        if not success:
-            QMessageBox.critical(
-                self, 
-                "재접속 실패", 
-                "연결을 복구할 수 없습니다.\n케이블 연결 상태를 확인 후 다시 시도하십시오."
-            )
+        if modal:
+            # 모달(Blocking): 닫을 때까지 대기
+            msg_box.exec()
+            return None
+        else:
+            # 비모달(Non-blocking): 즉시 표시 후 객체 반환 (코드 계속 실행됨)
+            msg_box.setStandardButtons(QMessageBox.StandardButton.NoButton) # 버튼 없음
+            msg_box.show()
+            return msg_box
 
-    @pyqtSlot(str, str)
-    def _show_operation_error_dialog(self, title: str, message: str):
-        """작업 에러 발생 시 모달 다이얼로그 표시"""
-        QMessageBox.critical(self, title, message)
+    def _handle_ui_enabling_control(self, enabled: bool):
+        """UI 컨트롤 활성화/비활성화 처리"""
 
-    @pyqtSlot(str)
-    def show_error_popup(self, error_message: str):
-        """
-        [공통 에러 처리]
-        BaseWidget를 상속받은 모든 위젯에서 self.error_occurred.emit(msg)를 호출하면
-        이 함수가 실행되어 경고창을 띄운다
-        """
-        QMessageBox.critical(self, "오류", error_message)
+        # 모든 BaseWidget 자식들을 찾아서 개별적으로 set_enabled 호출
+        # 이렇게 하면 BaseWidget 내부의 _is_enabled 플래그도 함께 설정되어
+        # safe_update_data()가 막히는 효과도 얻을 수 있다 (데이터 수신 차단)
+        all_widgets = self.findChildren(BaseWidget)
+        for widget in all_widgets:
+            widget.set_enabled(enabled)
+        
+        # 상태바 텍스트 업데이트
+        if not enabled:
+            self.status_label.setText("Disconnected")
+            self.status_label.setStyleSheet("color: red; font-weight: bold;")
+        else:
+            self.status_label.setText("Ready")
+            self.status_label.setStyleSheet("")

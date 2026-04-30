@@ -26,9 +26,11 @@ TwinCAT Connector
     - XAR : 실시간 제어 실행을 담당하는 런타임 시스템
         - PLC 로직(IEC 61131-3)을 돌림
 """
+import time
 import pyads
 from typing import Optional, Union
 from core.settings import SETTINGS
+from core.event_bus import EVENT_BUS
 from communication.mock_plc import MockConnection
 
 
@@ -133,4 +135,51 @@ class TwinCATConnector:
             # 3. 연결 상태 읽기 실패 시: 물리적 연결이 끊어진 것으로 간주하고 정리 수행
             # (로그는 Service에서 처리하므로 여기선 조용히 정리만 함)
             self.disconnect()
+            return False
+
+
+    def ensure_run_mode(self, timeout: float = 5.0) -> bool:
+        """
+        TwinCAT 시스템을 실행 모드(Run Mode)로 전환 보장
+        
+        현재 상태를 확인하고, Run Mode가 아니라면 전환을 시도함.
+        
+        Returns:
+            bool: 최종적으로 Run Mode 진입 성공 여부
+        """
+        if not self._twincat or not self._is_connected:
+            return False
+
+        try:
+            # 1. 현재 상태 확인
+            # read_state() returns (ads_state, device_state)
+            current_conn = self._twincat
+            
+            read_result = current_conn.read_state()
+            state = read_result[0] if isinstance(read_result, tuple) else read_result
+            
+            if state == pyads.ADSSTATE_RUN:
+                return True
+                
+            # 2. Run Mode 아님 -> 전환 시도
+            EVENT_BUS.log.message.emit(f"TwinCAT이 실행 중이 아닙니다 (State: {state}). 실행 모드로 전환을 시도합니다...", "WARNING")
+            
+            # ADSSTATE_RUN = 5
+            self._twincat.write_control(pyads.ADSSTATE_RUN, 0, 0, pyads.PLCTYPE_BYTE)
+            
+            # 3. 전환 대기 (Polling)
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                read_result = self._twincat.read_state()
+                current_state = read_result[0] if isinstance(read_result, tuple) else read_result
+                if current_state == pyads.ADSSTATE_RUN:
+                    EVENT_BUS.log.message.emit("TwinCAT 실행 모드 전환 성공.", "INFO")
+                    return True
+                time.sleep(0.5)
+                
+            EVENT_BUS.log.message.emit(f"TwinCAT 실행 모드 전환 실패 (Timeout {timeout}s)", "ERROR")
+            return False
+
+        except Exception as e:
+            EVENT_BUS.log.message.emit(f"TwinCAT 실행 모드 전환 중 오류: {e}", "ERROR")
             return False

@@ -1,6 +1,2 @@
 # config/__init__.py
-from .paths import CONFIG_MACRO_PATH
-
-__all__ = [
-    'CONFIG_MACRO_PATH'
-]
+# (Empty to avoid circular imports and force explicit submodule imports)

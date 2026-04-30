@@ -1,0 +1,86 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.14">
+  <DUT Name="DUT_FANUC_UO1" Id="{34561db6-7a96-4aee-85ef-1b7ad32f3c08}">
+    <Declaration><![CDATA[TYPE DUT_FANUC_UO1 :
+(* 
+    [로봇 -> PLC] 입력 신호 구조체 (Robot Input to PLC)
+    FANUC 로봇의 UO(User Output) 신호를 받아오는 데이터 구조입니다.
+    파이썬의 FanucAdapter.read_robot_status()에서 참조합니다.
+	TcPOU = TwinCAT Program Organization Unit
+*)
+STRUCT
+	// 1~20(UO)
+	UO01_CmdEnabled : BIT;
+	UO02_SystemReady : BIT;
+	UO03_PrgRunning : BIT;
+	UO04_PrgPaused : BIT;
+	UO05_MotionHeld : BIT;
+	UO06_Fault : BIT;
+	UO07_AtPerch : BIT;
+	UO08_TPEnabled : BIT;
+	UO09_BattAlarm : BIT;
+	UO10_Busy : BIT;
+	UO11_ACK1 : BIT;
+	UO12_ACK2 : BIT;
+	UO13_ACK3 : BIT;
+	UO14_ACK4 : BIT;
+	UO15_ACK5 : BIT;
+	UO16_ACK6 : BIT;
+	UO17_ACK7 : BIT;
+	UO18_ACK8 : BIT;
+	UO19_SNACK : BIT;
+	UO20_Reserved : BIT;
+	
+	// 45: HandShake, 46~48(Reserved)
+	DO45, DO46, DO47, DO48 : BIT;
+	
+	// 49~54(Check)
+	X_Check : BIT := 0;
+	Y_Check : BIT := 0;
+	Z_Check : BIT := 0;
+	W_Check : BIT := 0;
+	P_Check : BIT := 0;
+	R_Check : BIT := 0;
+	
+	// 55~56(Reserved)
+	DO55, DO56 : BIT;
+	
+	// 57~64(X_High_Bit)
+	Xh0, Xh1, Xh2, Xh3, Xh4, Xh5, Xh6, Xh7 : BIT;
+	// 65~80(X_Low_Bit)
+	Xl0, Xl1, Xl2, Xl3, Xl4, Xl5, Xl6, Xl7,
+	Xl8, Xl9, Xl10, Xl11, Xl12, Xl13, Xl14, Xl15 : BIT;
+	// 81~88(Y_High_Bit)
+	Yh0, Yh1, Yh2, Yh3, Yh4, Yh5, Yh6, Yh7 : BIT;
+	// 109~124(Y_Low_Bit)
+	Yl0, Yl1, Yl2, Yl3, Yl4, Yl5, Yl6, Yl7,
+	Yl8, Yl9, Yl10, Yl11, Yl12, Yl13, Yl14, Yl15 : BIT;
+	// 125~132(Z_Hihg_Bit)
+	Zh0, Zh1, Zh2, Zh3, Zh4, Zh5, Zh6, Zh7 : BIT;
+	// 133~148(Z_Low_Bit)
+	Zl0, Zl1, Zl2, Zl3, Zl4, Zl5, Zl6, Zl7,
+	Zl8, Zl9, Zl10, Zl11, Zl12, Zl13, Zl14, Zl15 : BIT;
+	// 149~156(W_High_Bit)
+	Wh0, Wh1, Wh2, Wh3, Wh4, Wh5, Wh6, Wh7 : BIT;
+	// 157~172(W_Low_Bit)
+	Wl0, Wl1, Wl2, Wl3, Wl4, Wl5, Wl6, Wl7,
+	Wl8, Wl9, Wl10, Wl11, Wl12, Wl13, Wl14, Wl15 : BIT;
+	// 173~180(P_High_Bit)
+	Ph0, Ph1, Ph2, Ph3, Ph4, Ph5, Ph6, Ph7 : BIT;
+	// 181~196(P_Low_Bit)
+	Pl0, Pl1, Pl2, Pl3, Pl4, Pl5, Pl6, Pl7,
+	Pl8, Pl9, Pl10, Pl11, Pl12, Pl13, Pl14, Pl15 : BIT;
+	// 197~204(R_High_Bit)
+	Rh0, Rh1, Rh2, Rh3, Rh4, Rh5, Rh6, Rh7 : BIT;
+	// 205~220(R_Low_Bit)
+	Rl0, Rl1, Rl2, Rl3, Rl4, Rl5, Rl6, Rl7,
+	Rl8, Rl9, Rl10, Rl11, Rl12, Rl13, Rl14, Rl15 : BIT;
+	
+	// 221~236(Reserved)
+	DO221, DO222, DO223, DO224, DO225, DO226, DO227, DO228,
+	DO229, DO230, DO231, DO232, DO233, DO234, DO235, DO236 : BIT;
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

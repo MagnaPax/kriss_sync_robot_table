@@ -822,9 +822,18 @@ TcAdsDll.dll
 # Beckhoff 장비 명세서 폴더
 EtherNetIP/
 
+# Desktop Services Store 의 약자로, 애플에서 정의한 파일 포맷
+.DS_Store
+._.DS_Store
+**/.DS_Store
+**/._.DS_Store
+
+# 사용자 설정값
+config/user_state.ini
+
+
 # 추적 안 할 폴더, 파일들
-_for_tests_on_the_field/TODO.md
-00Testing/
+_for_tests_on_the_field/
 services/README.md
 docs/저장용pdf파일들
 docs/플로우차트
@@ -833,3 +842,4 @@ core/역할설명/
 tests/README.md
 models/README.md
 tests/unit/test_turntable.py
+career_logs.md

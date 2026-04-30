@@ -21,11 +21,20 @@ class WorldCoordinatesViewModel(QObject):
     def __init__(self):
         super().__init__()
 
+        # 로봇 좌표 캐싱 (외부 접근용)
+        self.cashed_robot_world_position: FANUCPose = FANUCPose()
+
         # 로봇: 1대1 매칭이므로 곧바로 재방송
-        EVENT_BUS.control.robot_current_pose.connect(self.robot_pose_changed.emit)
+        EVENT_BUS.control.robot_current_pose.connect(self._on_robot_current_position_received)
 
         # 서보: 딕셔너리를 받아서 나눠주기 위해 Slot 과 연결
         EVENT_BUS.control.servo_current_motion.connect(self._on_servo_data_received)
+
+
+    def _on_robot_current_position_received(self, pose: FANUCPose):
+        """로봇의 현재 위치를 캐싱하고 시그널로 재방송"""
+        self.cashed_robot_world_position = pose
+        self.robot_pose_changed.emit(pose)
 
 
     @pyqtSlot(dict)

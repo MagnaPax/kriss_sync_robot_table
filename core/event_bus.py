@@ -146,6 +146,11 @@ class SystemSignals(QObject):
         - MainWindow: QMessageBox.critical 등을 사용하여 팝업 표시
     """
 
+    file_loading_status_changed = pyqtSignal(str, bool)
+    """파일 로딩 상태 변경"""
+
+    
+
 
 class LogSignals(QObject):
     """
@@ -177,7 +182,7 @@ class ConnSignals(QObject):
     PLC, Robot Controller 등 외부 장비와의 연결 상태를 관리합니다.
     """
     
-    status_changed = pyqtSignal(bool)
+    connection_status_changed = pyqtSignal(bool)
     """
     메인 장비 연결 상태 변경 알림
     
@@ -218,7 +223,7 @@ class DataSignals(QObject):
     Args:
         int (current_step): 현재 실행 중인 스텝 번호 (1부터 시작)
         int (total_steps): 전체 스텝 개수 (Progress Bar 계산용)
-        str (status): 현재 스텝의 상태 ('TaskStatus.UNPROCESSED', 'TaskStatus.PROCESSING', 'TaskStatus.PROCESSED')
+        str (status): 현재 스텝의 상태 ('TaskStatus.PENDING', 'TaskStatus.PROCESSING', 'TaskStatus.COMPLETED', 'TaskStatus.FAILED')
     """
 
     waypoints_selected = pyqtSignal(dict)
@@ -228,20 +233,30 @@ class DataSignals(QObject):
         dict: 선택된 행의 전체 데이터 (예: {'id': 1, 'x': 100.0, ...})
     """
 
-    servo_busy_status = pyqtSignal(dict)
-    """장비 바쁨 상태 방송용"""
+    sequence_job_finished = pyqtSignal()
+    """모든 시퀀스 작업(Job)이 종료됨을 알림 (성공/실패/중단 여부 상관 없이)"""
+
+    sequence_in_progress = pyqtSignal(str, bool)
+    """
+    시퀀스 파일 실행 중 상태 알림
+    
+    Args:
+        str (type): "is_sequence_in_progress"   <- 위젯의 update_data 메서드에서 분기할 때 사용
+        bool: True(실행 중), False(실행 종료)
+    """
 
 
 class ControlSignals(QObject):
     """
     [제어 및 모니터링 이벤트 그룹]
-    로봇이나 턴테이블의 실시간 위치 정보나 목표값 등 고빈도(약 0.1초마다) 호출 데이터를 처리
+    로봇이나 턴테이블의 실시간 위치 정보나 목표값 등 데이터를 처리
     """
     
     robot_current_pose = pyqtSignal(object)
     """
     FANUC 현재 World 좌표 정보
         바닥(베이스 좌표계) 기준 TCP(Tool Center Point) 위치
+        고빈도(약 0.1초마다) 호출
 
     Args:
         - .x, .y, .z, .w, .p, .r 속성을 가진 FANUCPose 객체
@@ -250,6 +265,7 @@ class ControlSignals(QObject):
     servo_current_motion = pyqtSignal(object)
     """
     서보모터의 현재 각도/속도 정보 (ServoPose)
+        고빈도(약 0.1초마다) 호출
 
     Args:
         - .angle (float): 현재 각도
@@ -257,7 +273,32 @@ class ControlSignals(QObject):
     """
 
     tool_current_pose = pyqtSignal(object)
-    """FANUC 현재 Tool 좌표 정보"""
+    """
+    FANUC 현재 Tool 좌표 정보
+        고빈도(약 0.1초마다) 호출
+    """
+
+    clear_user_inputs = pyqtSignal(str)
+    """
+    사용자 입력 필드 초기화
+    
+    Args:
+        str (type): "robot", "servo", "all"
+    """
+
+    clear_view_content = pyqtSignal(str)
+    """
+    현재 화면에 표시된 콘텐츠 초기화
+    
+    Args:
+        str (type): "waypoints", "logs", "inputs", "all"
+    """
+
+    servo_physical_moving_status_changed = pyqtSignal(dict)
+    """서보모터의 물리적인 이동 상태 변경 알림"""
+
+    robot_moving_status_changed = pyqtSignal(dict)
+    """로봇의 이동 상태 변경 알림"""
 
 # =============================================================================
 # 2. 실제 QObject

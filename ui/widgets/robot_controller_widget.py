@@ -1,0 +1,764 @@
+# ui/widgets/robot_controller_widget.py
+from PyQt6.QtCore import pyqtSlot, QTimer
+from PyQt6.QtWidgets import (
+    QVBoxLayout, 
+    QGroupBox, 
+    QLabel, 
+    QFrame, 
+    QHBoxLayout, 
+    QFormLayout, 
+    QLineEdit, 
+    QDoubleSpinBox,
+    QGridLayout,
+    QPushButton
+)
+from functools import partial
+from typing import Dict, Any, TYPE_CHECKING, Union, Optional
+
+from core.event_bus import EVENT_BUS
+from ui.widgets.base_widget import BaseWidget
+from models.fanuc_pose_model import FANUCPose
+from models.fanuc_pose_key import FANUCPoseKey
+from ui.dialogs.macro_settings_dialog import MacroSettingsDialog
+from PyQt6.QtWidgets import QWidget
+
+
+# 런타임에는 import 하지 않음
+if TYPE_CHECKING:
+    from view_models.robot_controller_viewmodel import RobotControllerViewModel
+
+
+
+class RobotControllerWidget(BaseWidget):
+    """
+    로봇팔, 턴테이블의 이동 명령과 매크로를 관리하는 위젯
+
+    기능:
+        - 좌표 입력(X,Y,Z,W,P,R)
+        - 'Edit Macro' 버튼으로 매크로 설정 모달(MacroSettingsDialog) 열기
+        - 매크로 버튼(사용자가 입력한 매크로 제목)을 누르면 저장된 값 불러오기
+        - 'GoTo' 버튼 클릭 시 `goto_requested` 시그널 발생
+    """
+    # ========================================
+    # 초기화 및 설정 (Initialization)
+    # ========================================
+    def __init__(self, parent: Optional[QWidget] = None):
+        # ViewModel 인스턴스를 클래스 속성으로 저장
+        # super().__init__() 전에 저장
+        self.vm: Optional["RobotControllerViewModel"] = None
+
+        # 좌표값 입력 위젯들을 저장할 보관함
+        self.coord_widgets: Dict[str, Union[QLineEdit, QDoubleSpinBox]] = {}
+
+        # 매크로 버튼들을 저장할 보관함
+        self.macro_btn_map: Dict[str, QPushButton] = {}
+
+        # 매크로 데이터를 저장해둘 보관함
+        self.cached_macro_data: Dict[str, Any] = {}
+
+        # 버튼 참조 변수를 담을 딕셔너리
+        self.other_buttons: Dict[str, QPushButton] = {}
+        self.macro_buttons = []
+
+        # BaseWidget의 __init__()이 _init_ui() 호출 → 실제 UI 생성
+        super().__init__(parent)
+
+        # 클릭 이벤트 처리 (UI 생성 후)
+        self._bind_events()
+
+    def set_view_model(self, view_model: "RobotControllerViewModel"):
+        """외부에서 뷰모델을 꽂아주는 함수(Setter)"""
+        self.vm = view_model
+        if self.vm is None: return # type: ignore
+
+        # VM의 로컬 시그널 연결
+        self.vm.robot_moving_status_changed.connect(self.safe_update_data)
+        self.vm.macros_loaded.connect(self._on_macro_data_loaded)
+        self.vm.robot_poses_clear.connect(self.clear_widget)
+        self.vm.robot_poses_changed.connect(self.safe_update_data)
+        self.vm.sequence_processing_changed.connect(self._on_sequence_processing_changed) # {tag: val} 딕셔너리로 데이터 전달
+        
+        # 매크로 데이터에서 버튼 제목을 읽어 와야 되기 때문에 UI가 생성된 후에 바로 호출
+        self.vm.load_macro_data()
+
+    def _bind_events(self):
+        """
+        전선 연결하기 (아직 불 들어온것 아님)
+            - 누가 누구랑 연결될 지 미리 정해주기
+            - 앱이 시작될 때 딱 1번만 호출
+        시그널-슬롯(_on으로 시작하는 메서드) connect를 모아놓음 - 버튼 눌리면 어떤 일을 할 지 약속
+        """
+
+        # 1. Edit Macro 버튼 연결
+        if btn := self.other_buttons.get("edit_macro"):
+            btn.clicked.connect(self._on_edit_macro_button_clicked)
+
+        # 2. 매크로 버튼 클릭 이벤트 연결
+        for macro_id, btn in self.macro_btn_map.items():
+            # partial을 사용하여 어떤 버튼이 눌렸는지(macro_id)를 함께 넘김
+            btn.clicked.connect(partial(self._on_macro_btn_clicked, macro_id))
+
+        # 3. 기타 제어 버튼 연결 (Home, Stop, Go_To)
+        # 람다나 partial을 쓰지 않고, 명시적 메서드 매핑
+        if btn := self.other_buttons.get("home"):
+            btn.clicked.connect(self._on_home_btn_clicked)
+            
+        if btn := self.other_buttons.get("stop"):
+            btn.clicked.connect(self._on_stop_btn_clicked)
+            # 초기 상태에는 정지할 작업이 없으므로 비활성화
+            btn.setDisabled(True)
+
+        if btn := self.other_buttons.get("go_to"):
+            btn.clicked.connect(self._on_goto_btn_clicked)
+
+        if btn := self.other_buttons.get("reset"):
+            btn.clicked.connect(self._on_reset_btn_clicked)
+
+        # Feed Rate 값 변경 이벤트 연결
+        feed_widget = self.coord_widgets.get('FEED RATE')
+        if feed_widget and isinstance(feed_widget, QDoubleSpinBox):
+            # valueChanged는 값이 변경될 때(버튼 클릭 포함) 발생한다.
+            feed_widget.valueChanged.connect(self._on_feed_rate_changed)
+
+
+    # ========================================
+    # UI 구성 (Initialization)
+    # ========================================
+    def _init_ui(self):
+        """
+        BaseWidget이 호출하는 UI 초기화 메서드
+        여기서 실제 UI를 구성한다
+        """
+
+        self.setObjectName("robot_controller_widget")
+
+        # BaseWidget이 레이아웃을 설정했는지 확인
+        # BaseWidget이 이미 layout을 설정했을 수 있으므로 가져온다
+        existing_layout = self.layout()
+
+        # BaseWidget이 레이아웃을 설정하지 않았다면 여기서 딱 1번만 생성
+        if existing_layout is None:
+            
+            # QVBoxLayout 객체 생성
+            main_layout = QVBoxLayout()
+
+            # 위젯(self)이 레이아웃 부모가 됨 - 레이아웃 객체를 위잿의 최상위 레이아웃으로 지정
+            self.setLayout(main_layout)
+
+            main_layout.setContentsMargins(0, 0, 0, 0)
+        else:
+            # 이미 있으면 재사용
+            main_layout = existing_layout
+
+        # 새로운 UI 구성 - GroupBox 생성 후 레이아웃에 추가
+        base_group_box = self._configure_base_layout()
+        main_layout.addWidget(base_group_box)
+
+    def _configure_base_layout(self) -> QGroupBox:
+        """
+        전체 레이아웃 구성
+
+        최상위 레이아웃을 self에 붙이지 않고(생성하지 않고), 단순히 GroupBox를 반환한다.
+        """
+
+        ##########################
+        # --- 기본 형태 설정 --- #
+        ##########################
+
+        # 모든 부속 위젯을 담을 그룹박스 생성
+        base_group_box = QGroupBox("Robot Controller")
+
+
+        widgets_layout = QVBoxLayout()
+
+        ################
+        # --- 상단 --- #
+        ################
+
+        # Edit Macro 영역
+        section_edit_macro = QFrame()
+        section_edit_macro.setObjectName("section_edit_macro")
+
+        # Edit Macro 버튼 레이아웃
+        layout_edit_macro = QHBoxLayout(section_edit_macro)
+        layout_edit_macro.setContentsMargins(0, 0, 0, 0)
+        layout_edit_macro.setSpacing(0)
+        layout_edit_macro.addStretch(1)
+
+        # 레이아웃에 Edit Macro 버튼 영역 넣기
+        # 레이아웃에 Edit Macro 버튼 영역 넣기
+        layout_edit_macro.addWidget(self._create_button(
+            title="Edit Macro", 
+            type="special", 
+            target_dict=self.other_buttons
+        ))
+
+
+        ################
+        # --- 중단 --- #
+        ################
+
+        # 좌표 입력 영역
+        section_coordinate = QFrame()
+        section_coordinate.setObjectName("section_coordinate")
+
+        # 좌표 입력 레이아웃 (좌우로 나뉨)
+        layout_coordinate = QHBoxLayout(section_coordinate)
+        layout_coordinate.setContentsMargins(5, 5, 5, 5)
+        layout_coordinate.setSpacing(10)
+
+        # 로봇팔(X, Y, Z) 입력 영역
+        section_robot_coordinate = QFrame()
+        section_robot_coordinate.setObjectName("section_robot_coordinate")
+        # 로봇팔 좌표 입력 영역에 X, Y, Z 폼 레이아웃 생성하여 추가
+        section_robot_coordinate.setLayout(self._create_coordinate_input_fields([
+            FANUCPoseKey.X, FANUCPoseKey.Y, FANUCPoseKey.Z
+        ]))
+
+        # 툴(W, P, R) 입력 영역
+        section_robot_tool_coordinate = QFrame()
+        section_robot_tool_coordinate.setObjectName("section_robot_tool_coordinate")
+        # 턴테이블 좌표 입력 섹션에 W, P, R 폼 레이아웃 생성하여 추가
+        section_robot_tool_coordinate.setLayout(self._create_coordinate_input_fields([
+            FANUCPoseKey.W, FANUCPoseKey.P, FANUCPoseKey.R
+        ]))
+
+        # 좌표 입력 레이아웃에 로봇팔, 턴테이블 입력 영역 넣기
+        layout_coordinate.addWidget(section_robot_coordinate)
+        layout_coordinate.addWidget(section_robot_tool_coordinate)
+
+        # 매크로 버튼 영역
+        section_macro_buttons = QFrame()
+        section_macro_buttons.setObjectName("section_macro_buttons")
+
+        # 매크로 버튼 레이아웃
+        laytout_macro_buttons = QGridLayout(section_macro_buttons)
+        laytout_macro_buttons.setContentsMargins(5, 5, 5, 5)
+        laytout_macro_buttons.setSpacing(5)
+
+        # 매크로 버튼 추가
+        # Arguments: 매크로ID, 기본제목, 버튼 저장 딕셔너리, 버튼 키, 추가속성
+        # 매크로 버튼은 별도의 딕셔너리(self.macro_btn_map)에 저장되고, 속성(macro_id)도 추가됨
+        laytout_macro_buttons.addWidget(self._create_button("Macro_1", "general", self.macro_btn_map, key="Macro_1", extra_props={"macro_id": "Macro_1"}), 0, 0)
+        laytout_macro_buttons.addWidget(self._create_button("Macro_2", "general", self.macro_btn_map, key="Macro_2", extra_props={"macro_id": "Macro_2"}), 0, 1)
+        laytout_macro_buttons.addWidget(self._create_button("Macro_3", "general", self.macro_btn_map, key="Macro_3", extra_props={"macro_id": "Macro_3"}), 1, 0)
+        laytout_macro_buttons.addWidget(self._create_button("Macro_4", "general", self.macro_btn_map, key="Macro_4", extra_props={"macro_id": "Macro_4"}), 1, 1)
+
+
+        ################
+        # --- 하단 --- #
+        ################
+        # Feed Rate 입력 영역
+        section_feed_rate = QFrame()
+        section_feed_rate.setObjectName("section_feed_rate")
+
+        # Feed 입력 레이아웃
+        layout_feed = QHBoxLayout(section_feed_rate)
+        layout_feed.setContentsMargins(5, 5, 5, 5)
+
+        # 레이아웃에 Feed Rate 입력 영역 넣기
+        layout_feed.addLayout(self._create_coordinate_input_fields(["FEED RATE",]))
+
+        # 버튼 영역
+        section_buttons = QFrame()
+        section_buttons.setObjectName("section_robot_execution_buttons")
+        section_buttons.setContentsMargins(5, 5, 5, 5)
+
+        # 버튼 레이아웃
+        layout_buttons = QHBoxLayout(section_buttons)
+        layout_buttons.setContentsMargins(0, 0, 0, 0)
+        layout_buttons.setSpacing(10)
+
+        # 버튼 레이아웃에 버튼 넣기
+        # 버튼 레이아웃에 버튼 넣기
+        layout_buttons.addWidget(self._create_button("Home", "special", self.other_buttons))
+        layout_buttons.addWidget(self._create_button("Stop", "general", self.other_buttons))
+        layout_buttons.addWidget(self._create_button("Go_To", "special", self.other_buttons))
+        layout_buttons.addWidget(self._create_button("Reset", "general", self.other_buttons))
+
+
+
+        #################################
+        # --- 부속 위젯 영역들 합체 --- #
+        #################################
+        # 그룹박스에 모두 추가
+        widgets_layout.addWidget(section_edit_macro)
+        widgets_layout.addWidget(section_coordinate)
+        widgets_layout.addWidget(section_macro_buttons)
+        widgets_layout.addWidget(section_feed_rate)
+        widgets_layout.addWidget(section_buttons)
+
+        base_group_box.setLayout(widgets_layout)
+
+
+        return base_group_box
+
+    def _create_button(
+        self, 
+        title: str, 
+        type: str, 
+        target_dict: Optional[Dict[str, QPushButton]] = None, 
+        key: Optional[str] = None, 
+        extra_props: Optional[Dict[str, Any]] = None
+    ) -> QPushButton:
+        """
+        버튼 생성 로직 통합
+        
+        Args:
+            title: 버튼 텍스트 (자동으로 대문자로 변환됨)
+            type: QSS 스타일 타입 (special / general)
+            target_dict: 버튼 객체를 저장할 딕셔너리 (Optional)
+            key: 딕셔너리 키 (None이면 title을 소문자+언더스코어로 변환해서 사용)
+            extra_props: 추가로 설정할 setProperty 값들 (Optional)
+        """
+        btn = QPushButton(title.upper())
+        
+        # QSS ID 생성 (공백 -> 언더스코어, 소문자)
+        obj_name = title.lower().replace(" ", "_")
+        btn.setObjectName(obj_name)
+        
+        # 타입 설정
+        btn.setProperty("type", type)
+
+        # 추가 속성 설정 (예: macro_id)
+        if extra_props:
+            for k, v in extra_props.items():
+                btn.setProperty(k, v)
+
+        # 딕셔너리에 저장
+        if target_dict is not None:
+            dict_key = key if key else obj_name
+            target_dict[dict_key] = btn
+
+        return btn
+    
+    def _create_coordinate_input_fields(self, axes: list[Union[str, FANUCPoseKey]]) -> QFormLayout:
+        """
+        지정된 축(axes) 목록에 대해 '라벨-입력창' QFormLayout을 생성
+
+        인자 값:
+            axes: [FANUCPoseKey.X, ...] 또는 ["FEED RATE"]
+
+        반환:
+            QFormLayout: 라벨과 QDoubleSpinBox가 채워진 폼 레이아웃
+        """
+        form_layout = QFormLayout()
+        form_layout.setContentsMargins(5, 5, 5, 5)  # 좌, 상, 우, 하
+        form_layout.setSpacing(5)
+
+        # QFormLayout은 수평/수직 간격 동시 설정이 어려우므로
+        form_layout.setHorizontalSpacing(2) # 레이블과 스핀박스 간격
+        form_layout.setVerticalSpacing(5)
+
+        for axis in axes:
+            # Enum인 경우 value("X", "Y"...)를 사용, 문자열이면 그대로 사용
+            axis_name = axis.value if isinstance(axis, FANUCPoseKey) else axis
+            
+            label = QLabel(f"{axis_name}:")
+
+            # QDoubleSpinBox 사용 (모든 입력 필드 통일)
+            spin_box = QDoubleSpinBox()
+            spin_box.setObjectName(f"spinbox_{axis_name.lower().replace(' ', '_')}")
+            
+            # 기본 설정
+            spin_box.setKeyboardTracking(False) # (엔터, 포커스 이동, 스핀박스 버튼 클릭)만 시그널 발생
+            spin_box.focusInEvent = lambda e, s=spin_box: QTimer.singleShot(0, s.selectAll) # 전체선택
+
+            if axis_name == "FEED RATE":
+                # Feed Rate 설정
+                spin_box.setRange(0.0, 1000.0)      # 범위 0 ~ 1000
+                spin_box.setValue(10.0)             # 기본값 10
+                spin_box.setSingleStep(5.0)         # 1회 클릭 시 5씩 증감
+                spin_box.setDecimals(1)             # 소수점 1자리
+                spin_box.setSuffix(" mm/sec")       # 단위 표시
+                
+                # 값 변경 시 이벤트 연결 (Feed Rate만 즉시 반응)
+                spin_box.valueChanged.connect(self._on_feed_rate_changed)
+
+            else:
+                # 좌표 (X, Y, Z, W, P, R) 설정
+                # 범위: 로봇 동작 범위를 고려하여 충분히 넓게 설정
+                spin_box.setRange(-9999.0, 9999.0)  
+                spin_box.setValue(0.0)
+                spin_box.setSingleStep(1.0)
+                spin_box.setDecimals(3)             # 소수점 3자리
+                
+                # 단위 설정 (선택사항 - 공간 문제로 생략 가능하거나 mm/deg 구분 가능)
+                # if axis_name in ["X", "Y", "Z"]: spin_box.setSuffix(" mm")
+                # elif axis_name in ["W", "P", "R"]: spin_box.setSuffix(" deg")
+
+            input_widget = spin_box
+
+            # 만든 위젯을 보관함에 저장 (Key: "X", "Y", "FEED RATE" 등 문자열)
+            self.coord_widgets[axis_name] = input_widget
+            form_layout.addRow(label, input_widget)
+
+        return form_layout
+
+
+
+    # ===============================================
+    # 데이터 처리
+    # ===============================================
+    def update_data(self, data: Any):
+        """
+        [Override] BaseWidget.update_data
+        실제 UI 업데이트 로직 (safe_update_data에 의해 호출됨)
+        """
+        if not data: return
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} 로봇 컨트롤러 update_data가 받은 데이터: {data}", "DEBUG")
+
+        # ---------------------------------------------------------------------
+        # Case 1: FANUCPose 객체 (좌표 업데이트)
+        # ---------------------------------------------------------------------
+        if isinstance(data, FANUCPose):
+            pose = data
+            EVENT_BUS.log.message.emit(f"{self.log_prefix} 입력창에 넣을 데이터: {pose}", "DEBUG")
+
+            # FANUCPoseKey를 사용한 동적 매핑
+            # 1. 로봇 좌표 (X, Y, Z, W, P, R)
+            for key_enum in FANUCPoseKey:
+                data_attr = key_enum.model_key  # 'x'
+                widget_key = key_enum.value     # 'X'
+                
+                val = getattr(pose, data_attr, 0.0)
+                
+                if widget := self.coord_widgets.get(widget_key):
+                    blocker = widget.blockSignals(True)
+                    if isinstance(widget, QDoubleSpinBox):
+                        widget.setValue(float(val))
+                    widget.blockSignals(blocker)
+
+            # 2. Feed Rate
+            if widget := self.coord_widgets.get('FEED RATE'):
+                if isinstance(widget, QDoubleSpinBox):
+                    blocker = widget.blockSignals(True)
+                    widget.setValue(pose.f)
+                    widget.blockSignals(blocker)
+
+        # ---------------------------------------------------------------------
+        # Case 2: Dictionary (상태 업데이트)
+        # ---------------------------------------------------------------------
+        elif isinstance(data, dict):
+            # 1. 상태 플래그 확인
+            is_busy = False
+            
+            if 'is_robot_moving' in data:
+                is_busy = bool(data['is_robot_moving'])
+            elif 'is_sequence_in_progress' in data:
+                is_busy = bool(data['is_sequence_in_progress'])
+
+            EVENT_BUS.log.message.emit(f"{self.log_prefix} 상태 업데이트 data: {data}, is_busy: {is_busy}", "DEBUG")
+
+            if 'is_robot_moving' in data or 'is_sequence_in_progress' in data:
+
+                # 버튼들 상태 제어
+                # 매크로 버튼들
+                for btn in self.macro_btn_map.values():
+                    btn.setEnabled(not is_busy)
+
+                # 다른 버튼들
+                if btn := self.other_buttons.get("home"): btn.setEnabled(not is_busy)
+                if btn := self.other_buttons.get("go_to"): btn.setEnabled(not is_busy)
+                if btn := self.other_buttons.get("stop"): btn.setEnabled(is_busy)
+                if btn := self.other_buttons.get("reset"): btn.setEnabled(not is_busy)
+
+                # STOP 버튼 처리 로직 분기
+                if stop_btn := self.other_buttons.get("stop"):
+                    if 'is_sequence_in_progress' in data and data['is_sequence_in_progress']:
+                        # 시퀀스 진행 중이면 Stop 버튼도 비활성화 (시퀀스 멈춤은 Task Manager 담당)
+                        stop_btn.setEnabled(not is_busy)
+
+                # 시퀀스가 진행 중이면 입력창들도 비활성화 해서 오작동 방지
+                for widget in self.coord_widgets.values():
+                    widget.setEnabled(not is_busy)
+
+    def clear_widget(self):
+        """
+        입력 데이터 모두 초기화
+        - 로봇 좌표 (X,Y,Z,W,P,R)
+        - Feed Rate
+        """
+        EVENT_BUS.log.message.emit("RobotControllerWidget 입력 필드 초기화", "DEBUG")
+
+        # 1. 좌표 입력창 초기화
+        for axis, widget in self.coord_widgets.items():
+            if isinstance(widget, QDoubleSpinBox):
+                # FEED RATE 등 스핀박스인 경우
+                if axis == "FEED RATE":
+                    widget.setValue(10.0) # 기본값으로
+                else:
+                    widget.setValue(0.0)
+
+    def _extract_data_from_ui(self) -> FANUCPose:
+        """
+        QDoubleSpinBox 객체들에서 데이터만 뽑아서 FANUCPose 객체를 만든다.
+        """
+        data = {}
+
+        # 좌표값 읽기
+        for key_enum in FANUCPoseKey:
+            widget_key = key_enum.value # "X", "Y", ... (Dictionary Key)
+            data_key = key_enum.model_key # "x", "y", ... (Data Attribute)
+            
+            widget = self.coord_widgets.get(widget_key)
+
+            if widget:
+                if isinstance(widget, QDoubleSpinBox):
+                    data[data_key] = widget.value()
+            else:
+                data[data_key] = 0.0
+
+        # Feed Rate 값 가져오기
+        feed_widget = self.coord_widgets.get('FEED RATE')
+        feed_val = 10.0 # 기본값
+
+        if feed_widget:
+            if isinstance(feed_widget, QDoubleSpinBox):
+                feed_val = feed_widget.value()
+        
+        return FANUCPose(
+            x=data['x'],
+            y=data['y'],
+            z=data['z'],
+            w=data['w'],
+            p=data['p'],
+            r=data['r'],
+            f=feed_val
+        )
+
+
+
+    # ===============================================
+    # ViewModel 시그널 수신 (상태 업데이트)
+    # =============================================== 
+    @pyqtSlot(dict)
+    def _on_macro_data_loaded(self, data: Dict[str, Any]):
+        """매크로 데이터 로드 시그널 처리"""
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 데이터 로드 완료 (총 {len(data)}개 항목)", "INFO")
+
+        # 나중에 쓰기 위해 보관함에 저장
+        self.cached_macro_data = data
+
+        # 딕셔너리에 있는 모든 매크로 데이터를 순회
+        for macro_id, macro_data in data.items():
+
+            # 내 UI에 해당 ID를 가진 버튼이 있다면
+            if macro_id in self.macro_btn_map:
+                btn = self.macro_btn_map[macro_id]
+
+                if btn:
+                    # 'name'값을 가져옴
+                    saved_name = macro_data.get('name', "")
+
+                    # 값이 비어있으면('') ID를 대신 사용
+                    if saved_name and saved_name.strip():
+                        new_name = saved_name
+                    else:
+                        new_name = macro_id # 또는 f"매크로 {macro_id[-1]}" 등 원하는 기본값
+
+                    btn.setText(new_name)
+
+    @pyqtSlot(str, bool)
+    def _on_sequence_processing_changed(self, tag: str, val: bool):
+        """시퀀스 실행 상태 변경 시그널 처리 (Lambda 대체)"""
+        self.safe_update_data({tag: val})
+
+
+    # ===============================================
+    # 이벤트 슬롯 [물리적 신호 처리]
+    #   - 사용자 입력(클릭, 선택)에 대한 신호 처리
+    # ===============================================
+    @pyqtSlot()
+    def _on_edit_macro_button_clicked(self):
+        self._handle_edit_macro()
+
+    @pyqtSlot(str)
+    def _on_macro_btn_clicked(self, macro_id: str):
+        self._handle_macro(macro_id)
+
+    @pyqtSlot(float)
+    def _on_feed_rate_changed(self, feed_rate: float):
+        """FEED RATE 스핀박스 값 변경됐을 때"""
+        self._handle_feed_rate(feed_rate)
+
+    @pyqtSlot()
+    def _on_home_btn_clicked(self):
+        self._handle_home()
+
+    @pyqtSlot()
+    def _on_stop_btn_clicked(self):
+        self._handle_stop()
+
+    @pyqtSlot()
+    def _on_goto_btn_clicked(self):
+        self._handle_goto()
+
+    @pyqtSlot()
+    def _on_reset_btn_clicked(self):
+        self._handle_reset()
+
+
+
+    # ===============================================
+    # 핸들러 [논리적 흐름 담당]
+    #   - 입력 데이터 가공 및 뷰모델 통신
+    # ===============================================
+    def _handle_edit_macro(self):
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 편집 다이얼로그(MacroSettingsDialog) 열림", "INFO")
+
+        dialog = MacroSettingsDialog(parent=self)
+
+        # 다이얼로그 실행
+        # Modal로 열어서 호출부 입력 막힘
+        dialog.exec()
+
+        # 다이얼로그가 닫히면 이 줄이 실행됨 -> 데이터 새로고침 기능
+        if self.vm: self.vm.load_macro_data()
+
+    def _handle_macro(self, macro_id: str):
+        """
+        매크로 버튼 클릭 시: 저장된 좌표 데이터를 입력창에 채워넣음
+        """
+        # 저장된 데이터가 있는지 확인
+        if macro_id not in self.cached_macro_data: return
+        macro_data = self.cached_macro_data[macro_id]
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} {macro_id} 매크로 버튼 클릭됨    매크로 데이터: {macro_data}", "DEBUG")
+
+        # 데이터 -> UI 입력창으로 복사
+        for key_enum in FANUCPoseKey:
+            data_key = key_enum.model_key  # 'x'
+            widget_key = key_enum.value    # 'X'
+            
+            # 데이터 가져오기 (없으면 0.0)
+            val = macro_data.get(data_key, 0.0)
+            
+            # 위젯 가져오기
+            widget = self.coord_widgets.get(widget_key)
+
+            EVENT_BUS.log.message.emit(f"{self.log_prefix} {widget_key} 의 값: {val}", "DEBUG")
+            
+            if isinstance(widget, QDoubleSpinBox):
+                # QDoubleSpinBox에 값 설정 (widget.setDecimals(3)에 의해 소수점 3자리 표시됨)
+                widget.setValue(float(val))
+
+        # Feed Rate 위젯 값 업데이트(SpinBox 대응)
+        feed_widget = self.coord_widgets.get('FEED RATE')
+        if feed_widget and isinstance(feed_widget, QDoubleSpinBox):
+            feed_val = macro_data.get('f', 10.0)
+            feed_widget.setValue(feed_val)
+
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} 매크로 ID({macro_id}) -> UI 업데이트 완료", "INFO")
+
+        # 현재 UI에 채워진 값들을 추출
+        positions_macro = self._extract_data_from_ui()
+
+        if self.vm:
+            self.vm.robot_move_manual(positions_macro, is_macro_value=True)
+
+    def _handle_feed_rate(self, feed_rate: float):
+        """FEED RATE 스핀박스 값 변경됐을 때"""
+        if self.vm:
+            self.vm.update_feed_rate(feed_rate)
+
+    def _handle_home(self):
+        if not self.vm: return
+        self.vm.robot_home_manual()
+
+    def _handle_stop(self):
+        if not self.vm: return
+        self.vm.robot_stop_manual()
+
+    def _handle_goto(self):
+        if not self.vm: return
+
+        try:
+            # QLineEdit 객체로부터 데이터 추출
+            line_edit_data = self._extract_data_from_ui()
+
+            EVENT_BUS.log.message.emit(
+                f"{self.log_prefix} 사용자의 이동 명령(GoTo) 요청: {line_edit_data}", 
+                "INFO"
+            )
+            
+            if line_edit_data.f == 0.0:
+                EVENT_BUS.log.message.emit(f"{self.log_prefix} 사용자 입력 이동 명령 수행 불가: Feed Rate 값이 0 입니다.", "WARNING")
+                return
+
+            self.vm.robot_move_manual(line_edit_data, is_macro_value=False)
+
+        except ValueError:
+            error_msg = "좌표값 입력 오류: 숫자만 입력 가능합니다."
+            EVENT_BUS.log.message.emit(error_msg, "WARNING")
+
+            # 에러 시그널 방출
+            self.error_occurred.emit(error_msg)
+
+    def _handle_reset(self):
+        if not self.vm: return
+        self.vm.robot_init_manual()
+
+
+# ==========================================================
+# Smoke Test
+"""
+python -m ui.widgets.robot_controller_widget
+"""
+# ==========================================================
+if __name__ == '__main__':
+    import sys
+    from PyQt6.QtWidgets import QApplication, QMainWindow
+    from models.fanuc_pose_model import FANUCPoseModel
+    
+    # [추가 1] 로그 리스너 임포트
+    from core.log_listener import LogListener
+
+    # [중요] DLL 로드
+    from utils.dll_loader import load_pyads_dll
+    try:
+        load_pyads_dll()
+        print("✅ DLL 로드 완료")
+    except Exception as e:
+        print(f"⚠️ DLL 로드 실패: {e}")
+
+    from view_models.robot_controller_viewmodel import RobotControllerViewModel
+    from services.plc_service import PLCService
+
+    app = QApplication(sys.argv)
+    
+    # 로그 리스너 가동 (에러가 콘솔에 보인다)
+    log_listener = LogListener()
+
+    # 1. Model 생성
+    model = FANUCPoseModel()
+    
+    # 2. PLC Service 생성 및 연결
+    plc_service = PLCService()
+    
+    try:
+        plc_service.connector.connect() 
+        print("✅ PLC Service 연결(Mock/Real) 완료")
+    except Exception as e:
+        print(f"❌ 연결 실패: {e}")
+
+    # 3. ViewModel 생성
+    # Mocking missing dependencies for test
+    from unittest.mock import MagicMock
+    user_coords_vm = MagicMock()
+    world_coords_vm = MagicMock()
+    
+    view_model = RobotControllerViewModel(model, plc_service, user_coords_vm, world_coords_vm)
+
+    # 4. Widget 생성
+    main_win = QMainWindow()
+    widget = RobotControllerWidget()  # parent=None (기본값)
+    widget.set_view_model(view_model) # Setter 주입
+    main_win.setCentralWidget(widget)
+    main_win.setWindowTitle("RobotControllerWidget 테스트")
+    main_win.resize(400, 300)
+    main_win.show()
+
+    # 스타일시트 적용 (생략 가능)
+    # ...
+
+    sys.exit(app.exec())

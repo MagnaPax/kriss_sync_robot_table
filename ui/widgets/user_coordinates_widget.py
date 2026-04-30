@@ -2,7 +2,7 @@
 from PyQt6.QtCore import pyqtSlot
 from PyQt6.QtWidgets import QGroupBox, QPushButton, QWidget
 from ui.widgets.world_coordinates_widget import WorldCoordinatesWidget
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Any
 
 if TYPE_CHECKING:
     from view_models.user_coordinates_viewmodel import UserCoordinatesViewModel
@@ -21,7 +21,7 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
     def __init__(self, parent: Optional[QWidget] = None):
         # ViewModel 타입 힌트 재정의를 위해 초기화
         self.btn_robot_origin = None
-        self.btn_servo_origin = None
+        self.btn_turntable_origin = None
         self.btn_reset = None
         self.viewmodel: Optional["UserCoordinatesViewModel"] = None
         super().__init__(parent)
@@ -36,7 +36,7 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
         if not self.viewmodel: return
         
         if btn := self.btn_robot_origin: btn.clicked.connect(self._on_robot_origin_clicked)
-        if btn := self.btn_servo_origin: btn.clicked.connect(self._on_servo_origin_clicked)
+        if btn := self.btn_turntable_origin: btn.clicked.connect(self._on_turntable_origin_clicked)
         if btn := self.btn_reset: btn.clicked.connect(self._on_origin_all_clicked)
 
         # 데이터 바인딩 - WorldCoordinatesWidget(부모클래스)의 메서드 재사용
@@ -46,6 +46,9 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
         self.viewmodel.user_tool_revolution_changed.connect(self._update_tool_revolution_ui)
         self.viewmodel.user_tool_rotation_changed.connect(self._update_tool_rotation_ui)
         self.viewmodel.user_turntable_pose_changed.connect(self._update_turntable_ui)
+        
+        # 버튼 활성화/비활성화 (시퀀스 실행 중일 때)
+        self.viewmodel.origin_buttons_disabled.connect(self._on_disable_origin_buttons)
 
 
     # ========================================
@@ -69,23 +72,45 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
                 if gb_layout := widget.layout():
                     # 버튼 생성
                     self.btn_robot_origin = QPushButton("Set Robot Origin")
-                    self.btn_servo_origin = QPushButton("Set Servo Origin")
+                    self.btn_turntable_origin = QPushButton("Set Turntable Origin")
                     self.btn_reset = QPushButton("Set Origin All")
 
                     # 스타일 적용
                     self.btn_robot_origin.setProperty("type", "general")
-                    self.btn_servo_origin.setProperty("type", "general")
+                    self.btn_turntable_origin.setProperty("type", "general")
                     self.btn_reset.setProperty("type", "special")
 
                     # 레이아웃에 추가 (WorldCoordinatesWidget의 addStretch() 뒤에 추가됨 -> 하단 배치)
                     gb_layout.addWidget(self.btn_robot_origin)
-                    gb_layout.addWidget(self.btn_servo_origin)
+                    gb_layout.addWidget(self.btn_turntable_origin)
                     gb_layout.addWidget(self.btn_reset)
 
 
     # ===============================================
     # 데이터 처리
     # ===============================================
+    def update_data(self, data: Any):
+        """
+        데이터 업데이트 (Override)
+        - FANUCPose: 좌표 업데이트 (부모 메서드 호출)
+        - dict: 제어 명령 처리
+            {'is_sequence_in_progress': True/False}
+        """
+        # --- case 1: 로봇 좌표(FANUCPose)인 경우 -> 부모 메서드에게 위임 --- #
+        super().update_data(data)
+
+        # --- case 2: 제어 명령(dict)인 경우 --- #
+        if isinstance(data, dict) and 'is_sequence_in_progress' in data:
+            should_disable: bool = bool(data['is_sequence_in_progress'])  # True면 비활성화
+            should_enable = not should_disable
+            
+            if self.btn_robot_origin: self.btn_robot_origin.setEnabled(should_enable)
+            if self.btn_turntable_origin: self.btn_turntable_origin.setEnabled(should_enable)
+            if self.btn_reset: self.btn_reset.setEnabled(should_enable)
+            return
+
+
+
     def clear_widget(self):
         """위젯 상태 초기화"""
         # 레이블 텍스트 초기화
@@ -109,13 +134,18 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
     # 이벤트 슬롯 [물리적 신호 처리]
     #   - 사용자 입력(클릭, 선택)에 대한 신호 처리
     # ===============================================
+    @pyqtSlot(str, bool)
+    def _on_disable_origin_buttons(self, tag: str, val: bool):
+        """버튼 비활성화 시그널 처리"""
+        self.safe_update_data({tag: val})
+
     @pyqtSlot()
     def _on_robot_origin_clicked(self):
         self._handle_robot_origin()
 
     @pyqtSlot()
-    def _on_servo_origin_clicked(self):
-        self._handle_servo_origin()
+    def _on_turntable_origin_clicked(self):
+        self._handle_turntable_origin()
 
     @pyqtSlot()
     def _on_origin_all_clicked(self):
@@ -131,9 +161,9 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
         if self.viewmodel:
             self.viewmodel.origin_robot_pose()
 
-    def _handle_servo_origin(self):
+    def _handle_turntable_origin(self):
         if self.viewmodel:
-            self.viewmodel.origin_servo_pose()
+            self.viewmodel.origin_turntable_pose()
 
     def _handle_origin_all(self):
         if self.viewmodel:

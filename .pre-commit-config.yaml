@@ -1,0 +1,40 @@
+# pre-commit 설정 파일
+
+# 설치 & 사용법
+#   pip install pre-commit
+#   pre-commit install
+#   pre-commit run --all-files
+
+
+# --- 전역 설정 (여기에 둔다) ---
+# 훅마다 language_version 안 써도 됨
+default_language_version:
+  python: python3
+
+# commit 시점만 실행 - push, merge 때는 안 튀어나옴
+default_stages: [pre-commit]
+
+# 실패했을 때만 변경 내용 보여줌
+show_diff_on_failure: true
+
+
+# --- 훅 정의 ---
+# 필수 에러 방지용 pre-commit 설정
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      # 1. 파이썬 문법 오류 체크 (Syntax Error 방지) - ★★★ 필수
+      - id: check-ast
+      
+      # 2. Git Merge 충돌 마커(<<<<<<<) 체크 - ★★★ 필수
+      - id: check-merge-conflict
+      
+      # 3. 실수로 들어간 디버깅 코드(breakpoint 등) 체크
+      - id: debug-statements
+      
+      # 4. 너무 큰 파일 업로드 방지 (Git 용량 보호)
+      - id: check-added-large-files
+      
+      # 5. YAML 파일 문법 체크 (설정 파일 깨짐 방지)
+      - id: check-yaml

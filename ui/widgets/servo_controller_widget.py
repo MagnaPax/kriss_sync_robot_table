@@ -1,4 +1,4 @@
-# ui/widgets/servo_control_widget.py
+# ui/widgets/servo_controller_widget.py
 from PyQt6.QtCore import QTimer, pyqtSlot
 from PyQt6.QtWidgets import (
     QVBoxLayout, 
@@ -11,21 +11,22 @@ from PyQt6.QtWidgets import (
     QWidget
 )
 from config.data_formats import (
-    KEY_TT_DEG,
-    KEY_TT_FEED,
+    KEY_TURNTABLE_DEG,
+    KEY_TURNTABLE_FEED_RATE,
     KEY_TOOL_REV_RPM,
     KEY_TOOL_ROT_RPM
 )
 from ui.widgets.base_widget import BaseWidget
 from typing import TYPE_CHECKING, Any, Optional
 from core.event_bus import EVENT_BUS
+from core.settings import SETTINGS
 
 if TYPE_CHECKING:
     from view_models.servo_control_viewmodel import ServoControlViewModel
 
 
 
-class ServoControlWidget(BaseWidget):
+class ServoControllerWidget(BaseWidget):
     """서보모터 제어용 위젯"""
     # ========================================
     # 초기화 및 설정 (Initialization)
@@ -40,6 +41,7 @@ class ServoControlWidget(BaseWidget):
         
         # 버튼 참조
         self.btn_start = None
+        self.btn_tt_start = None
         self.btn_stop = None
         self.btn_home = None
         self.btn_reset = None
@@ -51,20 +53,31 @@ class ServoControlWidget(BaseWidget):
         self._bind_events()
 
     def set_view_model(self, view_model: "ServoControlViewModel"):
-        """
-        외부에서 뷰모델을 주입하는 함수
-        """
+        """외부에서 뷰모델을 주입하는 함수"""
         self.vm = view_model
 
-        # 로봇과 턴테이블의 바쁨 상태 연결
-        self.vm.busy_state_changed.connect(self.update_data)
+        # VM의 로컬 시그널 연결
+        self.vm.busy_state_changed.connect(self.safe_update_data)
+        self.vm.servo_inputs_clear.connect(self.clear_widget)
+        self.vm.servo_axis_motion_changed.connect(self.safe_update_data)
+        self.vm.disable_buttons.connect(self._on_disable_buttons) # {tag: val} 딕셔너리로 데이터 전달
 
     def _bind_events(self):
         """UI 이벤트 바인딩"""
         if btn := self.btn_start: btn.clicked.connect(self._on_start_clicked)
-        if btn := self.btn_stop:  btn.clicked.connect(self._on_stop_clicked)
+        if btn := self.btn_tt_start: btn.clicked.connect(self._on_tt_start_clicked)
+        if btn := self.btn_stop:  
+            btn.clicked.connect(self._on_stop_clicked)
+            # 초기 상태에는 정지할 작업이 없으므로 비활성화
+            btn.setDisabled(True)
+
         if btn := self.btn_home:  btn.clicked.connect(self._on_home_clicked)
         if btn := self.btn_reset: btn.clicked.connect(self._on_reset_clicked)
+
+    @pyqtSlot(str, bool)
+    def _on_disable_buttons(self, tag: str, val: bool):
+        """버튼 비활성화 시그널 처리 (Lambda 대체)"""
+        self.safe_update_data({tag: val})
 
 
 
@@ -76,36 +89,48 @@ class ServoControlWidget(BaseWidget):
         # 메인 레이아웃 및 그룹박스 설정
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
-        self.setObjectName("servo_control_widget")
+        self.setObjectName("servo_controller_widget")
 
         # 그룹박스 생성
         self.servo_group = QGroupBox("Servo Control")
         group_layout = QVBoxLayout(self.servo_group)
-        group_layout.setSpacing(10)
-        group_layout.setContentsMargins(15, 15, 15, 15)
+        group_layout.setSpacing(10) # 내부 요소들 사이 간격
+        group_layout.setContentsMargins(15, 15, 15, 15) # 외곽 여백
+
 
         # 1. 입력 필드 영역 (공전, 자전, 턴테이블)
         input_section = QFrame()
         input_layout = QHBoxLayout(input_section)
-        input_layout.setContentsMargins(0, 0, 0, 0)
-        input_layout.setSpacing(20)
+        input_layout.setSpacing(10) # 레이아웃 내부에 배치된 요소들 사이의 간격
+        input_layout.setContentsMargins(0, 0, 0, 0) # 레이아웃의 외곽 여백(마진)
 
         # 왼쪽: 공전/자전 (RPM)
         tool_layout = QFormLayout()
-        self.input_widgets["rev_rpm"] = self._create_spinbox(0, 3000, 10)
-        self.input_widgets["rot_rpm"] = self._create_spinbox(0, 3000, 10)
-        tool_layout.addRow("공전 (rpm):", self.input_widgets["rev_rpm"])
-        tool_layout.addRow("자전 (rpm):", self.input_widgets["rot_rpm"])
+        self.input_widgets[KEY_TOOL_REV_RPM] = self._create_spinbox(
+            SETTINGS.servo.tool_rpm_min, SETTINGS.servo.tool_rpm_max, SETTINGS.servo.tool_rpm_default
+        )
+        self.input_widgets[KEY_TOOL_ROT_RPM] = self._create_spinbox(
+            SETTINGS.servo.tool_rpm_min, SETTINGS.servo.tool_rpm_max, SETTINGS.servo.tool_rpm_default
+        )
+        tool_layout.addRow("공전:", self.input_widgets[KEY_TOOL_REV_RPM])
+        tool_layout.addRow("자전:", self.input_widgets[KEY_TOOL_ROT_RPM])
 
         # 오른쪽: 턴테이블 (각도/RPM)
         tt_layout = QFormLayout()
-        self.input_widgets["tt_angle"] = self._create_spinbox(-360, 360, 0)
-        self.input_widgets["tt_rpm"] = self._create_spinbox(0, 2000, 5)
-        tt_layout.addRow("턴테이블 각도 (deg):", self.input_widgets["tt_angle"])
-        tt_layout.addRow("턴테이블 속도 (rpm):", self.input_widgets["tt_rpm"])
+        self.input_widgets[KEY_TURNTABLE_DEG] = self._create_spinbox(
+            SETTINGS.servo.turntable_deg_min, SETTINGS.servo.turntable_deg_max, SETTINGS.servo.turntable_deg_default
+        )
+        self.input_widgets[KEY_TURNTABLE_FEED_RATE] = self._create_spinbox(
+            SETTINGS.servo.turntable_rpm_min, SETTINGS.servo.turntable_rpm_max, SETTINGS.servo.turntable_rpm_default
+        )
+        tt_layout.addRow("턴테이블 각도:", self.input_widgets[KEY_TURNTABLE_DEG])
+        tt_layout.addRow("턴테이블 속도:", self.input_widgets[KEY_TURNTABLE_FEED_RATE])
 
+        input_layout.addStretch(1)  # 빈 공간 채우기
         input_layout.addLayout(tool_layout)
+        input_layout.addStretch(1)
         input_layout.addLayout(tt_layout)
+        input_layout.addStretch(1)
 
         # 2. 제어 버튼 영역 (START, STOP, HOME)
         button_section = QFrame()
@@ -114,15 +139,19 @@ class ServoControlWidget(BaseWidget):
         button_layout.setSpacing(10)
 
         self.btn_start = self._create_control_button("START", "special")
+        self.btn_tt_start = self._create_control_button("TT ONLY", "special")
         self.btn_stop = self._create_control_button("STOP", "general")
         self.btn_home = self._create_control_button("HOME", "special")
         self.btn_reset = self._create_control_button("RESET", "general")
 
         button_layout.addStretch(1)
         button_layout.addWidget(self.btn_start)
+        button_layout.addWidget(self.btn_tt_start)
         button_layout.addWidget(self.btn_stop)
         button_layout.addWidget(self.btn_home)
         button_layout.addWidget(self.btn_reset)
+        button_layout.addStretch(1)
+
 
         # 그룹 레이아웃에 섹션 추가
         group_layout.addWidget(input_section)
@@ -138,26 +167,39 @@ class ServoControlWidget(BaseWidget):
         spin.setSuffix(suffix)
         spin.setDecimals(1)
         spin.setSingleStep(1.0)
-        spin.setFixedWidth(100)
+        spin.setFixedWidth(150)
 
-        # 음수 입력 차단 로직 (최소값이 0 이상일 때)
+        # 음수 및 0 입력 차단 로직 (최소값이 0 이상일 때)
         if min_val >= 0:
-            def validate_no_minus(text: str):
+            def validate_positive_input(text: str):
+                # 1. 음수(-) 또는 0 입력 체크 (단독 '0'인 경우)
+                # QDoubleSpinBox의 경우 빈 문자열이나 '.'만 있는 경우 등도 고려해야 함
+                is_invalid = False
+                error_msg = ""
+
                 if '-' in text:
-                    # 1. 시그널 방출 (메인 윈도우에서 팝업)
-                    EVENT_BUS.system.operation_error_alert.emit(
-                        "입력 불가", 
-                        "속도 항목에는 음수(-)를 입력할 수 없습니다."
-                    )
-                    # 2. '-' 문자 강제 삭제
-                    line_edit = spin.lineEdit()
+                    is_invalid = True
+                    error_msg = "속도는 음수(-)를 입력할 수 없습니다."
+                elif text == "0" or text == "0.0":
+                    is_invalid = True
+                    error_msg = "속도는 '0'을 입력할 수 없습니다."
+
+                if is_invalid and (line_edit := spin.lineEdit()):
+                    # 1. 에러 시그널 방출
+                    self.error_occurred.emit(error_msg)
+                    # 2. 강제 초기화 또는 이전 값 복구 (여기서는 단순히 텍스트 제거 또는 기본값 설정)
                     line_edit.blockSignals(True)
-                    line_edit.setText(text.replace('-', ''))
+                    # '-' 제거 또는 '0'인 경우 비우기
+                    new_text = text.replace('-', '')
+                    if new_text == "0" or new_text == "0.0":
+                        new_text = ""
+                    line_edit.setText(new_text)
                     line_edit.blockSignals(False)
             
-            spin.lineEdit().textChanged.connect(validate_no_minus)
+            if line_edit := spin.lineEdit():
+                line_edit.textChanged.connect(validate_positive_input)
 
-        # TargetPositionWidget 스타일 참고: 포커스 시 전체 선택
+        # RobotControllerWidget 스타일 참고: 포커스 시 전체 선택
         spin.focusInEvent = lambda e: QTimer.singleShot(0, spin.selectAll)
         return spin
 
@@ -175,25 +217,70 @@ class ServoControlWidget(BaseWidget):
     # ===============================================
     def update_data(self, data: Any):
         """
-        데이터(dict)를 받아 UI 업데이트
-            BaseWidget의 safe_update_data()를 통해 호출됨
+        [Override] BaseWidget.update_data
+        실제 UI 업데이트 로직 (safe_update_data에 의해 호출됨)
         """
-        # 상태에 따른 활성화/비활성화
+        if not isinstance(data, dict): return
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} update_data 메서드로 들어온 데이터: {data}", "DEBUG")
+
+        # --- case 1 --- #
+        # 버튼 활성화/비활성화
+        is_busy = False
+
+        # 서보가 움직일 때
         if 'is_servo_moving' in data:
-            is_busy = data['is_servo_moving']
+            is_busy = bool(data['is_servo_moving'])
+        # 시퀀스 실행 중일 때
+        elif 'is_sequence_in_progress' in data:
+            is_busy = bool(data['is_sequence_in_progress'])
 
-            # BaseWidget 내부 변수 업데이트
-            self._is_enabled = not is_busy
+        if 'is_servo_moving' in data or 'is_sequence_in_progress' in data:
+            # BaseWidget._is_enabled를 건드리면 safe_update_data가 막히므로
+            # 여기서는 개별 컨트롤만 비활성화하고, _is_enabled는 True로 유지한다.
+            # self._is_enabled = not is_busy 
 
-            # 로봇/서보가 바쁘면 START, HOME, RESET 비활성화, STOP 활성화
+            # 로봇/서보가 바쁘면 START, HOME, RESET 비활성화
             if self.btn_start: self.btn_start.setEnabled(not is_busy)
+            if self.btn_tt_start: self.btn_tt_start.setEnabled(not is_busy)
             if self.btn_home:  self.btn_home.setEnabled(not is_busy)
             if self.btn_reset: self.btn_reset.setEnabled(not is_busy)
-            if self.btn_stop:  self.btn_stop.setEnabled(is_busy)
+            
+            # STOP 버튼 처리 로직 분기
+            if self.btn_stop:
+                if 'is_sequence_in_progress' in data and data['is_sequence_in_progress']:
+                    # 시퀀스 실행 중이면 -> STOP 버튼도 비활성화 (TaskManager가 담당)
+                    self.btn_stop.setEnabled(False) 
+                else:
+                    # 시퀀스가 아닐 때는 '바쁠 때만' 활성화 (수동 정지 가능)
+                    self.btn_stop.setEnabled(is_busy)
             
             # 입력창들도 비활성화하여 오작동 방지
             for spin in self.input_widgets.values():
                 spin.setEnabled(not is_busy)
+
+        # --- case 2 --- #
+        # 사용자 입력창에 서보 값 업데이트 (PLC 또는 테이블 선택으로부터 온 데이터)
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} 웨이포인트 테이블 중 실행중이거나 사용자가 선택한 데이터: {data}", "DEBUG")
+        target_keys = [
+            KEY_TURNTABLE_DEG, 
+            KEY_TURNTABLE_FEED_RATE, 
+            KEY_TOOL_REV_RPM, 
+            KEY_TOOL_ROT_RPM
+        ]
+
+        # 데이터에 target_keys 중 하나라도 포함되어 있는지 확인
+        if any(key in data for key in target_keys):
+            EVENT_BUS.log.message.emit(f"{self.log_prefix} 서보 값 업데이트 할 데이터: {data}", "DEBUG")
+
+            for key in target_keys:
+                # 데이터 딕셔너리에 키가 존재하는지 확인 (None이 아니면 0이어도 진행)
+                if (val := data.get(key)) is not None:
+                    # 해당 값을 표시할 UI 위젯(SpinBox)이 등록되어 있는지 확인
+                    if widget := self.input_widgets.get(key):
+                        # 값이 바뀌었다는 시그널 잠시 차단 - 안 하면 무한 루프 발생
+                        blocker = widget.blockSignals(True)
+                        widget.setValue(float(val))         # 실제 위젯에 값 적용 (0.0 포함)
+                        widget.blockSignals(blocker)        # 업데이트 후 차단 해제
 
     def clear_widget(self):
         """위젯 상태 초기화"""
@@ -204,6 +291,7 @@ class ServoControlWidget(BaseWidget):
         # 버튼 활성화 복구
         # 존재 여부를 확인(Safety Check)함과 동시에 setEnabled를 호출
         if btn := self.btn_start: btn.setEnabled(True)
+        if btn := self.btn_tt_start: btn.setEnabled(True)
         if btn := self.btn_stop:  btn.setEnabled(False)
         if btn := self.btn_home:  btn.setEnabled(True)
         if btn := self.btn_reset: btn.setEnabled(True)
@@ -217,10 +305,10 @@ class ServoControlWidget(BaseWidget):
         '시스템 표준 키 상수'로 매핑된 딕셔너리를 반환
         """
         return {
-            KEY_TOOL_REV_RPM: self.input_widgets["rev_rpm"].value(),
-            KEY_TOOL_ROT_RPM: self.input_widgets["rot_rpm"].value(),
-            KEY_TT_DEG: self.input_widgets["tt_angle"].value(),
-            KEY_TT_FEED: self.input_widgets["tt_rpm"].value()
+            KEY_TOOL_REV_RPM: self.input_widgets[KEY_TOOL_REV_RPM].value(),
+            KEY_TOOL_ROT_RPM: self.input_widgets[KEY_TOOL_ROT_RPM].value(),
+            KEY_TURNTABLE_DEG: self.input_widgets[KEY_TURNTABLE_DEG].value(),
+            KEY_TURNTABLE_FEED_RATE: self.input_widgets[KEY_TURNTABLE_FEED_RATE].value()
         }
 
 
@@ -233,6 +321,11 @@ class ServoControlWidget(BaseWidget):
     def _on_start_clicked(self):
         """START 버튼 클릭 핸들러"""
         self._handle_manual_start()
+
+    @pyqtSlot()
+    def _on_tt_start_clicked(self): # [추가]
+        """TT ONLY START 버튼 클릭 핸들러"""
+        self._handle_manual_tt_start()
 
     @pyqtSlot()
     def _on_stop_clicked(self):
@@ -261,6 +354,21 @@ class ServoControlWidget(BaseWidget):
         data = self._get_input_data()
         EVENT_BUS.log.message.emit(f"{self.log_prefix} MANUAL START: {data}", "DEBUG")
         vm.start_manual(data)
+
+    def _handle_manual_tt_start(self):
+        """턴테이블 전용 START 핸들러 (스핀들 제외)"""
+        if not (vm := self.vm): return
+        
+        # 전체 데이터에서 턴테이블 관련 키만 추출
+        all_data = self._get_input_data()
+        tt_data = {
+            KEY_TURNTABLE_DEG: all_data[KEY_TURNTABLE_DEG],
+            KEY_TURNTABLE_FEED_RATE: all_data[KEY_TURNTABLE_FEED_RATE]
+        }
+        
+        EVENT_BUS.log.message.emit(f"{self.log_prefix} MANUAL TT START: {tt_data}", "DEBUG")
+        # 뷰모델의 일반 시작 메서드 재사용 (데이터가 필터링됨)
+        vm.start_manual(tt_data)
 
     def _handle_manual_stop(self):
         """MANUAL STOP 핸들러"""
@@ -320,7 +428,7 @@ if __name__ == "__main__":
         print(f"스타일 로드 실패: {e}")
 
     # 위젯 생성 및 테스트
-    window = ServoControlWidget()
+    window = ServoControllerWidget()
     window.set_view_model(vm)
     window.resize(400, 200)
     window.show()

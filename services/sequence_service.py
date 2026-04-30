@@ -37,7 +37,7 @@ class SequenceService(QObject):
         """
 
         if self._thread and self._thread.isRunning():
-            EVENT_BUS.log.message.emit("이전 작업이 아직 진행중입니다", "WARNING")
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 이전 작업이 아직 진행중입니다", "WARNING")
             return # 이전 작업이 있다면 중복 실행 방지
 
         # csv 파일이 맞는지 확인
@@ -106,6 +106,7 @@ class SequenceService(QObject):
             #   "데이터 준비됐습니다~ 필요한 분들 가져다 쓰세요"
             EVENT_BUS.data.sequence_data_loaded.emit(sequence_list)
             EVENT_BUS.log.message.emit(f"{self._log_prefix} 시퀀스 파일 -> 데이터 처리 완료: {len(sequence_list)}건", "INFO")
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 읽어온 시퀀스 파일 첫번째: {sequence_list[0]}", "DEBUG")
 
 
     @pyqtSlot() # type: ignore

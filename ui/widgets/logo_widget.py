@@ -5,6 +5,7 @@ from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt
 from typing import Optional
 
+from core.settings import SETTINGS
 
 class LogoWidget(QWidget):
 
@@ -12,7 +13,7 @@ class LogoWidget(QWidget):
         super().__init__(parent)
 
         # --- 경로 ---
-        logo_path = Path("resources/images/kriss_logo.gif")
+        logo_path = Path(SETTINGS.app.kriss_ci_path)
         logo_pixmap = QPixmap(str(logo_path.resolve()))     # Path객체 대신 문자열 경로
 
 

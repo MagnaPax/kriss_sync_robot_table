@@ -37,7 +37,7 @@ class PLCWorker(QObject):
         Args:
             connector: '연결' 관리를 위한 객체
             commander: 로봇 '제어' 명령을 위한 객체
-            command: 실행할 명령 종류 ('CONNECT', 'MOVE', 'START' 등)
+            command: 실행할 명령 종류 ('CONNECT', 'MOVE', 'ROBOT_START' 등)
             data: 명령 실행에 필요한 데이터 (좌표 등)
         """
         super().__init__()
@@ -55,6 +55,7 @@ class PLCWorker(QObject):
     def run(self):
         """스레드가 시작되면 호출되는 진입점"""
 
+        # ================================================================================
         # QThread에서 브레이크포인트가 안 잡히는 문제 해결을 위해 디버거 강제 연결
         try:
             import debugpy
@@ -62,6 +63,7 @@ class PLCWorker(QObject):
         except (ImportError, Exception):
             # 디버거가 없거나 연결 불가 시 조용히 넘어감
             pass
+        # ================================================================================
 
         is_success = False
         msg = "알 수 없는 명령입니다."
@@ -76,22 +78,20 @@ class PLCWorker(QObject):
                     msg = f"TwinCAT 연결 성공 ({self.connector.ams_net_id})"
 
 
-                # --- 이동 명령 (Commander 사용) --- #
-                case 'MOVE':
-                    if self.data is None: raise ValueError("MOVE 명령에 필요한 데이터가 없습니다.")
-                    is_success, msg = self.commander.execute_sequence_with_executor(self.data)  # 넘겨주는 데이터 형식에 맞는 Executor를 찾아서 실행
 
-                case 'SET_SPEED':
+                # --- 로봇 전용 제어 명령 (Commander 사용) --- #
+                case 'ROBOT_INIT':
+                    is_success, msg = self.commander.set_robot_ready()
+                case 'ROBOT_START':
+                    is_success, msg = self.commander.start_robot_plc_signals()
+                case 'ROBOT_STOP':
+                    is_success, msg = self.commander.stop_robot_plc_signals()
+                case 'SET_ROBOT_SPEED':
                     EVENT_BUS.log.message.emit(f"{self._log_prefix} 이동속도:{self.data}\n데이터 타입: {type(self.data)}", "DEBUG")
-                    result_msg = self.commander.apply_user_feed_rate_when_moving_robot(float(self.data))
-                    if result_msg: self.result.emit(True, result_msg)
-
-
-                # --- 제어 명령 (Commander 사용) --- #
-                case 'START':
-                    is_success, msg = self.commander.start_sequence_plc_signals()
-                case 'STOP':
-                    is_success, msg = self.commander.end_sequence_plc_signals()
+                    msg = self.commander.apply_user_feed_rate_when_moving_robot(float(self.data))
+                    is_success = True
+                case 'ROBOT_HOMING':
+                    is_success, msg = self.commander.home_robot()
 
 
                 # --- 서보 전용 제어 명령 (Commander 사용) --- #
@@ -101,8 +101,22 @@ class PLCWorker(QObject):
                     is_success, msg = self.commander.home_servos_safely()        # 안전 원점 복귀
                 case 'SERVO_RESET':
                     is_success, msg = self.commander.reset_servos_safely()      # 서보모터 축의 에러 해제
+
+
+                # --- 공통 명령 (Commander 사용) --- #
+                # 이동
+                case 'MOVE':
+                    if self.data is None: raise ValueError("MOVE 명령에 필요한 데이터가 없습니다.")
+                    is_success, msg = self.commander.execute_sequence_with_executor(self.data)  # 넘겨주는 데이터 형식에 맞는 Executor를 찾아서 실행
+                # 비상 정지
+                case 'EMERGENCY_STOP':
+                    is_success, msg = self.commander.emergency_stop_servo_and_robot()
+                # 일반 정지
+                case 'STOP_ROBOT_SERVO':
+                    is_success, msg = self.commander.stop_robot_servo_normally()
+
                 case _:
-                    msg = "알 수 없는 명령입니다."
+                    msg = f"{self._log_prefix} 알 수 없는 명령입니다."
 
         # -----------------------------------------------------------
         # 예외 처리 (로그는 Service가 남기므로 여기선 실패 사유만 전달)

@@ -23,3 +23,5 @@ CONFIG_MACRO_PATH = ROOT_DIR / "config" / "macro_settings.json"
 # 로그파일 저장 경로
 LOG_DIR = ROOT_DIR / "logs"
 
+# 사용자 마지막 상태 저장 (윈도우 위치, 마지막 열었던 폴더 등)
+USER_STATE_PATH = ROOT_DIR / "config" / "user_state.ini"

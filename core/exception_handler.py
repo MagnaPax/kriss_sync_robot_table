@@ -67,50 +67,8 @@ def install_global_exception_hook():
     # Logger 인스턴스 생성 (모듈 레벨)
     _logger = get_logger(__name__)
     
-    # 원래의 예외 훅 백업
-    original_hook = sys.excepthook
-    
-    def _global_exception_hook(
-        exc_type: Type[BaseException],
-        exc_value: BaseException,
-        exc_traceback: Optional[TracebackType]
-    ):
-        """
-        실제 예외 처리 함수 (sys.excepthook에 의해 자동 호출)
-        
-        Args:
-            exc_type: 예외 타입 (예: ValueError, ZeroDivisionError)
-            exc_value: 예외 인스턴스
-            exc_traceback: 트레이스백 객체
-        """
-        # KeyboardInterrupt는 정상 종료로 간주
-        if issubclass(exc_type, KeyboardInterrupt):
-            original_hook(exc_type, exc_value, exc_traceback)
-            return
-        
-        # _logger가 초기화되었음을 보장 (Pylance 경고 해결 및 런타임 안정성)
-        assert _logger is not None, "Global exception handler's logger is not initialized."
-        
-        # 예외 정보 로깅
-        _logger.critical(
-            "🚨 처리되지 않은 예외 발생 (Unhandled Exception)",
-            exc_info=(exc_type, exc_value, exc_traceback)
-        )
-        
-        # EventBus를 통한 UI 알림 (선택적)
-        try:
-            from core.event_bus import EVENT_BUS
-            error_message = f"{exc_type.__name__}: {exc_value}"
-            EVENT_BUS.system.error.emit(error_message)
-        except ImportError:
-            # EventBus가 없으면 무시
-            pass
-        except Exception as e:
-            # EventBus 호출 실패해도 원래 예외 로깅은 완료되어야 함
-            _logger.warning(f"EventBus 알림 실패: {e}")
-        
-        # 원래의 예외 훅 호출 (프로그램 종료)
-        original_hook(exc_type, exc_value, exc_traceback)
+    # 원래의 예외 훅 백업 (사용하지 않지만 참조용으로 남길 수도 있음, 여기서는 생략하거나 주석 처리)
+    # original_hook = sys.excepthook
     
     # sys.excepthook 교체
     sys.excepthook = _global_exception_hook
@@ -167,7 +125,6 @@ def _global_exception_hook(
     if issubclass(exc_type, AppError):
         _logger.warning(f"⚠️ 처리되지 않은 비즈니스 예외: {exc_value}")
         error_title = "작업 실패"
-        log_level = "WARNING"
 
     # 2. 파이썬 시스템 에러 (IndexError, AttributeError 등)
     #    -> 이건 명백한 '버그(Bug)'임 -> Critical 로깅 필요
@@ -177,7 +134,6 @@ def _global_exception_hook(
             exc_info=(exc_type, exc_value, exc_traceback)
         )
         error_title = "시스템 오류"
-        log_level = "CRITICAL"
 
     # 3. UI 알림 (EventBus)
     try:

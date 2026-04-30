@@ -41,7 +41,6 @@ QLabel#status_label[status="connected"] {
 
 
 
-
 /* --------------------------------------------------
         스플래시 스크린 (Splash Screen) 스타일
 ------------------------------------------------------ 
@@ -91,6 +90,89 @@ QProgressBar#splash_progress::chunk {
 
 
 
+
+/* 
+----------------------------------------
+    다이얼로그 스타일 (Dialog Styles)
+---------------------------------------- 
+*/
+/* 공통 다이얼로그 프레임 */
+QDialog {
+    background-color: #2D2D2D;
+    border: 2px solid #4CAF50;
+    border-radius: 10px;
+}
+
+/* 다이얼로그 내부 라벨 */
+QDialog QLabel {
+    color: #334155;
+    font-size: 14px;
+    background-color: transparent;
+}
+
+/* 로딩 메시지 */
+QLabel#loading_label {
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    padding: 6px 10px;
+}
+
+/* ---------- 타입별 톤 (아주 은은하게) ---------- */
+
+QDialog[type="info"] {
+    border-color: #b6ccf3;
+}
+
+/* ==============================
+   Frameless Loading Dialog Card
+   ============================== */
+/* 메인 배경 (테두리 둥글게, 외곽선) */
+QWidget#loading_dialog {
+    background-color: #2D2D2D;
+    border: 2px solid #4CAF50;
+    border-radius: 10px;
+}
+
+/* 실제 카드(보이는 부분) */
+QWidget#loading_bg {
+    /* 배경색 */
+    background-color: #54585d;
+    
+    /* 테두리 */
+    border: 5px solid #3b4a5f;
+    border-radius: 12px;
+
+    /* 안쪽 라인 느낌(테두리 또렷 + 고급감) */
+    outline: 1px solid #2b3748;             /* Qt에서 outline이 먹히는 경우가 많음 */
+    outline-offset: -2px;
+}
+
+/* 텍스트: 다크 배경에 맞는 밝은 슬레이트 */
+QLabel#loading_label {
+    color: #e5e7eb;                          /* gray-200 */
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    padding: 6px 10px;
+}
+
+/* 타입별 테두리 */
+QWidget#loading_bg[type="success"] {
+    border-color: #7f8f88;
+}
+
+QWidget#loading_bg[type="warning"] {
+    border-color: #bb8c14;
+}
+
+QWidget#loading_bg[type="error"] {
+    border-color: #c02237;
+}
+
+
+
+
+
 /* 
 ----------------------------------------
             패널 스타일
@@ -99,12 +181,20 @@ QProgressBar#splash_progress::chunk {
 
 /* 왼쪽 패널 (left_panel) */
 QWidget#left_panel {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                stop:0 #ffffff, stop:1 #f8f9fa);
-    border: 1px solid #ced4da;
+    background: qlineargradient(
+        x1:0, y1:0, x2:1, y2:0,
+        stop:0 #ffffff,
+        stop:1 #f1f4f8
+    );
+    border: 1px solid #d1d7de;
     border-radius: 4px;
     padding: 8px;
     margin: 4px;
+}
+
+QWidget#left_panel:disabled {
+    background: #616161; /* 비활성화 시 회색 배경 */
+    border: 1px solid #ced4da;
 }
 
 /* 중앙 패널 (center_panel) */
@@ -112,9 +202,14 @@ QWidget#center_panel {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
                                 stop:0 #ffffff, stop:1 #f8f9fa);
     border: 1px solid #ced4da;
-    border-radius: 4px;
+    border-radius: 6px;
     padding: 8px;
     margin: 4px;
+}
+
+QWidget#center_panel:disabled {
+    background: #616161; /* 비활성화 시 회색 배경 */
+    border: 1px solid #ced4da;
 }
 
 /* 오른쪽 패널 (right_panel) */
@@ -126,7 +221,10 @@ QWidget#right_panel {
     padding: 8px;
     margin: 4px;
 }
-
+QWidget#right_panel:disabled {
+    background: #616161; /* 비활성화 시 회색 배경 */
+    border: 1px solid #ced4da;
+}
 
 
 
@@ -186,10 +284,11 @@ QPushButton#emergency_button {
     background-color: #DC3545; /* 기존 'disconnected'와 동일한 강조색 */
     color: #F0F0F0;
     font-weight: bold;
-    font-size: 14px; /* 다른 버튼보다 조금 더 크게 */
+    font-size: 16px;    /* 폰트 크기 */
+    min-height: 20px;   /* 버튼 높이 */
     border: 1px solid #b02a37;
     border-radius: 4px;
-    padding: 8px 15px; /* 다른 버튼보다 더 크게 */
+    padding: 8px 15px;
 }
 
 QPushButton#emergency_button:hover {
@@ -293,21 +392,21 @@ QLabel {
 ---------------------------------------- 
 */
 
-/* TargetPositionWidget */
+/* RobotControllerWidget */
 /* 내부 섹션 테두리 제거 */
-#target_position_widget QFrame#section_edit_macro, 
-#target_position_widget QFrame#section_coordinate, 
-#target_position_widget QFrame#section_robot_coordinate, 
-#target_position_widget QFrame#section_turtable_coordinate, 
-#target_position_widget QFrame#section_macro_buttons, 
-#target_position_widget QFrame#section_go_to, 
-#target_position_widget QFrame#section_feed_rate {
+#robot_controller_widget QFrame#section_edit_macro, 
+#robot_controller_widget QFrame#section_coordinate, 
+#robot_controller_widget QFrame#section_robot_coordinate, 
+#robot_controller_widget QFrame#section_robot_tool_coordinate, 
+#robot_controller_widget QFrame#section_macro_buttons, 
+#robot_controller_widget QFrame#section_robot_execution_buttons, 
+#robot_controller_widget QFrame#section_feed_rate {
     border: none;
     background: transparent;
 }
 
 /* 라벨 (X, Y, Z, Feed Rate 등) 스타일 강화 (가독성 확보) */
-#target_position_widget QLabel {
+#robot_controller_widget QLabel {
     font-weight: bold;
     color: #333333; /* 어두운 회색 (가독성) */
     padding-bottom: 10px; /* 그룹박스 내부 하단에 여백 추가 */
@@ -316,7 +415,7 @@ QLabel {
 }
 
 /* 입력창 (QLineEdit, QDoubleSpinBox) 스타일 */
-#target_position_widget QLineEdit {
+#robot_controller_widget QLineEdit {
     border: 1px solid #ced4da;
     border-radius: 4px;
     padding: 6px;
@@ -328,7 +427,7 @@ QLabel {
     min-height: 20px; /* 최소 높이 */
 }
 
-#target_position_widget QDoubleSpinBox {
+#robot_controller_widget QDoubleSpinBox {
     border: 1px solid #ced4da;
     border-radius: 4px;
     padding: 6px;
@@ -341,7 +440,7 @@ QLabel {
     min-height: 20px; /* 최소 높이 */
 }
 
-#target_position_widget QDoubleSpinBox:focus {
+#robot_controller_widget QDoubleSpinBox:focus {
     border: 2px solid #5D9CEC; /* 포커스 시 파란 테두리 */
 }
 
@@ -371,7 +470,7 @@ QLabel {
 
 
 /* WaypointsWidget (QTableWidget) 스타일 */
-/* 1. 그룹박스 스타일 (TargetPosition, TaskManager와 통일) */
+/* 1. 그룹박스 스타일 */
 #waypoints_groupbox {
     border: 1px solid #94a3b8;
     border-radius: 6px;
@@ -388,42 +487,165 @@ QLabel {
 }
 
 /* 2. 테이블 기본 스타일 */
-#waypoints_widget QTableWidget {
-    color: black;
-    background-color: #ffffff;
-    gridline-color: #e0e0e0;     /* 격자 색상 (연한 회색) */
+/* 컨테이너에 그라데이션 배경 적용 (두 테이블 뒤에 깔림) */
+#waypoints_container {
+    background: qlineargradient(
+        x1:1, y1:0, x2:0, y2:1,
+        stop:0 #e2e8f0, stop:1 #cbd5e1
+    );
     border: 1px solid #ced4da;
     border-radius: 4px;
-    selection-background-color: #5D9CEC; /* 선택된 행 배경색 (파란색) */
-    selection-color: #ffffff;            /* 선택된 행 글자색 */
+}
+
+#waypoints_widget QTableView {
+    color: black;
+    background-color: transparent; /* 투명하게 해서 컨테이너 배경이 보이도록 */
+    border: none; /* 테두리는 컨테이너가 담당 */
+    gridline-color: #e0e0e0;     /* 격자 색상 (연한 회색) */
+    selection-background-color: #C7DBF8; /* 현재 진행(선택) row 색깔 */
+    selection-color: #000000;            /* 검은색 글자 */
 }
 
 /* 3. 헤더 (Header) 스타일 */
 #waypoints_widget QHeaderView::section {
-    background-color: #f8f9fa;   /* 헤더 배경 (아주 연한 회색) */
+    background-color: #d1d9e6;
     color: #495057;              /* 헤더 글자색 (진한 회색) */
     padding: 1px;
-    border: 1px solid #dee2e6;
-    border-top: none;            /* 상단 테두리 제거 (깔끔하게) */
+    border: none;
+    border-right: 1px solid #dee2e6;
+    border-bottom: 1px solid #dee2e6;
     font-weight: bold;
 }
 
 /* 4. 줄무늬 (Alternating Row Colors) */
-/* QTableWidget 속성 setAlternatingRowColors(True)일 때 적용됨 */
-#waypoints_widget QTableWidget::item {
+/* QTableView 속성 setAlternatingRowColors(True)일 때 적용됨 */
+#waypoints_widget QTableView::item {
     color: #333333;
     padding: 4px; /* 셀 내부 여백 */
+    background-color: #f3f6fa;  /* 모든 행 배경색 */
+    border-bottom: 1px solid #e0e0e0; /* 행 구분선 추가 */
+}
+
+#waypoints_widget QTableView::item:alternate {
+    background-color: #f3f6fa; /* 짝수 행도 동일하게 */
+}
+
+/* 고정 테이블 스타일링 (경계면 자연스럽게) */
+#frozen_table {
+    border-right: 1px solid #d0d0d0; /* ID 컬럼 구분선 */
+}
+
+/* 
+    [Scrollbar Design for Perfect Alignment]
+    고정 테이블과 메인 테이블의 스크롤바 "높이"를 14px로 강제 통일하여
+    스크롤바 유무에 따른 행(Row) 어긋남을 방지한다.
+*/
+
+/* 1. 공통 스크롤바 스타일 (메인 테이블에 보일 디자인) */
+#waypoints_widget QScrollBar:horizontal {
+    background: #f1f3f5;
+    height: 14px; /* 높이 고정 중요 */
+    margin: 0;
+    border: none;
+    border-radius: 7px;
+}
+#waypoints_widget QScrollBar::handle:horizontal {
+    background: #c1c9d0;
+    min-width: 20px;
+    border-radius: 6px;
+    margin: 2px;
+}
+#waypoints_widget QScrollBar::handle:horizontal:hover {
+    background: #aab2bd;
+}
+#waypoints_widget QScrollBar::add-line:horizontal, 
+#waypoints_widget QScrollBar::sub-line:horizontal {
+    background: none;
+    border: none;
+    width: 0px;
+}
+#waypoints_widget QScrollBar::add-page:horizontal, 
+#waypoints_widget QScrollBar::sub-page:horizontal {
+    background: none;
+}
+
+
+/* 2. 고정 테이블 스크롤바 숨김 (Override) */
+/* 높이는 위에서 상속받아 14px로 유지되지만, 색상을 투명하게 변경 */
+#frozen_table QScrollBar:horizontal {
+    background: transparent;
+    height: 14px; /* 메인 테이블과 높이 일치 필수 (정렬 유지) */
+    border: none;
+}
+
+/* 핸들(Bar) 투명화 및 호버 효과 제거 */
+#frozen_table QScrollBar::handle:horizontal,
+#frozen_table QScrollBar::handle:horizontal:hover,
+#frozen_table QScrollBar::handle:horizontal:pressed {
+    background: transparent;
+    border: none;
+}
+
+/* 화살표 버튼 투명화 및 공간 제거 */
+#frozen_table QScrollBar::add-line:horizontal,
+#frozen_table QScrollBar::sub-line:horizontal,
+#frozen_table QScrollBar::add-line:horizontal:hover, 
+#frozen_table QScrollBar::sub-line:horizontal:hover {
+    background: transparent;
+    border: none;
+    width: 0px;
+}
+
+/* 빈 공간(Page) 투명화 */
+#frozen_table QScrollBar::add-page:horizontal, 
+#frozen_table QScrollBar::sub-page:horizontal {
+    background: transparent;
+    border: none;
+}
+
+
+#waypoints_widget QTableView::item:selected {
+    background-color: #B0C4DE; /* 선택된 행 (위의 selection-background-color와 일치) */
+    color: #000000;
 }
 
 /* 마우스 호버 시 행 스타일 */
-#waypoints_widget QTableWidget::item:hover {
-    background-color: #f0f4f8; /* 아주 연한 파란색 */
+#waypoints_widget QTableView::item:hover {
+    background-color: #e3e8f0; /* 아주 연한 회색 */
     color: #000000;            /* 호버 시 완전 검은색 */
 }
 
-/* (참고) 짝수/홀수 행 배경색은 QSS에서 alternate-background-color 속성으로 제어 */
-#waypoints_widget QTableWidget {
-    alternate-background-color: #f1f3f5; /* 연한 회색 줄무늬 */
+/* 짝수/홀수 행 배경색은 QSS에서 alternate-background-color 속성으로 제어 */
+#waypoints_widget QTableView {
+    alternate-background-color: #ffffff; /* 줄무늬 효과 제거 (흰색 통일) */
+}
+
+/* 
+    [Waypoints Result Status Colors]
+    Delegate에서 Dummy QLabel을 사용하여 이 스타일을 읽어온다.
+    usage="waypoint_result" 속성을 가진 라벨을 통해 색상을 매핑한다.
+*/
+QLabel[usage="waypoint_result"][status="processed"], 
+QLabel[usage="waypoint_result"][status="success"],
+QLabel[usage="waypoint_result"][status="completed"] {
+    background-color: #E8F5E9; /* 연한 초록색 배경 */
+    color: #2E7D32;            /* 진한 초록색 글자 */
+    font-weight: bold;
+}
+
+QLabel[usage="waypoint_result"][status="fail"],
+QLabel[usage="waypoint_result"][status="error"],
+QLabel[usage="waypoint_result"][status="failed"] {
+    background-color: #FFEBEE; /* 연한 빨간색 배경 */
+    color: #C62828;            /* 진한 빨간색 글자 */
+    font-weight: bold;
+}
+
+QLabel[usage="waypoint_result"][status="unprocessed"],
+QLabel[usage="waypoint_result"][status="wait"],
+QLabel[usage="waypoint_result"][status="pending"] {
+    background-color: #eef2f7;
+    color: #475569;
 }
 
 
@@ -478,13 +700,13 @@ QLabel {
 
 
 
-/* ServoControlWidget 전용 스타일 */
-#servo_control_widget QLabel {
+/* ServoControllerWidget 전용 스타일 */
+#servo_controller_widget QLabel {
     font-weight: bold;
     color: #333333;
 }
 
-#servo_control_widget QDoubleSpinBox {
+#servo_controller_widget QDoubleSpinBox {
     border: 1px solid #ced4da;
     border-radius: 4px;
     padding: 6px;
@@ -495,11 +717,221 @@ QLabel {
     selection-background-color: #5D9CEC;
 }
 
-#servo_control_widget QDoubleSpinBox:focus {
+#servo_controller_widget QDoubleSpinBox:focus {
     border: 2px solid #5D9CEC;
 }
 
 
 
 
+/* WaypointsWidget 스타일 */
+/* 움푹 파인(Sunken) 효과 */
+QProgressBar#main_progress_bar {
+    border: none;
+    background-color: #e6e6e6; /* 기본 배경 */
+    border-radius: 12px;       /* 둥근 캡슐 형태 */
+    text-align: center;
+    color: #333333;
+    font-weight: bold;
+    
+    /* 입체감을 위한 내부 그림자 시뮬레이션 (Neumorphism Inner Shadow) */
+    /* 상단/좌측: 어둡게, 하단/우측: 밝게 */
+    border-top: 2px solid #d1d1d1;
+    border-left: 2px solid #d1d1d1;
+    border-bottom: 2px solid #ffffff;
+    border-right: 2px solid #ffffff;
+}
+
+QProgressBar#main_progress_bar::chunk {
+    /* 진행 바 색상 */
+    background-color: qlineargradient(
+        x1:0, y1:0, x2:1, y2:0, 
+        stop:0 #E0C3FC, stop:1 #8EC5FC
+    );
+    border-radius: 10px;
+    margin: 3px; /* 트랙 안쪽에 떠 있는 느낌 */
+}
+
+/* MacroSettingsDialog 전용 스타일 */
+#macro_settings_dialog {
+    background-color: #f8f9fa;
+    border: 1px solid #ced4da;
+    border-radius: 8px;
+}
+
+#macro_settings_dialog QGroupBox {
+    background-color: #ffffff;
+    border: 1px solid #d1d7de;
+    border-radius: 6px;
+    margin-top: 15px;
+    padding-top: 10px;
+}
+
+#macro_settings_dialog QGroupBox::title {
+    color: #4A89DC;
+    font-size: 14px;
+    font-weight: bold;
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 5px;
+    left: 10px;
+}
+
+#macro_settings_dialog QLineEdit#macro_name_input {
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    padding: 5px;
+    background-color: #ffffff;
+    color: #333333;
+}
+
+#macro_settings_dialog QLineEdit#macro_name_input:focus {
+    border: 2px solid #5D9CEC;
+}
+
+#macro_settings_dialog QDoubleSpinBox[objectName^="macro_spin_"] {
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    padding: 5px;
+    background-color: #ffffff;
+    min-width: 80px;
+}
+
+#macro_settings_dialog QDoubleSpinBox[objectName^="macro_spin_"]:focus {
+    border: 2px solid #5D9CEC;
+}
+
+#macro_settings_dialog QPushButton#macro_save_btn {
+    background-color: #5D9CEC;
+    color: white;
+    font-weight: bold;
+    border-radius: 4px;
+    padding: 6px 15px;
+    min-width: 80px;
+}
+
+/* MacroSettingsDialog Button Styles */
+#macro_settings_dialog QPushButton#macro_save_btn:hover {
+    background-color: #4A89DC;
+}
+
+#macro_settings_dialog QPushButton#macro_save_btn:pressed {
+    background-color: #3b6eb0;
+}
+
+#macro_settings_dialog QPushButton#macro_save_btn:disabled {
+    background-color: #e0e0e0;
+    color: #999999;
+}
+
+
+
+/* Turntable Gauge Zoom Scrollbar (Subtle Style) */
+QScrollBar#zoom_scrollbar:vertical {
+    background: transparent; /* 배경 투명 (패널 배경과 조화) */
+    width: 6px;              /* 아주 얇게 설정 */
+    margin: 0px 0px 0px 0px;
+}
+QScrollBar#zoom_scrollbar::handle:vertical {
+    background: #d4d4d4;     /* 은은한 회색 핸들 */
+    min-height: 20px;
+    border-radius: 3px;      /* 둥근 모서리 */
+}
+QScrollBar#zoom_scrollbar::handle:vertical:hover {
+    background: #b0b0b0;     /* 호버 시 약간 진하게 */
+}
+/* 화살표 버튼 제거 (심플하게) */
+QScrollBar#zoom_scrollbar::add-line:vertical,
+QScrollBar#zoom_scrollbar::sub-line:vertical {
+    height: 0px;
+    background: none;
+    border: none;
+}
+/* 빈 공간 투명 */
+QScrollBar#zoom_scrollbar::add-page:vertical,
+QScrollBar#zoom_scrollbar::sub-page:vertical {
+    background: none;
+}
+
+/* Turntable Widget Styling */
+#turntable_gauge_painter {
+    /* 턴테이블 */
+    qproperty-circleColor: #7e7e7e;     /* 테두리 */
+    qproperty-circleBgColor: #939eb3;   /* 배경 */
+    qproperty-scaleLineColor: #7f8c8d;  /* 눈금 */
+    qproperty-scaleTextColor: #aab2bd;  /* 텍스트 */
+    qproperty-arrowColor: #5f7fa6;      /* 화살표 */
+    /* 툴의 위치 (Tool Position) */
+    qproperty-toolPositionColor: #FF6B6B; /* 툴: 파스텔 레드 */
+    /* Material Cut Trajectory (실제 소재 가공 궤적) 시각화 색상 */
+    qproperty-materialCutTrajectoryColor: #f2c94c; /* 궤적 */
+    qproperty-materialCutCompletedTrajectoryColor: #4CAF50; /* 완료된 궤적: 녹색 */
+    qproperty-materialCutProcessingTrajectoryColor: #4A89DC; /* 진행 중인 궤적: 파란색 */
+    qproperty-materialCutTrajectoryBorderColor: #FFFFFF; /* 테두리: 흰색으로 선명하게 */
+}
+
+#turntable_readout {
+    font-size: 18px; 
+    font-weight: bold; 
+    margin-top: 5px;
+}
+
+/* Turntable Gauge Popup Window */
+QWidget#turntable_gauge_popup {
+    background-color: #ffffff;
+}
+
+
+
+
+
+
+
+
+
+/* 
+---------------------------------------------------------
+        메시지 박스 (QMessageBox) 공통 스타일
+        (QDialog 다음에 선언되어야 스타일이 적용된다)
+---------------------------------------------------------
+*/
+QMessageBox {
+    background-color: #2D2D2D;
+    border: 2px solid #4CAF50; /* 기본 테두리 (녹색 - Info 느낌) */
+    border-radius: 10px;
+}
+
+/* 중요: QDialog 보다 뒤에 와야 함 */
+QMessageBox QLabel {
+    color: #F0F0F0; /* 글자 색깔 */
+    font-size: 14px;
+    background-color: transparent;
+}
+
+/* 메시지 박스 내 버튼 공통 스타일 */
+QMessageBox QPushButton {
+    background-color: #54585d;
+    color: white;
+    border: 1px solid #4a4e53;
+    border-radius: 4px;
+    min-width: 60px;
+    padding: 6px 12px;
+}
+
+QMessageBox QPushButton:hover {
+    background-color: #6c757d;
+}
+
+QMessageBox QPushButton:pressed {
+    background-color: #343a40;
+}
+
+/* 
+---------------------------------------------------
+    작업 에러 발생 시 (ID: error_message_box)
+---------------------------------------------------
+*/
+QMessageBox#error_message_box {
+    border: 2px solid #DC3545; /* 에러 강조형 테두리 (빨강) */
+}
 

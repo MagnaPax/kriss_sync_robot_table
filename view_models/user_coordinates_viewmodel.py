@@ -16,10 +16,12 @@ if TYPE_CHECKING:
 class UserCoordinatesViewModel(QObject):
     
     # 로컬 시그널
-    user_robot_pose_changed = pyqtSignal(FANUCPose)      # 로봇의 위치 - 사용자 좌표계
-    user_tool_revolution_changed = pyqtSignal(ServoPose) # 툴의 회전 상태 - 사용자 좌표계
-    user_tool_rotation_changed = pyqtSignal(ServoPose)   # 툴의 자전 상태 - 사용자 좌표계
-    user_turntable_pose_changed = pyqtSignal(ServoPose)  # 턴테이블의 상태 - 사용자 좌표계
+    user_robot_pose_changed = pyqtSignal(FANUCPose)         # 로봇의 위치       - 사용자 좌표계
+    user_tool_revolution_changed = pyqtSignal(ServoPose)    # 툴의 회전 상태    - 사용자 좌표계
+    user_tool_rotation_changed = pyqtSignal(ServoPose)      # 툴의 자전 상태    - 사용자 좌표계
+    user_turntable_pose_changed = pyqtSignal(ServoPose)     # 턴테이블의 상태   - 사용자 좌표계
+    origin_buttons_disabled = pyqtSignal(str, bool)         # 위젯 활성화/비활성화
+
 
 
     def __init__(self, plc_service: "PLCService"):
@@ -27,27 +29,50 @@ class UserCoordinatesViewModel(QObject):
         self._log_prefix = f"[{self.__class__.__name__}]"
         self._plc_service = plc_service
 
-        # [1] 값 저장 변수 생성 (Raw: 실제 위치, Offset: 사용자가 잡은 0점)
+        # 값 저장 변수 생성 (Raw: 실제 위치, Offset: 사용자가 잡은 0점)
         self._raw_robot_pose = FANUCPose()
         self._robot_offset = FANUCPose()
+
+        # [Getter 지원] 최근 값 캐싱 (외부 접근용)
+        self.cashed_robot_user_position: FANUCPose = FANUCPose()
 
         self._raw_servo_states: Dict[ServoAxis, ServoPose] = {}
         self._servo_offsets: Dict[ServoAxis, ServoPose] = {
             axis: ServoPose(0.0, 0.0) for axis in ServoAxis
         }
 
-        # [2] EVENT_BUS 시그널 연결
+        # EVENT_BUS 시그널 연결
+        self._bind_signals()
+
+
+    def _bind_signals(self):
         EVENT_BUS.control.robot_current_pose.connect(self._on_robot_pose_received)
         EVENT_BUS.control.servo_current_motion.connect(self._on_servo_data_received)
+        # '시퀀스 실행중' 방송 청취 -> 내 로컬 시그널로 바로 재방송
+        EVENT_BUS.data.sequence_in_progress.connect(self.origin_buttons_disabled.emit)
 
 
-    # [3] 데이터 저장 및 상대 좌표 계산 로직
+
+    # ===============================================
+    # 시그널 슬롯 [물리적 시그널 수신]
+    # ===============================================
     @pyqtSlot(object)
     def _on_robot_pose_received(self, pose: FANUCPose):
+        self._handle_make_robot_user_coordinates(pose)
+
+    @pyqtSlot(dict)
+    def _on_servo_data_received(self, servo_states: Dict[ServoAxis, ServoPose]):
+        self._handle_make_servo_user_coordinates(servo_states)
+
+
+    # ===============================================
+    # 핸들러 [논리적 흐름 담당]
+    # ===============================================
+    def _handle_make_robot_user_coordinates(self, pose: FANUCPose):
         """실제 로봇 좌표를 받아서 오프셋을 뺀 '사용자 좌표'를 계산하여 방송"""
         self._raw_robot_pose = pose
         
-        # 상대 좌표 계산 (Raw - Offset)
+        # 사용자 좌표 계산 (현재 World 좌표 - 기준점)
         user_pose = FANUCPose(
             x=pose.x - self._robot_offset.x,
             y=pose.y - self._robot_offset.y,
@@ -56,10 +81,10 @@ class UserCoordinatesViewModel(QObject):
             p=pose.p - self._robot_offset.p,
             r=pose.r - self._robot_offset.r
         )
+        self.cashed_robot_user_position = user_pose
         self.user_robot_pose_changed.emit(user_pose)
 
-    @pyqtSlot(dict)
-    def _on_servo_data_received(self, servo_states: Dict[ServoAxis, ServoPose]):
+    def _handle_make_servo_user_coordinates(self, servo_states: Dict[ServoAxis, ServoPose]):
         """실제 서보 상태를 받아서 오프셋을 뺀 '사용자 좌표'를 계산하여 방송"""
         self._raw_servo_states = servo_states
 
@@ -86,28 +111,35 @@ class UserCoordinatesViewModel(QObject):
             self.user_turntable_pose_changed.emit(ServoPose(raw.angle - off.angle, raw.velocity - off.velocity))
 
 
-    # ================================
-    # [3.1 ~ 3.3] 원점 설정 (Origin) 로직
-    # ================================
+    # ===============================================
+    # View -> ViewModel 호출 메서드 (Commands)
+    # ===============================================
     def origin_robot_pose(self):
         """현재 로봇 위치를 0으로 설정 (오프셋 업데이트)"""
-        self._robot_offset = self._raw_robot_pose
-        EVENT_BUS.log.message.emit(f"{self._log_prefix} 로봇 사용자 좌표계 원점 설정 완료", "INFO")
+        self._robot_offset = self._raw_robot_pose   # 현재 World 좌표를 기준점으로 설정
+        # 입력 필드 초기화 요청 방송
+        EVENT_BUS.control.clear_user_inputs.emit("robot")
+        EVENT_BUS.log.message.emit(f"{self._log_prefix} 사용자 좌표계(로봇) 원점 설정 완료", "INFO")
 
-    def origin_servo_pose(self):
+
+    def origin_turntable_pose(self):
         """현재 턴테이블(Axis 3) 위치를 0으로 설정"""
         if ServoAxis.TURNTABLE in self._raw_servo_states:
             self._servo_offsets[ServoAxis.TURNTABLE] = self._raw_servo_states[ServoAxis.TURNTABLE]
-            EVENT_BUS.log.message.emit(f"{self._log_prefix} 턴테이블(Axis 3) 사용자 좌표계 원점 설정 완료", "INFO")
+            # 입력 필드 초기화 요청 방송
+            EVENT_BUS.control.clear_user_inputs.emit("servo")
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 사용자 좌표계(턴테이블) 원점 설정 완료", "INFO")
 
     def origin_all_pose(self):
         """모든 좌표(로봇 + 모든 서보)를 0으로 설정"""
         # 로봇 초기화
         self.origin_robot_pose()
         
-        # 모든 서보 초기화
+        # 모든 서보(공전툴, 자전툴, 턴테이블) 초기화
         for axis in ServoAxis:
             if axis in self._raw_servo_states:
                 self._servo_offsets[axis] = self._raw_servo_states[axis]
         
-        EVENT_BUS.log.message.emit(f"{self._log_prefix} 모든 장치 사용자 좌표계 원점 설정 완료", "INFO")
+        # 입력 필드 초기화 요청 방송
+        EVENT_BUS.control.clear_user_inputs.emit("all")
+        EVENT_BUS.log.message.emit(f"{self._log_prefix} 사용자 좌표계(로봇, 턴테이블) 원점 설정 완료", "INFO")
