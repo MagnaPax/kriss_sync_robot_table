@@ -123,8 +123,8 @@ class FanucSignal(str, Enum):
     HOME = "MAIN.Robot1._UI1.UI07_Home"
 
     # TP 프로그램 시작 - ON(Rising Edge)이 되면 FANUC 로봇이 동작하는 FANUC TP Program을 실행
-    RSR1 = "MAIN.Robot1._UI1.UI09_RSR1"
-    RSR2 = "MAIN.Robot1._UI1.UI10_RSR2"
+    RSR1 = "MAIN.Robot1._UI1.UI09_RSR1"     # 로봇-서보 동시 동작(시퀀스)용
+    RSR2 = "MAIN.Robot1._UI1.UI10_RSR2"     # 로봇 단독 동작용
     RSR3 = "MAIN.Robot1._UI1.UI11_RSR3"
     RSR4 = "MAIN.Robot1._UI1.UI12_RSR4"
     RSR5 = "MAIN.Robot1._UI1.UI13_RSR5"
@@ -175,10 +175,6 @@ class FanucSignal(str, Enum):
     # ==================
     #
     # ==================
-
-    # TP 프로그램 시작 - ON(Rising Edge)이 되면 FANUC 로봇이 동작하는 TP Program을 실행
-    FR_ROBOT_START_VAR  = 'MAIN.Robot1._UI1.UI09_RSR1'  # TP 프로그램 시작 - 시퀀스용
-    FR_ROBOT_START_VAR2 = 'MAIN.Robot1._UI1.UI10_RSR2'  # TP 프로그램 시작 - 단독 동작용
 
     # [정지 및 재시작 신호]
     FR_ROBOT_HOLD_VAR   = 'MAIN.Robot1._UI1.UI02_Hold'  # 기본 True,  일시정지 -> False
