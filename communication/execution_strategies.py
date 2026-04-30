@@ -245,99 +245,166 @@ class IntegratedExecutor(BaseExecutor):
         [메인 실행 로직]
         로봇과 서보를 지휘하는 통합 실행부.
         """
-
-
-
-        # TODO:  QRunnable과 QThreadPool 사용해야 되지 않을까? 제미나이에게 물어보기
-
-
-
-
-
-
         EVENT_BUS.log.message.emit(f"{self._log_prefix} CSV 통합 동기화 제어 시작 (데이터 {len(sequence_data)}건)", "INFO")
         EVENT_BUS.data.sequence_data_loaded.emit(sequence_data)
 
         robot = self.robot
         servo = self.servo
 
-        total_data = FANUCPoseModel.FR_pre_calculate_all(sequence_data)
         total_count = len(sequence_data)
-
-        EVENT_BUS.log.message.emit(f"{self._log_prefix} 전처리 완료된 전체 데이터 갯수: {len(total_data)}", "DEBUG")
-
-        current_idx: int = 0
+        if total_count == 0:
+            return True, f"{self._log_prefix} 실행할 데이터가 없습니다."
 
         try:
-            # [로봇]
-            # 1. 초기 버퍼 (PRLINE 0, Chunk 1, Chunk 2) 전송
-            robot.FR_send_to_plc_first(robot.FR_prepare_single_buffers(total_data))
-            EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] 단일 버퍼 (PRLINE 0) 전송 완료", "DEBUG")
+            import threading
+            import concurrent.futures
 
-            current_idx += 1
+            # 동기화를 위한 이벤트 객체들
+            robot_ready_event = threading.Event()
+            servo_ready_event = threading.Event()
+            start_event = threading.Event()
 
-            if current_idx < total_count:
-                buffers = robot.FR_prepare_chunk_buffers(total_data, current_idx, SETTINGS.robot.robot_buffer_size)
-                robot.FR_send_to_plc_group(SETTINGS.robot.robot_buffer_size, 1, buffers)
-                robot.FR_send_to_plc_info(1, buffers)
-                current_idx += SETTINGS.robot.robot_buffer_size
-                EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] Chunk 1 전송 완료", "DEBUG")
+            def robot_task():
+                EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] 스레드 시작", "DEBUG")
+                total_data = FANUCPoseModel.FR_pre_calculate_all(sequence_data)
+                EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] 데이터 가공 완료: 총 {len(total_data)}행", "DEBUG")
+                
+                # 1. 초기 버퍼 (PRLINE 0, Chunk 1, Chunk 2) 전송
+                robot.FR_send_to_plc_first(robot.FR_prepare_single_buffers(total_data))
+                EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] 단일 버퍼 (PRLINE 0) 전송 완료", "DEBUG")
 
-            if current_idx < total_count:
-                buffers = robot.FR_prepare_chunk_buffers(total_data, current_idx, SETTINGS.robot.robot_buffer_size)
-                robot.FR_send_to_plc_group(SETTINGS.robot.robot_buffer_size, 2, buffers)
-                robot.FR_send_to_plc_info(2, buffers)
-                current_idx += SETTINGS.robot.robot_buffer_size
-                EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] Chunk 2 전송 완료", "DEBUG")
+                current_idx = 1
 
-            # 2. RSR 동작 후, DO46 신호에 맞춰 루프 구동
-            while current_idx < total_count and not self._is_interrupted():
-                # 어댑터에게 "루프 돌 때마다 이 함수를 실행해서 중단할지 말지 판단해" 라고 넘겨줌
-                robot.FR_wait_for_robot_signal(check_interrupt=self._is_interrupted)
-                if self._is_interrupted(): break
+                if current_idx < total_count:
+                    buffers = robot.FR_prepare_chunk_buffers(total_data, current_idx, SETTINGS.robot.robot_buffer_size)
+                    robot.FR_send_to_plc_group(SETTINGS.robot.robot_buffer_size, 1, buffers)
+                    robot.FR_send_to_plc_info(1, buffers)
+                    current_idx += SETTINGS.robot.robot_buffer_size
+                    EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] Chunk 1 전송 완료", "DEBUG")
 
-                buffers = self.FR_prepare_chunk_buffers(total_data, current_idx, SETTINGS.robot.robot_buffer_size)
-                group_num = 1 if use_group_1 else 2
+                if current_idx < total_count:
+                    buffers = robot.FR_prepare_chunk_buffers(total_data, current_idx, SETTINGS.robot.robot_buffer_size)
+                    robot.FR_send_to_plc_group(SETTINGS.robot.robot_buffer_size, 2, buffers)
+                    robot.FR_send_to_plc_info(2, buffers)
+                    current_idx += SETTINGS.robot.robot_buffer_size
+                    EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] Chunk 2 전송 완료", "DEBUG")
 
-                robot.FR_send_to_plc_group(SETTINGS.robot.robot_buffer_size, group_num, buffers)
-                robot.FR_send_to_plc_info(group_num, buffers)
+                # 로봇 초기 데이터 장전 완료 알림
+                robot_ready_event.set()
 
-                use_group_1 = not use_group_1
-                current_idx += SETTINGS.robot.robot_buffer_size
+                # 메인 스레드의 트리거 및 시작 신호 대기
+                if not self._wait_event_with_safety(start_event, timeout=10.0):
+                    if self._is_interrupted():
+                        raise InterruptedError("작업 중단됨")
+                    else:
+                        raise TimeoutError("로봇: 시작 신호 대기 시간 초과")
 
-            EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] 모든 데이터 처리 완료.", "INFO")
+                EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] RSR 동작 후 데이터 송신 루프 시작", "DEBUG")
+                use_group_1 = True
+
+                # 2. RSR 동작 후, DO46 신호에 맞춰 루프 구동
+                while current_idx < total_count and not self._is_interrupted():
+                    robot.FR_wait_for_robot_signal(check_interrupt=self._is_interrupted)
+                    if self._is_interrupted(): break
+
+                    buffers = robot.FR_prepare_chunk_buffers(total_data, current_idx, SETTINGS.robot.robot_buffer_size)
+                    group_num = 1 if use_group_1 else 2
+
+                    robot.FR_send_to_plc_group(SETTINGS.robot.robot_buffer_size, group_num, buffers)
+                    robot.FR_send_to_plc_info(group_num, buffers)
+
+                    use_group_1 = not use_group_1
+                    current_idx += SETTINGS.robot.robot_buffer_size
+
+                EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] 모든 데이터 처리 완료.", "INFO")
+
+            def servo_task():
+                EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] 스레드 시작", "DEBUG")
+                all_data = servo.SM_load_csv_data(sequence_data)
+                EVENT_BUS.log.message.emit(f"{self._log_prefix} [Motor] 시퀀스 데이터 변환 완료. 총 {len(all_data)}건", "DEBUG")
+
+                total_len = len(all_data)
+                if total_len == 0:
+                    servo_ready_event.set()
+                    return
+
+                current_ptr = 0
+
+                # 1. 초기 1000개 데이터 로드
+                chunk1 = all_data[0:500]
+                servo.SM_send_buffer_chunk(1, chunk1)
+                ch1 = len(chunk1)
+                current_ptr += ch1
+                EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] Chunk 1 전송 완료", "DEBUG")
+
+                if total_len > 500:
+                    chunk2 = all_data[500:1000]
+                    servo.SM_send_buffer_chunk(501, chunk2)
+                    ch2 = len(chunk2)
+                    current_ptr += ch2
+                    EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] Chunk 2 전송 완료", "DEBUG")                
+                else:
+                    current_ptr = total_len
+
+                # 서보 초기 데이터 장전 완료 알림
+                servo_ready_event.set()
+
+                # 메인 스레드의 트리거 및 시작 신호 대기
+                if not self._wait_event_with_safety(start_event, timeout=10.0):
+                    if self._is_interrupted():
+                        raise InterruptedError("작업 중단됨")
+                    else:
+                        raise TimeoutError("서보: 시작 신호 대기 시간 초과")
+
+                EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] 버퍼 업데이트 감시 루프 시작", "DEBUG")
+                servo.watch_buffer_update(all_data, current_ptr, check_interrupt=self._is_interrupted)
+                EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] 모든 데이터 처리 완료.", "INFO")
 
 
-            # [턴테이블]
-            all_data = servo.SM_load_csv_data(sequence_data)
-            EVENT_BUS.log.message.emit(f"{self._log_prefix} [Motor] 시퀀스 데이터를 모터가 처리할 수 있는 형태로 변환 완료.", "DEBUG")
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+                """
+                두 개의 작업(로봇, 서보)을 동시에 스레드로 던짐
+                    아래 두 개의 함수를 동시에 실행시킨 뒤 둘 다 끝날 때까지 기다려.
+                    하나라도 죽으면 즉시 보고해. (동기적 대기, Fork-Join 패턴)
 
-            total_len = len(all_data)
-            if total_len == 0: return
+                with 문을 사용하여 블록 종료 시 자동으로 shutdown()이 호출됨
+                """
 
-            current_ptr = 0
+                f_robot = pool.submit(robot_task)
+                f_servo = pool.submit(servo_task)
+                
+                # 1. 두 스레드가 초기 준비를 마칠 때까지 대기
+                # (에러 감지 및 중단 신호 감시를 위해 폴링 방식 사용)
+                while not (robot_ready_event.is_set() and servo_ready_event.is_set()):
+                    if self._is_interrupted():
+                        raise InterruptedError("사용자에 의해 중단되었습니다.")
+                    if f_robot.done() and f_robot.exception():
+                        raise f_robot.exception()
+                    if f_servo.done() and f_servo.exception():
+                        raise f_servo.exception()
+                    time.sleep(0.1)
+                
+                EVENT_BUS.log.message.emit(f"{self._log_prefix} 로봇과 서보 초기 데이터 보내기 완료. 동기화 트리거 준비됨", "INFO")
 
-            # 1. 초기 1000개 데이터 로드
-            chunk1 = all_data[0:500]
-            servo.SM_send_buffer_chunk(1, chunk1)
-            ch1 = len(chunk1)
-            current_ptr += ch1
-            EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] Chunk 1 전송 완료", "DEBUG")
+                # 2. 메인 스레드에서 시작 신호(Trigger) 발송
+                wait_time_to_change_signal: float = 0.1
+                rsr_signal = FanucSignal.RSR1.path
+                robot.trigger_move_signal(rsr_signal, wait_time_to_change_signal)
 
-            if total_len > 500:
-                chunk2 = all_data[500:1000]
-                servo.SM_send_buffer_chunk(501, chunk2)
-                ch2 = len(chunk2)
-                current_ptr += ch2
-                EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] Chunk 2 전송 완료", "DEBUG")                
-            else:
-                current_ptr = total_len
+                EVENT_BUS.log.message.emit(f"{self._log_prefix} >> '{rsr_signal}' 신호 Trigger 완료 🚀", "INFO")
 
+                # 3. 스레드들에게 루프 진입 허가
+                start_event.set()
 
+                # 4. 스레드들이 모두 완료될 때까지 대기
+                concurrent.futures.wait(
+                    [f_robot, f_servo], 
+                    return_when=concurrent.futures.FIRST_EXCEPTION
+                )
 
-
-
-
+                # 내부에서 예외가 발생했는지 확인 후 다시 던지기
+                if f_robot.exception(): raise f_robot.exception()
+                if f_servo.exception(): raise f_servo.exception()
 
             return True, f"{self._log_prefix} (로봇-모터) 통합 제어 완료"
         except InterruptedError:
