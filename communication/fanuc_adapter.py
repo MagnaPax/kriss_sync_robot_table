@@ -346,23 +346,25 @@ class FanucAdapter:
             serialized[(2 * buf_size):(3 * buf_size)]
         ]
 
-    def FR_wait_for_robot_signal(self, var_name):
+    def FR_wait_for_robot_signal(self, check_interrupt: Callable[[], bool] = lambda: False, var_name: str = FanucSignal.FR_ROBOT_SIGNAL_VAR.path):
         """
         FR_ROBOT_SIGNAL_VAR 신호 감지
 
         Args:
+            check_interrupt: 스레드 중단 여부를 확인하는 콜백 함수
             var_name: FANUC TP 프로그램 실행 신호 변수 이름
         """
         plc = self._plc
 
         # Rising Edge 감지
-        while self.is_running:
+        while not check_interrupt():
+            # 전달받은 함수(check_interrupt)를 실행해서 True(중단 요청 됨)가 나오면 루프 탈출
             try:
                 if not plc.read_by_name(var_name, pyads.PLCTYPE_BOOL): break
             except: pass
             time.sleep(0.1)
 
-        while self.is_running:
+        while not check_interrupt():
             try:
                 if plc.read_by_name(var_name, pyads.PLCTYPE_BOOL):
                     print(" >> [Robot] DO46 신호 감지. 버퍼 전송 시작")

@@ -291,9 +291,10 @@ class IntegratedExecutor(BaseExecutor):
                 EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] Chunk 2 전송 완료", "DEBUG")
 
             # 2. RSR 동작 후, DO46 신호에 맞춰 루프 구동
-            while current_idx < total_count and self.is_running:
-                robot.FR_wait_for_robot_signal()
-                if not self.is_running: break
+            while current_idx < total_count and not self._is_interrupted():
+                # 어댑터에게 "루프 돌 때마다 이 함수를 실행해서 중단할지 말지 판단해" 라고 넘겨줌
+                robot.FR_wait_for_robot_signal(check_interrupt=self._is_interrupted)
+                if self._is_interrupted(): break
 
                 buffers = self.FR_prepare_chunk_buffers(total_data, current_idx, SETTINGS.robot.robot_buffer_size)
                 group_num = 1 if use_group_1 else 2
@@ -328,7 +329,7 @@ class IntegratedExecutor(BaseExecutor):
                 servo.SM_send_buffer_chunk(501, chunk2)
                 ch2 = len(chunk2)
                 current_ptr += ch2
-                EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] Chunk 2 전송 완료", "DEBUG")
+                EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] Chunk 2 전송 완료", "DEBUG")                
             else:
                 current_ptr = total_len
 
