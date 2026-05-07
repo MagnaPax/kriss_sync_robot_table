@@ -127,11 +127,12 @@ class FanucOnlyExecutor(BaseExecutor):
         # 목적지 데이터 전송(앱->PLC)
         try:
             robot.send_target_data_to_plc_buffer(sequence_data, FanucSignal.FR_BUFFER_FOR_MANUAL_MOVE.path)
-            return True, f"{self._log_prefix} 로봇 목적지 전송 완료"
         except InterruptedError:
             return False, f"{self._log_prefix} 사용자 요청에 의한 작업 중단."
         except Exception as e:
             return False, f"{self._log_prefix} 실행 중 오류: {e}"
+        else:
+            return True, f"{self._log_prefix} 로봇 목적지 전송 완료"
 
         # 로봇 실행 신호 전송
         try:
@@ -141,9 +142,10 @@ class FanucOnlyExecutor(BaseExecutor):
             wait_time_to_change_signal: float = 1.0
             rsr_signal: str = FanucSignal.FR_ROBOT_START_VAR2.path
             robot.trigger_move_signal(rsr_signal, wait_time_to_change_signal)
-            return True, f"{self._log_prefix} 로봇 trigger 신호 전송 완료"
         except Exception as e:
             return False, f"{self._log_prefix} 실행 중 오류: {e}"
+        else:
+            return True, f"{self._log_prefix} 로봇 trigger 신호 전송 완료"
 
 
 
@@ -188,22 +190,24 @@ class ServoOnlyExecutor(BaseExecutor):
         try:
             # 한 번의 턴테이블 동작만 수행하기 때문에 sequence_data[0]만 보낸다
             adapter.send_tt_target_data(sequence_data[0])
-            return True, f"{self._log_prefix} 사용자가 입력한 턴테이블 이동 목표 데이터 전송 완료"
         except InterruptedError:
             return False, f"{self._log_prefix} TT 데이터 전송 중 작업 중단됨."
         except Exception as e:
             return False, f"{self._log_prefix} TT 데이터 전송 중 오류: {e}"
+        else:
+            return True, f"{self._log_prefix} 사용자가 입력한 턴테이블 이동 목표 데이터 전송 완료"
 
         try:
             if self._is_interrupted():
                 return False, f"{self._log_prefix} 사용자에 의한 작업 중단"
 
             adapter.trigger_tt_manual_move()
-            return True, f"{self._log_prefix} 사용자가 입력한 턴테이블 trigger 신호 전송 완료"
         except InterruptedError:
             return False, f"{self._log_prefix} TT trigger 신호 전송 중 작업 중단됨."
         except Exception as e:
             return False, f"{self._log_prefix} TT trigger 신호 전송 중 오류: {e}"
+        else:
+            return True, f"{self._log_prefix} 사용자가 입력한 턴테이블 trigger 신호 전송 완료"
 
     def _is_interrupted(self) -> bool:
         """누가 "그만해!"(정지) 라고 했는지 확인함."""
@@ -404,11 +408,12 @@ class IntegratedExecutor(BaseExecutor):
                 if f_robot.exception(): raise f_robot.exception()
                 if f_servo.exception(): raise f_servo.exception()
 
-            return True, f"{self._log_prefix} (로봇-모터) 통합 제어 완료"
         except InterruptedError:
             return False, f"{self._log_prefix} (로봇-모터) 통합 제어 중 사용자에 의해 중단"
         except Exception as e:
             return False, f"{self._log_prefix} (로봇-모터) 통합 제어 중 오류: {e}"
+        else:
+            return True, f"{self._log_prefix} (로봇-모터) 통합 제어 완료"
 
 
 
