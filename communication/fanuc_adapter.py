@@ -225,42 +225,6 @@ class FanucAdapter:
             serialized[FanucSignal.BUFFER_SIZE*2:FanucSignal.BUFFER_SIZE*3]
         ]
 
-    def send_to_plc_group(self, group_num: int, buffers: list[list[float]]):
-        """[PLC 전송] 3개의 버퍼 데이터를 PLC의 지정된 그룹(1 or 2)에 쓴다."""
-        plc = self._plc
-        
-        # 1. 버퍼 데이터 쓰기
-        # MAIN.send_buffer{group_num}_{buffer_index} (1~3)
-        prefix = f'MAIN.send_buffer{group_num}_'
-        plc.write_list_by_name({
-            f'{prefix}1': buffers[0],
-            f'{prefix}2': buffers[1],
-            f'{prefix}3': buffers[2]
-        })
-
-        # 2. 버퍼 ID 및 Attribute 설정 (Loop)
-        start_idx = 0 if group_num == 1 else 3
-
-        nInstance = (buf_size << 8) | 0x01
-
-        # PLC의 배열에 데이터 전송 및 Send 실행
-        for i in range(start_idx, start_idx + 3):
-            buf_id, start_pt = FanucSignal.BUFFER_MAPPING.value[i] if hasattr(FanucSignal.BUFFER_MAPPING, 'value') else FanucSignal.BUFFER_MAPPING[i]
-
-            plc.write_list_by_name({
-                FanucSignal.SERVICE_CODE.path : 0x33,
-                FanucSignal.CLASS.path        : 0x6C,
-                FanucSignal.INSTANCE.path     : nInstance,
-                FanucSignal.ATTRIBUTE.path    : start_pt,
-                FanucSignal.BUFFER_ID.path    : buf_id
-            })
-            
-            # Execute Pulse
-            plc.write_by_name(FanucSignal.EXECUTE.path, True, pyads.PLCTYPE_BOOL)
-            time.sleep(0.35)
-            plc.write_by_name(FanucSignal.EXECUTE.path, False, pyads.PLCTYPE_BOOL)
-            time.sleep(0.35)
-
     def send_to_plc_info(self, group_num: int, buffers:list[list[float]]):
         plc = self._plc
 
