@@ -21,6 +21,7 @@ class PoseMonitorWorker(QObject):
         # [최적화 1] 이전 데이터를 저장할 변수 (캐시)
         self._last_robot_pose: FANUCPose | None = None
         self._last_servo_states: Dict[ServoAxis, ServoPose] | None = None
+        self._last_robot_busy: bool | None = None
         
         # [최적화 2] 변화 감지 임계값 (이보다 작게 변하면 무시)
         self.ROBOT_THRESHOLD = 0.01  # 0.01mm (또는 deg) 이상 변해야 전송
@@ -61,6 +62,13 @@ class PoseMonitorWorker(QObject):
 
     def _check_robot_optimized(self):
         try:
+            # 1. 로봇 Busy 상태 체크 (좌표 변화와 상관없이 매 루프 체크)
+            current_busy = self.commander.robot.read_busy_signal()
+            if current_busy != self._last_robot_busy:
+                EVENT_BUS.control.robot_busy_status_changed.emit({'is_robot_busy': current_busy})
+                self._last_robot_busy = current_busy
+
+            # 2. 로봇 좌표 읽기
             current_pose = self.commander.robot.read_current_world_pose()
             
             # [핵심 로직] 이전 값과 비교해서 변화가 없으면 리턴 (Emit 안함)
