@@ -132,7 +132,7 @@ class FanucOnlyExecutor(BaseExecutor):
         except Exception as e:
             return False, f"{self._log_prefix} 실행 중 오류: {e}"
         else:
-            return True, f"{self._log_prefix} 로봇 목적지 전송 완료"
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 로봇 목적지 전송 완료", "INFO")
 
         # 로봇 실행 신호 전송
         try:
@@ -140,7 +140,7 @@ class FanucOnlyExecutor(BaseExecutor):
                 return False, f"{self._log_prefix} 사용자에 의한 작업 중단"
 
             wait_time_to_change_signal: float = 1.0
-            rsr_signal: str = FanucSignal.FR_ROBOT_START_VAR2.path
+            rsr_signal: str = FanucSignal.RSR2.path
             robot.trigger_move_signal(rsr_signal, wait_time_to_change_signal)
         except Exception as e:
             return False, f"{self._log_prefix} 실행 중 오류: {e}"
@@ -195,7 +195,7 @@ class ServoOnlyExecutor(BaseExecutor):
         except Exception as e:
             return False, f"{self._log_prefix} TT 데이터 전송 중 오류: {e}"
         else:
-            return True, f"{self._log_prefix} 사용자가 입력한 턴테이블 이동 목표 데이터 전송 완료"
+            EVENT_BUS.log.message.emit(f"{self._log_prefix} 턴테이블 이동 목표 데이터 전송 완료", "INFO")
 
         try:
             if self._is_interrupted():
