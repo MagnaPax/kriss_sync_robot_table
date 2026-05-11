@@ -72,7 +72,7 @@ class RobotControllerWidget(BaseWidget):
         if self.vm is None: return # type: ignore
 
         # VM의 로컬 시그널 연결
-        self.vm.robot_moving_status_changed.connect(self.safe_update_data)
+        self.vm.robot_busy_status_changed.connect(self.safe_update_data)
         self.vm.macros_loaded.connect(self._on_macro_data_loaded)
         self.vm.robot_poses_clear.connect(self.clear_widget)
         self.vm.robot_poses_changed.connect(self.safe_update_data)
@@ -443,14 +443,14 @@ class RobotControllerWidget(BaseWidget):
             # 1. 상태 플래그 확인
             is_busy = False
             
-            if 'is_robot_moving' in data:
-                is_busy = bool(data['is_robot_moving'])
+            if 'is_robot_busy' in data:
+                is_busy = bool(data['is_robot_busy'])
             elif 'is_sequence_in_progress' in data:
                 is_busy = bool(data['is_sequence_in_progress'])
 
             EVENT_BUS.log.message.emit(f"{self.log_prefix} 상태 업데이트 data: {data}, is_busy: {is_busy}", "DEBUG")
 
-            if 'is_robot_moving' in data or 'is_sequence_in_progress' in data:
+            if 'is_robot_busy' in data or 'is_sequence_in_progress' in data:
 
                 # 버튼들 상태 제어
                 # 매크로 버튼들
