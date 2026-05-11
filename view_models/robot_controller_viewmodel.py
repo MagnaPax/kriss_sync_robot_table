@@ -157,56 +157,9 @@ class RobotControllerViewModel(QObject):
         """로봇 이동 명령을 PLCService로 위임"""
         # PLC 통신을 시작하는 트리거이므로 try-except로 처리
         try:
-            # 입력창을 통한 값이 들어왔을때와 매크로값이 들어왔을때를 구분하여 처리
-            if is_macro_value is False:
-                # 사용자 입력 -> User Coordinate 기준 이동량 계산
-                coordinates = self._user_coords_vm.cashed_robot_user_position
-                target_raw_pose = self._calculate_relative_move_delta(fanuc_pose_obj, coordinates)
-            else:
-                # 매크로 값 -> World Coordinate 기준 이동량 계산
-                coordinates = self._world_coords_vm.cashed_robot_world_position
-                target_raw_pose = self._calculate_relative_move_delta(fanuc_pose_obj, coordinates)
-            
-            self._plc_service.move_robot_by_pose(target_raw_pose)
-            
+            self._plc_service.move_robot_by_pose(fanuc_pose_obj)
         except Exception as e:
             EVENT_BUS.log.message.emit(f"{self.log_prefix} 이동 명령 전송 실패: {e}", "ERROR")
 
     def robot_init_manual(self):
         self._plc_service.initialize_robot_signal()
-
-
-
-    # ===============================================
-    # 헬퍼 메서드
-    # ===============================================
-    def _calculate_relative_move_delta(self, target_user_pose: FANUCPose, coordinates: FANUCPose) -> FANUCPose:
-        """
-        실제 이동 거리(Delta) 계산
-        목표좌표와 
-        사용자가 입력한 목표 좌표와 World 좌표의 차이(Delta)를 계산한다.
-        """
-        # 기준 좌표
-        stand_coordinates = coordinates
-        
-        # 차이(Delta) 계산
-        delta_x = target_user_pose.x - stand_coordinates.x
-        delta_y = target_user_pose.y - stand_coordinates.y
-        delta_z = target_user_pose.z - stand_coordinates.z
-        delta_w = target_user_pose.w - stand_coordinates.w
-        delta_p = target_user_pose.p - stand_coordinates.p
-        delta_r = target_user_pose.r - stand_coordinates.r
-
-        # 실제 목표(증분) 좌표 생성
-        target_delta = FANUCPose(
-            x = delta_x,
-            y = delta_y,
-            z = delta_z,
-            w = delta_w,
-            p = delta_p,
-            r = delta_r,
-            f = target_user_pose.f
-        )
-        
-        EVENT_BUS.log.message.emit(f"{self.log_prefix} 이동량 계산: Target({target_user_pose}) - Current({stand_coordinates}) = Delta({target_delta})", "DEBUG")
-        return target_delta
