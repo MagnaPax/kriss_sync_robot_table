@@ -138,6 +138,7 @@ class FanucAdapter:
 
     def read_busy_signal(self) -> bool:
         """로봇이 움직이고 있는지 확인"""
+        return bool(self._plc.read_by_name(FanucSignal.ROBOT_BUSY_STATUS.path, pyads.PLCTYPE_BOOL))
 
 
 
