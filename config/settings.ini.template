@@ -3,6 +3,8 @@
 ;   1.  이 파일을 복사하여 `./config/`에 갖다 놓는다
 ;   2.  파일 이름을 'settings.ini'로 변경한다
 ;   3.  현재 환경에 맞게 값을 변경한다
+; 사용 이유: git 의 추적받는 파일과 실제 개발하면서 계속 바뀔 파일을 분리하기 위해.
+
 
 [App]
 ; 애플리케이션 기본 설정
@@ -37,6 +39,7 @@ DEMO_MODE = True
 [Robot]
 ; 로봇 기본 속도
 DEFAULT_FEED_RATE_ROBOT = 10
+FR_BUFFER_SIZE = 150
 
 
 [Servo]
