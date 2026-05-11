@@ -71,6 +71,10 @@ class ServoSignal(str, Enum):
     BUSY         = 'MAIN.bBusy{}'       # 이동 중 여부 (BOOL)           켜지면 다른 명령 받아도 write 안 함
     ACT_POS      = 'MAIN.lAct_Pos{}'    # 현재 위치 (LREAL)
     ACT_VEL      = 'MAIN.lAct_Vel{}'    # 현재 속도 (LREAL)
+    
+    CURRENT_TURNTABLE_POS = 'MAIN.fServoCurrPos'        # 현재 턴테이블 각도
+    CURRENT_ROTATION_VEL = 'MAIN.fServoCurrVel_rot'     # 현재 자전 속도
+    CURRENT_REVOLUTION_VEL = 'MAIN.fServoCurrVel_rev'   # 현재 공전 속도
 
     # [에러]
     ERROR_ID     = 'MAIN.nErrorID{}'    # 에러 코드 (UDINT/UINT)
