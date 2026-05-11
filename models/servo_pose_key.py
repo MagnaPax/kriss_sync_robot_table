@@ -9,9 +9,9 @@ class ServoAxis(IntEnum):
     서보 모터 축 번호 매핑 (1-based index)
     1, 2, 3 숫자 대신 물리적 역할이 담긴 직관적인 이름을 사용한다.
     """
-    TOOL_REVOLUTION = 1     # 툴 공전 (Revolution)
-    TOOL_ROTATION = 2       # 툴 자전 (Rotation)
-    TURNTABLE = 3           # 턴테이블 (Turntable)
+    TOOL_REVOLUTION = 2     # 툴 공전 (Revolution)
+    TOOL_ROTATION = 3       # 툴 자전 (Rotation)
+    TURNTABLE = 1           # 턴테이블 (Turntable)
 
 
 class ServoPoseKey(str, Enum):
