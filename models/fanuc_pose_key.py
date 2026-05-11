@@ -85,7 +85,7 @@ class FanucSignal(str, Enum):
     ROBOT_SIGNAL_VAR = "MAIN.Robot1._UO1.DO46"
 
     # 오류 발생시 ON
-    FAULT_STATUS = "MAIN.Robot1._UO1.UO6_Fault"
+    FAULT_STATUS = "MAIN.Robot1._UO1.UO06_Fault"
 
 
 
