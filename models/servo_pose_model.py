@@ -14,7 +14,6 @@ class ServoPose:
 
         목적:
             서보모터의 목표 위치와 이동 속도를 정의한다.
-            '1년 뒤의 나'를 위해 속성명을 물리적 의미에 맞게 구체화함.
             
         Attributes:
             target_position (float): 목표 각도 (deg) - PLC 변수: MAIN.pos{}
