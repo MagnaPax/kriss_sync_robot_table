@@ -87,6 +87,10 @@ class FanucSignal(str, Enum):
     # 오류 발생시 ON
     FAULT_STATUS = "MAIN.Robot1._UO1.UO06_Fault"
 
+    # 로봇 BUSY 신호 -> 로봇이 움직이고 있을때 ON
+    ROBOT_BUSY_STATUS = "MAIN.Robot1._UO1.UO10_Busy"
+
+
 
 
     # ==================================
