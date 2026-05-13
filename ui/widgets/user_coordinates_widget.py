@@ -77,9 +77,9 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
         self.vm.origin_buttons_disabled.connect(self._on_disable_origin_buttons)
 
         # 레이블 초기화
-        self.vm.clear_robot_labels.connect(self._clear_robot_labels)
-        self.vm.clear_motor_labels.connect(self._clear_motor_labels)
-        self.vm.clear_all_labels.connect(self.clear_widget)
+        self.vm.clear_robot_labels_requested.connect(self._clear_robot_labels)
+        self.vm.clear_motor_labels_requested.connect(self._clear_motor_labels)
+        self.vm.clear_all_labels_requested.connect(self.clear_widget)
 
 
 
