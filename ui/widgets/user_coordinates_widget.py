@@ -23,32 +23,52 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
         self.btn_robot_origin = None
         self.btn_turntable_origin = None
         self.btn_reset = None
-        self.viewmodel: Optional["UserCoordinatesViewModel"] = None
+        self.vm: Optional["UserCoordinatesViewModel"] = None
         super().__init__(parent)
+        self._bind_events()
 
     def set_view_model(self, view_model: "UserCoordinatesViewModel"): # type: ignore[override]
         """ViewModel 주입 및 이벤트 연결 (Override)"""
-        self.viewmodel = view_model
-        self._bind_events()
+        # 방어 코드: 이전에 연결된 시그널이 있다면 끊어줌
+        if self.vm:
+            try:
+                self.vm.user_robot_pose_changed.disconnect(self.update_data)
+                self.vm.user_tool_revolution_changed.disconnect(self._update_tool_revolution_ui)
+                self.vm.user_tool_rotation_changed.disconnect(self._update_tool_rotation_ui)
+                self.vm.user_turntable_pose_changed.disconnect(self._update_turntable_ui)
+                self.vm.origin_buttons_disabled.disconnect(self._on_disable_origin_buttons)
+            except TypeError:
+                # 이미 끊겨있는 경우 대응
+                pass
+            except Exception as e:
+                print(f"UserCoordinatesWidget: {e}")
+        
+        # 새로운 뷰모델 주입
+        self.vm = view_model
+
+        # 데이터 바인딩
+        self._bind_vm_signals()
 
     def _bind_events(self):
-        """UserCoordinatesViewModel의 시그널 연결 (Override)"""
-        if not self.viewmodel: return
-        
+        """위젯 내부 UI 구성요소의 이벤트 연결 (Internal Event Binding)"""
         if btn := self.btn_robot_origin: btn.clicked.connect(self._on_robot_origin_clicked)
         if btn := self.btn_turntable_origin: btn.clicked.connect(self._on_turntable_origin_clicked)
         if btn := self.btn_reset: btn.clicked.connect(self._on_origin_all_clicked)
 
-        # 데이터 바인딩 - WorldCoordinatesWidget(부모클래스)의 메서드 재사용
+    def _bind_vm_signals(self):
+        """ViewModel로부터 전달되는 데이터 시그널 연결 (External Data Binding)"""
+        if not self.vm: return
+
         # 로봇 좌표(User) 변경 시
-        self.viewmodel.user_robot_pose_changed.connect(self.update_data)
+        self.vm.user_robot_pose_changed.connect(self.update_data)
         # 서보 상태(User) 변경 시
-        self.viewmodel.user_tool_revolution_changed.connect(self._update_tool_revolution_ui)
-        self.viewmodel.user_tool_rotation_changed.connect(self._update_tool_rotation_ui)
-        self.viewmodel.user_turntable_pose_changed.connect(self._update_turntable_ui)
+        self.vm.user_tool_revolution_changed.connect(self._update_tool_revolution_ui)
+        self.vm.user_tool_rotation_changed.connect(self._update_tool_rotation_ui)
+        self.vm.user_turntable_pose_changed.connect(self._update_turntable_ui)
         
         # 버튼 활성화/비활성화 (시퀀스 실행 중일 때)
-        self.viewmodel.origin_buttons_disabled.connect(self._on_disable_origin_buttons)
+        self.vm.origin_buttons_disabled.connect(self._on_disable_origin_buttons)
+
 
 
     # ========================================
@@ -158,16 +178,16 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
     #   - 입력 데이터 가공 및 뷰모델 통신
     # ===============================================
     def _handle_robot_origin(self):
-        if self.viewmodel:
-            self.viewmodel.origin_robot_pose()
+        if self.vm:
+            self.vm.origin_robot_pose()
 
     def _handle_turntable_origin(self):
-        if self.viewmodel:
-            self.viewmodel.origin_turntable_pose()
+        if self.vm:
+            self.vm.origin_turntable_pose()
 
     def _handle_origin_all(self):
-        if self.viewmodel:
-            self.viewmodel.origin_all_pose()
+        if self.vm:
+            self.vm.origin_all_pose()
 
 
 
