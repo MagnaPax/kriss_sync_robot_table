@@ -49,12 +49,11 @@ class WorldCoordinatesWidget(BaseWidget):
         """
         self.vm = view_model
 
-        # 이벤트 연결(vm이 있을때만 연결되게)
-        self._bind_events()
+        # 데이터 바인딩
+        self._bind_vm_signals()
 
-
-    def _bind_events(self):
-        """EventBus 시그널 연결"""
+    def _bind_vm_signals(self):
+        """ViewModel로부터 전달되는 데이터 시그널 연결 (External Data Binding)"""
         if not self.vm: return
 
         # 로봇 위치 변경
