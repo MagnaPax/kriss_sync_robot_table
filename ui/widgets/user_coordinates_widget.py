@@ -20,11 +20,17 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
     # ========================================
     def __init__(self, parent: Optional[QWidget] = None):
         # ViewModel 타입 힌트 재정의를 위해 초기화
+        # super().__init__() 전에 저장
+        self.vm: Optional["UserCoordinatesViewModel"] = None
+
         self.btn_robot_origin = None
         self.btn_turntable_origin = None
         self.btn_reset = None
-        self.vm: Optional["UserCoordinatesViewModel"] = None
+
+        # BaseWidget의 __init__()이 _init_ui() 호출 → 실제 UI 생성
         super().__init__(parent)
+
+        # 클릭 이벤트 처리 (UI 생성 후)
         self._bind_events()
 
     def set_view_model(self, view_model: "UserCoordinatesViewModel"): # type: ignore[override]
@@ -32,16 +38,14 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
         # 방어 코드: 이전에 연결된 시그널이 있다면 끊어줌
         if self.vm:
             try:
-                self.vm.user_robot_pose_changed.disconnect(self.update_data)
+                self.vm.user_robot_pose_changed.disconnect(self.safe_update_data)
                 self.vm.user_tool_revolution_changed.disconnect(self._update_tool_revolution_ui)
                 self.vm.user_tool_rotation_changed.disconnect(self._update_tool_rotation_ui)
                 self.vm.user_turntable_pose_changed.disconnect(self._update_turntable_ui)
                 self.vm.origin_buttons_disabled.disconnect(self._on_disable_origin_buttons)
-            except TypeError:
-                # 이미 끊겨있는 경우 대응
+            except (TypeError, RuntimeError):
+                # 이미 끊겨있거나 객체가 없으면 무시
                 pass
-            except Exception as e:
-                print(f"UserCoordinatesWidget: {e}")
         
         # 새로운 뷰모델 주입
         self.vm = view_model
@@ -60,7 +64,7 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
         if not self.vm: return
 
         # 로봇 좌표(User) 변경 시
-        self.vm.user_robot_pose_changed.connect(self.update_data)
+        self.vm.user_robot_pose_changed.connect(self.safe_update_data)
         # 서보 상태(User) 변경 시
         self.vm.user_tool_revolution_changed.connect(self._update_tool_revolution_ui)
         self.vm.user_tool_rotation_changed.connect(self._update_tool_rotation_ui)
