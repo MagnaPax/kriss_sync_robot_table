@@ -24,8 +24,8 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
         self.vm: Optional["UserCoordinatesViewModel"] = None
 
         self.btn_robot_origin = None
-        self.btn_turntable_origin = None
-        self.btn_reset = None
+        self.btn_motors_origin = None
+        self.btn_reset_all = None
 
         # BaseWidget의 __init__()이 _init_ui() 호출 → 실제 UI 생성
         super().__init__(parent)
@@ -43,6 +43,9 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
                 self.vm.user_tool_rotation_changed.disconnect(self._update_tool_rotation_ui)
                 self.vm.user_turntable_pose_changed.disconnect(self._update_turntable_ui)
                 self.vm.origin_buttons_disabled.disconnect(self._on_disable_origin_buttons)
+                self.vm.clear_robot_labels.disconnect(self._clear_robot_labels)
+                self.vm.clear_motor_labels.disconnect(self._clear_motor_labels)
+                self.vm.clear_all_labels.disconnect(self.clear_widget)
             except (TypeError, RuntimeError):
                 # 이미 끊겨있거나 객체가 없으면 무시
                 pass
@@ -56,8 +59,8 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
     def _bind_events(self):
         """위젯 내부 UI 구성요소의 이벤트 연결 (Internal Event Binding)"""
         if btn := self.btn_robot_origin: btn.clicked.connect(self._on_robot_origin_clicked)
-        if btn := self.btn_turntable_origin: btn.clicked.connect(self._on_turntable_origin_clicked)
-        if btn := self.btn_reset: btn.clicked.connect(self._on_origin_all_clicked)
+        if btn := self.btn_motors_origin: btn.clicked.connect(self._on_turntable_origin_clicked)
+        if btn := self.btn_reset_all: btn.clicked.connect(self._on_origin_all_clicked)
 
     def _bind_vm_signals(self):
         """ViewModel로부터 전달되는 데이터 시그널 연결 (External Data Binding)"""
@@ -72,6 +75,11 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
         
         # 버튼 활성화/비활성화 (시퀀스 실행 중일 때)
         self.vm.origin_buttons_disabled.connect(self._on_disable_origin_buttons)
+
+        # 레이블 초기화
+        self.vm.clear_robot_labels.connect(self._clear_robot_labels)
+        self.vm.clear_motor_labels.connect(self._clear_motor_labels)
+        self.vm.clear_all_labels.connect(self.clear_widget)
 
 
 
@@ -96,18 +104,18 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
                 if gb_layout := widget.layout():
                     # 버튼 생성
                     self.btn_robot_origin = QPushButton("Set Robot Origin")
-                    self.btn_turntable_origin = QPushButton("Set Turntable Origin")
-                    self.btn_reset = QPushButton("Set Origin All")
+                    self.btn_motors_origin = QPushButton("Set Turntable Origin")
+                    self.btn_reset_all = QPushButton("Set Origin All")
 
                     # 스타일 적용
                     self.btn_robot_origin.setProperty("type", "general")
-                    self.btn_turntable_origin.setProperty("type", "general")
-                    self.btn_reset.setProperty("type", "special")
+                    self.btn_motors_origin.setProperty("type", "general")
+                    self.btn_reset_all.setProperty("type", "special")
 
                     # 레이아웃에 추가 (WorldCoordinatesWidget의 addStretch() 뒤에 추가됨 -> 하단 배치)
                     gb_layout.addWidget(self.btn_robot_origin)
-                    gb_layout.addWidget(self.btn_turntable_origin)
-                    gb_layout.addWidget(self.btn_reset)
+                    gb_layout.addWidget(self.btn_motors_origin)
+                    gb_layout.addWidget(self.btn_reset_all)
 
 
     # ===============================================
@@ -129,26 +137,16 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
             should_enable = not should_disable
             
             if self.btn_robot_origin: self.btn_robot_origin.setEnabled(should_enable)
-            if self.btn_turntable_origin: self.btn_turntable_origin.setEnabled(should_enable)
-            if self.btn_reset: self.btn_reset.setEnabled(should_enable)
+            if self.btn_motors_origin: self.btn_motors_origin.setEnabled(should_enable)
+            if self.btn_reset_all: self.btn_reset_all.setEnabled(should_enable)
             return
 
 
 
     def clear_widget(self):
         """위젯 상태 초기화"""
-        # 레이블 텍스트 초기화
-        if self.lbl_x: self.lbl_x.setText("0.000")
-        if self.lbl_y: self.lbl_y.setText("0.000")
-        if self.lbl_z: self.lbl_z.setText("0.000")
-        if self.lbl_w: self.lbl_w.setText("0.000")
-        if self.lbl_p: self.lbl_p.setText("0.000")
-        if self.lbl_r: self.lbl_r.setText("0.000")
-
-        if self.lbl_tool_revolution_rpm: self.lbl_tool_revolution_rpm.setText("0.000")
-        if self.lbl_tool_rotation_rpm: self.lbl_tool_rotation_rpm.setText("0.000")
-        if self.lbl_turntable_degree: self.lbl_turntable_degree.setText("0.000")
-        if self.lbl_turntable_rpm: self.lbl_turntable_rpm.setText("0.000")
+        self._clear_robot_labels()
+        self._clear_motor_labels()
 
         # 부모 클래스의 초기화(데이터 비우기) 호출
         super().clear_widget()
@@ -195,6 +193,21 @@ class UserCoordinatesWidget(WorldCoordinatesWidget):
 
 
 
+    # ===============================================
+    # ===============================================
+    def _clear_robot_labels(self):
+        if self.lbl_x: self.lbl_x.setText("0.000")
+        if self.lbl_y: self.lbl_y.setText("0.000")
+        if self.lbl_z: self.lbl_z.setText("0.000")
+        if self.lbl_w: self.lbl_w.setText("0.000")
+        if self.lbl_p: self.lbl_p.setText("0.000")
+        if self.lbl_r: self.lbl_r.setText("0.000")
+    
+    def _clear_motor_labels(self):
+        if self.lbl_tool_revolution_rpm: self.lbl_tool_revolution_rpm.setText("0.000")
+        if self.lbl_tool_rotation_rpm: self.lbl_tool_rotation_rpm.setText("0.000")
+        if self.lbl_turntable_degree: self.lbl_turntable_degree.setText("0.000")
+        if self.lbl_turntable_rpm: self.lbl_turntable_rpm.setText("0.000")
 
 
 

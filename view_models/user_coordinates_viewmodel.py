@@ -22,6 +22,10 @@ class UserCoordinatesViewModel(QObject):
     user_turntable_pose_changed = pyqtSignal(ServoPose)     # 턴테이블의 상태   - 사용자 좌표계
     origin_buttons_disabled = pyqtSignal(str, bool)         # 위젯 활성화/비활성화
 
+    clear_robot_labels_requested = pyqtSignal()             # 뷰 레이어의 로봇 좌표 표시 레이블 초기화 요청
+    clear_motor_labels_requested = pyqtSignal()             # 뷰 레이어의 모터 좌표 표시 레이블 초기화 요청
+    clear_all_labels_requested = pyqtSignal()               # 뷰 레이어의 모든 좌표 표시 레이블 초기화 요청
+
 
 
     def __init__(self, plc_service: "PLCService"):
@@ -119,6 +123,7 @@ class UserCoordinatesViewModel(QObject):
         self._robot_offset = self._raw_robot_pose   # 현재 World 좌표를 기준점으로 설정
         # 입력 필드 초기화 요청 방송
         EVENT_BUS.control.clear_user_inputs.emit("robot")
+        self.clear_robot_labels_requested.emit()
         EVENT_BUS.log.message.emit(f"{self._log_prefix} 사용자 좌표계(로봇) 원점 설정 완료", "INFO")
 
 
@@ -128,6 +133,7 @@ class UserCoordinatesViewModel(QObject):
             self._servo_offsets[ServoAxis.TURNTABLE] = self._raw_servo_states[ServoAxis.TURNTABLE]
             # 입력 필드 초기화 요청 방송
             EVENT_BUS.control.clear_user_inputs.emit("servo")
+            self.clear_motor_labels_requested.emit()
             EVENT_BUS.log.message.emit(f"{self._log_prefix} 사용자 좌표계(턴테이블) 원점 설정 완료", "INFO")
 
     def origin_all_pose(self):
@@ -142,4 +148,5 @@ class UserCoordinatesViewModel(QObject):
         
         # 입력 필드 초기화 요청 방송
         EVENT_BUS.control.clear_user_inputs.emit("all")
+        self.clear_all_labels_requested.emit()
         EVENT_BUS.log.message.emit(f"{self._log_prefix} 사용자 좌표계(로봇, 턴테이블) 원점 설정 완료", "INFO")
