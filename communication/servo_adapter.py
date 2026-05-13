@@ -535,7 +535,8 @@ class ServoAdapter:
             data_list = []
             scale_factor = 0.995
 
-            for sequence in sequences:
+            # for sequence in sequences:
+            for index, sequence in enumerate(sequences):
                 item = ST_PathData()
 
                 try:
@@ -544,7 +545,7 @@ class ServoAdapter:
                     val_velocity2   = float(sequence.get('rev'))
                     val_velocity3   = float(sequence.get('rot'))
                     
-                    if sequence == 0 and val_position == 0.0:
+                    if index == 0 and val_position == 0.0:
                         continue
 
                     item.fVelocity  = val_velocity * scale_factor
