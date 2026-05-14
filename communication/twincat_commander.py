@@ -88,19 +88,21 @@ class TwinCATCommander(QObject):
     #           로봇에게 내리는 명령들 
     # ================================================ #
     def set_robot_ready(self) -> tuple[bool, str]:
-        """로봇에게 초기 신호 전송"""
+        """로봇에게 초기 신호 및 Fault 리셋 전송"""
         if self.robot:
+            results = []
             try:
+                # 1. 기본 신호(IMSP, SFSP 등) 초기화
                 self.robot.init_robot_signals()
-                return True, "초기 신호 전송 완료"
-            except Exception as e:
-                return False, f"초기 신호 전송 실패: {e}"
-            
-            try:
+                results.append("초기 신호 전송")
+                
+                # 2. 로봇의 Fault(에러) 상태 리셋 신호 전송
                 self.robot.reset_robot_fault()
-                return True, "로봇 Fault 리셋 완료"
+                results.append("Fault 리셋 완료")
+                
+                return True, " & ".join(results)
             except Exception as e:
-                return False, f"로봇 Fault 리셋 실패: {e}"
+                return False, f"로봇 초기화 실패: {e}"
         return False, "로봇이 연결되지 않았습니다."
 
     def apply_user_feed_rate_when_moving_robot(self, feed_rate: float) -> str | None:
