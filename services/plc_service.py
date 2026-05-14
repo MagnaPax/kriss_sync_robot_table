@@ -25,6 +25,7 @@ class WorkerID:
     ROBOT_STOP = "robot_stop"
     ROBOT_HOMING = "robot_homing"
     SET_ROBOT_SPEED = "set_robot_speed"
+    ROBOT_INIT = "robot_init"
 
     SERVO_ONLY = "servo_only"
     SERVO_HOME = "home_servo_all"
