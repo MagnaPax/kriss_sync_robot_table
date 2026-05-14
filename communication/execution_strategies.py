@@ -23,6 +23,7 @@ Execution Strategies (전략 구현부)
 [구조]
 - `BaseExecutor`: 모든 전략이 상속받아야 할 공통 인터페이스 (추상 클래스)
 """
+from asyncio import Future
 import time
 import threading
 from PyQt6.QtCore import QThread
@@ -262,16 +263,20 @@ class IntegratedExecutor(BaseExecutor):
             import concurrent.futures
 
             # 동기화를 위한 이벤트 객체들
-            robot_ready_event = threading.Event()
-            servo_ready_event = threading.Event()
-            start_event = threading.Event()
+            robot_initial_data_ready = threading.Event()        # 로봇 초기 데이터 전송
+            servo_initial_data_ready = threading.Event()        # 서보 초기 데이터 전송
+            start_rest_of_data_streaming = threading.Event()    # 로봇과 서보의 (초기 데이터 제외한) 나머지 데이터 스트리밍
 
             def robot_task():
                 EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] 스레드 시작", "DEBUG")
                 total_data = FANUCPoseModel.FR_pre_calculate_all(sequence_data)
                 EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] 데이터 가공 완료: 총 {len(total_data)}행", "DEBUG")
                 
-                # 1. 초기 버퍼 (PRLINE 0, Chunk 1, Chunk 2) 전송
+
+                #############################################################
+                #####               [Trigger 신호 이전]                 ##### 
+                #####    초기 버퍼 (PRLINE 0, Chunk 1, Chunk 2) 전송    #####
+                #############################################################
                 robot.FR_send_to_plc_first(robot.FR_prepare_single_buffers(total_data))
                 EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] 단일 버퍼 (PRLINE 0) 전송 완료", "DEBUG")
 
@@ -300,10 +305,13 @@ class IntegratedExecutor(BaseExecutor):
                     EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] Chunk 2 전송 완료", "DEBUG")
 
                 # 로봇 초기 데이터 장전 완료 알림
-                robot_ready_event.set()
+                robot_initial_data_ready.set()
 
-                # 메인 스레드의 트리거 및 시작 신호 대기
-                if not self._wait_event_with_safety(start_event, timeout=10.0):
+
+                ##################################################################################
+                #   사용자의 중단요청이 있는지 & 나머지 데이터 스트리밍 스레드 시작됐는지 감시   #
+                ##################################################################################
+                if not self._wait_event_with_safety(start_rest_of_data_streaming, timeout=10.0):
                     if self._is_interrupted():
                         raise InterruptedError("작업 중단됨")
                     else:
@@ -312,7 +320,11 @@ class IntegratedExecutor(BaseExecutor):
                 EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] RSR 동작 후 데이터 송신 루프 시작", "DEBUG")
                 use_group_1 = True
 
-                # 2. RSR 동작 후, DO46 신호에 맞춰 루프 구동
+
+                ############################################
+                #####       [Trigger 신호 이후]        ##### 
+                #####    DO46 신호에 맞춰 루프 구동    #####
+                ############################################
                 while current_idx < total_count and not self._is_interrupted():
                     try:
                         robot.FR_wait_for_robot_signal(check_interrupt=self._is_interrupted)
@@ -344,12 +356,17 @@ class IntegratedExecutor(BaseExecutor):
 
                 total_len = len(all_data)
                 if total_len == 0:
-                    servo_ready_event.set()
+                    # 서보 초기 데이터 장전 완료 알림
+                    servo_initial_data_ready.set()
                     return
 
                 current_ptr = 0
 
-                # 1. 초기 1000개 데이터 로드
+
+                #########################################
+                #####    [Trigger 신호 이전]        ##### 
+                #####    초기 1000개 데이터 전달    #####
+                #########################################  
                 chunk1 = all_data[0:500]
 
                 try:
@@ -378,10 +395,13 @@ class IntegratedExecutor(BaseExecutor):
                     current_ptr = total_len
 
                 # 서보 초기 데이터 장전 완료 알림
-                servo_ready_event.set()
+                servo_initial_data_ready.set()
 
-                # 메인 스레드의 트리거 및 시작 신호 대기
-                if not self._wait_event_with_safety(start_event, timeout=10.0):
+
+                ##################################################################################
+                #   사용자의 중단요청이 있는지 & 나머지 데이터 스트리밍 스레드 시작됐는지 감시   #
+                ##################################################################################
+                if not self._wait_event_with_safety(start_rest_of_data_streaming, timeout=10.0):
                     if self._is_interrupted():
                         raise InterruptedError("작업 중단됨")
                     else:
@@ -389,6 +409,11 @@ class IntegratedExecutor(BaseExecutor):
 
                 EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] 버퍼 업데이트 감시 루프 시작", "DEBUG")
 
+
+                #########################################
+                #####    [Trigger 신호 전달 이후]   ##### 
+                #####    나머지 데이터 계속 전달    #####
+                #########################################  
                 try:
                     servo.watch_buffer_update(all_data, current_ptr, check_interrupt=self._is_interrupted)
                 except Exception as e:
@@ -405,15 +430,15 @@ class IntegratedExecutor(BaseExecutor):
                     아래 두 개의 함수를 동시에 실행시킨 뒤 둘 다 끝날 때까지 기다려.
                     하나라도 죽으면 즉시 보고해. (동기적 대기, Fork-Join 패턴)
 
-                with 문을 사용하여 블록 종료 시 자동으로 shutdown()이 호출됨
+                with 문을 사용하여 블록 종료 시 자동으로 pool.shutdown(wait=True)이 호출되어 자원 반환된다
                 """
 
                 f_robot = pool.submit(robot_task)
                 f_servo = pool.submit(servo_task)
                 
-                # 1. 두 스레드가 초기 준비를 마칠 때까지 대기
-                # (에러 감지 및 중단 신호 감시를 위해 폴링 방식 사용)
-                while not (robot_ready_event.is_set() and servo_ready_event.is_set()):
+                # 1. 두 스레드가 '초기 데이터 전송'을 마칠 때까지 대기
+                # 폴링 방식 사용 - 에러 감지 및 중단 신호 감시를 위해 0.1초 간격으로 확인
+                while not (robot_initial_data_ready.is_set() and servo_initial_data_ready.is_set()):
                     if self._is_interrupted():
                         raise InterruptedError("사용자에 의해 중단되었습니다.")
                     # 로봇 에러 체크. 바다코끼리 연산자 사용
@@ -423,32 +448,32 @@ class IntegratedExecutor(BaseExecutor):
                     # 폴링 간격
                     time.sleep(0.1)
                 
-                EVENT_BUS.log.message.emit(f"{self._log_prefix} 로봇과 서보 초기 데이터 보내기 완료. 동기화 트리거 준비됨", "INFO")
+                EVENT_BUS.log.message.emit(f"{self._log_prefix} 로봇과 서보의 '초기' 데이터 보내기 완료. 동기화 트리거 준비됨", "INFO")
 
                 # 2. 메인 스레드에서 시작 신호(Trigger) 발송
                 wait_time_to_change_signal: float = 0.1
-                rsr_signal = FanucSignal.RSR1.path
-                robot.trigger_move_signal(rsr_signal, wait_time_to_change_signal)
+                rsr_robot_servo_start = FanucSignal.RSR1.path
+                robot.trigger_move_signal(rsr_robot_servo_start, wait_time_to_change_signal)
 
-                EVENT_BUS.log.message.emit(f"{self._log_prefix} >> '{rsr_signal}' 신호 Trigger 완료 🚀", "INFO")
+                EVENT_BUS.log.message.emit(f"{self._log_prefix} >> '{rsr_robot_servo_start}' 신호 Trigger 완료 🚀", "INFO")
 
-                # 3. 스레드들에게 루프 진입 허가
-                start_event.set()
+                # 3. 스레드들에게 루프 진입 허가(초기 데이터 제외한 나머지 데이터들 계속 보냄)
+                start_rest_of_data_streaming.set()
 
-                # 4. 스레드들이 모두 완료될 때까지 대기
+                # 4. 로봇과 서보모터 스레드가 모두 완료될 때까지 대기
                 concurrent.futures.wait(
                     [f_robot, f_servo], 
                     return_when=concurrent.futures.FIRST_EXCEPTION
                 )
 
-                # 내부에서 예외가 발생했는지 확인 후 다시 던지기
+                # 로봇과 서보모터 스레드 내부에서 예외가 발생하면 위로 던지기
                 if (exep := f_robot.exception()): raise exep
                 if (exep := f_servo.exception()): raise exep
 
         except InterruptedError:
             return False, f"{self._log_prefix} (로봇-모터) 통합 제어 중 사용자에 의해 중단"
         except Exception as e:
-            # 작업 중 발생하는 모든 예외는 이곳으로 모여서 처리됨
+            # execute 메서드에서 동작하는 작업 중 발생하는 모든 예외는 이곳으로 모여서 처리됨
             return False, f"{self._log_prefix} (로봇-모터) 통합 제어 중 오류: {e}"
         else:
             return True, f"{self._log_prefix} (로봇-모터) 통합 제어 완료"
