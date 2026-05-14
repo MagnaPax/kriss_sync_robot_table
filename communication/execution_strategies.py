@@ -279,14 +279,22 @@ class IntegratedExecutor(BaseExecutor):
 
                 if current_idx < total_count:
                     buffers = robot.FR_prepare_chunk_buffers(total_data, current_idx, SETTINGS.robot.robot_buffer_size)
-                    robot.FR_send_to_plc_group(SETTINGS.robot.robot_buffer_size, 1, buffers)
+                    try:
+                        robot.FR_send_to_plc_group(SETTINGS.robot.robot_buffer_size, 1, buffers)
+                    except Exception as e:
+                        EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] Chunk 1 전송 실패: {e}", "ERROR")
+                        raise
                     robot.FR_send_to_plc_info(1, buffers)
                     current_idx += SETTINGS.robot.robot_buffer_size
                     EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] Chunk 1 전송 완료", "DEBUG")
 
                 if current_idx < total_count:
                     buffers = robot.FR_prepare_chunk_buffers(total_data, current_idx, SETTINGS.robot.robot_buffer_size)
-                    robot.FR_send_to_plc_group(SETTINGS.robot.robot_buffer_size, 2, buffers)
+                    try:
+                        robot.FR_send_to_plc_group(SETTINGS.robot.robot_buffer_size, 2, buffers)
+                    except Exception as e:
+                        EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] Chunk 2 전송 실패: {e}", "ERROR")
+                        raise
                     robot.FR_send_to_plc_info(2, buffers)
                     current_idx += SETTINGS.robot.robot_buffer_size
                     EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] Chunk 2 전송 완료", "DEBUG")
@@ -306,14 +314,18 @@ class IntegratedExecutor(BaseExecutor):
 
                 # 2. RSR 동작 후, DO46 신호에 맞춰 루프 구동
                 while current_idx < total_count and not self._is_interrupted():
-                    robot.FR_wait_for_robot_signal(check_interrupt=self._is_interrupted)
-                    if self._is_interrupted(): break
+                    try:
+                        robot.FR_wait_for_robot_signal(check_interrupt=self._is_interrupted)
+                        if self._is_interrupted(): break
 
-                    buffers = robot.FR_prepare_chunk_buffers(total_data, current_idx, SETTINGS.robot.robot_buffer_size)
-                    group_num = 1 if use_group_1 else 2
+                        buffers = robot.FR_prepare_chunk_buffers(total_data, current_idx, SETTINGS.robot.robot_buffer_size)
+                        group_num = 1 if use_group_1 else 2
 
-                    robot.FR_send_to_plc_group(SETTINGS.robot.robot_buffer_size, group_num, buffers)
-                    robot.FR_send_to_plc_info(group_num, buffers)
+                        robot.FR_send_to_plc_group(SETTINGS.robot.robot_buffer_size, group_num, buffers)
+                        robot.FR_send_to_plc_info(group_num, buffers)
+                    except Exception as e:
+                        EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] 데이터 송신 중 에러: {e}", "ERROR")
+                        raise
 
                     use_group_1 = not use_group_1
                     current_idx += SETTINGS.robot.robot_buffer_size
