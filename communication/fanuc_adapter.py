@@ -326,15 +326,17 @@ class FanucAdapter:
             # 전달받은 함수(check_interrupt)를 실행해서 True(중단 요청 됨)가 나오면 루프 탈출
             try:
                 if not plc.read_by_name(var_name, pyads.PLCTYPE_BOOL): break
-            except: pass
+            except Exception as e:
+                raise Exception(f"[Error] 로봇 신호 확인 실패: {e}")
             time.sleep(0.1)
 
         while not check_interrupt():
             try:
                 if plc.read_by_name(var_name, pyads.PLCTYPE_BOOL):
-                    print(" >> [Robot] DO46 신호 감지. 버퍼 전송 시작")
+                    # DO46 신호 감지. 버퍼 전송 시작
                     return
-            except: pass
+            except Exception as e:
+                raise Exception(f"[Error] 로봇 신호 확인 실패: {e}")
             time.sleep(0.05)
 
     def FR_send_to_plc_first(self, buffers):
@@ -365,8 +367,7 @@ class FanucAdapter:
                 f'{prefix}3': buffers[2]
             })
         except Exception as e:
-            print(f"[Error] 로봇 Group {group_num} 배열 전송 실패: {e}")
-            return
+            raise Exception(f"[Error] 로봇 Group {group_num} 배열 전송 실패: {e}")
 
         start_idx = 0 if group_num == 1 else 3
         nInstance = (buf_size << 8) | 0x01
