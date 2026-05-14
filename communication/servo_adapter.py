@@ -602,9 +602,9 @@ class ServoAdapter:
                     if not plc.read_by_name(ServoSignal.SM_VAR_ALL_FIN, pyads.PLCTYPE_BOOL):
                         logger.info("[Servo] 모든 데이터 전송 완료. 종료 신호 전송.")
                         plc.write_by_name(ServoSignal.SM_VAR_ALL_FIN, True, pyads.PLCTYPE_BOOL)
-                except: pass
+                except Exception as e:
+                    raise Exception(f"서보 데이터 전송 실패. 종료 신호 확인 실패 : {e}")
                 time.sleep(1)
-                continue
             
             try:
                 # [하단 버퍼 업데이트 요청]
@@ -640,4 +640,4 @@ class ServoAdapter:
                 time.sleep(0.005)
 
             except Exception as e:
-                logger.error(f"[Servo] 버퍼 업데이트 중 에러: {e}")
+                raise Exception(f"[Servo] 버퍼 업데이트 중 에러: {e}")
