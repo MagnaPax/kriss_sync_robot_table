@@ -98,7 +98,7 @@ class FanucAdapter:
         """로봇 시작 신호 전송"""
         plc = self._plc
         plc.write_by_name(FanucSignal.HOLD.path, True, pyads.PLCTYPE_BOOL)
-        plc.write_by_name(FanucSignal.START.path, True, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(FanucSignal.RESUME.path, True, pyads.PLCTYPE_BOOL)
 
     def stop_fanuc_normally(self):
         """로봇 정지 신호 전송"""

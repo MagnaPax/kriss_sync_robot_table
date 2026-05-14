@@ -120,8 +120,8 @@ class FanucSignal(str, Enum):
     # 오류 원인 제거 후 실행(Falling Edge로 동작)
     FAULT_RESET = "MAIN.Robot1._UI1.UI05_FaultReset"
 
-    # 일시정지 후 재시작
-    START = "MAIN.Robot1._UI1.UI06_Start"
+    # 재시작
+    RESUME = "MAIN.Robot1._UI1.UI06_Start"
 
     # Home 위치로 이동
     HOME = "MAIN.Robot1._UI1.UI07_Home"
