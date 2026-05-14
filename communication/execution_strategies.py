@@ -339,14 +339,26 @@ class IntegratedExecutor(BaseExecutor):
 
                 # 1. 초기 1000개 데이터 로드
                 chunk1 = all_data[0:500]
-                servo.SM_send_buffer_chunk(1, chunk1)
+
+                try:
+                    servo.SM_send_buffer_chunk(1, chunk1)
+                except Exception as e:
+                    EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] 버퍼 업데이트 중 에러: {e}", "ERROR")
+                    raise   # 이 비명(raise)는 execute가 취합해서 가장 바깥쪽의 try-except로 던져짐
+
                 ch1 = len(chunk1)
                 current_ptr += ch1
                 EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] Chunk 1 전송 완료", "DEBUG")
 
                 if total_len > 500:
                     chunk2 = all_data[500:1000]
-                    servo.SM_send_buffer_chunk(501, chunk2)
+
+                    try:
+                        servo.SM_send_buffer_chunk(501, chunk2)
+                    except Exception as e:
+                        EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] 버퍼 업데이트 중 에러: {e}", "ERROR")
+                        raise   # 이 비명(raise)는 execute가 취합해서 가장 바깥쪽의 try-except로 던져짐
+                        
                     ch2 = len(chunk2)
                     current_ptr += ch2
                     EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] Chunk 2 전송 완료", "DEBUG")                
@@ -392,10 +404,11 @@ class IntegratedExecutor(BaseExecutor):
                 while not (robot_ready_event.is_set() and servo_ready_event.is_set()):
                     if self._is_interrupted():
                         raise InterruptedError("사용자에 의해 중단되었습니다.")
-                    if f_robot.done() and f_robot.exception():
-                        raise f_robot.exception()
-                    if f_servo.done() and f_servo.exception():
-                        raise f_servo.exception()
+                    # 로봇 에러 체크. 바다코끼리 연산자 사용
+                    if (exep := f_robot.exception()): raise exep
+                    # 서보 에러 체크
+                    if (exep := f_servo.exception()): raise exep
+                    # 폴링 간격
                     time.sleep(0.1)
                 
                 EVENT_BUS.log.message.emit(f"{self._log_prefix} 로봇과 서보 초기 데이터 보내기 완료. 동기화 트리거 준비됨", "INFO")
@@ -417,8 +430,8 @@ class IntegratedExecutor(BaseExecutor):
                 )
 
                 # 내부에서 예외가 발생했는지 확인 후 다시 던지기
-                if f_robot.exception(): raise f_robot.exception()
-                if f_servo.exception(): raise f_servo.exception()
+                if (exep := f_robot.exception()): raise exep
+                if (exep := f_servo.exception()): raise exep
 
         except InterruptedError:
             return False, f"{self._log_prefix} (로봇-모터) 통합 제어 중 사용자에 의해 중단"
