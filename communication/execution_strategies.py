@@ -321,8 +321,13 @@ class IntegratedExecutor(BaseExecutor):
                 EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] 모든 데이터 처리 완료.", "INFO")
 
             def servo_task():
-                EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] 스레드 시작", "DEBUG")
-                all_data = servo.SM_load_csv_data(sequence_data)
+                try:
+                    EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] 스레드 시작", "DEBUG")
+                    all_data = servo.SM_load_csv_data(sequence_data)
+                except Exception as e:
+                    EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] 데이터 로드 실패: {e}", "ERROR")
+                    raise
+                
                 EVENT_BUS.log.message.emit(f"{self._log_prefix} [Motor] 시퀀스 데이터 변환 완료. 총 {len(all_data)}건", "DEBUG")
 
                 total_len = len(all_data)

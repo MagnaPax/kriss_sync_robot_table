@@ -531,35 +531,34 @@ class ServoAdapter:
 
 
     def SM_load_csv_data(self, sequences):
-        try:
-            data_list = []
-            scale_factor = 0.995
+        data_list = []
+        scale_factor = 0.995
+        index = 0
 
-            # for sequence in sequences:
+        try:
             for index, sequence in enumerate(sequences):
                 item = ST_PathData()
 
-                try:
-                    val_velocity    = float(sequence.get('tt_feed_rate'))
-                    val_position    = float(sequence.get('tt_deg'))
-                    val_velocity2   = float(sequence.get('rev'))
-                    val_velocity3   = float(sequence.get('rot'))
-                    
-                    if index == 0 and val_position == 0.0:
-                        continue
-
-                    item.fVelocity  = val_velocity * scale_factor
-                    item.fPosition  = val_position
-                    item.fVelocity2 = val_velocity2
-                    item.fVelocity3 = val_velocity3
-
-                    data_list.append(item)
-                except:
+                val_velocity    = float(sequence.get('tt_feed_rate'))
+                val_position    = float(sequence.get('tt_deg'))
+                val_velocity2   = float(sequence.get('rev'))
+                val_velocity3   = float(sequence.get('rot'))
+                
+                # 0번째 row는 턴테이블 움직임이 없으므로 건너뜀
+                if index == 0 and val_position == 0.0:
                     continue
+
+                item.fVelocity  = val_velocity * scale_factor
+                item.fPosition  = val_position
+                item.fVelocity2 = val_velocity2
+                item.fVelocity3 = val_velocity3
+
+                data_list.append(item)
+
             return data_list
+
         except Exception as e:
-            print(f"CSV Load Error: {e}")
-            return []
+            raise RuntimeError(f"모터 시퀀스 데이터 변환 실패 (행 번호: {index}): {e}")
 
     def SM_send_buffer_chunk(self, start_idx_plc, py_data_chunk):
         """
