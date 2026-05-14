@@ -282,27 +282,19 @@ class IntegratedExecutor(BaseExecutor):
 
                 current_idx = 1
 
-                if current_idx < total_count:
-                    buffers = robot.FR_prepare_chunk_buffers(total_data, current_idx, SETTINGS.robot.robot_buffer_size)
-                    try:
-                        robot.FR_send_to_plc_group(SETTINGS.robot.robot_buffer_size, 1, buffers)
-                    except Exception as e:
-                        EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] Chunk 1 전송 실패: {e}", "ERROR")
-                        raise
-                    robot.FR_send_to_plc_info(1, buffers)
-                    current_idx += SETTINGS.robot.robot_buffer_size
-                    EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] Chunk 1 전송 완료", "DEBUG")
+                for grum_num in [1, 2]:
+                    if current_idx >= total_count:
+                        break
 
-                if current_idx < total_count:
                     buffers = robot.FR_prepare_chunk_buffers(total_data, current_idx, SETTINGS.robot.robot_buffer_size)
                     try:
-                        robot.FR_send_to_plc_group(SETTINGS.robot.robot_buffer_size, 2, buffers)
+                        robot.FR_send_to_plc_group(SETTINGS.robot.robot_buffer_size, grum_num, buffers)
+                        robot.FR_send_to_plc_info(grum_num, buffers)
+                        current_idx += SETTINGS.robot.robot_buffer_size
+                        EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] Chunk {grum_num} 전송 완료", "DEBUG")
                     except Exception as e:
-                        EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] Chunk 2 전송 실패: {e}", "ERROR")
+                        EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] Chunk {grum_num} 전송 실패: {e}", "ERROR")
                         raise
-                    robot.FR_send_to_plc_info(2, buffers)
-                    current_idx += SETTINGS.robot.robot_buffer_size
-                    EVENT_BUS.log.message.emit(f"{self._log_prefix} [Robot] Chunk 2 전송 완료", "DEBUG")
 
                 # 로봇 초기 데이터 장전 완료 알림
                 robot_initial_data_ready.set()
