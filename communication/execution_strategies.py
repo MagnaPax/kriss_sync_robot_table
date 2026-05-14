@@ -326,7 +326,7 @@ class IntegratedExecutor(BaseExecutor):
                     all_data = servo.SM_load_csv_data(sequence_data)
                 except Exception as e:
                     EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] 데이터 로드 실패: {e}", "ERROR")
-                    raise
+                    raise   # 이 비명(raise)는 execute가 취합해서 가장 바깥쪽의 try-except로 던져짐
                 
                 EVENT_BUS.log.message.emit(f"{self._log_prefix} [Motor] 시퀀스 데이터 변환 완료. 총 {len(all_data)}건", "DEBUG")
 
@@ -364,7 +364,14 @@ class IntegratedExecutor(BaseExecutor):
                         raise TimeoutError("서보: 시작 신호 대기 시간 초과")
 
                 EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] 버퍼 업데이트 감시 루프 시작", "DEBUG")
-                servo.watch_buffer_update(all_data, current_ptr, check_interrupt=self._is_interrupted)
+
+                try:
+                    servo.watch_buffer_update(all_data, current_ptr, check_interrupt=self._is_interrupted)
+                except Exception as e:
+                    EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] 버퍼 업데이트 중 에러: {e}", "ERROR")
+                    raise   # 이 비명(raise)는 execute가 취합해서 가장 바깥쪽의 try-except로 던져짐
+
+
                 EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] 모든 데이터 처리 완료.", "INFO")
 
 
@@ -416,6 +423,7 @@ class IntegratedExecutor(BaseExecutor):
         except InterruptedError:
             return False, f"{self._log_prefix} (로봇-모터) 통합 제어 중 사용자에 의해 중단"
         except Exception as e:
+            # 작업 중 발생하는 모든 예외는 이곳으로 모여서 처리됨
             return False, f"{self._log_prefix} (로봇-모터) 통합 제어 중 오류: {e}"
         else:
             return True, f"{self._log_prefix} (로봇-모터) 통합 제어 완료"
