@@ -338,6 +338,13 @@ class IntegratedExecutor(BaseExecutor):
 
             def servo_task():
                 try:
+                    servo.reset_hand_shake_signals()
+                    EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] 핸드 쉐이크 완료.", "INFO")
+                except Exception as e:
+                    EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] 핸드 쉐이크 실패: {e}", "ERROR")
+                    raise
+
+                try:
                     EVENT_BUS.log.message.emit(f"{self._log_prefix} [Servo] 스레드 시작", "DEBUG")
                     all_data = servo.SM_load_csv_data(sequence_data)
                 except Exception as e:

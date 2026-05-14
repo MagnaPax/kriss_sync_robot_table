@@ -529,6 +529,12 @@ class ServoAdapter:
         time.sleep(0.3)
         plc.write_by_name(ServoSignal.SM_SINGLE_START_VAR, False, pyads.PLCTYPE_BOOL)
 
+    def reset_hand_shake_signals(self):
+        plc = self._plc
+        plc.write_by_name(ServoSignal.SM_VAR_ALL_FIN, False, pyads.PLCTYPE_BOOL)
+        time.sleep(0.5)
+        plc.write_by_name(ServoSignal.SM_VAR_UPD_DONE, False, pyads.PLCTYPE_BOOL)
+        
 
     def SM_load_csv_data(self, sequences):
         data_list = []
