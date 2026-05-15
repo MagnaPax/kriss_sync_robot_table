@@ -584,9 +584,15 @@ class ServoAdapter:
             buffer_array[i].fVelocity3  = py_data_chunk[i].fVelocity3            
 
         byte_data       = bytes(buffer_array)
-        symbol_info     = plc.get_symbol(ServoSignal.SM_VAR_PATH_ARR)
-        base_group      = symbol_info.index_group
-        base_offset     = symbol_info.index_offset
+        symbol_info = plc.get_symbol(ServoSignal.SM_VAR_PATH_ARR)
+        
+        # 타입 안전성 확보: index_group 과 index_offset 이 None인지 체크
+        if symbol_info.index_group is None or symbol_info.index_offset is None:
+            raise RuntimeError(f"[Servo] '{ServoSignal.SM_VAR_PATH_ARR}' 심볼 정보를 가져올 수 없습니다.")
+
+        base_group: int = symbol_info.index_group
+        base_offset: int = symbol_info.index_offset
+        
         current_offset  = (start_idx_plc - 1) * ctypes.sizeof(ST_PathData)
         plc.write(base_group, base_offset + current_offset, byte_data, pyads.PLCTYPE_BYTE * len(byte_data))
 
