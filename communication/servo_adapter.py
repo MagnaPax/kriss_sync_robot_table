@@ -529,36 +529,42 @@ class ServoAdapter:
         time.sleep(0.3)
         plc.write_by_name(ServoSignal.SM_SINGLE_START_VAR, False, pyads.PLCTYPE_BOOL)
 
+    def reset_hand_shake_signals(self):
+        plc = self._plc
+        plc.write_by_name(ServoSignal.SM_VAR_ALL_FIN, False, pyads.PLCTYPE_BOOL)
+        time.sleep(0.5)
+        plc.write_by_name(ServoSignal.SM_VAR_UPD_DONE, False, pyads.PLCTYPE_BOOL)
+        
 
     def SM_load_csv_data(self, sequences):
-        try:
-            data_list = []
-            scale_factor = 0.995
+        data_list = []
+        scale_factor = 0.995
+        index = 0
 
-            for sequence in sequences:
+        try:
+            for index, sequence in enumerate(sequences):
                 item = ST_PathData()
 
-                try:
-                    val_velocity    = float(sequence.get('tt_feed_rate'))
-                    val_position    = float(sequence.get('tt_deg'))
-                    val_velocity2   = float(sequence.get('rev'))
-                    val_velocity3   = float(sequence.get('rot'))
-                    
-                    if sequence == 0 and val_position == 0.0:
-                        continue
-
-                    item.fVelocity  = val_velocity * scale_factor
-                    item.fPosition  = val_position
-                    item.fVelocity2 = val_velocity2
-                    item.fVelocity3 = val_velocity3
-
-                    data_list.append(item)
-                except:
+                val_velocity    = float(sequence.get('tt_feed_rate'))
+                val_position    = float(sequence.get('tt_deg'))
+                val_velocity2   = float(sequence.get('rev'))
+                val_velocity3   = float(sequence.get('rot'))
+                
+                # 0번째 row는 턴테이블 움직임이 없으므로 건너뜀
+                if index == 0 and val_position == 0.0:
                     continue
+
+                item.fVelocity  = val_velocity * scale_factor
+                item.fPosition  = val_position
+                item.fVelocity2 = val_velocity2
+                item.fVelocity3 = val_velocity3
+
+                data_list.append(item)
+
             return data_list
+
         except Exception as e:
-            print(f"CSV Load Error: {e}")
-            return []
+            raise RuntimeError(f"모터 시퀀스 데이터 변환 실패 (행 번호: {index}): {e}")
 
     def SM_send_buffer_chunk(self, start_idx_plc, py_data_chunk):
         """
@@ -578,9 +584,15 @@ class ServoAdapter:
             buffer_array[i].fVelocity3  = py_data_chunk[i].fVelocity3            
 
         byte_data       = bytes(buffer_array)
-        symbol_info     = plc.get_symbol(ServoSignal.SM_VAR_PATH_ARR)
-        base_group      = symbol_info.index_group
-        base_offset     = symbol_info.index_offset
+        symbol_info = plc.get_symbol(ServoSignal.SM_VAR_PATH_ARR)
+        
+        # 타입 안전성 확보: index_group 과 index_offset 이 None인지 체크
+        if symbol_info.index_group is None or symbol_info.index_offset is None:
+            raise RuntimeError(f"[Servo] '{ServoSignal.SM_VAR_PATH_ARR}' 심볼 정보를 가져올 수 없습니다.")
+
+        base_group: int = symbol_info.index_group
+        base_offset: int = symbol_info.index_offset
+        
         current_offset  = (start_idx_plc - 1) * ctypes.sizeof(ST_PathData)
         plc.write(base_group, base_offset + current_offset, byte_data, pyads.PLCTYPE_BYTE * len(byte_data))
 
@@ -602,9 +614,9 @@ class ServoAdapter:
                     if not plc.read_by_name(ServoSignal.SM_VAR_ALL_FIN, pyads.PLCTYPE_BOOL):
                         logger.info("[Servo] 모든 데이터 전송 완료. 종료 신호 전송.")
                         plc.write_by_name(ServoSignal.SM_VAR_ALL_FIN, True, pyads.PLCTYPE_BOOL)
-                except: pass
+                except Exception as e:
+                    raise Exception(f"서보 데이터 전송 실패. 종료 신호 확인 실패 : {e}")
                 time.sleep(1)
-                continue
             
             try:
                 # [하단 버퍼 업데이트 요청]
@@ -640,4 +652,4 @@ class ServoAdapter:
                 time.sleep(0.005)
 
             except Exception as e:
-                logger.error(f"[Servo] 버퍼 업데이트 중 에러: {e}")
+                raise Exception(f"[Servo] 버퍼 업데이트 중 에러: {e}")

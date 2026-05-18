@@ -57,13 +57,20 @@ class TaskManagerWidget(BaseWidget):
             MainViewModel 이 TaskManagerViewModel 소유
             RightPanel 에서 TaskManagerWidget 에게 주입
         """
+        # 기존 뷰모델 연결 안전하게 해제
+        if self.vm and self.btn_load and self.btn_start and self.btn_stop:
+            try:
+                self.vm.busy_state_changed.disconnect(self.update_data)
+                self.vm.sequence_execution_active.disconnect(self._update_running_state)
+            except (TypeError, RuntimeError):
+                # 이미 끊겨있거나 객체가 파괴된 경우 무시
+                pass
+        
+        # 새로운 뷰모델 주입
         self.vm = view_model
 
-        # 로봇과 턴테이블의 바쁨 상태 연결
-        self.vm.busy_state_changed.connect(self.update_data)
-        
-        # 시퀀스가 실행되고 있는지 아닌지 상태 변경 연결
-        self.vm.sequence_execution_active.connect(self._update_running_state)
+        # 데이터 바인딩 실행
+        self._bind_vm_signals()
 
         # 런타임 시간 업데이트 연결
         # 뷰모델이 "00:00:01" 보내면 -> 라벨 setText 실행
@@ -172,6 +179,16 @@ class TaskManagerWidget(BaseWidget):
         if self.btn_load: self.btn_load.clicked.connect(self._on_load_clicked)      # LOAD 연결
         if self.btn_start: self.btn_start.clicked.connect(self._on_start_clicked)   # START 연결
         if self.btn_stop: self.btn_stop.clicked.connect(self._on_stop_clicked)      # STOP 연결
+
+    def _bind_vm_signals(self):
+        """ViewModel로부터 전달되는 데이터 시그널 연결 (External Data Binding)"""
+        if not self.vm or not self.btn_load or not self.btn_start or not self.btn_stop:
+            return
+
+        # 로봇과 턴테이블의 바쁨 상태 연결
+        self.vm.busy_state_changed.connect(self.update_data)
+        # 시퀀스가 실행되고 있는지 아닌지 상태 변경 연결
+        self.vm.sequence_execution_active.connect(self._update_running_state)
 
 
     # ===============================================
@@ -321,53 +338,3 @@ class TaskManagerWidget(BaseWidget):
         EVENT_BUS.log.message.emit(f"{self.log_prefix} START 버튼 클릭됨 - 작업 시작 요청", "INFO")
 
         self.vm.start_sequence()
-
-
-
-
-
-
-
-# ==========================================================
-# Smoke Test
-"""
-python -m ui.widgets.task_manager_widget
-"""
-# ==========================================================
-if __name__ == "__main__":
-    import sys
-    from PyQt6.QtWidgets import QApplication
-
-    from config.paths import STYLESHEET_PATH
-    from styles.style_manager import load_and_apply_stylesheet
-    from core.log_listener import LogListener
-
-        # [중요] DLL 로드
-    from utils.dll_loader import load_pyads_dll
-    try:
-        load_pyads_dll()
-        print("✅ DLL 로드 완료")
-    except Exception as e:
-        print(f"⚠️ DLL 로드 실패: {e}")
-
-    from view_models.task_manager_viewmodel import TaskManagerViewModel
-    from services.sequence_service import SequenceService
-
-
-    app = QApplication(sys.argv)
-
-    listener = LogListener()
-
-    service = SequenceService()
-    vm = TaskManagerViewModel(service) # type: ignore
-
-
-    # 스타일시트 파일 로드 및 적용
-    load_and_apply_stylesheet(app, STYLESHEET_PATH)
-
-    # 윈도우 생성 및 테스트
-    window = TaskManagerWidget(vm)
-    window.resize(450, 200) # 요청하신 비율을 확인하기 적당한 크기
-    window.show()
-
-    sys.exit(app.exec())

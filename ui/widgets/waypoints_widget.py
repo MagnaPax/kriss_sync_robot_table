@@ -111,10 +111,21 @@ class WaypointsWidget(BaseWidget):
 
     def set_view_model(self, view_model: "WaypointsViewModel"):
         """외부에서 뷰모델을 주입"""
+        if self.vm:
+            try:
+                # 연결된 시그널 정리 (재연결 시 중복 호출 방지)
+                self.vm.waypoints_data_changed.disconnect(self.update_data)
+                self.vm.clear_waypoints.disconnect(self.clear_widget)
+                self.vm.progress_changed.disconnect(self._on_progress_updated)
+            except (TypeError, RuntimeError):
+                # 이미 끊겨있거나 객체가 파괴된 경우 무시
+                pass
+        
+        # 새로운 뷰모델 주입
         self.vm = view_model
         
         # 이벤트 연결
-        self._bind_events()
+        self._bind_vm_signals()
 
     def _init_ui(self):
         """부모 클래스의 메서드(BaseWidget._init_ui) 오버라이드"""
@@ -185,8 +196,14 @@ class WaypointsWidget(BaseWidget):
             selection_model.selectionChanged.connect(self._on_row_selected)
 
     def _bind_events(self):
-        if not self.vm: return
+        """위젯 내부 UI 구성요소의 이벤트 연결 (Internal Event Binding)"""
+        # 현재 위젯 자체에서 처리해야 할 이벤트 연결
+        pass
 
+    def _bind_vm_signals(self):
+        """ViewModel 시그널 연결"""
+        if not self.vm: return
+        
         # VM의 데이터 갱신 시그널 구독
         self.vm.waypoints_data_changed.connect(self.safe_update_data)
         

@@ -46,7 +46,7 @@ class ServoControllerWidget(BaseWidget):
         self.btn_home = None
         self.btn_reset = None
 
-        # BaseWidget의 __init__()은 내부적으로 _init_ui()를 호출함
+        # BaseWidget의 __init__()은 내부적으로 _init_ui()를 호출함 → 실제 UI 생성
         super().__init__(parent)
         
         # 이벤트 바인딩 (UI 생성 후)
@@ -54,13 +54,23 @@ class ServoControllerWidget(BaseWidget):
 
     def set_view_model(self, view_model: "ServoControlViewModel"):
         """외부에서 뷰모델을 주입하는 함수"""
+        
+        # 기존 뷰모델 연결 안전하게 해제
+        if self.vm and self.btn_start and self.btn_tt_start and self.btn_stop and self.btn_home and self.btn_reset:
+            try:
+                self.vm.busy_state_changed.disconnect(self.safe_update_data)
+                self.vm.servo_inputs_clear.disconnect(self.clear_widget)
+                self.vm.servo_axis_motion_changed.disconnect(self.safe_update_data)
+                self.vm.disable_buttons.disconnect(self._on_disable_buttons)
+            except (TypeError, RuntimeError):
+                # 이미 끊겨있거나 객체가 파괴된 경우 무시
+                pass
+
+        # 새로운 뷰모델 주입
         self.vm = view_model
 
-        # VM의 로컬 시그널 연결
-        self.vm.busy_state_changed.connect(self.safe_update_data)
-        self.vm.servo_inputs_clear.connect(self.clear_widget)
-        self.vm.servo_axis_motion_changed.connect(self.safe_update_data)
-        self.vm.disable_buttons.connect(self._on_disable_buttons) # {tag: val} 딕셔너리로 데이터 전달
+        # 데이터 바인딩 실행
+        self._bind_vm_signals()
 
     def _bind_events(self):
         """UI 이벤트 바인딩"""
@@ -73,6 +83,16 @@ class ServoControllerWidget(BaseWidget):
 
         if btn := self.btn_home:  btn.clicked.connect(self._on_home_clicked)
         if btn := self.btn_reset: btn.clicked.connect(self._on_reset_clicked)
+
+    def _bind_vm_signals(self):
+        """ViewModel로부터 전달되는 데이터 시그널 연결 (External Data Binding)"""
+        if not self.vm or not self.btn_start or not self.btn_tt_start or not self.btn_stop or not self.btn_home or not self.btn_reset:
+            return
+
+        self.vm.busy_state_changed.connect(self.safe_update_data)
+        self.vm.servo_inputs_clear.connect(self.clear_widget)
+        self.vm.servo_axis_motion_changed.connect(self.safe_update_data)
+        self.vm.disable_buttons.connect(self._on_disable_buttons) # {tag: val} 딕셔너리로 데이터 전달
 
     @pyqtSlot(str, bool)
     def _on_disable_buttons(self, tag: str, val: bool):

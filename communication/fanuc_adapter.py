@@ -87,7 +87,6 @@ class FanucAdapter:
         plc.write_by_name(FanucSignal.FAULT_RESET.path, True, pyads.PLCTYPE_BOOL)
         time.sleep(0.3)
         plc.write_by_name(FanucSignal.FAULT_RESET.path, False, pyads.PLCTYPE_BOOL)
-        
 
     def set_emergency_stop(self):
         """[비상 정지]"""
@@ -98,7 +97,7 @@ class FanucAdapter:
         """로봇 시작 신호 전송"""
         plc = self._plc
         plc.write_by_name(FanucSignal.HOLD.path, True, pyads.PLCTYPE_BOOL)
-        plc.write_by_name(FanucSignal.START.path, True, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(FanucSignal.RESUME.path, True, pyads.PLCTYPE_BOOL)
 
     def stop_fanuc_normally(self):
         """로봇 정지 신호 전송"""
@@ -206,50 +205,6 @@ class FanucAdapter:
     # ==================
     #    메신저 이용        
     # ==================
-    def prepare_chunk_buffers(self, total_data: list[dict[str, float]], current_idx: int, buf_size: int) -> list[list[float]]:
-        """[데이터 분할] 전체 데이터에서 150개씩 잘라서 PLC 전송용 버퍼(3개)로 나눈다."""
-
-        chunk = total_data[current_idx : current_idx + buf_size]
-
-        serialized = []
-        for item in chunk:
-            serialized.extend([item['dx'], item['dz'], item['fd']])
-
-        needed_len = buf_size * 3
-        if len(serialized) < needed_len:
-            serialized.extend([0.0] * (needed_len - len(serialized))) 
-
-        # 450개를 150개씩(BUFFER_SIZE) 3등분
-        return [
-            serialized[0:FanucSignal.BUFFER_SIZE],
-            serialized[FanucSignal.BUFFER_SIZE:FanucSignal.BUFFER_SIZE*2],
-            serialized[FanucSignal.BUFFER_SIZE*2:FanucSignal.BUFFER_SIZE*3]
-        ]
-
-    def send_to_plc_info(self, group_num: int, buffers:list[list[float]]):
-        plc = self._plc
-
-        total_valid_items = 0
-        for buf in buffers:
-            total_valid_items += (len(buf) - buf.count(0.0))
-        data_rows = total_valid_items // 3
-
-        counter_idx = 0x394 if group_num == 1 else 0x395    # Data Counter를 보내기 위한 Attribute(0x394 = 916(R[916]에 저장) / 0x395 = 917(R[917]에 저장))
-        
-        # 데이터 정보(개수) 전송 및 Send 실행
-        plc.write_list_by_name({
-            FanucSignal.SERVICE_CODE.path     : 0x10,
-            FanucSignal.CLASS.path            : 0x6B,
-            FanucSignal.INSTANCE.path         : 0x01,
-            FanucSignal.ATTRIBUTE_SINGLE.path : counter_idx,  # Attribute (e.g., 993, 983)
-            FanucSignal.NUMBER_OF_DATA.path   : data_rows,    # Data 정보(개수)
-            FanucSignal.BUFFER_ID.path        : 99,
-        })
-
-        plc.write_by_name(FanucSignal.EXECUTE.path, True, pyads.PLCTYPE_BOOL)
-        time.sleep(0.3)
-        plc.write_by_name(FanucSignal.EXECUTE.path, False, pyads.PLCTYPE_BOOL)
-
     def send_target_data_to_plc_buffer(self, targets, BUFFER_TYPE: str):
         plc = self._plc
 
@@ -326,15 +281,17 @@ class FanucAdapter:
             # 전달받은 함수(check_interrupt)를 실행해서 True(중단 요청 됨)가 나오면 루프 탈출
             try:
                 if not plc.read_by_name(var_name, pyads.PLCTYPE_BOOL): break
-            except: pass
+            except Exception as e:
+                raise Exception(f"[Error] 로봇 신호 확인 실패: {e}")
             time.sleep(0.1)
 
         while not check_interrupt():
             try:
                 if plc.read_by_name(var_name, pyads.PLCTYPE_BOOL):
-                    print(" >> [Robot] DO46 신호 감지. 버퍼 전송 시작")
+                    # DO46 신호 감지. 버퍼 전송 시작
                     return
-            except: pass
+            except Exception as e:
+                raise Exception(f"[Error] 로봇 신호 확인 실패: {e}")
             time.sleep(0.05)
 
     def FR_send_to_plc_first(self, buffers):
@@ -365,8 +322,7 @@ class FanucAdapter:
                 f'{prefix}3': buffers[2]
             })
         except Exception as e:
-            print(f"[Error] 로봇 Group {group_num} 배열 전송 실패: {e}")
-            return
+            raise Exception(f"[Error] 로봇 Group {group_num} 배열 전송 실패: {e}")
 
         start_idx = 0 if group_num == 1 else 3
         nInstance = (buf_size << 8) | 0x01

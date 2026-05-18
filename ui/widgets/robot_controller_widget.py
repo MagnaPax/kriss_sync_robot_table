@@ -68,25 +68,35 @@ class RobotControllerWidget(BaseWidget):
 
     def set_view_model(self, view_model: "RobotControllerViewModel"):
         """외부에서 뷰모델을 꽂아주는 함수(Setter)"""
-        self.vm = view_model
-        if self.vm is None: return # type: ignore
 
-        # VM의 로컬 시그널 연결
-        self.vm.robot_busy_status_changed.connect(self.safe_update_data)
-        self.vm.macros_loaded.connect(self._on_macro_data_loaded)
-        self.vm.robot_poses_clear.connect(self.clear_widget)
-        self.vm.robot_poses_changed.connect(self.safe_update_data)
-        self.vm.sequence_processing_changed.connect(self._on_sequence_processing_changed) # {tag: val} 딕셔너리로 데이터 전달
+        # 방어 코드: 이전에 연결된 시그널이 있다면 끊어줌
+        if self.vm:
+            try:
+                self.vm.robot_busy_status_changed.disconnect(self.safe_update_data)
+                self.vm.macros_loaded.disconnect(self._on_macro_data_loaded)
+                self.vm.robot_poses_clear.disconnect(self.clear_widget)
+                self.vm.robot_poses_changed.disconnect(self.safe_update_data)
+                self.vm.sequence_processing_changed.disconnect(self._on_sequence_processing_changed)
+            except (TypeError, RuntimeError):
+                # 이미 끊겨있거나 객체가 없으면 무시
+                pass
         
+        # 새로운 뷰모델 주입
+        self.vm = view_model
+
         # 매크로 데이터에서 버튼 제목을 읽어 와야 되기 때문에 UI가 생성된 후에 바로 호출
         self.vm.load_macro_data()
 
+        # 데이터 바인딩
+        self._bind_vm_signals()
+
     def _bind_events(self):
         """
-        전선 연결하기 (아직 불 들어온것 아님)
+        위젯 내부 UI 구성요소의 이벤트 연결 (Internal Event Binding)
+            - 전선만 연결해 놓은 것 (아직 불 들어온 것 아님)
             - 누가 누구랑 연결될 지 미리 정해주기
             - 앱이 시작될 때 딱 1번만 호출
-        시그널-슬롯(_on으로 시작하는 메서드) connect를 모아놓음 - 버튼 눌리면 어떤 일을 할 지 약속
+            - 시그널-슬롯(_on으로 시작하는 메서드) connect를 모아놓음 - 버튼 눌리면 어떤 일을 할 지 약속
         """
 
         # 1. Edit Macro 버튼 연결
@@ -119,6 +129,19 @@ class RobotControllerWidget(BaseWidget):
         if feed_widget and isinstance(feed_widget, QDoubleSpinBox):
             # valueChanged는 값이 변경될 때(버튼 클릭 포함) 발생한다.
             feed_widget.valueChanged.connect(self._on_feed_rate_changed)
+
+    def _bind_vm_signals(self):
+        """ViewModel로부터 전달되는 데이터 시그널 연결 (External Data Binding)"""
+        if not self.vm: return
+
+        self.vm.robot_busy_status_changed.connect(self.safe_update_data)
+        self.vm.macros_loaded.connect(self._on_macro_data_loaded)
+        self.vm.robot_poses_clear.connect(self.clear_widget)
+        self.vm.robot_poses_changed.connect(self.safe_update_data)
+        self.vm.sequence_processing_changed.connect(self._on_sequence_processing_changed) # {tag: val} 딕셔너리로 데이터 전달
+        
+        # 매크로 데이터에서 버튼 제목을 읽어 와야 되기 때문에 UI가 생성된 후에 바로 호출
+        self.vm.load_macro_data()
 
 
     # ========================================
